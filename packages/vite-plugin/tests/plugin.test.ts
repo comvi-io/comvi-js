@@ -1,511 +1,209 @@
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import fs from "node:fs/promises";
+/**
+ * The plugin over a real Vite (`build()` and a dev server in middleware mode) and real
+ * files: it writes what the typegen Node API writes, generates once per build and fails it
+ * on an error, and in dev follows the catalogs until the server closes.
+ */
+import { afterEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { Plugin, ResolvedConfig, ViteDevServer } from "vite";
-import { comviTypes } from "../src";
+import { build, createServer, type ViteDevServer } from "vite";
+import { generate, serializeWireSchema, LocalSource } from "@comvi/typegen";
+import { comviTypes, type ComviTypesOptions } from "../src";
 
-const OUTPUT = "./src/types/i18n.d.ts";
-
-/** Captured before any spy is installed, so a tracker never wraps a previous tracker. */
-const realFs = {
-  readdir: fs.readdir,
-  readFile: fs.readFile,
-  mkdir: fs.mkdir,
-  writeFile: fs.writeFile,
-  rename: fs.rename,
-  rm: fs.rm,
-} as const;
-
-type TrackedCall = keyof typeof realFs;
-
-interface FsWork {
-  readdir: MockInstance;
-  writeFile: MockInstance;
-  /** Arm before acting; resolves when the next output has landed (its temp file renamed over it). */
-  nextWrite(): Promise<void>;
-  /** Resolves once every fs operation started so far has settled. */
-  settle(): Promise<void>;
-}
-
-/**
- * The watcher path calls `void scheduleGenerate(...)`, so a regeneration is
- * fire-and-forget and a test has no promise to await. Wrapping the fs calls it
- * makes gives one: without it, `afterEach` can rm a temp root mid-write
- * (observed as ENOTEMPTY) and assertions can run before the write lands.
- */
-function trackFsWork(): FsWork {
-  const pending = new Set<Promise<unknown>>();
-  let writeWaiters: Array<(write: Promise<unknown>) => void> = [];
-
-  const spies = {} as Record<TrackedCall, MockInstance>;
-  for (const name of Object.keys(realFs) as TrackedCall[]) {
-    const real = realFs[name] as (...args: unknown[]) => Promise<unknown>;
-    spies[name] = vi.spyOn(fs, name).mockImplementation(((...args: unknown[]) => {
-      const promise = real(...args);
-      pending.add(promise);
-      void promise.catch(() => undefined).finally(() => pending.delete(promise));
-      if (name === "rename" && writeWaiters.length > 0) {
-        const waiters = writeWaiters;
-        writeWaiters = [];
-        for (const resolve of waiters) resolve(promise);
-      }
-      return promise;
-    }) as never);
-  }
-
-  return {
-    readdir: spies.readdir,
-    writeFile: spies.writeFile,
-    async nextWrite() {
-      const write = await new Promise<Promise<unknown>>((resolve) => writeWaiters.push(resolve));
-      await write;
-    },
-    async settle() {
-      // Draining `pending` once is not enough: the continuation that chains the
-      // next fs call runs on a later tick, so wait a full macrotask turn and
-      // re-check before declaring the regeneration finished.
-      for (;;) {
-        while (pending.size > 0) {
-          await Promise.allSettled([...pending]);
-        }
-        await new Promise((resolve) => setImmediate(resolve));
-        if (pending.size === 0) return;
-      }
-    },
-  };
-}
-
-const tempDirs: string[] = [];
-let fsWork: FsWork;
-
-beforeEach(() => {
-  fsWork = trackFsWork();
-});
-
+const roots: string[] = [];
+const servers: ViteDevServer[] = [];
 afterEach(async () => {
-  // drain any watcher-triggered regeneration before removing the roots it writes into
-  await fsWork.settle();
-  await Promise.all(tempDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })));
+  for (const server of servers.splice(0)) await server.close();
+  for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 
-/**
- * A project root with `locales/en.json` holding `content`, and a manifest.
- *
- * The manifest is what decides which module the declarations augment, so every
- * project here declares one. `declares: {}` builds the project that declares no
- * Comvi package, which the plugin refuses to generate for.
- */
-async function makeProject(
-  content: string,
-  options: { declares?: Record<string, string> } = {},
-): Promise<string> {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "comvi-vite-plugin-"));
-  tempDirs.push(root);
-  const localesDir = path.join(root, "locales");
-  await fs.mkdir(localesDir, { recursive: true });
-  await fs.writeFile(path.join(localesDir, "en.json"), content, "utf-8");
+const CATALOGS: Record<string, unknown> = {
+  "en.json": { hello: "Hi {name}", terms: "Read the <link>terms</link>", title: "Title" },
+  "de.json": { hello: "Hallo {name}", terms: "Lies die <link>AGB</link>", title: "Titel" },
+  "shop/en.json": { "cart.items": "{count, plural, one {# item} other {# items}}" },
+};
 
-  await fs.writeFile(
+/** A Vite app: package.json declaring @comvi/react, an entry, catalogs under src/locales. */
+function app(): string {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "comvi-vite-plugin-")));
+  roots.push(root);
+  fs.writeFileSync(
     path.join(root, "package.json"),
-    JSON.stringify({
-      name: "app",
-      dependencies: options.declares ?? { "@comvi/react": "^0.5.0" },
-    }),
-    "utf-8",
+    JSON.stringify({ name: "app", dependencies: { "@comvi/react": "^0.8.0" } }),
   );
-
+  fs.writeFileSync(path.join(root, "main.js"), "export const x = 1;\n");
+  for (const [rel, catalog] of Object.entries(CATALOGS)) write(root, rel, catalog);
   return root;
 }
 
-function resolvePlugin(plugin: Plugin, root: string, command: "build" | "serve"): void {
-  const config = { root, command } as Pick<ResolvedConfig, "root" | "command">;
-  (plugin.configResolved as (config: ResolvedConfig) => void)(config as ResolvedConfig);
+function write(root: string, rel: string, content: unknown): void {
+  const file = path.join(root, "src/locales", rel);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, typeof content === "string" ? content : JSON.stringify(content));
 }
 
-async function buildStart(plugin: Plugin): Promise<void> {
-  await (plugin.buildStart as () => Promise<void>)();
+const OUT = "src/types/i18n.d.ts";
+const read = (root: string) => fs.readFileSync(path.join(root, OUT), "utf8");
+const PLUGIN: ComviTypesOptions = { from: "./src/locales", sourceLocale: "en" };
+
+async function viteBuild(root: string, options: ComviTypesOptions = PLUGIN): Promise<void> {
+  await build({
+    root,
+    configFile: false,
+    logLevel: "silent",
+    plugins: [comviTypes(options)],
+    build: { write: false, lib: { entry: "main.js", formats: ["es"], fileName: "main" } },
+  });
 }
 
-function outputPath(root: string): string {
-  return path.resolve(root, OUTPUT);
+async function devServer(root: string, options: ComviTypesOptions = PLUGIN) {
+  const server = await createServer({
+    root,
+    configFile: false,
+    logLevel: "silent",
+    plugins: [comviTypes(options)],
+    server: { middlewareMode: true, ws: false, watch: null },
+  });
+  servers.push(server);
+  return server;
 }
 
-describe("comviTypes plugin", () => {
-  it("identifies itself to vite as comvi-types, ordered before other plugins", () => {
-    const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
+describe("vite build", () => {
+  it("writes exactly the bytes generate() writes for the same catalogs", async () => {
+    const root = app();
+    await viteBuild(root);
 
-    expect(plugin.name).toBe("comvi-types");
-    expect(plugin.enforce).toBe("pre");
+    const api = await generate({
+      from: "src/locales",
+      out: "api.d.ts",
+      root,
+      sourceLocale: "en",
+      onMessage: () => {},
+    });
+    expect(read(root)).toBe(api.content);
+    expect(api.content).toContain("declare module '@comvi/react'");
+    expect(api.content).toContain('"terms": { "link": Tag };');
   });
 
-  describe("buildStart", () => {
-    it("writes to src/types/i18n.d.ts when no output path is given", async () => {
-      const root = await makeProject('{ "greeting": "Hello" }');
-      const plugin = comviTypes({ translations: "./locales" });
-      resolvePlugin(plugin, root, "build");
+  it("reads a wire schema file and writes the same bytes as from the directory", async () => {
+    const root = app();
+    const source = new LocalSource({ dir: path.join(root, "src/locales"), sourceLocale: "en" });
+    source.refresh();
+    fs.mkdirSync(path.join(root, ".comvi"));
+    fs.writeFileSync(
+      path.join(root, ".comvi/schema.json"),
+      serializeWireSchema(source.schema().schema),
+    );
+    await viteBuild(root, { from: ".comvi/schema.json", out: "from-schema.d.ts" });
+    await viteBuild(root);
 
-      await buildStart(plugin);
-
-      const written = await fs.readFile(path.resolve(root, "src/types/i18n.d.ts"), "utf-8");
-      expect(written).toContain('"greeting": never;');
-    });
-
-    it("writes the declaration file, creating the output directory", async () => {
-      const root = await makeProject('{ "greeting": "Hello {name}" }');
-      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
-      resolvePlugin(plugin, root, "build");
-
-      await buildStart(plugin);
-
-      const written = await fs.readFile(outputPath(root), "utf-8");
-      expect(written).toContain("declare module '@comvi/react' {");
-      expect(written).toContain('"greeting": { "name": string | number };');
-    });
-
-    it("passes defaultNs and strictParams through to the emitted declarations", async () => {
-      const root = await makeProject('{ "greeting": "Hello {name}" }');
-      await fs.mkdir(path.join(root, "locales", "admin"), { recursive: true });
-      await fs.writeFile(
-        path.join(root, "locales", "admin", "en.json"),
-        '{ "dashboard": "Admin" }',
-        "utf-8",
-      );
-      const plugin = comviTypes({
-        translations: "./locales",
-        output: OUTPUT,
-        defaultNs: "common",
-        strictParams: false,
-      });
-      resolvePlugin(plugin, root, "build");
-
-      await buildStart(plugin);
-
-      const written = await fs.readFile(outputPath(root), "utf-8");
-      // root en.json lands in defaultNs "common" and loses the prefix; admin keeps it
-      expect(written).toContain('"greeting": { "name"?: string | number };');
-      expect(written).toContain('"admin:dashboard": never;');
-    });
-
-    it("fileTemplate without {namespace} → keys are emitted without a prefix", async () => {
-      const root = await makeProject('{ "hello": "Hello" }');
-      const plugin = comviTypes({
-        translations: "./locales",
-        output: OUTPUT,
-        fileTemplate: "{languageTag}.json",
-      });
-      resolvePlugin(plugin, root, "build");
-
-      await buildStart(plugin);
-
-      const written = await fs.readFile(outputPath(root), "utf-8");
-      expect(written).toContain('"hello": never;');
-      expect(written).not.toContain("undefined:");
-    });
-
-    it("augments the Comvi package the project declares", async () => {
-      // The documented install is one package, and core arrives through it as a
-      // transitive dependency a strict layout will not let the app name. What
-      // the app declares is the one specifier it is certain to resolve.
-      const root = await makeProject('{ "greeting": "Hello" }', {
-        declares: { "@comvi/svelte": "^0.5.0" },
-      });
-      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
-      resolvePlugin(plugin, root, "build");
-
-      await buildStart(plugin);
-
-      const written = await fs.readFile(outputPath(root), "utf-8");
-      expect(written).toContain("declare module '@comvi/svelte' {");
-      expect(written).toContain("import '@comvi/svelte';");
-    });
-
-    it("augments the module named by the augment option instead", async () => {
-      const root = await makeProject('{ "greeting": "Hello" }');
-      const plugin = comviTypes({
-        translations: "./locales",
-        output: OUTPUT,
-        augment: "@acme/i18n",
-      });
-      resolvePlugin(plugin, root, "build");
-
-      await buildStart(plugin);
-
-      expect(await fs.readFile(outputPath(root), "utf-8")).toContain(
-        "declare module '@acme/i18n' {",
-      );
-    });
-
-    it("refuses to write when the project declares no Comvi package", async () => {
-      // Nothing to augment means an inert file: TypeScript reports TS2882 on
-      // the generated import, `skipLibCheck: true` hides even that, and every
-      // unknown key type-checks — types that look like they work and do not.
-      const root = await makeProject('{ "greeting": "Hello" }', { declares: {} });
-      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
-      resolvePlugin(plugin, root, "build");
-
-      await expect(buildStart(plugin)).rejects.toThrow("@comvi/react");
-      await expect(fs.readFile(outputPath(root), "utf-8")).rejects.toThrow(/ENOENT/);
-    });
-
-    it("warns about a key whose ICU argument core does not implement", async () => {
-      // The key is still generated — it exists — but with no parameters, since
-      // `@comvi/core` refuses the whole message at ingestion. Silence here
-      // would ship a key that looks typed and throws on first render.
-      const root = await makeProject('{ "price": "{amount, number}" }');
-      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
-      resolvePlugin(plugin, root, "build");
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-
-      try {
-        await buildStart(plugin);
-
-        expect(warn.mock.calls.map(([message]) => String(message)).join("\n")).toContain(
-          "uses the ICU `number` argument type, which @comvi/core does not implement",
-        );
-      } finally {
-        warn.mockRestore();
-      }
-
-      const written = await fs.readFile(outputPath(root), "utf-8");
-      expect(written).toContain('"price": never;');
-    });
-
-    it("skips the write when the generated content is unchanged", async () => {
-      const root = await makeProject('{ "greeting": "Hello" }');
-      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
-      resolvePlugin(plugin, root, "build");
-
-      await buildStart(plugin);
-      fsWork.writeFile.mockClear();
-      await buildStart(plugin);
-
-      expect(fsWork.writeFile).not.toHaveBeenCalled();
-    });
-
-    it("rewrites the file after the translations change", async () => {
-      const root = await makeProject('{ "greeting": "Hello" }');
-      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
-      resolvePlugin(plugin, root, "build");
-
-      await buildStart(plugin);
-      await fs.writeFile(
-        path.join(root, "locales", "en.json"),
-        '{ "greeting": "Hello", "farewell": "Bye" }',
-        "utf-8",
-      );
-      await buildStart(plugin);
-
-      const written = await fs.readFile(outputPath(root), "utf-8");
-      expect(written).toContain('"farewell": never;');
-    });
-
-    /**
-     * A failed write must not be remembered as written: the content used to be
-     * cached before the write, so an identical regeneration after a transient
-     * failure (EACCES, a full disk) returned early and never wrote the file.
-     */
-    it("writes an unchanged generation after the previous write failed", async () => {
-      const root = await makeProject('{ "greeting": "Hello" }');
-      vi.spyOn(console, "error").mockImplementation(() => {});
-      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
-      resolvePlugin(plugin, root, "serve");
-      fsWork.writeFile.mockImplementationOnce(async () => {
-        throw Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" });
-      });
-
-      await buildStart(plugin);
-      await expect(fs.access(outputPath(root))).rejects.toThrow(/ENOENT/);
-
-      await buildStart(plugin);
-      expect(await fs.readFile(outputPath(root), "utf-8")).toContain('"greeting": never;');
-    });
-
-    it("keeps the existing declarations intact when a write fails partway", async () => {
-      const root = await makeProject('{ "greeting": "Hello" }');
-      vi.spyOn(console, "error").mockImplementation(() => {});
-      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
-      resolvePlugin(plugin, root, "serve");
-      await buildStart(plugin);
-      const before = await fs.readFile(outputPath(root), "utf-8");
-
-      await fs.writeFile(
-        path.join(root, "locales", "en.json"),
-        '{ "greeting": "Hello", "farewell": "Bye" }',
-        "utf-8",
-      );
-      // The disk fills mid-write: a prefix lands, then the write fails.
-      fsWork.writeFile.mockImplementationOnce(async (file, data, options) => {
-        await realFs.writeFile(file as string, String(data).slice(0, 10), options as never);
-        throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" });
-      });
-      await buildStart(plugin);
-
-      expect(await fs.readFile(outputPath(root), "utf-8")).toBe(before);
-      expect(await fs.readdir(path.dirname(outputPath(root)))).toEqual(["i18n.d.ts"]);
-    });
-
-    it("refuses an augment option that would inject code, and writes nothing", async () => {
-      const root = await makeProject('{ "greeting": "Hello" }');
-      vi.spyOn(console, "error").mockImplementation(() => {});
-      const plugin = comviTypes({
-        translations: "./locales",
-        output: OUTPUT,
-        augment: "wrapper';\ndeclare global { var injected: true }\n//",
-      });
-      resolvePlugin(plugin, root, "build");
-
-      await expect(buildStart(plugin)).rejects.toThrow("`augment` must be a module specifier");
-      await expect(fs.access(outputPath(root))).rejects.toThrow(/ENOENT/);
-    });
-
-    it("emits a scoped private augment target verbatim", async () => {
-      const root = await makeProject('{ "greeting": "Hello" }');
-      const plugin = comviTypes({
-        translations: "./locales",
-        output: OUTPUT,
-        augment: "@acme/i18n",
-      });
-      resolvePlugin(plugin, root, "build");
-
-      await buildStart(plugin);
-
-      expect(await fs.readFile(outputPath(root), "utf-8")).toContain(
-        "declare module '@acme/i18n' {",
-      );
-    });
-
-    it("should fail vite build when type generation fails", async () => {
-      const root = await makeProject("{ invalid json");
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
-      resolvePlugin(plugin, root, "build");
-
-      await expect(buildStart(plugin)).rejects.toThrow(SyntaxError);
-      expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining("[@comvi/vite-plugin] Failed to generate types:"),
-      );
-    });
-
-    it("logs but does not throw when type generation fails in dev mode", async () => {
-      const root = await makeProject("{ invalid json");
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
-      resolvePlugin(plugin, root, "serve");
-
-      await expect(buildStart(plugin)).resolves.toBeUndefined();
-      expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining("[@comvi/vite-plugin] Failed to generate types:"),
-      );
-      await expect(fs.access(outputPath(root))).rejects.toThrow(/ENOENT/);
-    });
+    expect(fs.readFileSync(path.join(root, "from-schema.d.ts"), "utf8")).toBe(read(root));
   });
 
-  describe("configureServer", () => {
-    function fakeServer(): {
-      server: ViteDevServer;
-      handlers: Map<string, (file: string) => void>;
-      added: string[];
-    } {
-      const handlers = new Map<string, (file: string) => void>();
-      const added: string[] = [];
-      const server = {
-        watcher: {
-          add: (dir: string) => added.push(dir),
-          on: (event: string, handler: (file: string) => void) => {
-            handlers.set(event, handler);
-          },
-        },
-      } as unknown as ViteDevServer;
-      return { server, handlers, added };
-    }
-
-    it("watches the translations directory for change, add and unlink", async () => {
-      const root = await makeProject('{ "greeting": "Hello" }');
-      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
-      resolvePlugin(plugin, root, "serve");
-      const { server, handlers, added } = fakeServer();
-
-      (plugin.configureServer as (server: ViteDevServer) => void)(server);
-
-      expect(added).toEqual([path.join(root, "locales")]);
-      expect([...handlers.keys()].sort()).toEqual(["add", "change", "unlink"]);
+  it("honours out, defaultParams and augment", async () => {
+    const root = app();
+    await viteBuild(root, {
+      ...PLUGIN,
+      out: "comvi.d.ts",
+      defaultParams: ["name"],
+      augment: "@acme/i18n",
     });
 
-    it("regenerates for a JSON file inside the translations directory", async () => {
-      const root = await makeProject('{ "greeting": "Hello" }');
-      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
-      resolvePlugin(plugin, root, "serve");
-      const { server, handlers } = fakeServer();
-      (plugin.configureServer as (server: ViteDevServer) => void)(server);
-      const written = fsWork.nextWrite();
+    const written = fs.readFileSync(path.join(root, "comvi.d.ts"), "utf8");
+    expect(written).toContain("declare module '@acme/i18n'");
+    expect(written).toContain('"hello": { "name"?: string | number };');
+  });
 
-      handlers.get("change")!(path.join(root, "locales", "en.json"));
-      await written;
+  it("fails the build on broken JSON, names the file, and keeps the old declaration", async () => {
+    const root = app();
+    await viteBuild(root);
+    const before = read(root);
+    write(root, "shop/en.json", '{ "cart.items": ');
 
-      expect(await fs.readFile(outputPath(root), "utf-8")).toContain('"greeting": never;');
-    });
+    await expect(viteBuild(root)).rejects.toThrow(
+      /\[@comvi\/vite-plugin\] Cannot generate src\/types\/i18n\.d\.ts: .*shop\/en\.json: invalid JSON/,
+    );
+    expect(read(root)).toBe(before);
+  });
 
-    it.each([
-      { shape: "a non-JSON file inside the directory", file: ["locales", "notes.md"] },
-      { shape: "a JSON file outside the directory", file: ["other", "en.json"] },
-      { shape: "the translations directory itself", file: ["locales"] },
-    ])("ignores $shape", async ({ file }) => {
-      const root = await makeProject('{ "greeting": "Hello" }');
-      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
-      resolvePlugin(plugin, root, "serve");
-      const { server, handlers } = fakeServer();
-      (plugin.configureServer as (server: ViteDevServer) => void)(server);
-      // extractSchema reads the directory synchronously before its first await,
-      // so a skipped regeneration is observable the moment the handler returns.
-      fsWork.readdir.mockClear();
+  it("does not rewrite an unchanged declaration (same inode, same mtime)", async () => {
+    const root = app();
+    await viteBuild(root);
+    const before = fs.statSync(path.join(root, OUT));
+    await viteBuild(root);
+    const after = fs.statSync(path.join(root, OUT));
+    expect([after.ino, after.mtimeMs]).toEqual([before.ino, before.mtimeMs]);
+  });
 
-      handlers.get("change")!(path.join(root, ...file));
+  it("refuses a missing `from` when the config is read, naming the option", () => {
+    expect(() => comviTypes({} as ComviTypesOptions)).toThrow(
+      "[@comvi/vite-plugin] `from` must name the catalogs directory",
+    );
+  });
+});
 
-      expect(fsWork.readdir).not.toHaveBeenCalled();
-    });
+// File-system events can lag under load: generous waits, no timing asserted.
+describe("vite dev", { timeout: 60_000 }, () => {
+  const until = (check: () => void) => vi.waitFor(check, { timeout: 15_000, interval: 25 });
 
-    it("ignores an event for the watched path itself when that path ends in .json", async () => {
-      const root = await makeProject('{ "greeting": "Hello" }');
-      // `translations` is documented as a directory; pointed at a file, the
-      // watched path IS the event's path and regenerating from it would fail.
-      const plugin = comviTypes({ translations: "./locales/en.json", output: OUTPUT });
-      resolvePlugin(plugin, root, "serve");
-      const { server, handlers } = fakeServer();
-      (plugin.configureServer as (server: ViteDevServer) => void)(server);
-      fsWork.readdir.mockClear();
+  it("generates on start, follows a new key, and stops when the server closes", async () => {
+    const root = app();
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const server = await devServer(root);
+    await until(() => expect(read(root)).toContain('"title": never;'));
 
-      handlers.get("change")!(path.join(root, "locales", "en.json"));
+    write(root, "en.json", { ...(CATALOGS["en.json"] as object), added: "{fresh}" });
+    await until(() => expect(read(root)).toContain('"added": { "fresh": string | number };'));
+    expect(info).toHaveBeenCalledWith(expect.stringMatching(/^\[@comvi\/vite-plugin\] wrote /));
 
-      expect(fsWork.readdir).not.toHaveBeenCalled();
-    });
+    await server.close();
+    servers.splice(servers.indexOf(server), 1);
+    write(root, "en.json", { ...(CATALOGS["en.json"] as object), late: "x" });
+    // Closed: nothing follows the catalogs any more. A second server shows the change is
+    // real (it writes it), so the absence above is the closed watcher, not a lost event.
+    await new Promise((r) => setTimeout(r, 400));
+    expect(read(root)).not.toContain('"late"');
+    await devServer(root);
+    await until(() => expect(read(root)).toContain('"late": never;'));
+  });
 
-    /**
-     * The watcher discards the promise (`void scheduleGenerate(…)`), so a
-     * regeneration that rethrows would leave an unhandled rejection behind
-     * rather than a caught error. That is what the listener below watches for.
-     */
-    it("reports a watcher-triggered failure without leaving a rejection behind", async () => {
-      const root = await makeProject("{ invalid json");
-      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      const unhandled: unknown[] = [];
-      const onUnhandled = (reason: unknown) => unhandled.push(reason);
-      process.on("unhandledRejection", onUnhandled);
-      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
-      resolvePlugin(plugin, root, "serve");
-      const { server, handlers } = fakeServer();
-      (plugin.configureServer as (server: ViteDevServer) => void)(server);
+  it("broken JSON in dev: one error, the file stays, the server keeps running", async () => {
+    const root = app();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    await devServer(root);
+    await until(() => expect(read(root)).toContain('"title": never;'));
+    const before = read(root);
 
-      handlers.get("change")!(path.join(root, "locales", "en.json"));
+    write(root, "de.json", "{ broken");
+    await until(() => expect(error).toHaveBeenCalledTimes(1));
+    expect(error.mock.calls[0][0]).toMatch(
+      /^\[@comvi\/vite-plugin\] .*de\.json: invalid JSON .*src\/types\/i18n\.d\.ts is kept as it was$/,
+    );
+    expect(read(root)).toBe(before);
 
-      await fsWork.settle();
-      await new Promise((resolve) => setImmediate(resolve));
-      process.off("unhandledRejection", onUnhandled);
-      expect(unhandled).toEqual([]);
-      expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining("[@comvi/vite-plugin] Failed to generate types:"),
-      );
-      await expect(fs.access(outputPath(root))).rejects.toThrow(/ENOENT/);
-    });
+    write(root, "de.json", { hello: "Hallo {name}", fixed: "x" });
+    await until(() => expect(read(root)).toContain('"fixed": never;'));
+  });
+
+  it("two dev servers of one app: one writes, the other waits", async () => {
+    const root = app();
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    await devServer(root);
+    await until(() => expect(read(root)).toContain('"title": never;'));
+    await devServer(root);
+    await until(() =>
+      expect(info).toHaveBeenCalledWith(
+        "[@comvi/vite-plugin] src/types/i18n.d.ts is already generated by another watcher; this one takes over when it stops",
+      ),
+    );
+
+    write(root, "en.json", { ...(CATALOGS["en.json"] as object), one: "x" });
+    await until(() => expect(read(root)).toContain('"one": never;'));
+    await new Promise((r) => setTimeout(r, 400));
+    const wrote = info.mock.calls.filter(([line]) => String(line).includes("] wrote "));
+    // The first generation and the change: two writes, by one server.
+    expect(wrote).toHaveLength(2);
   });
 });

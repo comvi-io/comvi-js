@@ -5,9 +5,12 @@ import path from "node:path";
 import {
   AUGMENTABLE_MODULES,
   chooseAugmentationTarget,
-  emitDeclarations,
+  emitCatalogs,
   resolveAugmentationTarget,
+  type WireSchema,
 } from "../src/index";
+
+const SCHEMA: WireSchema = { v: 2, sourceLocale: "en", namespaces: { default: { hello: {} } } };
 
 const tempDirs: string[] = [];
 
@@ -197,10 +200,7 @@ describe("resolveAugmentationTarget", () => {
 
 describe("the module the emitter augments", () => {
   it("imports, declares and names the requested module", () => {
-    const output = emitDeclarations(
-      { keys: { "default:hello": { params: [] } } },
-      { augment: "@comvi/nuxt" },
-    );
+    const output = emitCatalogs(SCHEMA, { augment: "@comvi/nuxt" });
 
     expect(output).toContain("import '@comvi/nuxt';");
     expect(output).toContain("declare module '@comvi/nuxt' {");
@@ -208,7 +208,7 @@ describe("the module the emitter augments", () => {
   });
 
   it("augments @comvi/core when the caller names no module", () => {
-    const output = emitDeclarations({ keys: { "default:hello": { params: [] } } });
+    const output = emitCatalogs(SCHEMA);
 
     expect(output).toContain("declare module '@comvi/core' {");
   });
@@ -251,15 +251,15 @@ describe("augment must be a plain module specifier", () => {
     );
   });
 
-  it.each(refused)("emitDeclarations refuses %s", (_label, value) => {
-    expect(() => emitDeclarations({ keys: {} }, { augment: value })).toThrow(
+  it.each(refused)("emitCatalogs refuses %s", (_label, value) => {
+    expect(() => emitCatalogs(SCHEMA, { augment: value })).toThrow(
       `\`augment\` must be a module specifier`,
     );
   });
 
   it.each(accepted)("accepts %s and emits it verbatim", (value) => {
     expect(resolveAugmentationTarget(appDir({}), value)).toBe(value);
-    const output = emitDeclarations({ keys: {} }, { augment: value });
+    const output = emitCatalogs(SCHEMA, { augment: value });
     expect(output).toContain(`import '${value}';`);
     expect(output).toContain(`declare module '${value}' {`);
   });

@@ -32,7 +32,7 @@ const PATHS = {
   projectLocales: "/v1/project/locales",
   namespaces: `/v1/projects/${PROJECT_ID}/namespaces`,
   translations: "/v1/translations",
-  schema: `/v1/projects/${PROJECT_ID}/schema`,
+  schema: `/v1/projects/${PROJECT_ID}/schema/v2`,
   commit: `/v1/projects/${PROJECT_ID}/import/commit`,
 } as const;
 
@@ -42,6 +42,7 @@ const BASE: Routes = {
     body: { sourceLocale: "en", locales: [{ code: "en" }, { code: "pt-BR" }] },
   },
   [PATHS.namespaces]: { body: [{ namespace: "common", isDefault: true }] },
+  [PATHS.schema]: { body: { v: 2, sourceLocale: "en", namespaces: {} } },
 };
 
 const COMMIT_OK = {
@@ -393,7 +394,7 @@ describe("push", () => {
 });
 
 describe("typegen", () => {
-  const SCHEMA_OK: Routes = { ...BASE, [PATHS.schema]: { body: { keys: {} } } };
+  const SCHEMA_OK: Routes = BASE;
 
   it.each([
     ["generate", []],
@@ -420,10 +421,15 @@ describe("typegen", () => {
   });
 
   it("generate exits 4 for a schema the emitter refuses", async () => {
+    // `locale` is a per-call option of t(): a message param of that name never gets a value.
     http = stubFetch({
       ...BASE,
       [PATHS.schema]: {
-        body: { keys: { "common:a": { params: [{ name: "n", type: "date" }] } } },
+        body: {
+          v: 2,
+          sourceLocale: "en",
+          namespaces: { common: { a: { params: { locale: { kind: "string" } } } } },
+        },
       },
     });
 
@@ -434,6 +440,33 @@ describe("typegen", () => {
     http = stubFetch({ ...BASE, [PATHS.schema]: { body: "<html>maintenance</html>" } });
 
     expect(await run(createTypegenCommand(), [])).toBe(2);
+  });
+
+  it("generate exits 4 when the platform predates the schema v2 route", async () => {
+    http = stubFetch({ ...BASE, [PATHS.schema]: { status: 404, statusText: "Not Found" } });
+
+    expect(await run(createTypegenCommand(), [])).toBe(4);
+    expect(output.stderr).toContain("predates the typegen schema v2 route");
+  });
+
+  it("--from exits 4 for a broken catalog and 1 for an outdated file, with no key at all", async () => {
+    vi.stubEnv("COMVI_API_KEY", "");
+    http = stubFetch({});
+    await write("locales/en.json", "{ broken");
+    expect(await run(createTypegenCommand(), ["--from", "locales"])).toBe(4);
+    await write("locales/en.json", { a: "A" });
+    exits.codes.length = 0;
+    expect(await run(createTypegenCommand(), ["--from", "locales", "--check"])).toBe(1);
+    exits.codes.length = 0;
+    expect(await run(createTypegenCommand(), ["--from", "locales"])).toBe(0);
+    exits.codes.length = 0;
+    expect(await run(createTypegenCommand(), ["--from", "locales", "--check"])).toBe(0);
+    expect(http.requests).toEqual([]);
+  });
+
+  it("--watch with --check is a usage error", async () => {
+    http = stubFetch({});
+    expect(await run(createTypegenCommand(), ["--watch", "--check"])).toBe(4);
   });
 });
 

@@ -1,6 +1,23 @@
 # Accepted mutants — rationale
 
-Entries in `accepted.json` are matched by file + mutator + the text of the mutated line. Longer arguments live here.
+Entries in `accepted.json` are matched by file + mutator + the text of the mutated line
+(`accept.mjs`). An entry accepts ONE mutant per mutator it lists on its line; a second
+mutant of the same mutator there is a survivor until it is pinned. `pins: [{ mutator,
+column, replacement }]` accepts exactly the mutants named (column counted from the line's
+first non-blank character, 1-based; `replacement` as Stryker reports it); `mutators: ["all"]`
+accepts every mutant of the line. Longer arguments live here.
+
+## Matching by span (lot 3, 2026-10-28)
+
+An entry used to accept every mutant of its listed mutators on its line, so two mutants of one
+mutator (the two separators of a cache key) shared one exemption (lot 1d review B, MEDIUM 15).
+Now one per mutator, or exact pins; `accept.test.mjs` (in `pnpm test:release-tools`) pins both,
+each seen failing on the old matcher. Twenty entries of code lot 3 removed are gone with it
+(`packages/cli`: the 0.7 command registrations, `generate-types.ts`, the SSE subscription of
+`ApiClient.ts`; `packages/vite-plugin`: `extract.ts`, `scheduler.ts` and the 0.7 plugin body;
+`packages/typegen`: the 0.7 `index.ts`). No package was re-run under Stryker in this pass, so
+an entry that relied on covering two mutants of one mutator shows its second mutant as a
+survivor on the next run, with the hint to pin it.
 
 ## packages/core and packages/react, 0.8 (lot 1d, 2026-10-28)
 
@@ -130,6 +147,11 @@ CI had never run it) and react's tests-typecheck raced @comvi/react#build in
 the Quality job (fixed by source-pinning @comvi/react like @comvi/core).
 
 ## packages/typegen message-shape.ts (COM-179 A0, 2026-10-21)
+
+Deleted in lot 3b (0.8): typegen and `comvi check` read messages with `@comvi/core`'s own scanner
+(`packages/typegen/src/v2/read.ts`), so this second ICU reader and its 23 accepted entries are
+gone, with those of the deleted `@comvi/cli` `TypeGenerator.ts` (1) and `FileSystemWriter.ts` (2).
+The record below is history.
 
 The ICU scanner moved here from `packages/vite-plugin/src/extract.ts` and was mutation-tested for
 the first time since its rewrite: 124 survivors on develop. `tests/message-shape.test.ts` kills

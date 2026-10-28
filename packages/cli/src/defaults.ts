@@ -1,6 +1,9 @@
 export const DEFAULT_FILE_TEMPLATE = "{namespace}/{languageTag}.json";
 export const DEFAULT_NAMESPACE = "default";
 export const DEFAULT_TRANSLATIONS_PATH = "./src/locales";
+export const DEFAULT_OUTPUT_PATH = "src/types/i18n.d.ts";
+/** Where `comvi pull` writes the project's typegen schema v2 (`comvi typegen --from` reads it). */
+export const SCHEMA_FILE = ".comvi/schema.json";
 
 export function isDefaultFileTemplate(fileTemplate: string): boolean {
   return fileTemplate.replace(/\\/g, "/") === DEFAULT_FILE_TEMPLATE;

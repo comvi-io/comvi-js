@@ -8,8 +8,8 @@ export default defineConfig({
       insertTypesEntry: true,
       // `bundleTypes` BUNDLES the declarations into one `dist/index.d.ts`.
       // Required, not cosmetic: `@comvi/typegen` is workspace-private, so the
-      // published `.d.ts` may not import `SchemaParam`/`KeySchema`/
-      // `ProjectSchema` from it — the roll-up inlines those declarations.
+      // published `.d.ts` may not import `GenerateOptions`/`WireSchema`/… from
+      // it — the roll-up inlines those declarations.
       bundleTypes: {
         // api-extractor treats every dependency as external unless it is
         // listed here: without `bundledPackages` the rolled-up `.d.ts` still
@@ -40,9 +40,8 @@ export default defineConfig({
     rolldownOptions: {
       external: [
         // `@comvi/typegen` is deliberately ABSENT: it is workspace-private, so
-        // rolldown must inline the emitter into this bundle.
+        // rolldown must inline the generator into this bundle.
         "commander",
-        "eventsource",
         "fs",
         "path",
         "crypto",
@@ -50,6 +49,7 @@ export default defineConfig({
         "node:path",
         "node:fs/promises",
         "node:crypto",
+        "node:os",
         "node:process",
         "node:readline/promises",
         "node:util",

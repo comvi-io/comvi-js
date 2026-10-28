@@ -4,7 +4,7 @@ import { CatalogCheck } from "../../src/core/CatalogCheck";
 
 vi.mock("@comvi/typegen", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@comvi/typegen")>();
-  return { ...actual, scanMessageShape: vi.fn(actual.scanMessageShape) };
+  return { ...actual, readMessage: vi.fn(actual.readMessage) };
 });
 
 /**
@@ -16,7 +16,7 @@ vi.mock("@comvi/typegen", async (importOriginal) => {
  */
 describe("check caching", () => {
   it("scans each source message once across targets", () => {
-    const scan = vi.mocked(typegen.scanMessageShape);
+    const scan = vi.mocked(typegen.readMessage);
     scan.mockClear();
 
     CatalogCheck.run({
@@ -38,7 +38,7 @@ describe("check caching", () => {
   it.each([100, 200])(
     "scans each of %i keys once per locale: scanner calls grow linearly with the catalog",
     (keys) => {
-      const scan = vi.mocked(typegen.scanMessageShape);
+      const scan = vi.mocked(typegen.readMessage);
       scan.mockClear();
       const catalog = (prefix: string) =>
         Object.fromEntries(

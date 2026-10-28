@@ -24,7 +24,7 @@ export function RichTextView() {
       <div className="space-y-2">
         <h3 className="font-semibold">HTML Tags</h3>
         <div className="p-4 bg-gray-50 rounded border">
-          <T i18nKey="rich_text.bold_text" />
+          <T i18nKey="rich_text.bold_text" strong={(chunks) => <strong>{chunks}</strong>} />
         </div>
       </div>
 
@@ -34,17 +34,15 @@ export function RichTextView() {
         <div className="p-4 bg-gray-50 rounded border">
           <T
             i18nKey="rich_text.link_text"
-            components={{
-              link: ({ children }) => (
-                <a
-                  href="https://example.com"
-                  className="text-blue-600 hover:underline"
-                  target="_blank"
-                >
-                  {children}
-                </a>
-              ),
-            }}
+            link={(chunks) => (
+              <a
+                href="https://example.com"
+                className="text-blue-600 hover:underline"
+                target="_blank"
+              >
+                {chunks}
+              </a>
+            )}
           />
         </div>
       </div>
@@ -55,10 +53,7 @@ export function RichTextView() {
         <div className="p-4 bg-gray-50 rounded border">
           <T
             i18nKey="rich_text.component_interpolation"
-            params={{ placeholder: "INTERPOLATED" }}
-            components={{
-              placeholder: ({ children }) => <BoldComponent>{children}</BoldComponent>,
-            }}
+            placeholder={(chunks) => <BoldComponent>{chunks}</BoldComponent>}
           />
         </div>
         <p className="text-sm text-gray-500 mt-2">
@@ -79,10 +74,12 @@ export function RichTextView() {
           <div className="p-4 bg-gray-50 rounded border">
             <T
               i18nKey="rich_text.nested_simple"
-              components={{
-                link: <a href="#" className="text-blue-600 hover:underline" />,
-                bold: <strong />,
-              }}
+              link={(chunks) => (
+                <a href="#" className="text-blue-600 hover:underline">
+                  {chunks}
+                </a>
+              )}
+              bold={(chunks) => <strong>{chunks}</strong>}
             />
           </div>
           <p className="text-sm text-gray-500">
@@ -90,8 +87,7 @@ export function RichTextView() {
             <code className="bg-gray-100 px-1 rounded">
               &lt;link&gt;&lt;bold&gt;this link&lt;/bold&gt;&lt;/link&gt;
             </code>
-            — Uses <code className="bg-gray-100 px-1 rounded">components</code> prop for nested
-            tags.
+            — each tag is a prop of the same name: a handler that renders its children.
           </p>
         </div>
 
@@ -111,12 +107,14 @@ export function RichTextView() {
           <div className="p-4 bg-yellow-50 rounded border border-yellow-200">
             <T
               i18nKey="rich_text.nested_mixed"
-              params={{ count: String(nestedCount) }}
-              components={{
-                alert: <span className="text-yellow-800" />,
-                bold: <strong className="font-bold text-yellow-900" />,
-                link: <a href="#" className="text-yellow-700 underline hover:text-yellow-900" />,
-              }}
+              count={nestedCount}
+              alert={(chunks) => <span className="text-yellow-800">{chunks}</span>}
+              bold={(chunks) => <strong className="font-bold text-yellow-900">{chunks}</strong>}
+              link={(chunks) => (
+                <a href="#" className="text-yellow-700 underline hover:text-yellow-900">
+                  {chunks}
+                </a>
+              )}
             />
           </div>
           <p className="text-sm text-gray-500">
@@ -134,13 +132,15 @@ export function RichTextView() {
           <div className="p-4 bg-blue-50 rounded border border-blue-200">
             <T
               i18nKey="rich_text.nested_deep"
-              components={{
-                card: ({ children }) => <CardWrapper>{children}</CardWrapper>,
-                header: ({ children }) => <HeaderWrapper>{children}</HeaderWrapper>,
-                icon: () => <InfoIcon />,
-                content: ({ children }) => <ContentWrapper>{children}</ContentWrapper>,
-                link: <a href="#" className="text-blue-600 hover:underline" />,
-              }}
+              card={(chunks) => <CardWrapper>{chunks}</CardWrapper>}
+              header={(chunks) => <HeaderWrapper>{chunks}</HeaderWrapper>}
+              icon={() => <InfoIcon />}
+              content={(chunks) => <ContentWrapper>{chunks}</ContentWrapper>}
+              link={(chunks) => (
+                <a href="#" className="text-blue-600 hover:underline">
+                  {chunks}
+                </a>
+              )}
             />
           </div>
           <p className="text-sm text-gray-500">
@@ -148,8 +148,7 @@ export function RichTextView() {
             <code className="bg-gray-100 px-1 rounded">
               &lt;card&gt;&lt;header&gt;&lt;icon/&gt;Title&lt;/header&gt;&lt;content&gt;...&lt;/content&gt;&lt;/card&gt;
             </code>
-            — Uses React components with <code className="bg-gray-100 px-1 rounded">children</code>{" "}
-            prop for nested rendering.
+            — handlers wrap the children in React components, at any depth.
           </p>
         </div>
       </div>

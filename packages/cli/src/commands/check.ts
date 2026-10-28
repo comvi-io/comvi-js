@@ -140,7 +140,9 @@ async function runCheck(options: CheckCommandOptions): Promise<number> {
     format === "json"
       ? JSON.stringify(
           {
-            version: 1,
+            // 2: 0.8 reads messages with core's own scanner; `unbalancedTags` (a warning)
+            // became `syntax` (an error: core renders the key of a message it refuses).
+            version: 2,
             source: report.source,
             translationsPath,
             fileTemplate,
@@ -214,7 +216,7 @@ const RULE_LABELS: Record<Rule, string> = {
   plural: "plural",
   select: "select",
   tags: "tags",
-  unbalancedTags: "unbalanced tags",
+  syntax: "syntax",
   unsupportedIcu: "unsupported ICU",
   identical: "identical",
 };
@@ -238,10 +240,7 @@ function formatText(
   const targets = Object.keys(report.locales);
   const width = Math.max(source.locale.length, ...targets.map((locale) => locale.length)) + 2;
   const sourceCounts = counts((rule) =>
-    rule === "emptySource" ||
-    rule === "plural" ||
-    rule === "unbalancedTags" ||
-    rule === "unsupportedIcu"
+    rule === "emptySource" || rule === "plural" || rule === "syntax" || rule === "unsupportedIcu"
       ? source[rule].length
       : 0,
   );
@@ -258,8 +257,8 @@ function formatText(
       `plural  ${source.locale}:${f.key}  {${f.argument}} ${f.problem} ${f.categories.join(", ")}`,
     );
   }
-  for (const f of source.unbalancedTags) {
-    details.push(`unbalanced tags  ${source.locale}:${f.key}  ${list(f.tags)}`);
+  for (const f of source.syntax) {
+    details.push(`syntax  ${source.locale}:${f.key}  ${f.message}`);
   }
   for (const f of source.unsupportedIcu) {
     details.push(`unsupported ICU  ${source.locale}:${f.key}  ${f.argumentType}`);
@@ -291,8 +290,8 @@ function formatText(
     for (const f of entry.tags) {
       details.push(`tags  ${locale}:${f.key}  source ${list(f.source)}  target ${list(f.target)}`);
     }
-    for (const f of entry.unbalancedTags) {
-      details.push(`unbalanced tags  ${locale}:${f.key}  ${list(f.tags)}`);
+    for (const f of entry.syntax) {
+      details.push(`syntax  ${locale}:${f.key}  ${f.message}`);
     }
     for (const f of entry.unsupportedIcu) {
       details.push(`unsupported ICU  ${locale}:${f.key}  ${f.argumentType}`);

@@ -85,6 +85,18 @@ for (const [path, hint] of [
   }
 }
 
+// Typegen schema v2 (GET /v1/projects/:id/schema/v2) lands with platform
+// feat/icu-schema-v2. On a checkout without it, the specs that need the route are skipped
+// with a warning instead of failing the whole job; every other spec still runs.
+const schemaV2 = existsSync(join(apiDir, "src/modules/translations/typegen/schema-v2.ts"));
+if (!schemaV2) {
+  const text =
+    "the platform checkout has no typegen schema v2 route (GET /v1/projects/:id/schema/v2); " +
+    "the typegen specs that need it are skipped. Run with platform_ref feat/icu-schema-v2, " +
+    "or develop once it is merged.";
+  console.log(process.env.GITHUB_ACTIONS ? `::warning::${text}` : `cli-e2e: ${text}`);
+}
+
 const sources = [join(cliDir, "src"), join(root, "packages/typegen/src")];
 if (Math.max(...sources.map(newestMtime)) > statSync(cliBuild).mtimeMs) {
   console.error(
@@ -135,6 +147,7 @@ const child = spawn(
       CLI_E2E_FIXTURE_OUT: fixturePath,
       CLI_E2E_FIXTURE: fixturePath,
       COMVI_E2E_API_URL: `http://localhost:${port}`,
+      COMVI_E2E_SCHEMA_V2: schemaV2 ? "1" : "0",
     },
   },
 );

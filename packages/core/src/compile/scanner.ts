@@ -65,6 +65,20 @@ export interface Scan {
   k: string | undefined;
   /** Development: a `#` was left literal inside a select nested in a plural. */
   w?: boolean;
+  /**
+   * Development builds only: the shape observer of the type generator, which reads a
+   * message's parameters and tags through THIS scanner instead of a second ICU reader
+   * (R3-18). Every call site is `__DEV__ && P.o && …`, so production builds carry none
+   * of it. Events, in scan order (numbers, so nothing but the literal ships to dev):
+   * - `0` a plain `{name}`;
+   * - `1` a complex argument `name` and its `type` token, before the type is checked
+   *   (`{x, number}` is seen, then fails);
+   * - `2` a selector of a plural/selectordinal/select as matched (`=01` as `=1`), before
+   *   its sub-message is scanned (a repeated selector's sub-message is scanned too);
+   * - `3` the end of argument `name`, before its `other` check;
+   * - `4` an opening or self-closing tag `name`.
+   */
+  o?: (event: 0 | 1 | 2 | 3 | 4, name: string, type?: string) => void;
 }
 
 /** Thrown inside the scanner, caught by `compile()`; never escapes to callers. */
@@ -231,6 +245,7 @@ export const message = (
       flush();
       if (c === "}") {
         P.i++;
+        if (__DEV__ && P.o) P.o(0, name);
         parts.push((p, l, x) => {
           const v = arg(p, name);
           return v == null
@@ -264,6 +279,7 @@ export const message = (
         return parts;
       }
       flush();
+      if (__DEV__ && P.o) P.o(4, name);
       parts.push(tagPart(P.k, name, m[3] ? [] : message(P, hash, under, nested, name)));
     } else {
       if (__DEV__ && c === "#" && under) P.w = true;

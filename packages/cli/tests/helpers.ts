@@ -205,51 +205,6 @@ export function assertNoUnexpectedRequests(): void {
   expect(unexpected).toEqual([]);
 }
 
-export interface FakeEventSource {
-  onmessage: ((event: MessageEvent) => void) | null;
-  onerror: ((event?: { code?: number; message?: string }) => void) | null;
-  onopen: (() => void) | null;
-  /** 0 connecting, 1 open, 2 closed — as the real EventSource. */
-  readyState: number;
-  closed: boolean;
-  /** The `fetch` option the client passed, to drive its transport. */
-  fetch?: (input: string | URL, init?: RequestInit) => Promise<Response>;
-  close(): void;
-}
-
-/**
- * Replaces the lazily imported `eventsource` module. Callers must import
- * `ApiClient` dynamically afterwards for the mock to apply.
- */
-export function mockEventSource(): { instances: FakeEventSource[] } {
-  const instances: FakeEventSource[] = [];
-
-  vi.doMock("eventsource", () => ({
-    EventSource: class implements FakeEventSource {
-      static CLOSED = 2;
-      onmessage: ((event: MessageEvent) => void) | null = null;
-      onerror: ((event?: { code?: number; message?: string }) => void) | null = null;
-      onopen: (() => void) | null = null;
-      readyState = 0;
-      closed = false;
-      fetch?: (input: string | URL, init?: RequestInit) => Promise<Response>;
-      constructor(
-        _url: string,
-        init?: { fetch?: (input: string | URL, init?: RequestInit) => Promise<Response> },
-      ) {
-        this.fetch = init?.fetch;
-        instances.push(this);
-      }
-      close() {
-        this.closed = true;
-        this.readyState = 2;
-      }
-    },
-  }));
-
-  return { instances };
-}
-
 /**
  * Resolves with the rejection reason of `promise`, and fails the test when the
  * promise fulfills instead — the async counterpart of `thrownBy`.

@@ -40,7 +40,16 @@ export const app: ReactElement = (
 export function Component() {
   const { t, locale, dir, isLoading, setLocale } = useI18n();
   const s: string = t("greeting", { name: "Ann" });
-  const r: ReactElement = t("terms", { link: (c) => <a>{c as ReactNode}</a> });
+  const r: ReactElement = t("terms", { link: (c) => <a>{c}</a> });
+  // The registered TagChildren types an inline handler's argument: one React node.
+  t("terms", {
+    link: (c) => {
+      const node: ReactNode = c;
+      return <a>{node}</a>;
+    },
+  });
+  // @ts-expect-error a handler's argument is a ReactNode, not a number (was `any`)
+  t("terms", { link: (c: number) => c });
   const n: string = t("cart.title", { ns: "shop", count: 2 });
   const m: string = t("greeting", { name: "Ann", markers: false });
   void m;
@@ -61,9 +70,11 @@ export function Component() {
   const bt2: ReactNode = <ShopT i18nKey="greeting" name="x" />;
   // @ts-expect-error missing param on the bound <T>
   const bt3: ReactNode = <ShopT i18nKey="cart.title" />;
+  // @ts-expect-error a typo on the bound <T> (the key errs; its params stay loose, R3-2)
+  const bt4: ReactNode = <ShopT i18nKey="cart.titel" count={1} />;
   const l: string = locale;
   const d: "ltr" | "rtl" = dir;
   const b: boolean = isLoading;
   const p: Promise<void> = setLocale("de");
-  return [s, r, n, c, e1, bt, bt2, bt3, l, d, b, p];
+  return [s, r, n, c, e1, bt, bt2, bt3, bt4, l, d, b, p];
 }

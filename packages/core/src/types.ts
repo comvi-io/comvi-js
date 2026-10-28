@@ -11,22 +11,38 @@
  *     "title":      never;                                        // no params
  *   } } }
  *
- * Gates (scripts/types-bench, CI): check ≤ 1.0 s at 2 ns × 20k keys × 300 calls, a key
- * typo ≤ 5 s total, 5k → 20k scaling ≤ 2.5×, and the 11 negative diagnostics of
- * `tests/types/negative.ts` keep their codes. Before changing anything here, read the
- * rejected alternatives below — each was measured slower or less precise.
+ * Gates (CI) count work, never milliseconds: `pnpm check:types-bench` (tsc: instantiations
+ * per extra call, union inputs, a key typo costing no more than a correct call, `<T>`
+ * elements (valid and misspelt) costing no more than the program without them, 5k → 20k
+ * scaling ≤ 1.5×, memory) and `pnpm check:types-ide` (a real tsserver at 5k/20k/50k keys:
+ * completions return exactly the namespace's key set, diagnostics after an edit, a typo in
+ * `t()` or `<T>`, or a regeneration sit on exactly the expected lines, and each operation's
+ * instantiations, union inputs and types created scale ≤ 1.5× from 5k to 50k; peak memory
+ * ≤ 400 MB); `pnpm test:types`
+ * pins every negative diagnostic of `tests/types/negative.mjs`. Before changing anything
+ * here, read the rejected alternatives below — each was measured slower or less precise.
  */
 
 /** Translation catalogs per namespace, augmented by generated declarations. */
 export interface Catalogs {}
 
 /**
- * A rich-text tag handler. Its argument is the tag's children as the BINDING delivers
- * them: rich parts (`RichParts`) from the core's `t()`, one React node from
- * `@comvi/react` (lot 1c). It is typed loosely so a binding's handler type, such as
- * `(chunks: ReactNode) => ReactNode`, satisfies a catalog's `Tag` param.
+ * What a tag handler receives as its children, registered by the binding that joins them
+ * (lot 3): `@comvi/react` declares `interface TagChildren { react: ReactNode }`, so a
+ * generated `{ link: Tag }` gives an inline `(chunks) => <a>{chunks}</a>` a `ReactNode`
+ * argument with no annotation. With no binding registered it is `any` (the core's own
+ * `t()` passes rich parts, `RichParts`). One program registers one binding; the type is
+ * resolved once per program, never per call.
  */
-export type Tag = (chunks: any) => unknown;
+export interface TagChildren {}
+
+/**
+ * A rich-text tag handler: a generated param of this type marks the key rich (`OutOf`).
+ * Its argument is the tag's children as the binding delivers them ({@link TagChildren}).
+ */
+export type Tag = (
+  chunks: [keyof TagChildren] extends [never] ? any : TagChildren[keyof TagChildren],
+) => unknown;
 
 /** What a rich message renders: strings and whatever the tag handlers returned. */
 export type RichParts = readonly unknown[];
@@ -75,10 +91,10 @@ export type ParamsFor<N extends NsOf, K extends KeysOf[N] | NotAKey> = [NotAKey]
  * and never an internal name. `markers: false` keeps an in-context editor session from
  * marking the call's output (R3-14 H9); `ns`, `locale` and `markers` are reserved names.
  */
-export type Args<N, P> = [P] extends [NotAKey]
-  ? [params?: { ns?: NsOf; locale?: string; markers?: boolean } & Record<string, unknown>]
-  : [P] extends [never]
-    ? [params?: { ns?: N; locale?: string; markers?: boolean }]
+export type Args<N, P> = [P] extends [never] // no params; tested FIRST: never extends NotAKey too
+  ? [params?: { ns?: N; locale?: string; markers?: boolean }]
+  : [P] extends [NotAKey]
+    ? [params?: { ns?: NsOf; locale?: string; markers?: boolean } & Record<string, unknown>]
     : {} extends P // every param has a default (defaultParams)
       ? [params?: P & { ns?: N; locale?: string; markers?: boolean }]
       : [params: P & { ns?: N; locale?: string; markers?: boolean }];
@@ -99,12 +115,45 @@ export type TranslateFn<NS extends NsOf, Rich = string> = <
   ...args: Args<N, ParamsFor<N, K>>
 ) => OutOf<ParamsFor<N, K>, Rich>;
 
-/** `t()` of a project with no generated catalogs: any key, any params, a string. */
-export type UntypedT = (key: string, params?: Record<string, unknown>) => string;
+/**
+ * A message's params as component props: none → `{}`, a key typo (`NotAKey`) → loose, so
+ * only `i18nKey` errs. `never` is tested first: it extends `NotAKey` too.
+ */
+type PropsOf<P> = [P] extends [never] ? {} : [P] extends [NotAKey] ? Record<string, unknown> : P;
+
+/**
+ * A binding's typed `<T i18nKey ns? locale? markers? {...params}>`, rendering `Out`. The key
+ * carries the same typo guard as `t()` (R3-2): without `NotAKey` in K's constraint, a JSX
+ * element infers K as the whole key union while it types the attributes, and the props
+ * intersect every key's params — minutes of tsc on a 5k catalog, for a typo AND for a valid
+ * key (review of lot 3, BLOCK 1). Gated by `check:types-bench` and `check:types-ide` (JSX).
+ */
+export type TComponentFor<Out> = <K extends KeysOf[N] | NotAKey, N extends NsOf = "default" & NsOf>(
+  props: { i18nKey: K; ns?: N; locale?: string; markers?: boolean } & PropsOf<ParamsFor<N, K>>,
+) => Out;
+
+/** `<T>` bound to namespace NS (`useI18n(ns).T`): no `ns` prop, the same typo guard. */
+export type BoundTFor<NS extends NsOf, Out> = <K extends KeysOf[NS] | NotAKey>(
+  props: { i18nKey: K; ns?: never; locale?: string; markers?: boolean } & PropsOf<ParamsFor<NS, K>>,
+) => Out;
+
+/** A param value a plain `{x}` prints as text (`String(value)`, R3-17), or a list of them. */
+type Printed = string | number | bigint | boolean | Date | null | undefined;
+
+/**
+ * `t()` of a project with no generated catalogs: any key, any params. With params that
+ * are all printed as text it returns a string; a param that is an object or a function
+ * (a tag handler, a framework node) can come back as is, inside rich parts — so that
+ * call is typed `string | Rich` (review A6).
+ */
+export interface UntypedT<Rich = RichParts> {
+  (key: string, params?: Readonly<Record<string, Printed | readonly Printed[]>>): string;
+  (key: string, params: Readonly<Record<string, unknown>>): string | Rich;
+}
 
 /** The `t()` a binding hands out for namespace NS: typed when catalogs are declared. */
 export type TFor<NS extends string = "default", Rich = RichParts> = [NsOf] extends [never]
-  ? UntypedT
+  ? UntypedT<Rich>
   : NS extends NsOf
     ? TranslateFn<NS, Rich>
     : never;

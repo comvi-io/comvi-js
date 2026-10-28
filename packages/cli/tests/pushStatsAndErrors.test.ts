@@ -90,22 +90,6 @@ describe("platform error messages survive", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it("keeps the platform's 403 message and names the scope typegen needs", async () => {
-    fetchMock
-      .mockResolvedValueOnce(json(200, projectInfo))
-      .mockResolvedValueOnce(
-        json(403, { message: "Insufficient permissions", code: "INSUFFICIENT_PERMISSIONS" }),
-      );
-
-    const error = await client.fetchSchema().catch((e: unknown) => e);
-
-    expect(error).toMatchObject({ code: ErrorCodes.API_AUTH_FAILED });
-    expect((error as Error).message).toBe(
-      "Access denied to this project: Insufficient permissions (INSUFFICIENT_PERMISSIONS). " +
-        "comvi typegen needs an API key with the schema:read scope.",
-    );
-  });
-
   it("names the scope push needs", async () => {
     fetchMock
       .mockResolvedValueOnce(json(200, projectInfo))

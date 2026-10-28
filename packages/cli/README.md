@@ -18,9 +18,9 @@
 
 `comvi` moves translations between your repository and your Comvi project, fills missing values
 with machine translation, validates local catalogs offline and generates the TypeScript
-declaration that types `t()`. Use it when the catalogs live on the
-[Comvi platform](https://comvi.io); for catalogs that only live as local JSON,
-[`@comvi/vite-plugin`](https://comvi.io/docs/i18n/plugins/vite-plugin) emits the same declaration.
+declaration that types `t()`, from the [Comvi platform](https://comvi.io) or from local JSON
+(`--from`). [`@comvi/vite-plugin`](https://comvi.io/docs/i18n/plugins/vite-plugin) writes the
+same declaration from a Vite app, byte for byte.
 
 ## Install
 
@@ -43,8 +43,8 @@ The commands that talk to the platform (`init`, `typegen`, `pull`, `push`, `tran
 `COMVI_API_KEY`. The key selects the project, so there is no project id to configure. Before each
 of them the CLI loads the nearest `.env` file, walking up from the working directory and stopping
 at the first `package.json`, so `COMVI_API_KEY=...` in `.env` works with no wrapper; a variable
-already in the environment wins over the file. `comvi check` works offline: it loads no `.env` and
-reads no key.
+already in the environment wins over the file. `comvi check` and `comvi typegen --from` work
+offline and read no key.
 
 ## Config file
 
@@ -58,7 +58,8 @@ A filled-in `.comvirc.json`:
 {
   "apiBaseUrl": "https://api.comvi.io",
   "outputPath": "src/types/i18n.d.ts",
-  "strictParams": true,
+  "sourceLocale": "en",
+  "defaultParams": ["brand"],
   "translationsPath": "./src/locales",
   "fileTemplate": "{namespace}/{languageTag}.json",
   "format": "json",
@@ -77,16 +78,17 @@ run in `apps/web` does not inherit a config at the workspace root; point at it w
 
 ## Commands
 
-| Command                 | What it does                                                                     |
-| ----------------------- | -------------------------------------------------------------------------------- |
-| `comvi init`            | Writes `.comvirc.json`.                                                          |
-| `comvi pull`            | Downloads the project's translations into local JSON files.                      |
-| `comvi push`            | Uploads local JSON files to the project.                                         |
-| `comvi check`           | Compares local catalogs with the source locale, offline.                         |
-| `comvi translate`       | Machine-translates the values the project is missing and writes them locally.    |
-| `comvi typegen`         | Writes the `TranslationKeys` declaration from the project's keys.                |
-| `comvi typegen --watch` | Generates once, then regenerates on every schema change over Server-Sent Events. |
-| `comvi typegen --check` | Writes nothing; exits `1` when the file on disk is outdated. For CI.             |
+| Command                       | What it does                                                                       |
+| ----------------------------- | ---------------------------------------------------------------------------------- |
+| `comvi init`                  | Writes `.comvirc.json`.                                                            |
+| `comvi pull`                  | Downloads the translations, and `.comvi/schema.json` when available and permitted. |
+| `comvi push`                  | Uploads local JSON files to the project.                                           |
+| `comvi check`                 | Compares local catalogs with the source locale, offline.                           |
+| `comvi translate`             | Machine-translates the values the project is missing and writes them locally.      |
+| `comvi typegen`               | Writes the `Catalogs` declaration from the project's schema.                       |
+| `comvi typegen --from <path>` | The same from a directory of JSON catalogs or `.comvi/schema.json`, offline.       |
+| `comvi typegen --watch`       | Generates once, then on every change: of the files, or of the project's schema.    |
+| `comvi typegen --check`       | Writes nothing; exits `1` when the file on disk is outdated. For CI.               |
 
 ```bash title="Terminal"
 npx comvi pull
@@ -101,12 +103,23 @@ final newline (a new file takes those of the `sourceLocale` file, else two space
 flattened to dotted keys on push. Every leaf must be a string; a number, boolean, null or array
 fails the push with exit code `4` and names the file and key. `push --force-mode` takes
 `override`, `keep`, `ask` (the default) or `abort` for keys whose local value differs from the
-project's. The generated declaration augments `@comvi/core` when `package.json` declares it,
-otherwise the first framework binding it declares; set `augment` in `.comvirc.json` to name a
-different module.
+project's.
+
+`pull` also writes the project's typegen schema to `.comvi/schema.json` (what
+`typegen --from .comvi/schema.json` reads offline), together with the catalogs: if either write
+fails, both are put back as they were. It skips the file with a warning when the key lacks the
+`schema:read` scope or the platform predates the schema route; the catalogs are pulled all the
+same. `--no-schema` never asks for it.
+
+`typegen` writes `outputPath` (or `--out`). The declaration augments `@comvi/core` when
+`package.json` declares it, otherwise the first framework binding it declares (`augment` in
+`.comvirc.json` names another module); `defaultParams` lists the params `createI18n({
+defaultParams })` fills, which become optional. With `--from`, `sourceLocale` (or
+`--source-locale`) picks the locale the types come from. A file whose content would not change
+is not rewritten, and a second `--watch` of the same file waits while the first one writes.
 
 `check` compares every other catalog with the source locale (`--source`, or `sourceLocale` in the
-config, else `en`). Errors: a key missing or empty in a target, parameters or select branches that differ from the source, a plural without `other` or with a selector the locale does not have, and tag names that differ where the source uses tags. Warnings: a key the source does not have, a plural
+config, else `en`). Errors: a key missing or empty in a target, parameters or select branches that differ from the source, a plural without `other` or with a selector the locale does not have, tag names that differ where the source uses tags, and a message `@comvi/core` cannot compile (an unclosed tag, a select without `other`, a `{x, number}`). Warnings: a key the source does not have, a plural
 category the locale has and the message omits, and a translation equal to its source with
 `--identical`. Errors exit `1`; warnings do too only with `--strict`; `--no-fail` exits `0`
 either way, and `--format json` prints the report as JSON.

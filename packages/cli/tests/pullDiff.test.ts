@@ -38,6 +38,7 @@ beforeEach(async () => {
   stubFetch({
     "/v1/project": { body: { id: 1 } },
     "/v1/projects/1/namespaces": { body: [{ namespace: "common", isDefault: true }] },
+    "/v1/projects/1/schema/v2": { body: { v: 2, sourceLocale: "en", namespaces: {} } },
     "/v1/translations": {
       body: {
         locales: ["en", "de"],

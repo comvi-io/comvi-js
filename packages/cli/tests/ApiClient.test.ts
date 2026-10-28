@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type MockedFunction } from "vitest";
 import { ApiClient } from "../src/core/ApiClient";
 import { ErrorCodes } from "../src/utils/errors";
-import type { ProjectSchema, ProjectInfo } from "../src/types";
+import type { ProjectInfo } from "../src/types";
 
 const mockProjectInfo: ProjectInfo = {
   id: 123,
@@ -43,19 +43,12 @@ describe("ApiClient", () => {
     vi.useRealTimers();
   });
 
-  describe("fetchSchema", () => {
-    it("should fetch schema successfully", async () => {
-      const mockSchema: ProjectSchema = {
-        keys: {
-          "common:welcome": { params: [] },
-          "common:greeting": {
-            params: [{ name: "name", type: "string" }],
-          },
-          "common:items": {
-            params: [{ name: "count", type: "number" }],
-          },
-        },
-      };
+  describe("a GET through requestJson (fetchNamespaces)", () => {
+    it("should fetch namespaces successfully", async () => {
+      const mockSchema = [
+        { namespace: "default", isDefault: true },
+        { namespace: "common", isDefault: false },
+      ];
 
       fetchMock
         .mockResolvedValueOnce({
@@ -67,11 +60,11 @@ describe("ApiClient", () => {
           json: async () => mockSchema,
         } as Response);
 
-      const result = await apiClient.fetchSchema();
+      const result = await apiClient.fetchNamespaces();
 
       expect(result).toEqual(mockSchema);
       expect(fetchMock).toHaveBeenCalledWith(
-        "https://api.test.com/v1/projects/123/schema",
+        "https://api.test.com/v1/projects/123/namespaces",
         expect.objectContaining({
           method: "GET",
           headers: {
@@ -89,7 +82,7 @@ describe("ApiClient", () => {
         statusText: "Unauthorized",
       } as Response);
 
-      await expect(apiClient.fetchSchema()).rejects.toThrow("Invalid API key");
+      await expect(apiClient.fetchNamespaces()).rejects.toThrow("Invalid API key");
     });
 
     it("should throw error on 403 forbidden", async () => {
@@ -104,7 +97,9 @@ describe("ApiClient", () => {
           statusText: "Forbidden",
         } as Response);
 
-      await expect(apiClient.fetchSchema()).rejects.toThrow("Access denied to this project");
+      await expect(apiClient.fetchNamespaces()).rejects.toThrow(
+        "Access denied to project namespaces",
+      );
     });
 
     it("should throw error on other failed requests", async () => {
@@ -119,15 +114,15 @@ describe("ApiClient", () => {
           statusText: "Internal Server Error",
         } as Response);
 
-      const promise = apiClient.fetchSchema();
+      const promise = apiClient.fetchNamespaces();
       // the rejection handler must be attached before the backoff timers run
       const assertion = expect(promise).rejects.toThrow(
-        "Failed to fetch schema: 500 Internal Server Error",
+        "Failed to fetch namespaces: 500 Internal Server Error",
       );
       await vi.advanceTimersByTimeAsync(RETRY_LADDER_MS);
 
       await assertion;
-      expect(fetchMock).toHaveBeenCalledTimes(4); // project lookup + 3 schema attempts
+      expect(fetchMock).toHaveBeenCalledTimes(4); // project lookup + 3 namespace attempts
     });
 
     it("should handle timeout", async () => {
@@ -151,17 +146,17 @@ describe("ApiClient", () => {
             }),
         );
 
-      const promise = slowClient.fetchSchema();
+      const promise = slowClient.fetchNamespaces();
       const assertion = expect(promise).rejects.toThrow("Request timeout after 100ms");
       await vi.advanceTimersByTimeAsync(100);
 
       await assertion;
     });
 
-    it("should surface project lookup network errors before fetching schema", async () => {
+    it("should surface project lookup network errors before fetching namespaces", async () => {
       fetchMock.mockRejectedValue(new Error("Network error"));
 
-      const promise = apiClient.fetchSchema();
+      const promise = apiClient.fetchNamespaces();
       const assertion = expect(promise).rejects.toMatchObject({
         message: "Failed to validate API key: Network error",
         code: ErrorCodes.API_CONNECTION_FAILED,
@@ -172,7 +167,7 @@ describe("ApiClient", () => {
       expect(fetchMock).toHaveBeenCalledTimes(3); // initial + 2 retries
     });
 
-    it("should handle schema fetch network errors", async () => {
+    it("should handle namespace fetch network errors", async () => {
       fetchMock
         .mockResolvedValueOnce({
           ok: true,
@@ -180,9 +175,9 @@ describe("ApiClient", () => {
         } as Response)
         .mockRejectedValue(new Error("Network error"));
 
-      const promise = apiClient.fetchSchema();
+      const promise = apiClient.fetchNamespaces();
       const assertion = expect(promise).rejects.toMatchObject({
-        message: "Failed to fetch schema: Network error",
+        message: "Failed to fetch namespaces: Network error",
         code: ErrorCodes.API_CONNECTION_FAILED,
       });
       await vi.advanceTimersByTimeAsync(RETRY_LADDER_MS);
@@ -204,13 +199,13 @@ describe("ApiClient", () => {
         } as Response)
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ keys: {} }),
+          json: async () => [],
         } as Response);
 
-      await client.fetchSchema();
+      await client.fetchNamespaces();
 
       expect(fetchMock).toHaveBeenCalledWith(
-        "https://api.test.com/v1/projects/123/schema",
+        "https://api.test.com/v1/projects/123/namespaces",
         expect.objectContaining({ method: "GET" }),
       );
     });

@@ -33,6 +33,13 @@ interface Fixture {
 
 export const API_URL = requiredEnv("COMVI_E2E_API_URL");
 
+/**
+ * The platform under test serves the typegen schema v2 route. `scripts/cli-e2e.mjs` sets
+ * it from the checkout (and prints a warning when it is missing); specs that need the
+ * route skip without it.
+ */
+export const SCHEMA_V2 = process.env.COMVI_E2E_SCHEMA_V2 !== "0";
+
 function requiredEnv(name: string): string {
   const value = process.env[name];
   if (!value) {

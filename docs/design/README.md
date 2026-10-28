@@ -27,5 +27,6 @@ is the one composition verb.
 | [examples-e2e.md](examples-e2e.md)         | a locale switch shows only whole-language states, judged per delivered DOM batch        |
 | [editor-loader.md](editor-loader.md)       | the site's `devtools()` puts the in-context editor on the page; the extension only asks |
 | [catalog-store.md](catalog-store.md)       | one catalog store per server process, and none by default                               |
+| [typegen.md](typegen.md)                   | one schema, one reader, one emitter, one Node API and one writer for typed translations |
 | [ssr.md](ssr.md)                           | the four module-scope rules side by side (user-facing)                                  |
 | [limitations.md](limitations.md)           | everything the library does not do (user-facing)                                        |

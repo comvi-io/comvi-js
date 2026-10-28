@@ -7,96 +7,108 @@
 
 <h1 align="center">typegen (internal)</h1>
 
-<p align="center">The one copy of the <code>TranslationKeys</code> declaration format. A private workspace package — it is never published.</p>
+<p align="center">The one generator of typed translations: <code>generate()</code> and <code>watch()</code>, which every wrapper calls.</p>
 
 ---
 
-> **Workspace-private.** `"private": true` in `package.json`, and in the `ignore`
-> list of `.changeset/config.json`. There is no npm package and nothing to
-> install. This directory exists so the CLI and the Vite plugin emit byte-identical
-> declarations without keeping two copies of the emitter.
+> **Workspace-private.** `"private": true`, and in the `ignore` list of
+> `.changeset/config.json`. Each wrapper inlines this package at build time
+> (`bundledPackages: ["@comvi/typegen"]` for its declarations), so nothing published names it.
 
-## Who uses it, and how
+## Who calls it
 
-| Consumer             | Mechanism                                                                                                              |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `@comvi/cli`         | **Inlined at build time.** Absent from the rolldown `external` list; the declarations are bundled by `vite-plugin-dts` |
-| `@comvi/vite-plugin` | **Inlined at build time**, the same way                                                                                |
+| Wrapper                                                                   | Calls                                                            |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `comvi typegen` (`@comvi/cli`)                                            | `generate()`, `--check` → `generate({ check: true })`, `watch()` |
+| `comvi pull` (`@comvi/cli`)                                               | `PlatformSource` + `serializeWireSchema` → `.comvi/schema.json`  |
+| `comviTypes()` (`@comvi/vite-plugin`)                                     | `vite build` → `generate()`; `vite dev` → `watch()`              |
+| `withComvi({ types })` (`@comvi/next`, lot 6) and the Nuxt module (lot 7) | the same two                                                     |
 
-Both builds pass `bundledPackages: ["@comvi/typegen"]` to `vite-plugin-dts`, so
-the rolled-up `dist/index.d.ts` carries `SchemaParam`, `KeySchema` and
-`ProjectSchema` as its own declarations instead of importing them from a package
-nobody can install. That is the gate: nothing published may name this package.
+One emitter behind all of them, so the same catalogs give the same bytes whichever wrapper ran
+(`scripts/typegen-e2e` compares them).
 
-## What consumers use instead
-
-`comvi typegen` (the CLI command) generates from the Comvi TMS schema;
-`comviTypes()` from `@comvi/vite-plugin` generates from local JSON files;
-`TypeEmitter` from `@comvi/cli` is the published programmatic emitter. The
-schema types are re-exported under the same names from both `@comvi/cli` and
-`@comvi/vite-plugin`.
-
-## What it guarantees
-
-- **One format, two tools.** The CLI and the Vite plugin emit byte-identical
-  declarations, so switching between them never rewrites the file.
-- **Nothing but strings.** No dependencies and no `node:` imports — a caller
-  reads the schema and writes the file; this package only formats.
-- **Stable output.** No timestamp is stamped, so regenerating an unchanged
-  schema produces the same bytes and leaves the working tree clean.
-
-## The three functions
-
-- **`emitDeclarations(schema, options?)`** — the whole declaration file as a
-  string. Keys are emitted in code-unit order, and every key and param name goes
-  through `JSON.stringify`, so an apostrophe or a hyphen in either is safe.
-  A `"string"` param is emitted as `string | number`, because the runtime renders
-  a number in a bare `{name}` and matches it in a `select`; a `"number"` param
-  stays `number`. Options: `strictParams` (default `true`; `false` makes every param optional),
-  `defaultNs` (default `"default"`; keys in that namespace lose their prefix)
-  and `augment` (default `"@comvi/core"`; the module the declarations augment,
-  which must be a plain module specifier). The header is fixed and names no
-  tool: line 3 is the same `DO NOT EDIT` notice whichever tool wrote the file,
-  and no timestamp is stamped, so it is not a caller option.
-  It throws for a schema it cannot express: a param whose `type` is neither
-  `"string"` nor `"number"`, two keys that collide once `defaultNs` is
-  stripped (`default:title` and `title`), and an `augment` holding a quote,
-  backslash, whitespace or anything else outside a module specifier.
-- **`countKeyLines(content)`** — how many declaration lines a generated file
-  already carries. Both quote styles count, so a file left by an older generator
-  is measured correctly. Used for the "current N keys, expected M" check line.
-- **`normalizeGenerated(content)`** — drops what a regeneration is allowed to
-  change (the `Generated at:` line `@comvi/cli` 0.4 stamped, and header line 3
-  in every wording that has shipped) and trims, so two normalized strings
-  decide whether a file is up to date.
-
-## The schema
+## `generate(options)`
 
 ```ts
-interface SchemaParam {
-  name: string;
-  type: "string" | "number";
-}
-interface KeySchema {
-  params: SchemaParam[];
-}
-interface ProjectSchema {
-  keys: Record<string, KeySchema>;
-}
+import { generate } from "@comvi/typegen";
+
+const result = await generate({ from: "./locales", out: "./comvi.d.ts", sourceLocale: "en" });
+// { content, written, stale, namespaces, keys, warnings }
 ```
 
-Keys are flat and namespaced with a colon, as in `"common:greeting"`. Param
-order is declaration order and is preserved in the emitted type.
+| Option          | Meaning                                                                                                                                                     |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `from`          | A directory of JSON catalogs, a wire schema v2 file (`.comvi/schema.json`), or `{ platform: { apiKey?, apiBaseUrl?, fetch? } }` (key from `COMVI_API_KEY`). |
+| `out`           | The declaration file. Relative paths resolve against `root`.                                                                                                |
+| `root`          | The app's root (default `process.cwd()`); its `package.json` names the module to augment.                                                                   |
+| `sourceLocale`  | Directory source: the locale the types come from. Required with more than one locale.                                                                       |
+| `fileTemplate`  | Directory source: default `{namespace}/{languageTag}.json`, where `<locale>.json` is `default`.                                                             |
+| `augment`       | The module to augment; by default the Comvi package `package.json` declares.                                                                                |
+| `defaultParams` | The keys of `createI18n({ defaultParams })`: optional in every key's params.                                                                                |
+| `check`         | Write nothing; `stale` says whether the file on disk differs (CI: fail on `stale`).                                                                         |
+| `onMessage`     | `({ level, text }) => void` for warnings; by default each distinct line is printed once.                                                                    |
 
-`pnpm --filter @comvi/typegen test` pins the output format; the cli's
-`tests/typegen-contract.test.ts` and the vite plugin's `tests/emit.test.ts` pin
-the two seams over it.
+It throws, and leaves the file on disk as it was, for: broken JSON (`CatalogFileError`, naming
+the file), a param named `ns`, `locale` or `markers` (`EmitError`, listing every key), an
+unreachable or refusing platform (`PlatformError`, with `status`), a missing directory or
+`sourceLocale`, an app that declares no Comvi package, and a declaration file that exists but
+cannot be read. Writes are atomic (temporary file + rename) and skipped when the content is
+unchanged.
 
-## Contributing
+## `watch(options)`
 
-Bug reports, docs fixes and pull requests are welcome.
-[CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md) explains the setup
-and what CI checks.
+```ts
+import { watch } from "@comvi/typegen";
+
+const watcher = watch({ from: "./locales", out: "./comvi.d.ts", sourceLocale: "en" });
+await watcher.ready; // the first generation ran (or was reported)
+// … watcher.close() when the dev server stops
+```
+
+The options of `generate()` without `check`, plus `debounceMs` (default 100) and `onFatal`
+(the platform refused the key; the watcher has stopped). It never throws after start: a failed
+run is reported through `onMessage` once per broken state, and the file stays as it was.
+
+- **A directory** is watched recursively; a burst of saves is one run; only the namespaces
+  whose files changed are read again, and only files whose text changed are parsed
+  (`watcher.stats` counts runs, files read, files parsed and writes). For a few seconds after
+  the first run the files are also compared by stat, so a save made while the OS watcher was
+  still starting (macOS) is not lost.
+- **A schema file** is watched by name in its directory (`comvi pull` replaces it); the
+  directory is created when missing.
+- **The platform**: the first fetch does not wait for the stream, so `ready` settles even when
+  the platform is down. The v1 SSE stream (`/schema/stream`) is the change signal and v2 is
+  fetched on each event, the one on (re)connect included; the stream reconnects with growing
+  waits and is replaced after 45 s of silence. A refused key (401/403) stops it via `onFatal`.
+- **One writer per declaration file.** A lock in the OS temp directory: a second `watch()` of
+  the same `out`, in this process (a reloaded config) or another (a second dev server, a
+  framework worker), stays idle (`watcher.active === false`) and takes over when the first
+  closes (at once in-process) or its process dies (within a second). A refused key and a
+  directory that cannot be watched stop the first for good and free the file the same way; a
+  platform answer that arrives after `close()` is dropped, never written.
+
+## For the Next and Nuxt wrappers (lots 6 and 7)
+
+- Development: `watch()` once per process; keep the `Watcher` on `globalThis` so a reloaded
+  config reuses it instead of opening another, and `close()` it when the server stops.
+- Production build: `await generate()` once; `types: { check: true }` → `generate({ check: true })`
+  and fail the build on `stale`.
+- Both run where the config is loaded, not in the bundler, so webpack and Turbopack get the same.
+
+## The pieces
+
+- `parseWireSchema` / `serializeWireSchema`: the wire schema v2 (`{ v: 2, sourceLocale,
+namespaces }`), validated strictly and serialized canonically.
+- `readMessage`: a message's params, tags and choices, read by `@comvi/core`'s own scanner (its
+  development-only shape observer), so the types follow the grammar that renders the message.
+- `buildWireKey`: one key from all locales, the platform's source-locale rule.
+- `emitCatalogs(schema, { augment, defaultParams })`: the declaration, `interface Catalogs` of the
+  augmented module, one member per namespace, params by key, nothing repeated per locale.
+- `LocalSource`, `PlatformSource`, `resolveAugmentationTarget`, `writeIfChanged`, `lockFileOf`.
+
+`pnpm --filter @comvi/typegen test` pins the reader, the emitter and the Node API (counted work,
+no timing); `pnpm typegen:e2e` runs the built wrappers; `pnpm check:types-bench` and
+`pnpm check:types-ide` measure the emitted types in `tsc` and in `tsserver`.
 
 ## License
 

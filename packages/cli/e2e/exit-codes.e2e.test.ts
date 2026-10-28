@@ -3,6 +3,7 @@ import { createServer, type AddressInfo } from "node:net";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
+  SCHEMA_V2,
   createProject,
   createWorkspace,
   runCli,
@@ -50,7 +51,7 @@ describe("exit 3: the key", () => {
     },
   );
 
-  it("typegen with a key that lacks schema:read names the scope", async () => {
+  it.skipIf(!SCHEMA_V2)("typegen with a key that lacks schema:read names the scope", async () => {
     const ws = await workspace();
 
     const result = await runCli(["typegen"], { cwd: ws.dir, apiKey: project.keys.noschema });

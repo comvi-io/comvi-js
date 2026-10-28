@@ -2,15 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach, type MockedFunction } 
 import { promises as nodeFs, readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { resolve, dirname, join } from "path";
-import { makeTempDir, removeTempDirs, mockEventSource, type FakeEventSource } from "./helpers";
+import { makeTempDir, removeTempDirs } from "./helpers";
 import { CLI_VERSION } from "../src/utils/version";
 import { ConfigLoader } from "../src/core/ConfigLoader";
 import { ApiClient } from "../src/core/ApiClient";
-import { FileSystemWriter, InMemoryFileSystem } from "../src/core/FileSystemWriter";
 import { TranslationSync } from "../src/core/TranslationSync";
-import type { ProjectSchema } from "../src/types";
-
-type TaggedSchema = ProjectSchema & { tag: string };
 
 const PKG_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -195,170 +191,8 @@ describe("CLI hardening", () => {
     });
   });
 
-  describe("SSE serialization", () => {
-    afterEach(() => {
-      vi.doUnmock("eventsource");
-      vi.resetModules();
-    });
-
-    async function subscribeWithFakeEventSource(
-      onSchema: (schema: TaggedSchema) => Promise<void>,
-    ): Promise<{ es: FakeEventSource; cleanup: () => void }> {
-      const { instances } = mockEventSource();
-      vi.stubGlobal(
-        "fetch",
-        vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 1, name: "proj" }))),
-      );
-
-      const { ApiClient: MockedApiClient } = await import("../src/core/ApiClient");
-      const client = new MockedApiClient({ apiKey: "k", apiBaseUrl: "https://api.test" });
-      const cleanup = await client.subscribeToSchemaUpdates((schema) =>
-        onSchema(schema as TaggedSchema),
-      );
-
-      return { es: instances[0], cleanup };
-    }
-
-    it("processes schema updates one at a time, in order", async () => {
-      const seen: string[] = [];
-      let releaseFirst!: () => void;
-      const firstGate = new Promise<void>((r) => {
-        releaseFirst = r;
-      });
-
-      const { es, cleanup } = await subscribeWithFakeEventSource(async ({ tag }) => {
-        seen.push(`start:${tag}`);
-        if (tag === "a") await firstGate;
-        seen.push(`end:${tag}`);
-      });
-
-      es.onmessage!({ data: JSON.stringify({ tag: "a", keys: {} }) } as MessageEvent);
-      es.onmessage!({ data: JSON.stringify({ tag: "b", keys: {} }) } as MessageEvent);
-
-      await vi.waitFor(() => expect(seen).toContain("start:a"));
-      expect(seen).not.toContain("start:b"); // b waits for a
-
-      releaseFirst();
-      await vi.waitFor(() => expect(seen).toEqual(["start:a", "end:a", "start:b", "end:b"]));
-
-      cleanup();
-    });
-
-    it("drops queued schema updates after cleanup", async () => {
-      const seen: string[] = [];
-      let releaseFirst!: () => void;
-      const firstGate = new Promise<void>((r) => {
-        releaseFirst = r;
-      });
-
-      const { es, cleanup } = await subscribeWithFakeEventSource(async ({ tag }) => {
-        seen.push(`start:${tag}`);
-        if (tag === "a") await firstGate;
-        seen.push(`end:${tag}`);
-      });
-
-      es.onmessage!({ data: JSON.stringify({ tag: "a", keys: {} }) } as MessageEvent);
-      es.onmessage!({ data: JSON.stringify({ tag: "b", keys: {} }) } as MessageEvent);
-      await vi.waitFor(() => expect(seen).toEqual(["start:a"]));
-
-      cleanup();
-      releaseFirst();
-      await vi.waitFor(() => expect(seen).toEqual(["start:a", "end:a"]));
-    });
-  });
-
   describe("atomic writes", () => {
     afterEach(removeTempDirs);
-
-    it("FileSystemWriter uses temp + rename when the fs supports it", async () => {
-      const calls: string[] = [];
-      const files = new Map<string, string>();
-      const fakeFs = {
-        async mkdir() {},
-        async writeFile(path: string, content: string) {
-          calls.push(`write:${path}`);
-          files.set(path, content);
-        },
-        async readFile(path: string) {
-          return files.get(path) ?? "";
-        },
-        async access() {},
-        async rename(oldPath: string, newPath: string) {
-          calls.push(`rename:${oldPath}->${newPath}`);
-          files.set(newPath, files.get(oldPath) ?? "");
-          files.delete(oldPath);
-        },
-      };
-
-      const writer = new FileSystemWriter(fakeFs);
-      await writer.write("/out/types.d.ts", "content");
-
-      expect(calls[0]).toMatch(/^write:\/out\/types\.d\.ts\..*\.tmp$/);
-      expect(calls[1]).toMatch(/^rename:.*\.tmp->\/out\/types\.d\.ts$/);
-      expect(files.get("/out/types.d.ts")).toBe("content");
-      expect([...files.keys()].some((k) => k.endsWith(".tmp"))).toBe(false);
-    });
-
-    it("FileSystemWriter falls back to plain write without rename support", async () => {
-      const memFs = new InMemoryFileSystem();
-      // InMemoryFileSystem cannot enumerate its files, so "no temp file was
-      // written" is pinned through the writeFile calls instead.
-      const writeFile = vi.spyOn(memFs, "writeFile");
-      const writer = new FileSystemWriter(memFs);
-
-      await writer.write("/out/types.d.ts", "content");
-
-      expect(memFs.getFile("/out/types.d.ts")).toBe("content");
-      expect(writeFile).toHaveBeenCalledExactlyOnceWith("/out/types.d.ts", "content");
-    });
-
-    it("uses a different temp file for concurrent writes to the same target", async () => {
-      const tempPaths: string[] = [];
-      const fakeFs = {
-        async mkdir() {},
-        async writeFile(path: string) {
-          tempPaths.push(path);
-          await Promise.resolve();
-        },
-        async readFile() {
-          return "";
-        },
-        async access() {},
-        async rename() {},
-      };
-      const writer = new FileSystemWriter(fakeFs);
-
-      await Promise.all([
-        writer.write("/out/types.d.ts", "first"),
-        writer.write("/out/types.d.ts", "second"),
-      ]);
-
-      expect(new Set(tempPaths).size).toBe(2);
-    });
-
-    it("cleans up its temp file when rename fails", async () => {
-      const removed: string[] = [];
-      const fakeFs = {
-        async mkdir() {},
-        async writeFile() {},
-        async readFile() {
-          return "";
-        },
-        async access() {},
-        async rename() {
-          throw new Error("rename failed");
-        },
-        async unlink(path: string) {
-          removed.push(path);
-        },
-      };
-      const writer = new FileSystemWriter(fakeFs);
-
-      await expect(writer.write("/out/types.d.ts", "content")).rejects.toThrow(/rename failed/);
-
-      expect(removed).toHaveLength(1);
-      expect(removed[0]).toMatch(/^\/out\/types\.d\.ts\..*\.tmp$/);
-    });
 
     it("TranslationSync leaves no temp files after writeTranslations", async () => {
       const dir = await makeTempDir("comvi-sync-atomic");

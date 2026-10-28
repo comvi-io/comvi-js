@@ -1,11 +1,15 @@
 import { promises as fs } from "fs";
 import { dirname, resolve } from "path";
-import { DEFAULT_FILE_TEMPLATE, DEFAULT_TRANSLATIONS_PATH, isValidFileTemplate } from "../defaults";
-import type { ComviConfig, GeneratorOptions } from "../types";
+import {
+  DEFAULT_FILE_TEMPLATE,
+  DEFAULT_OUTPUT_PATH,
+  DEFAULT_TRANSLATIONS_PATH,
+  isValidFileTemplate,
+} from "../defaults";
+import type { ComviConfig } from "../types";
 import { TypegenError, ErrorCodes } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
 import { isHttpUrl } from "./apiBaseUrl";
-import { timeoutsFromEnv } from "./timeouts";
 import { isModuleSpecifier } from "@comvi/typegen";
 
 async function fileExists(path: string): Promise<boolean> {
@@ -42,7 +46,7 @@ const KNOWN_CONFIG_FIELDS: ReadonlySet<string> = new Set<keyof ComviConfig>([
   "apiKey",
   "apiBaseUrl",
   "outputPath",
-  "strictParams",
+  "defaultParams",
   "augment",
   "translationsPath",
   "fileTemplate",
@@ -68,6 +72,8 @@ const FORCE_MODES: readonly string[] = ["override", "keep", "ask", "abort"];
 const UNKNOWN_FIELD_HINTS: Record<string, string> = {
   languages: 'use "locales"',
   defaultNsName: "the default namespace is read from the TMS, so delete it",
+  strictParams:
+    'generated params are always required; list the ones createI18n({ defaultParams }) fills in "defaultParams"',
 };
 
 export class ConfigLoader {
@@ -231,6 +237,19 @@ export class ConfigLoader {
     config.namespaces = this.normalizeFilterField(config.namespaces, "namespaces");
     config.locales = this.normalizeFilterField(config.locales, "locales");
 
+    if (
+      config.defaultParams !== undefined &&
+      !(
+        Array.isArray(config.defaultParams) &&
+        config.defaultParams.every((name) => typeof name === "string" && name !== "")
+      )
+    ) {
+      throw new TypegenError(
+        `Invalid configuration: "defaultParams" must be an array of param names, received ${describe(config.defaultParams)}`,
+        ErrorCodes.CONFIG_INVALID,
+      );
+    }
+
     // `augment` is interpolated into the generated `declare module`: a
     // non-string, or one holding a quote or line break, would produce a file
     // TypeScript cannot parse or one with injected declarations.
@@ -316,17 +335,14 @@ export class ConfigLoader {
    *
    * A JSON string is truthy, so `"emptyDir": "false"` used to read as "yes,
    * clear the directory" — the option that deletes the local catalog, set to
-   * the exact opposite of what the file says. The same mistake in
-   * `strictParams` silently turned strict parameters back on. Both are
-   * refused during `load`, which runs before any command opens a socket or
-   * touches the translations directory.
+   * the exact opposite of what the file says. It is refused during `load`,
+   * which runs before any command opens a socket or touches the translations
+   * directory.
    *
    * `push.forceMode` is the other destructive switch, checked here against
    * the four modes so a typo fails before any command runs.
    */
   private static validateSwitches(config: ComviConfig): void {
-    this.assertOptionalBoolean(config.strictParams, "strictParams");
-
     const pull = this.assertOptionalSection(config.pull, "pull");
     this.assertOptionalBoolean(pull?.emptyDir, "pull.emptyDir");
 
@@ -440,25 +456,6 @@ export class ConfigLoader {
     return trimmed;
   }
 
-  /** Only valid after validation, which is what guarantees `apiKey` is set. */
-  static toGeneratorOptions(config: ComviConfig): GeneratorOptions {
-    if (!config.apiKey) {
-      throw new TypegenError(
-        "API key is required. Set COMVI_API_KEY environment variable.",
-        ErrorCodes.CONFIG_INVALID,
-      );
-    }
-
-    return {
-      apiKey: config.apiKey,
-      apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
-      outputPath: config.outputPath || "src/types/i18n.d.ts",
-      strictParams: config.strictParams ?? true,
-      augment: config.augment,
-      ...timeoutsFromEnv(),
-    };
-  }
-
   /**
    * A `.comvirc.json` is hand-edited JSON the type checker never sees, so a
    * field the config does not have fails here, by name, instead of being
@@ -504,8 +501,7 @@ export class ConfigLoader {
       // Only include apiKey if explicitly provided (not recommended for security)
       ...(config.apiKey ? { apiKey: config.apiKey } : {}),
       apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
-      outputPath: config.outputPath || "src/types/i18n.d.ts",
-      strictParams: config.strictParams ?? true,
+      outputPath: config.outputPath || DEFAULT_OUTPUT_PATH,
       translationsPath: config.translationsPath || DEFAULT_TRANSLATIONS_PATH,
       fileTemplate: config.fileTemplate || DEFAULT_FILE_TEMPLATE,
       format: config.format || "json",

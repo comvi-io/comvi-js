@@ -1,23 +1,30 @@
-export { TypeGenerator } from "./core/TypeGenerator";
+/**
+ * The typegen Node API, the same `generate()`/`watch()` the `comvi typegen` command, the
+ * Vite plugin, Next and Nuxt call (one output for the same catalogs).
+ */
+export { generate, watch } from "@comvi/typegen";
+export type {
+  From,
+  GenerateMessage,
+  GenerateOptions,
+  GenerateResult,
+  WatchOptions,
+  Watcher,
+  WireSchema,
+  WireKey,
+  WireParam,
+  ParamKind,
+} from "@comvi/typegen";
 export { ApiClient, API_ENDPOINTS } from "./core/ApiClient";
-export { TypeEmitter } from "./core/TypeEmitter";
 export { ConfigLoader } from "./core/ConfigLoader";
 export { TranslationSync } from "./core/TranslationSync";
 export { CatalogCheck } from "./core/CatalogCheck";
 
-export { FileSystemWriter, NodeFileSystem, InMemoryFileSystem } from "./core/FileSystemWriter";
-export { ConsoleReporter, SilentReporter, CollectingReporter } from "./core/GenerationReporter";
 export { createLogger, ConsoleLogger, SilentLogger, LogLevel } from "./utils/logger";
 export { TypegenError, ErrorCodes, wrapError } from "./utils/errors";
 
 export type {
   ComviConfig,
-  GeneratorOptions,
-  GenerationResult,
-  CheckResult,
-  SchemaParam,
-  KeySchema,
-  ProjectSchema,
   TranslationData,
   TranslationsResponse,
   ProjectInfo,
@@ -29,12 +36,7 @@ export type {
   PullResult,
   TranslationDiff,
   Logger,
-  FileSystem,
-  GenerationReporter,
-  GenerationStats,
 } from "./types";
-
-export type { TypeEmitterOptions } from "./core/TypeEmitter";
 
 export type {
   CatalogCheckOptions,
@@ -46,7 +48,7 @@ export type {
   CatalogCheckPluralFinding,
   CatalogCheckSelectFinding,
   CatalogCheckTagsFinding,
-  CatalogCheckUnbalancedTagsFinding,
+  CatalogCheckSyntaxFinding,
   CatalogCheckUnsupportedIcuFinding,
   PluralRuleType,
 } from "./core/CatalogCheck";

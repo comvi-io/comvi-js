@@ -46,6 +46,7 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
   const s = P.s;
   let c: string | undefined;
   const type = token(P);
+  if (__DEV__ && P.o) P.o(1, name, type);
   const select = type === "select";
   const ordinal = type === "selectordinal";
   if (!select && !ordinal && type !== "plural") {
@@ -89,6 +90,7 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
       if (__DEV__) fail(`invalid selector \`${key}\` in \`{${name}, ${type}, …}\``);
       fail();
     }
+    if (__DEV__ && P.o) P.o(2, key);
     if (s[P.i++] !== "{") {
       if (__DEV__) fail(`selector \`${key}\` in \`{${name}, ${type}, …}\` has no {sub-message}`);
       fail();
@@ -104,6 +106,7 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
     }
   }
   P.i++;
+  if (__DEV__ && P.o) P.o(3, name);
   const other = branches.other;
   if (!other) {
     if (__DEV__) fail(`\`{${name}, ${type}, …}\` needs an \`other\` branch`);
