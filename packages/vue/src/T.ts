@@ -6,6 +6,16 @@ import { watchEffect } from "vue";
 import { activate } from "@comvi/core/internal";
 import { render, use, type TComponent } from "./binding";
 
+const setup = (
+  p: { i18nKey: string },
+  c: { attrs: Record<string, unknown>; slots: Record<string, any> },
+) => {
+  const i = use();
+  // `attrs` is tracked: a new `ns` activates that namespace (after the render).
+  watchEffect(() => c.attrs.ns && activate(i, c.attrs.ns as string), { flush: "post" });
+  return () => render(i, undefined, p.i18nKey, c.attrs, c.slots);
+};
+
 /**
  * Renders one message; params are attributes, a tag handler is an attribute or a slot of
  * the tag's name (`<T i18nKey="terms"><template v-slot:link="{ children }"><a href="/terms">{{
@@ -15,14 +25,5 @@ import { render, use, type TComponent } from "./binding";
  * `<T ns>` activates that namespace after it mounts, and again when the attribute changes.
  * `:markers="false"` opts the message out of an in-context editor session (R3-14 H9).
  */
-export const T = {
-  // `i18nKey` is the one prop (a template spells it `i18n-key`).
-  props: ["i18nKey"],
-  inheritAttrs: false,
-  setup(p: { i18nKey: string }, c: { attrs: Record<string, unknown>; slots: Record<string, any> }) {
-    const i = use();
-    // `attrs` is tracked: a new `ns` activates that namespace (after the render).
-    watchEffect(() => c.attrs.ns && activate(i, c.attrs.ns as string), { flush: "post" });
-    return () => render(i, undefined, p.i18nKey, c.attrs, c.slots);
-  },
-} as unknown as TComponent;
+// `i18nKey` is the one prop (a template spells it `i18n-key`).
+export const T = { props: ["i18nKey"], inheritAttrs: false, setup } as unknown as TComponent;

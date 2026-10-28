@@ -94,6 +94,21 @@ describe("<T i18nKey>", () => {
     expect(w.text()).toBe("cart");
   });
 
+  it("activates the namespace of its ns prop after its render, never during setup", () => {
+    const requested: string[] = [];
+    const atRender: string[][] = [];
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: {} },
+      loader: async (l, n) => (requested.push(`${l}:${n}`), {}),
+      // Called while <T> renders a key its namespace does not hold yet.
+      missing: (key) => (atRender.push([...requested]), key),
+    });
+    mountWith(i18n, defineComponent({ render: () => h(Tc, { i18nKey: "k", ns: "shop" }) }));
+    expect(atRender[0]).toEqual([]);
+    expect(requested).toEqual(["en:shop"]);
+  });
+
   it("re-renders on a locale switch and on new params", async () => {
     const i18n = createI18n({
       locale: "en",
@@ -145,6 +160,19 @@ describe("<T i18nKey>", () => {
     expect(mountWith(i18n, C).html()).toBe(
       '<p>Read <a href="/terms">the <b>full</b> terms</a>.</p>',
     );
+  });
+
+  it("joins text-only children into one string for the handler: a nested handler's text included", () => {
+    const i18n = en({ m: "<x>one <y>two</y> {n}</x>" });
+    const seen: unknown[] = [];
+    const out = html(i18n, {
+      i18nKey: "m",
+      n: 3,
+      x: (c: unknown) => (seen.push(c), h("u", c as string)),
+      y: (c: string) => c.toUpperCase(),
+    });
+    expect(seen).toEqual(["one TWO 3"]);
+    expect(out).toBe("<u>one TWO 3</u>");
   });
 
   it("an attribute wins over a slot of the same name", () => {

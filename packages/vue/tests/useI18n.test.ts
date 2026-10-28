@@ -382,6 +382,17 @@ describe("useI18n(ns)", () => {
     expect(Ts.size).toBe(1);
   });
 
+  it("the bound <T> takes the key as a template spells it: i18n-key", () => {
+    const i18n = createI18n({ locale: "en", catalogs: { shop: { en: { k: "Shop {n}" } } } });
+    const C = defineComponent({
+      setup() {
+        const { T } = useI18n("shop");
+        return () => h(T as never, { "i18n-key": "k", n: 2 });
+      },
+    });
+    expect(mountWith(i18n, C).text()).toBe("Shop 2");
+  });
+
   it("binds <T> to a namespace named like an Object.prototype member", () => {
     const i18n = createI18n({
       locale: "en",
