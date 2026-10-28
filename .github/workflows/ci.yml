@@ -209,6 +209,13 @@ jobs:
       - name: Strict consumer gate (generated types)
         run: pnpm check:strict-consumer
 
+      # Typegen end to end on the built CLI, Vite plugin and Node API (R3-18): one output
+      # from every input (byte for byte), `comvi typegen --watch` on a fixture app (a new
+      # key reaches tsc, broken JSON keeps the file, an unchanged declaration is not
+      # rewritten, two watchers of one file write it from one process).
+      - name: Typegen e2e (built artifacts)
+        run: pnpm typegen:e2e
+
       # Imports the entries meant for plain Node (`@comvi/svelte/format`) from
       # packed tarballs in a fresh `node` process: the svelte root cannot load there.
       - name: Plain-Node entries gate
