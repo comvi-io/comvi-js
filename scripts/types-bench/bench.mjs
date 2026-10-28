@@ -77,12 +77,12 @@ const REDS = {
     gates: ["jsx:inst", "jsx:nest", "jsxTypo:inst", "jsxTypo:nest"],
     edits: [
       [
-        'export type TComponentFor<Out> = <K extends KeysOf[N] | NotAKey, N extends NsOf = "default" & NsOf>(',
-        'export type TComponentFor<Out> = <K extends KeysOf[N], N extends NsOf = "default" & NsOf>(',
+        "export type TComponentFor<Out, S = 0> = <\n  K extends KeysOf[N] | NotAKey,\n  N extends NsOf",
+        "export type TComponentFor<Out, S = 0> = <\n  K extends KeysOf[N],\n  N extends NsOf",
       ],
       [
-        "export type BoundTFor<NS extends NsOf, Out> = <K extends KeysOf[NS] | NotAKey>(",
-        "export type BoundTFor<NS extends NsOf, Out> = <K extends KeysOf[NS]>(",
+        "export type BoundTFor<NS extends NsOf, Out, S = 0> = <K extends KeysOf[NS] | NotAKey>(",
+        "export type BoundTFor<NS extends NsOf, Out, S = 0> = <K extends KeysOf[NS]>(",
       ],
     ],
   },

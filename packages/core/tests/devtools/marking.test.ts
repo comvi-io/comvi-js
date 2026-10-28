@@ -195,6 +195,8 @@ describe("no session, no devtools", () => {
         "dir",
         "formatNumber",
         "formatValue",
+        // Reads the published state (a server render's payload); sets nothing.
+        "handover",
         "inherit",
         "intl",
         "loading",

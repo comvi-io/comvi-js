@@ -117,9 +117,19 @@ export type TranslateFn<NS extends NsOf, Rich = string> = <
 
 /**
  * A message's params as component props: none → `{}`, a key typo (`NotAKey`) → loose, so
- * only `i18nKey` errs. `never` is tested first: it extends `NotAKey` too.
+ * only `i18nKey` errs. `never` is tested first: it extends `NotAKey` too. With `S` (a
+ * binding whose `<T>` also takes a tag handler from a slot of the tag's name: Vue), the
+ * `Tag` params are optional props — the slot may give the handler instead.
  */
-type PropsOf<P> = [P] extends [never] ? {} : [P] extends [NotAKey] ? Record<string, unknown> : P;
+type PropsOf<P, S> = [P] extends [never]
+  ? {}
+  : [P] extends [NotAKey]
+    ? Record<string, unknown>
+    : [S] extends [0]
+      ? P
+      : { [K in keyof P as Tag extends P[K] ? never : K]: P[K] } & {
+          [K in keyof P as Tag extends P[K] ? K : never]?: P[K];
+        };
 
 /**
  * A binding's typed `<T i18nKey ns? locale? markers? {...params}>`, rendering `Out`. The key
@@ -128,13 +138,19 @@ type PropsOf<P> = [P] extends [never] ? {} : [P] extends [NotAKey] ? Record<stri
  * intersect every key's params — minutes of tsc on a 5k catalog, for a typo AND for a valid
  * key (review of lot 3, BLOCK 1). Gated by `check:types-bench` and `check:types-ide` (JSX).
  */
-export type TComponentFor<Out> = <K extends KeysOf[N] | NotAKey, N extends NsOf = "default" & NsOf>(
-  props: { i18nKey: K; ns?: N; locale?: string; markers?: boolean } & PropsOf<ParamsFor<N, K>>,
+export type TComponentFor<Out, S = 0> = <
+  K extends KeysOf[N] | NotAKey,
+  N extends NsOf = "default" & NsOf,
+>(
+  props: { i18nKey: K; ns?: N; locale?: string; markers?: boolean } & PropsOf<ParamsFor<N, K>, S>,
 ) => Out;
 
 /** `<T>` bound to namespace NS (`useI18n(ns).T`): no `ns` prop, the same typo guard. */
-export type BoundTFor<NS extends NsOf, Out> = <K extends KeysOf[NS] | NotAKey>(
-  props: { i18nKey: K; ns?: never; locale?: string; markers?: boolean } & PropsOf<ParamsFor<NS, K>>,
+export type BoundTFor<NS extends NsOf, Out, S = 0> = <K extends KeysOf[NS] | NotAKey>(
+  props: { i18nKey: K; ns?: never; locale?: string; markers?: boolean } & PropsOf<
+    ParamsFor<NS, K>,
+    S
+  >,
 ) => Out;
 
 /** A param value a plain `{x}` prints as text (`String(value)`, R3-17), or a list of them. */

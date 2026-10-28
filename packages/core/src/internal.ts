@@ -7,7 +7,8 @@
  * snapshot with extra catalogs layered in, never published, `rev` unchanged) and
  * `translate(i18n, state, key, params, ns)`, plus `loading(state, ns)`,
  * `coming(i18n, state, ns)` and `activate(i18n, ns)`. A state carries the marking hook of an editor session (`mk`,
- * R3-14 H4), which only the `/devtools` handle sets; nothing here sets it.
+ * R3-14 H4), which only the `/devtools` handle sets; nothing here sets it. `handover(i18n)`
+ * is what a server render gives the browser (design §2.6, R3-21).
  */
 import type { Catalog, Rendered } from "./compile/cache";
 import type { Env, Params } from "./compile/scanner";
@@ -129,3 +130,40 @@ export const coming = (i18n: I18n, state: State, ns: string): boolean => !!core(
 /** Whether a catalog load is in flight in `state` (for namespace `ns`, or any). */
 export const loading = (state: State, ns?: string): boolean =>
   state.ld.some((k) => ns === undefined || k.endsWith("\0" + ns));
+
+/**
+ * What a server render hands the browser (design §2.6, R3-21): the locale, the time zone and
+ * the clock the render used, and the catalogs it rendered with — every active namespace in
+ * the locale's chain (its parents and fallback locales), in the shape of
+ * `createI18n({ catalogs })`. The browser's `createI18n({ ...options, ...handover })` then
+ * renders what the server rendered and asks the loader for none of it.
+ */
+export interface Handover {
+  locale: string;
+  timeZone?: string;
+  /** Epoch ms the server rendered at: `formatRelativeTime` counts from it on both sides. */
+  now: number;
+  catalogs: Record<string, Record<string, Catalog>>;
+}
+
+/**
+ * The {@link Handover} of `i18n` as of now (call it after the render). Development throws
+ * when the instance has no `timeZone`: a server and a browser in different zones format
+ * the same date differently, and the hydration would not match (design §2.6).
+ */
+export const handover = (i18n: I18n): Handover => {
+  const x = core(i18n);
+  const s = x.s();
+  if (__DEV__ && !x.o.timeZone)
+    throw new TypeError(
+      "[@comvi/core] a server render needs the timeZone option: the server and the browser must format dates in one zone",
+    );
+  const catalogs = N<Record<string, Catalog>>();
+  for (const n of x.n)
+    for (const [l] of x.ch(s.locale)) {
+      const y = s.c[n]?.[l];
+      // A patched slot is handed over as one catalog: the base with the patch on top.
+      if (y) (catalogs[n] ||= N())[l] = y.p ? N(y.m, y.p) : y.m;
+    }
+  return { locale: s.locale, timeZone: x.o.timeZone, now: x.o.now ?? Date.now(), catalogs };
+};

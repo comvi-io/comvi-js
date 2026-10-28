@@ -1,8 +1,0 @@
-{
-  // A THIRD isolated program: `TranslationKeys` closed through THIS package's
-  // own specifier, which is what a generated file in a consumer app does.
-  // `src` is deliberately absent — the subject is the published surface, so the
-  // program sees exactly what an app sees: `dist/index.d.ts` and nothing else.
-  "extends": "./tsconfig.test-types.json",
-  "include": ["tests/types-keys-via-binding/**/*.test-d.ts"]
-}
