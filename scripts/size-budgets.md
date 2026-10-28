@@ -825,3 +825,27 @@ route's namespaces before `renderToString` (550 → 540); the bound `<T>` with n
 `fw-vue-full-composite` was re-baselined from the lot's final sweep (7,448 → 7,452: the exported
 `<T>`'s setup became a named function for Stryker). It now names its entries (`@comvi/vue`, `/format` and the core subpaths it
 imports), like `fw-react-full-composite`.
+
+### Lot 4 review fix pass (2026-10-28)
+
+`vue-icu-cdn` stays at **5,382 B, +492 B** over `core-icu-cdn` (4,890). Added in the binding:
+attribute names camelized (`camelize` from `vue`, external) into a prototype-free params object,
+the bound `<T>`'s namespace set last, the bound `<T>` table moved from a module object into the
+instance's cell. Paid for by: the bound `<T>` closing over its instance (no `use()` per render),
+the key read from the camelized params (no `p["i18n-key"]` fallback, no `props` on the exported
+`<T>`), and `N()` re-exported from `@comvi/core/internal` instead of two `Object.create(null)`.
+The first cut, which froze the server clock in the binding's `createI18n`, measured 5,415 B
+(+525, over the cap): the clock moved to the core's `/format` and `/internal` (`clock.ts`, a
+shared chunk), 0 B in `core-icu-cdn` and the binding rows. One sweep after
+`TURBO_FORCE=true pnpm build`, Node v24.22.1:
+
+| row                     | gzip B | budget | was   | why                                                    |
+| ----------------------- | ------ | ------ | ----- | ------------------------------------------------------ |
+| vue-icu-cdn             | 5,382  | 5,395  | 5,382 | +492 B over core-icu-cdn (cap 500)                     |
+| fw-vue-default          | 4,882  | 5,127  | 4,881 | re-baselined (× 1.05)                                  |
+| fw-vue-full-composite   | 7,508  | 7,884  | 7,452 | re-baselined: the core clock chunk, `<T>` camelizes    |
+| react-icu-cdn           | 5,360  | 5,395  | 5,359 | +470 B (core's `/internal` exports `N`)                |
+| fw-react-full-composite | 7,791  | 8,135  | 7,747 | the core clock chunk under `/format`; not re-baselined |
+
+Seen red: 60 random bytes in `install()` → `x vue-icu-cdn: 5473 B vs budget 5395 B … +583 B over
+core-icu-cdn vs cap +500 B`, `Size gate failed for: vue-icu-cdn`; reverted.
