@@ -37,14 +37,10 @@ export const MIGRATION_PENDING = {
   "@comvi/nuxt": "lot 7: Nuxt on the new core and @comvi/vue",
   "@comvi/plugin-in-context-editor": "lot 8: editor on the internal hook v2",
   "@comvi/chrome-extension": "lot 8: depends on @comvi/plugin-in-context-editor",
-  "@comvi/vite-plugin":
-    "lot 3b: a wrapper over typegen's generate()/watch(); its runtime-parity tests import the removed @comvi/core/icu",
   "@test-apps/next": "lot 6: builds from @comvi/next",
   "@test-apps/next16": "lot 6: builds from @comvi/next",
   "@test-apps/nuxt": "lot 7: builds from @comvi/nuxt",
   "@test-apps/nuxt4": "lot 7: builds from @comvi/nuxt",
-  "@test-apps/react":
-    "lot 3b: generates its types with @comvi/vite-plugin (typegen v2); its app moves to the 0.8 API with it",
   "@test-apps/solid": "lot 5: builds from @comvi/solid",
   "@test-apps/svelte": "lot 5: builds from @comvi/svelte",
   "@test-apps/vue": "lot 4: builds from @comvi/vue",
@@ -98,8 +94,8 @@ export const PENDING_CAPABILITIES = {
 
 /**
  * What lot 1c moved to the 0.8 API: the React and vanilla examples, and the core and React
- * cases of the bundler matrix. `@test-apps/react` stays pending on its own entry (it
- * generates its types with `@comvi/vite-plugin`, typegen v2 in lot 3).
+ * cases of the bundler matrix. `@test-apps/react` moved in lot 3b with `@comvi/vite-plugin`
+ * (it is built and type-checked, not part of the test-apps smoke).
  */
 export const ON_08 = {
   examples: new Set(["react", "vanilla"]),

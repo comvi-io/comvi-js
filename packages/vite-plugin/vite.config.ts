@@ -12,8 +12,8 @@ export default defineConfig({
       bundleTypes: {
         // api-extractor treats every dependency as external unless it is
         // listed here: without `bundledPackages` the rolled-up `.d.ts` still
-        // IMPORTS `SchemaParam`/`KeySchema`/`ProjectSchema`/`EmitOptions`
-        // from the private package. Listing it inlines those declarations.
+        // IMPORTS what it re-exports from the private package. Listing it
+        // inlines those declarations.
         bundledPackages: ["@comvi/typegen"],
       },
     }),
@@ -22,7 +22,7 @@ export default defineConfig({
     entry: resolve(__dirname, "src/index.ts"),
     name: "ComviVitePlugin",
     // `@comvi/typegen` is deliberately absent: workspace-private, so the
-    // emitter is inlined into this bundle.
-    external: ["vite", "node:crypto", "node:fs", "node:fs/promises", "node:path"],
+    // generator is inlined into this bundle.
+    external: ["vite", "node:crypto", "node:fs", "node:fs/promises", "node:os", "node:path"],
   }),
 });

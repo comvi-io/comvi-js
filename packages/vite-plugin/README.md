@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/vite-plugin</h1>
 
-<p align="center">Vite plugin that generates a <code>TranslationKeys</code> declaration from local translation JSON.</p>
+<p align="center">Vite plugin that writes the typed-translations declaration from local translation JSON.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/vite-plugin"><img src="https://img.shields.io/npm/v/@comvi/vite-plugin?color=blue" alt="npm"></a>
@@ -16,9 +16,10 @@
 
 ---
 
-`@comvi/vite-plugin` watches your translation JSON and writes the declaration that makes `t()`
-check keys and parameters. Use it when the catalogs live in your repository; for catalogs on the
-Comvi platform, [comvi typegen](https://comvi.io/docs/cli/typegen) emits the same file.
+`@comvi/vite-plugin` reads your translation JSON and writes the declaration that makes `t()`
+check keys and parameters: once per `vite build`, and on every change during `vite dev`. For
+catalogs on the Comvi platform, or without Vite, `comvi typegen` writes the same file byte for
+byte.
 
 ## Install
 
@@ -36,102 +37,91 @@ import { defineConfig } from "vite";
 import { comviTypes } from "@comvi/vite-plugin";
 
 export default defineConfig({
-  plugins: [
-    comviTypes({
-      translations: "./src/locales",
-      output: "./src/types/i18n.d.ts",
-      defaultNs: "common",
-    }),
-  ],
+  plugins: [comviTypes({ from: "./src/locales", sourceLocale: "en" })],
 });
 ```
 
-The plugin generates once on `buildStart` and again whenever a `.json` file under `translations`
-is added, changed or removed. Both paths resolve against the Vite root. Keep `output` inside your
-`tsconfig.json` `include`; most `src/**/*` setups already cover it.
+`from` and `out` resolve against the Vite root. Keep `out` inside your `tsconfig.json` `include`;
+most `src/**/*` setups already cover it.
 
 ## Options
 
-| Option         | Default                            | Behaviour                                                                                                            |
-| -------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `translations` | required                           | Directory holding the translation JSON.                                                                              |
-| `output`       | `'./src/types/i18n.d.ts'`          | Where the declaration is written; parent directories are created.                                                    |
-| `fileTemplate` | `'{namespace}/{languageTag}.json'` | Maps a file path to a language and a namespace. A file the template does not match is read as the default namespace. |
-| `defaultNs`    | `'default'`                        | Keys from this namespace lose their prefix. Set it to what your runtime uses.                                        |
-| `strictParams` | `true`                             | Parameters required; `false` emits them as optional.                                                                 |
-| `augment`      | from `package.json`                | The module the declaration augments.                                                                                 |
+| Option          | Default                            | Behaviour                                                                                 |
+| --------------- | ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| `from`          | required                           | The catalogs directory, or a schema file such as `.comvi/schema.json` from `comvi pull`.  |
+| `out`           | `'./src/types/i18n.d.ts'`          | Where the declaration is written.                                                         |
+| `sourceLocale`  | the only locale                    | The locale the types come from. Required when the directory has more than one locale.     |
+| `fileTemplate`  | `'{namespace}/{languageTag}.json'` | Maps a file to its locale and namespace. With the default, `<locale>.json` is `default`.  |
+| `defaultParams` | none                               | The keys of `createI18n({ defaultParams })`. They become optional in every key's params.  |
+| `augment`       | from `package.json`                | The module the declaration augments: `@comvi/core` when declared, otherwise your binding. |
 
 ## What gets generated
 
-The default namespace, in `src/locales/en.json`:
+`src/locales/en.json` is the `default` namespace and `src/locales/shop/en.json` the `shop`
+namespace:
 
 ```json title="src/locales/en.json"
 {
   "welcome": "Hello, {name}!",
-  "items": "{count, plural, one {# item} other {# items}}",
-  "greeting": "Hi",
-  "unread": "{count} unread"
+  "terms": "Read the <link>terms</link>.",
+  "title": "Comvi"
 }
 ```
 
-An `errors` namespace beside it, in `src/locales/errors/en.json`:
-
-```json title="src/locales/errors/en.json"
+```json title="src/locales/shop/en.json"
 {
-  "NOT_FOUND": "Not found"
+  "cart.items": "{count, plural, one {# item} other {# items}}"
 }
 ```
 
-The declaration, `src/types/i18n.d.ts`:
+For an app that depends on `@comvi/react`, `src/types/i18n.d.ts` becomes (byte for byte):
 
-```ts title="src/types/i18n.d.ts" check=group=typed-calls
-import "@comvi/core";
+<!-- prettier-ignore -->
+```ts title="src/types/i18n.d.ts"
+/**
+ * Comvi translation catalogs, augmenting '@comvi/react'
+ * DO NOT EDIT — this file is generated from your translation schema
+ */
 
-declare module "@comvi/core" {
-  interface TranslationKeys {
-    "errors:NOT_FOUND": never;
-    greeting: never;
-    items: { count: number };
-    unread: { count: string | number };
-    welcome: { name: string | number };
+import type { Tag } from '@comvi/react';
+
+declare module '@comvi/react' {
+  interface Catalogs {
+    "default": {
+      "terms": { "link": Tag };
+      "title": never;
+      "welcome": { "name": string | number };
+    };
+    "shop": {
+      "cart.items": { "count": number };
+    };
   }
 }
 
 export {};
 ```
 
-And the calls it checks, in `src/usage.ts`:
-
-```ts title="src/usage.ts" check=group=typed-calls
-import { i18n } from "./i18n";
-
-i18n.t("welcome", { name: "Alice" });
-i18n.t("unread", { count: 3 });
-i18n.t("greeting");
-i18n.t("NOT_FOUND", { ns: "errors" });
-```
+`never` means the key takes no parameters. A plain `{name}` takes `string | number`, a `plural`
+or `selectordinal` count is a `number`, a `select` takes its options, and a tag is a `Tag` param:
+the handler that renders it. Catalogs are flat: `cart.items` is one key. A nested object is
+reported and left out, as the runtime leaves it out.
 
 ### How it works
 
-Nested JSON flattens to dot keys and a namespace directory becomes the `errors:` prefix. `never`
-means the key takes no parameters. Parameter types come from ICU syntax: a bare `{name}` and a
-`select` variable take `string | number`, a `plural` or `selectordinal` count is `number`. The
-declaration augments `@comvi/core` when `package.json` declares it, otherwise the first framework
-binding it declares; `augment` names a different module. Types and the compiler are two
-decisions: the `items` key needs `compiler: icuCompiler` from `@comvi/core/icu` on the i18n
-instance, or it throws at ingestion in development and renders its braces in production; see
-[Plurals and ICU](https://comvi.io/docs/i18n/pluralization).
+`vite build` generates once and fails the build when it cannot: broken JSON, a param named `ns`,
+`locale` or `markers` (per-call options of `t()`), or a `package.json` that declares no Comvi
+package. `vite dev` follows the catalogs until the server closes: a burst of saves is generated
+once, only the namespace that changed is read again, a file whose content is unchanged is not
+rewritten, and broken JSON is reported once while the previous declaration stays. Writes are
+atomic. Two dev servers of one app write the file from one of them.
 
-In `vite build` a generation error fails the build; in `vite dev` it is logged as
-`[@comvi/vite-plugin] Failed to generate types: …` and the previous declaration stays. The causes:
-a missing `translations` directory, a malformed JSON file, a key collision after stripping the
-default namespace, a parameter type outside `string` and `number`, or a `package.json` that
-declares no Comvi package to augment.
+Messages are read with the scanner `@comvi/core` renders them with, so the types and the
+rendered text agree on every message.
 
 ## Read next
 
-- [Vite plugin](https://comvi.io/docs/i18n/plugins/vite-plugin): what TypeScript catches, key collisions, the full table.
-- [Type safety](https://comvi.io/docs/i18n/type-safety): how the augmentation reaches `useI18n()`, and `InferKeys`.
+- [Type safety](https://comvi.io/docs/i18n/type-safety): what the declaration checks, and how it
+  reaches `useI18n()`.
 
 ## Contributing
 

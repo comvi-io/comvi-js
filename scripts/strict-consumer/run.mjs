@@ -30,6 +30,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { comviTypes } from "@comvi/vite-plugin";
+import { pendingReason } from "../../tooling/migration-pending.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const TSC = path.join(REPO_ROOT, "node_modules", "typescript", "bin", "tsc");
@@ -136,7 +137,7 @@ function writeSource(app, specifier, { assertUnknownKey }) {
 
 /** Runs the Vite plugin's generation the way Vite runs it, against `app` as root. */
 async function generate(app) {
-  const plugin = comviTypes({ translations: "./locales", output: "./comvi.d.ts" });
+  const plugin = comviTypes({ from: "./locales", out: "./comvi.d.ts" });
   plugin.configResolved({ root: app, command: "build" });
   await plugin.buildStart();
 }
@@ -213,7 +214,8 @@ const cases = [
     run: () => declaredPackageCase("@comvi/react"),
   },
   {
-    name: "B. an app declaring only @comvi/nuxt, whose TranslationKeys is a named re-export",
+    name: "B. an app declaring only @comvi/nuxt, whose Catalogs is a named re-export",
+    package: "@comvi/nuxt",
     run: () => declaredPackageCase("@comvi/nuxt"),
   },
   {
@@ -247,8 +249,16 @@ const cases = [
 ];
 
 const failures = [];
-for (const { name, run } of cases) {
+let skipped = 0;
+for (const { name, run, package: needs } of cases) {
   console.log(`\n${name}`);
+  // A binding still on the 0.7 core is not built (tooling/migration-pending.mjs); its case
+  // runs again the moment its lot removes it from the list.
+  if (needs && pendingReason(needs)) {
+    console.log(`  skipped — ${needs} is MIGRATION_PENDING (${pendingReason(needs)})`);
+    skipped++;
+    continue;
+  }
   const reasons = await run();
   for (const reason of reasons) console.log(`  FAILED: ${reason}`);
   if (reasons.length === 0) console.log("  ok");
@@ -263,4 +273,6 @@ if (failures.length > 0) {
 }
 
 for (const root of appRoots) fs.rmSync(root, { recursive: true, force: true });
-console.log(`strict-consumer: OK — ${cases.length} cases.`);
+console.log(
+  `strict-consumer: OK — ${cases.length - skipped} cases${skipped ? `, ${skipped} skipped (MIGRATION_PENDING)` : ""}.`,
+);

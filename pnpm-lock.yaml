@@ -673,9 +673,6 @@ importers:
 
   packages/vite-plugin:
     devDependencies:
-      '@comvi/core':
-        specifier: workspace:*
-        version: link:../core
       '@comvi/test-utils':
         specifier: workspace:*
         version: link:../../tooling/test-utils
@@ -898,6 +895,9 @@ importers:
         specifier: ^7.18.4
         version: 7.18.4(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
     devDependencies:
+      '@comvi/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
       '@comvi/vite-config':
         specifier: workspace:*
         version: link:../../tooling/vite-config
