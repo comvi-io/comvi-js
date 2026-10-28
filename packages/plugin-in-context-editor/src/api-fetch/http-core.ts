@@ -1,15 +1,9 @@
 /**
- * The transport primitives BOTH request paths share: one JSON request under one
- * timeout, the abort vocabulary around it, and the identifier check every URL
- * builder runs before it interpolates a path segment.
- *
- * This module is deliberately free of endpoint knowledge. `http.ts` adds the
- * API URL builders and the response transform on top of it; `cdn-url.ts` adds
- * the CDN one. Keeping the two apart is what lets
- * the `@comvi/plugin-fetch-loader` root reach the request machinery without also
- * reaching the API path (`tests/cdn-graph.test.ts` asserts it).
+ * The transport primitives of the API request path: one JSON request under one timeout,
+ * the abort vocabulary around it, and the identifier check every URL builder runs before
+ * it interpolates a path segment. Copied from 0.7's `@comvi/plugin-fetch-loader` in lot 2c
+ * (see `index.ts`); the error prefix is that package's, as the editor's tests expect.
  */
-import type { FetchLoaderOptions } from "./options";
 
 export interface ExtendedFetchOptions extends RequestInit {
   next?: { revalidate?: number | false; tags?: string[] };
@@ -25,22 +19,12 @@ export interface FetchRequestOptions {
   retry?: boolean;
 }
 
-export function buildCacheOptions(
-  cache?: FetchLoaderOptions["cache"],
-): Pick<ExtendedFetchOptions, "next"> {
-  if (!cache) return {};
-  const next: ExtendedFetchOptions["next"] = {};
-  if (cache.revalidate !== undefined) next.revalidate = cache.revalidate;
-  if (cache.tags?.length) next.tags = cache.tags;
-  return Object.keys(next).length ? { next } : {};
-}
-
 /**
  * Every error this package throws names the PACKAGE, not an export.
  * `[FetchLoader]` used to prefix them all, which reads as a bug report about a
  * symbol a `cdnLoader` user never imported.
  */
-export const ERROR_PREFIX = "[@comvi/plugin-fetch-loader]";
+export const ERROR_PREFIX = "[@comvi/plugin-in-context-editor]";
 
 export class RequestAbortedError extends Error {
   constructor(url: string) {

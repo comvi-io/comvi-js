@@ -133,7 +133,6 @@ export const nextBuild = (dir: string, suffix: "" | ".dev") => ({
       // emitted module shared by the entries that import it (routing, middleware,
       // navigation, root), not a copy per entry.
       "@comvi/react",
-      "@comvi/plugin-fetch-loader",
     ],
     output: {
       globals: {

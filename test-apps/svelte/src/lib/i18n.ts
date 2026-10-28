@@ -4,13 +4,19 @@
 import "@comvi/core/tags";
 import { createI18n, icuCompiler, loader } from "@comvi/svelte";
 import type { I18n, I18nLoaderApi, I18nPluginApi } from "@comvi/svelte";
-import { localeDetector } from "@comvi/plugin-locale-detector";
+import { detect, persist } from "@comvi/core/plugins";
 
 const supportedLocales = ["en", "de", "fr", "es", "uk", "ar"] as const;
 
 export const i18n: I18n & I18nLoaderApi & I18nPluginApi = createI18n({
   locale: "en",
   fallbackLocale: "en",
+  // The 0.8 detector (lot 2c removed @comvi/plugin-locale-detector): the visitor's last
+  // choice in localStorage, then the browser, written back on every switch.
+  plugins: [
+    detect({ supported: [...supportedLocales], order: ["storage", "navigator"] }),
+    persist({ to: "storage" }),
+  ],
   compiler: icuCompiler,
   tagInterpolation: {
     basicHtmlTags: ["strong", "em", "br", "a"],
@@ -32,15 +38,5 @@ export const i18n: I18n & I18nLoaderApi & I18nPluginApi = createI18n({
       "es:admin": () => import("../../../locales/admin/es.json"),
       "uk:admin": () => import("../../../locales/admin/uk.json"),
       "ar:admin": () => import("../../../locales/admin/ar.json"),
-    }),
-  )
-  // The locale detector, through the package's own bare-name installer: it
-  // attaches the plugin host it needs and registers the detector, so an app
-  // never touches the raw plugin queue.
-  .use(
-    localeDetector({
-      supportedLocales: [...supportedLocales],
-      order: ["localStorage", "navigator"],
-      caches: ["localStorage"],
     }),
   );

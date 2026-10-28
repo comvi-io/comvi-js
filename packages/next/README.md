@@ -129,30 +129,24 @@ all three entries and take the instance first: `formatRelativeTime(i18n, -2, 'ho
 
 ## Load from Comvi
 
-```bash
-npm install @comvi/plugin-fetch-loader
-```
-
-Compose the loader in `src/i18n/config.ts`:
+Pass the CDN loader (`@comvi/core/cdn`) in `src/i18n/config.ts`:
 
 ```ts title="src/i18n/config.ts" check=group=next-2
 import { createNextI18n } from "@comvi/next";
-import { cdnLoader } from "@comvi/plugin-fetch-loader";
+import { cdn } from "@comvi/core/cdn";
 import { routing } from "./routing";
 
-export const { i18n } = createNextI18n({ ...routing }).use(
-  cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" }),
-);
+export const { i18n } = createNextI18n({
+  ...routing,
+  loader: cdn("https://cdn.comvi.io/<project-token>"),
+});
 
 export { routing };
 ```
 
 The inline catalog goes; every other file stays as it is. `<ComviProvider>` fetches the locale on
 the server and seeds the client with it, so the first paint never races the CDN. The CDN URL is on
-[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
-(`{count, plural, …}`), add `compiler: icuCompiler` as on
-[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
-independent.
+[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi).
 
 ### How it works
 

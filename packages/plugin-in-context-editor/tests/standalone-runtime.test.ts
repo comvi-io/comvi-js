@@ -20,8 +20,8 @@ const { fetchApiTranslationsMock, clearProjectInfoCacheMock } = vi.hoisted(() =>
   clearProjectInfoCacheMock: vi.fn(),
 }));
 
-vi.mock("@comvi/plugin-fetch-loader/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@comvi/plugin-fetch-loader/api")>();
+vi.mock("../src/api-fetch", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/api-fetch")>();
   return {
     ...actual,
     fetchApiTranslations: fetchApiTranslationsMock,

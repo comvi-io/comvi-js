@@ -26,5 +26,6 @@ is the one composition verb.
 | [next-nuxt-parity.md](next-nuxt-parity.md) | one behaviour contract run against both adapters; what must match, what may differ      |
 | [examples-e2e.md](examples-e2e.md)         | a locale switch shows only whole-language states, judged per delivered DOM batch        |
 | [editor-loader.md](editor-loader.md)       | the site's `devtools()` puts the in-context editor on the page; the extension only asks |
+| [catalog-store.md](catalog-store.md)       | one catalog store per server process, and none by default                               |
 | [ssr.md](ssr.md)                           | the four module-scope rules side by side (user-facing)                                  |
 | [limitations.md](limitations.md)           | everything the library does not do (user-facing)                                        |

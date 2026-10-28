@@ -79,22 +79,19 @@ component, `formatNumber`, `formatDate`, `formatCurrency` and `formatRelativeTim
 
 ## Load from Comvi
 
-```bash
-npm install @comvi/plugin-fetch-loader
-```
-
-Compose the loader on the instance, in `src/main.ts`:
+Pass the CDN loader (`@comvi/core/cdn`) as the instance's `loader`, in `src/main.ts`:
 
 ```ts title="src/main.ts" check=group=vue-3
 import { createApp } from "vue";
 import { createI18n } from "@comvi/vue";
-import { cdnLoader } from "@comvi/plugin-fetch-loader";
+import { cdn } from "@comvi/core/cdn";
 import App from "./App.vue";
 
 const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" }));
+  loader: cdn("https://cdn.comvi.io/<project-token>"),
+});
 
 createApp(App).use(i18n).mount("#app");
 ```
@@ -114,13 +111,9 @@ const { t, isInitializing } = useI18n();
 </template>
 ```
 
-`.use(cdnLoader({ cdnUrl }))` fetches each locale from the CDN. Compose before `app.use(i18n)`: `init()`
-drains the plugin queue once, and a plugin queued after it waits for a second `init()` that never comes. Vue has no `fallback`
+`cdn(url)` fetches each locale from the CDN. Vue has no `fallback`
 prop, so `isInitializing` gates the first paint. The CDN URL is on
-[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
-(`{count, plural, …}`), add `compiler: icuCompiler` as on
-[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
-independent.
+[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi).
 
 ### How it works
 

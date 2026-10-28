@@ -149,9 +149,9 @@ the bytes first, then decide whether they ship.
 per framework
 `fw-{react,solid,svelte,vue}-{default,full-composite}`, `fw-svelte-format`; `fw-next-client-default`,
 `fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-root-devtools`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
-`fw-nuxt-full-composite`, `fw-nuxt-i18n`; the platform
-path `plugin-fetch-loader`, `plugin-fetch-loader-api` (`platform-path-react` is replaced by
-`react-icu-cdn` in lot 1c).
+`fw-nuxt-full-composite`, `fw-nuxt-i18n` (`platform-path-react` is replaced by `react-icu-cdn` in
+lot 1c; the `plugin-fetch-loader` and `plugin-fetch-loader-api` rows left with the package in lot 2c,
+the platform path is `core-icu-cdn`).
 
 `fw-next-server-provider` is the server graph of the `withComvi` setup: `<ComviProvider>` and
 `getI18n` with the provider's `"use client"` half and `@comvi/next/config` external, which is what
@@ -167,15 +167,8 @@ Each framework pair is a floor (one specifier, base host) and a ceiling (every c
 through that same specifier). The pair is the measurement — adding or removing one half turns the
 other from a delta into a bare number, so change them together.
 
-`plugin-fetch-loader` and `plugin-fetch-loader-api` are a pair for the same reason: the same
-composition through the package root (`cdnLoader`) and through `@comvi/plugin-fetch-loader/api`
-(`fetchLoader`). What separates them is the API request path `/api` reaches at runtime, so the two
-numbers are only meaningful side by side.
-
-Renamed on 2026-10-04 (first-impression lot), when `cdnLoader` became the package root and
-`fetchLoader` moved to `/api`: `plugin-fetch-loader-cdn-lite` is now `plugin-fetch-loader` and
-`plugin-fetch-loader-cdn` is now `plugin-fetch-loader-api`. Both measure the same module graph as
-before the rename, so their budgets carry over unchanged.
+`plugin-fetch-loader` and `plugin-fetch-loader-api` were a pair (the package root and its `/api`)
+until lot 2c removed the package; their history stays in the dated sections below.
 
 ## 2026-10-11: `#` formatted for the locale
 
@@ -710,3 +703,78 @@ gained the prototype-free `Ts` cache, the handover chunk (not in the row) its ow
 
 Headroom for later lots: `core-icu` 73 B and `core-icu-cdn` 80 B under their R3-13 ceilings;
 the React increment 31 B under its +500 B cap; devtools 61 B under its +500 B target.
+
+## 2026-10-28: lot 2c — the catalog store, `api()`, the parent-chain report; two packages leave
+
+`node scripts/size-check.mjs` after `TURBO_FORCE=true pnpm build`, Node v24.22.1; "before" is
+the lot 1d review fix pass baseline (origin/next a3db1fc9).
+
+| row                     | before | after | Δ   | budget | ceiling | note                                      |
+| ----------------------- | ------ | ----- | --- | ------ | ------- | ----------------------------------------- |
+| core-icu                | 4,376  | 4,413 | +37 | 4,449  | 4,449   | parent-chain report; 36 B headroom        |
+| core-icu-cdn            | 4,815  | 4,886 | +71 | 4,895  | 4,895   | `/cdn` +473 B over core-icu; 9 B headroom |
+| core-icu-devtools       | 4,815  | 4,858 | +43 | 5,017  | 5,017   | devtools +445 B over core-icu (500)       |
+| core-format             | 4,924  | 4,965 | +41 | 5,214  | —       |                                           |
+| core-plugins            | 4,951  | 4,994 | +43 | 5,244  | —       |                                           |
+| react-icu-cdn           | 5,284  | 5,358 | +74 | 5,395  | 5,395   | +472 B over core-icu-cdn (cap 500)        |
+| fw-react-default        | 4,807  | 4,849 | +42 | 5,092  | —       |                                           |
+| fw-react-full-composite | 7,672  | 7,740 | +68 | 8,127  | —       |                                           |
+
+Re-baselined: every row in the table, budget = ceil(measured × 1.05), never above the row's
+ceiling. No ceiling and no cap moved. The `plugin-fetch-loader` and `plugin-fetch-loader-api`
+rows (and their fixtures) are gone with the package.
+
+The bytes, measured piece by piece on `core-icu-cdn` (cdn module alone, esbuild min+gz, beside the
+same build of the lot 1d loader): the instance's parent-chain report (a parent's `load_failed` waits
+for the locale's own load of the namespace) +36 B on every row with the instance; the loader +35 B —
+the `fetch` and `store` options and the seam the store plugs into (a request function taking the
+conditional headers, returning the catalog with its response). The store itself
+(`createCatalogStore`, ~110 B) and `api()` are not in any row: an app that does not import them does
+not ship them. A module-wide default store was measured at +248 B on this row before the cuts (its
+store code alone ~110 B after them, cdn module measured on its own) and is not in the code: it is
+over the R3-13 ceiling (`docs/design/catalog-store.md`). What the cuts were: no caller-signal race
+in the store path (the instance's flight settles on its own signal), the 304 handled as a failure
+that keeps the stored catalog, one promise per request instead of a race plus `finally`, the API
+body picked in `api()`'s own `fetch` wrapper, and no listener removal or pre-aborted check on the
+caller's signal.
+
+Design §3.2's target, `/cdn` ≤ 400 B over core, is not met: +473 B (it was +439 B before this
+lot). Headroom for later lots: `core-icu` 36 B and `core-icu-cdn` 9 B under their R3-13 ceilings;
+the React increment 28 B under its +500 B cap; devtools 55 B under its +500 B cap.
+
+## 2026-10-28: lot 2c review fix pass
+
+Same command and Node (v24.22.1); "before" is the lot 2c table above.
+
+| row                     | before | after | Δ   | budget | ceiling | note                                      |
+| ----------------------- | ------ | ----- | --- | ------ | ------- | ----------------------------------------- |
+| core-icu                | 4,413  | 4,423 | +10 | 4,449  | 4,449   | parent role re-bound per caller; 26 B     |
+| core-icu-cdn            | 4,886  | 4,890 | +4  | 4,895  | 4,895   | `/cdn` +467 B over core-icu; 5 B headroom |
+| core-icu-cdn-store      | —      | 5,055 | new | 5,308  | —       | cdn() + createCatalogStore(): +165 B      |
+| core-icu-api            | —      | 5,413 | new | 5,684  | —       | api() + createCatalogStore()              |
+| core-icu-devtools       | 4,858  | 4,866 | +8  | 5,017  | 5,017   | devtools +443 B over core-icu (500)       |
+| core-format             | 4,965  | 4,973 | +8  | 5,222  | —       |                                           |
+| core-plugins            | 4,994  | 5,003 | +9  | 5,254  | —       |                                           |
+| react-icu-cdn           | 5,358  | 5,361 | +3  | 5,395  | 5,395   | +471 B over core-icu-cdn (cap 500)        |
+| fw-react-default        | 4,849  | 4,858 | +9  | 5,101  | —       |                                           |
+| fw-react-full-composite | 7,740  | 7,747 | +7  | 8,135  | —       |                                           |
+
+Re-baselined: every row in the table, budget = min(ceil(measured × 1.05), ceiling). No ceiling and
+no cap moved. The two new rows have no ceiling: they are server paths, not browser ones, and only
+the owner sets ceilings; they put the store and `api()` under a gate for the first time.
+
+The bytes: the instance's parent-chain report now re-binds a flight's parent role on every
+`get()` (+10 B on `core-icu`, +7 to +9 B on the other rows with the instance); the cdn loader
+refuses a signal that is already aborted (about +7 B, measured on its own) and settles the load from inside its request (`y()` in the async body, not
+`.then(y)`), which restored the lot-1b microtask order at no cost. Cuts that paid for them: the
+own controller's `onabort` instead of an `addEventListener`, `c.abort()` without the caller's
+reason on the caller's abort (the AbortError `fetch` gives), the no-store path as
+`(await load())[0]`. Not added, for want of bytes: removing the listener on the caller's signal
+and disarming the timer when a caller aborts a transport that never settles (measured at +8 B and
++5 B; both documented in `cdn.ts`), and a module-wide default store (`core-icu-cdn-store` above is what it
+costs: +165 B, over the 4,895 B ceiling — the owner's decision, see `docs/design/catalog-store.md`).
+
+Design §3.2's target, `/cdn` ≤ 400 B over core, is still not met: +467 B (−6 B against the lot 2c
+table). Meeting it needs 67 B of cuts in the loader or a new target from the owner. Headroom:
+`core-icu` 26 B and `core-icu-cdn` 5 B under their R3-13 ceilings; the React increment 29 B under
+its +500 B cap; devtools 57 B under its +500 B cap.

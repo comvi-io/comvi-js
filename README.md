@@ -109,43 +109,40 @@ bundle.
 
 ## Connect to Comvi
 
-```bash
-npm install @comvi/plugin-fetch-loader
-```
-
-Compose the loader on the instance, in `src/main.tsx`:
+The CDN loader is part of `@comvi/core`, which every framework package brings. Pass it as the
+instance's `loader`, in `src/main.tsx`:
 
 ```tsx title="src/main.tsx" check=group=connect-comvi-react-1
 import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
-import { cdnLoader } from "@comvi/plugin-fetch-loader";
+import { cdn } from "@comvi/core/cdn";
 import App from "./App";
 
 const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" }));
+  loader: cdn("https://cdn.comvi.io/<project-token>"),
+});
 
 createRoot(document.getElementById("root")!).render(
-  <I18nProvider i18n={i18n} fallback={<div className="spinner" />}>
+  <I18nProvider i18n={i18n} loading={<div className="spinner" />}>
     <App />
   </I18nProvider>,
 );
 ```
 
-`.use(cdnLoader({ cdnUrl }))` fetches each locale from the CDN, so a wording change ships when a
-translator saves it, without a redeploy. The CDN URL comes from **Settings → Content Deploy** in
-the Comvi project; the walkthrough is [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi).
-If your keys use ICU (`{count, plural, …}`), add `compiler: icuCompiler` as on
-[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
-independent.
+`cdn(url)` fetches each locale from the CDN, so a wording change ships when a translator saves
+it, without a redeploy. The CDN URL comes from **Settings → Content Deploy** in the Comvi
+project; the walkthrough is [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). A
+server that renders per request passes one `createCatalogStore()` to every instance's loader
+(`cdn(url, { store })`), so requests share the fetched catalogs.
 
 ## Plugins and tooling
 
 | Package                                                                | What it does                                            | Docs                                                                      |
 | ---------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------- |
-| [`@comvi/plugin-fetch-loader`](packages/plugin-fetch-loader)           | Load translations from the Comvi CDN or API             | [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader)           |
-| [`@comvi/plugin-locale-detector`](packages/plugin-locale-detector)     | Detect the locale from query, cookie, storage, browser  | [Locale detector](https://comvi.io/docs/i18n/plugins/locale-detector)     |
+| [`@comvi/core/cdn`](packages/core)                                     | Load translations from the Comvi CDN or API             | [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader)           |
+| [`@comvi/core/plugins`](packages/core)                                 | Detect the locale from query, cookie, storage, browser  | [Locale detector](https://comvi.io/docs/i18n/plugins/locale-detector)     |
 | [`@comvi/plugin-in-context-editor`](packages/plugin-in-context-editor) | Edit translations inside the running app                | [In-context editor](https://comvi.io/docs/i18n/plugins/in-context-editor) |
 | [`@comvi/vite-plugin`](packages/vite-plugin)                           | Generate `TranslationKeys` from local JSON at dev/build | [Vite plugin](https://comvi.io/docs/i18n/plugins/vite-plugin)             |
 | [`@comvi/cli`](packages/cli)                                           | Pull, push, check and generate types from the terminal  | [Comvi CLI](https://comvi.io/docs/cli)                                    |

@@ -71,30 +71,25 @@ namespaces first. Assigning `i18n.locale` does the same without waiting.
 
 ## Load from Comvi
 
-```bash
-npm install @comvi/plugin-fetch-loader
-```
-
-Compose the loader on the instance, in `src/i18n.ts`:
+The CDN loader is the `@comvi/core/cdn` subpath. Pass it as the instance's `loader`, in `src/i18n.ts`:
 
 ```ts title="src/i18n.ts" check=group=vanilla-cdn
 import { createI18n } from "@comvi/core";
-import { cdnLoader } from "@comvi/plugin-fetch-loader";
+import { cdn } from "@comvi/core/cdn";
 
 export const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project-token>" }));
+  loader: cdn("https://cdn.comvi.io/<project-token>"),
+});
 
-await i18n.init();
+await i18n.ready;
 ```
 
-Compose `.use(cdnLoader({ cdnUrl }))` before `init()`: the first fetch happens inside
-`await init()`. The CDN URL comes from **Settings → Content Deploy** in the Comvi project; the
-walkthrough is [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). If your keys use ICU
-(`{count, plural, …}`), add `compiler: icuCompiler` from `@comvi/core/icu` as on
-[Plurals and ICU](https://comvi.io/docs/i18n/pluralization); the platform and the compiler are
-independent.
+The first fetch starts in `createI18n()`; `i18n.ready` settles when it has. On a server that
+creates an instance per request, pass one `createCatalogStore()` to the loader
+(`cdn(url, { store })`) so the requests share the fetched catalogs. The CDN URL comes from **Settings → Content Deploy** in the Comvi project; the
+walkthrough is [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi).
 
 ## How it works
 

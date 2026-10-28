@@ -1,10 +1,7 @@
 /**
- * The API request path's URL builders and response transform, on top of the
- * shared transport primitives in `http-core.ts`.
- *
- * Those primitives are re-exported here so every existing `from "./http"`
- * import — this package's own modules and `@comvi/next` / `@comvi/nuxt` through
- * the `./api` entry — keeps resolving to one name.
+ * The API request path's URL builders and response transform, on top of the transport
+ * primitives in `http-core.ts` (re-exported here, so the modules of this directory import
+ * one name). Copied from 0.7's `@comvi/plugin-fetch-loader` in lot 2c (see `index.ts`).
  */
 import type { ExportApiResponse, TranslationStore } from "./types";
 import { API_BASE_URL } from "./options";
@@ -17,7 +14,6 @@ export type { ExtendedFetchOptions, FetchRequestOptions, JsonResult } from "./ht
 export {
   ERROR_PREFIX,
   RequestAbortedError,
-  buildCacheOptions,
   fetchJsonWithTimeout,
   isAborted,
   isSafeId,
@@ -25,7 +21,6 @@ export {
   stripSlash,
   toError,
 } from "./http-core";
-export { buildCdnUrl } from "./cdn-url";
 
 /**
  * Build request headers. When apiKey is empty (proxy/transport mode, where

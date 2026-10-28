@@ -35,9 +35,6 @@ export const MIGRATION_PENDING = {
   "@comvi/svelte": "lot 5: Svelte 5 runes binding on the new core",
   "@comvi/next": "lot 6: Next on the new core and @comvi/react",
   "@comvi/nuxt": "lot 7: Nuxt on the new core and @comvi/vue",
-  "@comvi/plugin-fetch-loader": "replaced by @comvi/core/cdn in lot 1b (R3-11); removed in lot 2c",
-  "@comvi/plugin-locale-detector":
-    "replaced by @comvi/core/plugins in lot 1b (R3-11); removed in lot 2c",
   "@comvi/plugin-in-context-editor": "lot 8: editor on the internal hook v2",
   "@comvi/chrome-extension": "lot 8: depends on @comvi/plugin-in-context-editor",
   "@comvi/typegen":
@@ -64,7 +61,10 @@ const CORE_07_DOCS =
   "documents the 0.7 core API (.use() composition, the capability subpaths); the 0.8 API landed in lot 1b, the pages are rewritten in lot 10";
 const LINT_07_RULES =
   "on the 0.8 API since lot 1c; the docs-snippets rules still require the 0.7 composition (`.use(installer)`, `compiler: icuCompiler`) — they move to 0.8 with the docs in lot 10";
+const CDN_08_ROOT =
+  "its Connect to Comvi section is on the 0.8 API since lot 2c (`loader: cdn(url)` from @comvi/core/cdn, the 0.7 fetch loader is gone); the docs-snippets rules still require the 0.7 composition (`.use(installer)`) — they move to 0.8 with the docs in lot 10";
 export const MIGRATION_PENDING_DOCS = {
+  "README.md": CDN_08_ROOT,
   "packages/core/README.md": CORE_07_DOCS,
   "packages/react/README.md": LINT_07_RULES,
   "examples/README.md": LINT_07_RULES,

@@ -1,5 +1,5 @@
 import { createNextI18n, devtools, icuCompiler, loader } from "@comvi/next";
-import { cdnLoader } from "@comvi/plugin-fetch-loader";
+import { cdn } from "@comvi/core/cdn";
 import { routing } from "./routing";
 
 export { locales, routing } from "./routing";
@@ -21,7 +21,7 @@ const localCatalogs = {
 // Connect your Comvi project: set `NEXT_PUBLIC_COMVI_CDN_URL` at build time and
 // the catalogs come from the CDN, with the local files as the offline fallback.
 const cdnUrl: string | undefined = process.env.NEXT_PUBLIC_COMVI_CDN_URL;
-const catalogs = cdnUrl ? cdnLoader({ cdnUrl, fallback: localCatalogs }) : loader(localCatalogs);
+const catalogs = cdnUrl ? cdn(cdnUrl, { fallback: localCatalogs }) : loader(localCatalogs);
 
 // `t()` never throws: a missing key is reported to `onMissingKey`. A real app
 // would forward it to its error tracker; this one keeps the distinct keys.

@@ -10,8 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@comvi/plugin-fetch-loader": "^0.7.1",
-    "@comvi/plugin-locale-detector": "^0.7.1",
+    "@comvi/core": "^0.7.1",
     "@comvi/svelte": "^0.7.1"
   },
   "devDependencies": {

@@ -21,6 +21,9 @@
  * target before it switches. A failed pair is remembered (no refetch on every switch)
  * until `setLocale()` targets its locale again or `load()` names its namespace. A switch
  * superseded by a later one, and every load of a locale that left the chain, is aborted.
+ * A parent's failed load (`pt` while switching to `pt-BR`) is reported only when the
+ * locale's own load of that namespace failed too: a regional catalog published without
+ * its parent is not a failure. A fallback locale's failure is always reported.
  *
  * The reporter is isolated: an `onError` that throws neither breaks the render nor the
  * load bookkeeping (its error is rethrown from a `setTimeout`, like a subscriber's).
@@ -174,7 +177,8 @@ const safe = (f: void | (() => void)) => {
   }
 };
 
-type Flight = [Promise<unknown>, AbortController];
+/** A load in flight: its promise, its abort, and whose parent it is now (see `get()`). */
+type Flight = [Promise<unknown>, AbortController, (string | 0 | false)?];
 
 /**
  * A shallow own copy of a params object; `null` for none or an empty one (so `pub()`'s
@@ -369,8 +373,15 @@ export const createI18n = (o: I18nOptions): I18n => {
     pub(S.locale, c);
   };
 
-  /** The flight of (l, n), started unless the pair is in place or failed before (not published here). */
-  const get = (l: string, n: string): Promise<unknown> | void => {
+  /**
+   * The flight of (l, n), started unless the pair is in place or failed before (not
+   * published here). `p`: `l` is a parent in `p`'s chain (`pt` of `pt-BR`), so its failure
+   * is reported only when `p`'s own load of `n` fails too — a regional catalog published
+   * without its parent is not a failure. The role is the LATEST caller's, re-bound on every
+   * call: a flight started for one locale and reused by a switch to another (`pt` for
+   * `pt-BR`, then for `pt-PT` or `pt` itself) reports for the locale the instance is going to.
+   */
+  const get = (l: string, n: string, p?: string | 0 | false): Promise<unknown> | void => {
     const k = l + K + n;
     let f = fl.get(k);
     if (!f && load && !S.c[n]?.[l] && !bad.has(k)) {
@@ -387,12 +398,24 @@ export const createI18n = (o: I18nOptions): I18n => {
             // Under what `add()` put in the pair meanwhile: a saved edit survives (H8).
             .then((m) => no() || drop(k, ing(S.c, l, m, n, 1)))
             // Also takes what layering a value that is not a catalog throws.
-            .catch((e) => no() || (bad.set(k, e), err("load_failed", l, n, undefined, e), drop(k))),
+            // A parent's failure waits for `p`'s own load of `n` and is reported only if
+            // that failed too.
+            .catch(
+              (e, c = f![2] && f![2] + K + n) =>
+                no() ||
+                (bad.set(k, e),
+                c
+                  ? (fl.get(c)?.[0] || R).then(
+                      () => bad.has(c) && err("load_failed", l, n, undefined, e),
+                    )
+                  : err("load_failed", l, n, undefined, e),
+                drop(k)),
+            ),
           a,
         ]),
       );
     }
-    return f && f[0];
+    return f && ((f[2] = p), f[0]);
   };
 
   /**
@@ -401,8 +424,9 @@ export const createI18n = (o: I18nOptions): I18n => {
    */
   const ensure = (l: string, nss: Iterable<string>, g?: boolean) => {
     const n = fl.size;
-    const ps = chain(l)
-      .flatMap(([k]) => [...nss].map((x) => get(k, x)))
+    const ch = chain(l);
+    const ps = ch
+      .flatMap(([k], i) => [...nss].map((x) => get(k, x, i && i < ch.o && l)))
       .filter(Boolean);
     // `g`: the active set grew — a published change even when nothing starts loading.
     if (g || fl.size > n) {

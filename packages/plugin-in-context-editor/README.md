@@ -34,22 +34,21 @@ In `src/i18n.ts`:
 
 ```ts title="src/i18n.ts"
 import { createI18n } from "@comvi/core";
-import { cdnLoader } from "@comvi/plugin-fetch-loader";
+import { cdn } from "@comvi/core/cdn";
 import { inContextEditor } from "@comvi/plugin-in-context-editor";
 
 export const i18n = createI18n({
   locale: "en",
   apiKey: import.meta.env.DEV ? import.meta.env.VITE_COMVI_EDITOR_API_KEY : undefined,
-})
-  .use(cdnLoader({ cdnUrl: import.meta.env.VITE_COMVI_CDN_URL }))
-  .use(inContextEditor());
+  loader: cdn(import.meta.env.VITE_COMVI_CDN_URL),
+}).use(inContextEditor());
 
 await i18n.init();
 ```
 
 Create an API key in the project's settings with project read plus translation read and write;
 with read alone the editor loads but every save fails. The editor reads the key off
-`i18n.apiKey`, the same option the fetch loader reads for API mode. Compose a loader
+`i18n.apiKey`. Compose a loader
 or an inline `messages` catalog next to it: the editor can only edit text the app rendered.
 
 **An API key in a browser bundle is readable by every visitor, and this one can overwrite
@@ -74,7 +73,7 @@ the browser extension:
 ```ts title="src/i18n.ts"
 import { createI18n } from "@comvi/core";
 import { devtools } from "@comvi/core/devtools";
-import { cdnLoader } from "@comvi/plugin-fetch-loader";
+import { cdn } from "@comvi/core/cdn";
 import { inContextEditor } from "@comvi/plugin-in-context-editor";
 
 const editorEnabled = import.meta.env.DEV;
@@ -83,7 +82,8 @@ const base = createI18n({
   locale: "en",
   fallbackLocale: "en",
   apiKey: editorEnabled ? import.meta.env.VITE_COMVI_EDITOR_API_KEY : undefined,
-}).use(cdnLoader({ cdnUrl: import.meta.env.VITE_COMVI_CDN_URL }));
+  loader: cdn(import.meta.env.VITE_COMVI_CDN_URL),
+});
 
 export const i18n = (editorEnabled ? base.use(inContextEditor()) : base).use(devtools());
 
@@ -136,7 +136,7 @@ turns it off, and on `createI18n` it also asks the extension to stop.
 ## Read next
 
 - [In-context editor](https://comvi.io/docs/i18n/plugins/in-context-editor): the default `tagAttributes` map, extension discovery, the standalone runtime.
-- [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader): the loader the editor edits on top of.
+- [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader): `cdn()` of `@comvi/core/cdn`, the loader the editor edits on top of.
 - [Devtools API](https://comvi.io/docs/i18n/api/core-devtools): `devtools()`, `instanceId`, `exposeGlobal` and `editorVersion`.
 
 ## Contributing

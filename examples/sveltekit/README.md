@@ -2,7 +2,7 @@
 
 A SvelteKit app that renders translated HTML on the server with [`@comvi/svelte`](https://comvi.io/docs/i18n) and keeps following the locale as you navigate. It is built on the [SvelteKit recipe](https://comvi.io/docs/i18n/ssr#sveltekit-and-solidstart) from the docs. Where it differs:
 
-- `loader()` with bundled catalogs instead of `cdnLoader`, and ICU messages through `icuCompiler`;
+- `loader()` with bundled catalogs instead of `cdn()`, and ICU messages through `icuCompiler`;
 - four locales, with the hook writing `dir` as well as `lang`;
 - the language switcher and a second page, `/about`, in the root layout's routes.
 
@@ -33,10 +33,4 @@ npm run dev
 
 ## Connect your Comvi project
 
-The catalogs in `src/locales` are bundled and load through `loader()`. To read them from your Comvi project instead, install the fetch loader:
-
-```sh
-npm install @comvi/plugin-fetch-loader
-```
-
-and return `cdnLoader({ cdnUrl })` from it in `catalogLoader`, as the recipe does.
+The catalogs in `src/locales` are bundled and load through `loader()`. To read them from your Comvi project instead, return `cdn(cdnUrl)` from `@comvi/core/cdn` (it comes with `@comvi/core`) in `catalogLoader`, as the recipe does.

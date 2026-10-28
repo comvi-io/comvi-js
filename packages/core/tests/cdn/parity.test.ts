@@ -92,10 +92,16 @@ describe("cdn() request", () => {
     const p = cdn("https://x")("en", "default", a.signal);
     a.abort();
     await expect(p).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("a signal that is already aborted rejects with its AbortError and makes no request", async () => {
+    const f = vi.fn();
+    vi.stubGlobal("fetch", f);
     const b = new AbortController();
     b.abort();
     await expect(cdn("https://x")("en", "default", b.signal)).rejects.toMatchObject({
       name: "AbortError",
     });
+    expect(f).not.toHaveBeenCalled();
   });
 });

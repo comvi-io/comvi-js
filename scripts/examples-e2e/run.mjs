@@ -22,7 +22,7 @@
  *      Playwright's JSON report.
  *
  * `--cdn` additionally starts a mock of the platform CDN that serves
- * `examples/locales` in the layout `@comvi/plugin-fetch-loader` requests, and
+ * `examples/locales` in the layout `cdn()` of `@comvi/core/cdn` requests, and
  * builds every example with its "Connect to Comvi" env var set
  * (`VITE_COMVI_CDN_URL`, `NEXT_PUBLIC_COMVI_CDN_URL`,
  * `NUXT_PUBLIC_COMVI_CDN_URL`), so the same scenario runs on catalogs fetched

@@ -65,13 +65,20 @@ describe("cdn() details", () => {
     await expect(load("en", "default", s)).resolves.toBe(mod.default);
   });
 
-  it("removes the listener it put on the caller's signal once the load settles", async () => {
-    stub({ a: "A" });
-    const signal = new AbortController().signal;
-    const add = vi.spyOn(signal, "addEventListener");
-    const remove = vi.spyOn(signal, "removeEventListener");
-    await cdn("https://cdn.example")("en", "default", signal);
-    expect(remove.mock.calls).toEqual(add.mock.calls);
-    expect(add.mock.calls[0][0]).toBe("abort");
+  it("without a store the caller's abort cancels the request (its signal aborts)", async () => {
+    let seen: AbortSignal | undefined;
+    vi.stubGlobal(
+      "fetch",
+      (_u: string, i: RequestInit) =>
+        new Promise((_y, n) => {
+          seen = i.signal!;
+          i.signal!.addEventListener("abort", () => n(i.signal!.reason));
+        }),
+    );
+    const a = new AbortController();
+    const p = cdn("https://cdn.example")("en", "default", a.signal);
+    a.abort();
+    await expect(p).rejects.toMatchObject({ name: "AbortError" });
+    expect(seen!.aborted).toBe(true);
   });
 });

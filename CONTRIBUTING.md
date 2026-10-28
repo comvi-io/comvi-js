@@ -13,9 +13,8 @@ A pnpm 10 + Turborepo monorepo holding a framework-agnostic i18n runtime and its
 
 ```
 packages/core                      framework-agnostic runtime; everything else depends on it
+                                   (`/cdn` CDN and API loaders, `/plugins` locale detection)
 packages/{vue,react,solid,svelte,next,nuxt}   framework bindings; kept in behavioural parity
-packages/plugin-fetch-loader       loads translations from the Comvi CDN/API
-packages/plugin-locale-detector    browser locale detection
 packages/plugin-in-context-editor  visual in-page translation editor
 packages/locale-routing            WORKSPACE-PRIVATE locale routing primitives; inlined into next,
                                    vendored into nuxt's runtime (`pnpm --filter @comvi/nuxt vendor`)
@@ -226,8 +225,7 @@ of its own.
 
 **Required before a release, and again after the version bump.** An override bypasses the range
 it replaces, so a green run proves the source compiles, never that `^0.5.0` resolves; and the
-bump is the first moment `@comvi/plugin-locale-detector`'s `@comvi/core` peer range and the
-examples' ranges meet. The examples install with `auto-install-peers=false` so an unsatisfied
+bump is the first moment the bindings' `@comvi/core` ranges and the examples' ranges meet. The examples install with `auto-install-peers=false` so an unsatisfied
 peer is an error here, the way it is for a reader running `npm install`.
 
 Run it from a short checkout path. The temp install references each tarball by absolute path, and
