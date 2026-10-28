@@ -42,7 +42,7 @@
     "test:watch": "node scripts/turbo-active.mjs run test:watch --concurrency=20",
     "test:coverage": "node scripts/turbo-active.mjs run test:coverage",
     "lint": "node scripts/turbo-active.mjs run lint",
-    "typecheck": "node scripts/turbo-active.mjs run typecheck --filter='./packages/*' --filter='./apps/*' --filter='./test-apps/*' && tsc -p scripts/examples-e2e/tsconfig.json",
+    "typecheck": "node scripts/turbo-active.mjs run typecheck --filter='./packages/*' --filter='./apps/*' --filter='./test-apps/*' && tsc -p scripts/examples-e2e/tsconfig.json && tsc -p tests/binding-parity/tsconfig.json",
     "extension:build": "node scripts/unless-pending.mjs extension:build @comvi/plugin-in-context-editor,@comvi/chrome-extension -- turbo run build --filter @comvi/chrome-extension",
     "extension:test": "node scripts/unless-pending.mjs extension:test @comvi/plugin-in-context-editor,@comvi/chrome-extension -- turbo run test --filter @comvi/chrome-extension",
     "extension:gate-e": "node scripts/unless-pending.mjs extension:gate-e @comvi/plugin-in-context-editor,@comvi/chrome-extension -- \"turbo run build --filter @comvi/plugin-in-context-editor && pnpm --filter @comvi/chrome-extension test:e2e\"",

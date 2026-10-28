@@ -1,0 +1,13 @@
+{
+  // The binding parity types (lots 4–7): React and Vue from SOURCE in one program, each
+  // resolving its framework from its own package.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["*.ts"]
+}
