@@ -55,9 +55,10 @@ import { spawnSync } from "node:child_process";
  *     S8 (design §2.3 item 6, R4-13/R4-14): SSR with loading, an instance per request
  *     over ONE `createCatalogStore()` and a `cdn()` loader whose `fetch` is a local mock
  *     (no network). Warm (every catalog fresh in the store) and revalidating (`ttl: 0`:
- *     every request answers from the store and one coalesced conditional GET per catalog
- *     runs behind it, the mock answering 304), each sequential and at 16 concurrent
- *     requests. Prints req/s (medians of 5 runs) and the COUNTED facts beside them —
+ *     every request answers from the store while ONE conditional GET per catalog is in
+ *     flight at a time behind it, the mock answering 304 — sequentially that is one per
+ *     request, at 16 concurrent requests they coalesce), each sequential and at 16
+ *     concurrent requests. The rendered outputs are checked before timing. Prints req/s (medians of 5 runs) and the COUNTED facts beside them —
  *     fetches, distinct catalog objects the instances got, compiled entries — which
  *     are what the unit suite gates (tests/cdn/store.test.ts); the req/s are
  *     informational.
@@ -441,18 +442,39 @@ export async function buildSsrScenarios(distRoot) {
     const store = createCatalogStore({ ttl });
     const loader = cdn("https://cdn.example/dist", { fetch, store });
     const seen = new Set();
-    const params = [{ name: "Ann" }, { count: 1 }, { count: 5 }];
+    /** The parameters of key `k<j>`: by `j % 3`, the template's kind (see `catalog`). */
+    const params = [
+      undefined,
+      { name: "Ann" },
+      { count: 1 },
+      undefined,
+      { name: "Bo" },
+      { count: 5 },
+    ];
+    const paramsOf = (j) => params[j % 6];
     const request = async (i) => {
       const i18n = createI18n({ locale: i & 1 ? "de" : "en", loader });
       await i18n.ready;
       let out;
-      for (let k = 0; k < SSR_RENDERED; k++)
-        out = i18n.t(`k${(i * 7 + k) % SSR_KEYS}`, params[k % 3]);
+      for (let k = 0, j; k < SSR_RENDERED; k++)
+        out = i18n.t(`k${(j = (i * 7 + k) % SSR_KEYS)}`, paramsOf(j));
       seen.add(CORE_SLOT(i18n));
       i18n.destroy();
       return out;
     };
-    return { name, request, counts, seen };
+    /** Renders one key of each kind and throws unless each output is the expected one. */
+    const check = async () => {
+      const i18n = createI18n({ locale: "en", loader });
+      await i18n.ready;
+      const got = [0, 1, 2, 5].map((j) => i18n.t(`k${j}`, paramsOf(j)));
+      i18n.destroy();
+      const want = ["en static 0", "en hi Ann 1", "1 en item", "5 en items"];
+      if (JSON.stringify(got) !== JSON.stringify(want))
+        throw new Error(
+          `S8 ${name}: rendered ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`,
+        );
+    };
+    return { name, request, check, counts, seen };
   };
   return [
     scenario("SSR warm (store fresh)", 3_600_000),
@@ -488,6 +510,8 @@ async function runSsr(distRoot) {
   );
   const rows = [];
   for (const sc of scenarios) {
+    // The outputs are right before anything is timed.
+    await sc.check();
     // Warm-up: the store fills, every key used compiles once.
     await timeRequests(sc.request, SSR_REQUESTS, 1);
     const before = { ...sc.counts };
@@ -495,7 +519,13 @@ async function runSsr(distRoot) {
       const samples = [];
       for (let r = 0; r < SINGLE_MODE_RUNS; r++)
         samples.push(await timeRequests(sc.request, SSR_REQUESTS, c));
-      rows.push({ name: `${sc.name}, concurrency ${c}`, reqPerSec: median(samples) });
+      // Sequentially with `ttl: 0` no two requests overlap, so nothing coalesces: every
+      // request starts its own conditional GET (the 304 path per request), not
+      // stale-while-revalidate behind concurrent ones.
+      rows.push({
+        name: `${sc.name}, ${c == 1 ? "sequential" : `${c} concurrent`}`,
+        reqPerSec: median(samples),
+      });
     }
     const requests = 2 * SINGLE_MODE_RUNS * SSR_REQUESTS;
     rows.push({
@@ -510,7 +540,8 @@ async function runSsr(distRoot) {
     console.log(
       row.reqPerSec !== undefined
         ? `${row.name.padEnd(48)} ${Math.round(row.reqPerSec).toLocaleString("en-US").padStart(9)} req/s`
-        : `${row.name.padEnd(48)} ${row.fetches} fetches (${row.conditional304} answered 304) for ${row.requests} requests; ${row.catalogObjects} catalog objects in all instances`,
+        : `${row.name.padEnd(48)} ${row.fetches} fetches (${row.conditional304} answered 304) for ${row.requests} requests; ${row.catalogObjects} catalog objects in all instances` +
+            (row.fetches ? " (one revalidation in flight per catalog at a time)" : ""),
     );
   console.log(`\n${JSON.stringify(rows)}`);
   return 0;
