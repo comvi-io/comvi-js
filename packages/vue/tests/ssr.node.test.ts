@@ -1,10 +1,12 @@
 /**
  * Server rendering (design §2.6, R3-18(3), R3-21; lot 4 gate "SSR smoke createSSRApp").
  * Ported by meaning from 0.7 ssr-locale-loader.test.ts and ssr-locale-failed-load.test.ts:
- * a server render waits for the catalogs it needs and renders them, never keys; a failed
- * load renders the keys and reports. New in 0.8: an instance per request (the app factory
- * makes both), the handover payload, and the development guard against one instance
- * installed into two apps on a server. Runs with no DOM (environment node).
+ * a server render shows the catalogs the request loaded before it rendered, never keys; a
+ * failed load renders the keys and reports. As in React, a server render activates nothing
+ * (no `onMounted`): the request loads its route's namespaces and awaits `ready`, as a router
+ * guard or a route loader does. New in 0.8: an instance per request (the app factory makes
+ * both), the handover payload, and the development guard against one instance installed
+ * into two apps on a server. Runs with no DOM (environment node).
  */
 import { createSSRApp, defineComponent, h, version } from "vue";
 import { renderToString } from "vue/server-renderer";
@@ -50,9 +52,13 @@ const App = defineComponent({
   },
 });
 
-/** The request handler of a server: an instance and an app per request. */
+/**
+ * The request handler of a server: an instance and an app per request; the route's
+ * namespace (`account`) and the locale's catalogs are loaded before the render.
+ */
 const handle = async (locale: string, requested?: string[]) => {
   const i18n = createI18n({ locale, loader: loader(requested), timeZone: "UTC" });
+  await Promise.all([i18n.load("account"), i18n.ready]);
   const html = await renderToString(createSSRApp(App).use(i18n));
   return { html, i18n };
 };
@@ -60,13 +66,23 @@ const handle = async (locale: string, requested?: string[]) => {
 describe("server render", () => {
   it("runs on Vue 3.5", () => expect(version.split(".").slice(0, 2).join(".")).toBe("3.5"));
 
-  it("waits for the locale's catalogs and the namespaces components ask for, then renders them", async () => {
+  it("renders the catalogs the request loaded before the render", async () => {
     const requested: string[] = [];
     const { html } = await handle("de", requested);
     expect(html).toBe(
       '<main lang="de"><p>Hallo, Ann!</p><!--[-->Lies die <!--[--><a>AGB</a><!--]-->.<!--]--><h2>Konto</h2></main>',
     );
     expect(requested.sort()).toEqual(["de:account", "de:default"]);
+  });
+
+  it("activates nothing during the render: a namespace nobody loaded renders its keys, asked for nothing", async () => {
+    const requested: string[] = [];
+    const i18n = createI18n({ locale: "en", loader: loader(requested), timeZone: "UTC" });
+    await i18n.ready;
+    const html = await renderToString(createSSRApp(App).use(i18n));
+    expect(html).toContain("<p>Hello, Ann!</p>");
+    expect(html).toContain("<h2>title</h2>");
+    expect(requested).toEqual(["en:default"]);
   });
 
   it("a failed load renders the keys and reports load_failed (0.7 ssr-locale-failed-load)", async () => {
@@ -77,6 +93,7 @@ describe("server render", () => {
       timeZone: "UTC",
       onError: (e) => errors.push(e),
     });
+    await i18n.ready;
     const html = await renderToString(createSSRApp(App).use(i18n));
     expect(html).toContain("<p>hi</p>");
     expect(errors.map((e) => e.code)).toContain("load_failed");

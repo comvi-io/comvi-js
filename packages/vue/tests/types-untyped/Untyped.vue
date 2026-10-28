@@ -7,7 +7,7 @@ import { T } from "../../src";
   <p>{{ $t("any.key", { n: 1 }) }}</p>
   <T i18n-key="whatever" :n="1" ns="x">
     <template #link="{ children }"
-      ><a><component :is="children" /></a
-    ></template>
+      ><a>{{ children }}</a></template
+    >
   </T>
 </template>

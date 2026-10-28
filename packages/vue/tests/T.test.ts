@@ -5,7 +5,8 @@
  * - params as attributes, the key when missing, the `ns` and `locale` props, the same text
  *   as t() for the same call (≡, generated messages);
  * - rich parts render with no wrapper element; a handler — an attribute OR a slot named
- *   after the tag — gets the tag's children as ONE child (their text, or a Fragment);
+ *   after the tag — gets the tag's children as ONE child (their text, or the list of their
+ *   parts, which Vue renders as a fragment);
  * - a param that only LOOKS like a node renders as text (0.7 T-forged-node);
  * - 0.8 has no `components` map and no per-tag error boundary: a throwing handler throws
  *   to the app's `errorHandler`.
@@ -134,11 +135,12 @@ describe("<T i18nKey>", () => {
     expect(seen).toEqual(["terms"]);
   });
 
-  it("a template slot renders {{ children }} as text and nested markup through <component :is>", () => {
+  it("a template slot renders {{ children }}; a tag with markup inside takes a handler attribute", () => {
     const i18n = en({ m: "Read <link>the <b>full</b> terms</link>." });
     const C = defineComponent({
       components: { T: T as never },
-      template: `<p><T i18n-key="m"><template #link="{ children }"><a href="/terms"><component :is="children" /></a></template><template #b="{ children }"><b>{{ children }}</b></template></T></p>`,
+      setup: () => ({ link: (c: unknown) => h("a", { href: "/terms" }, c as never) }),
+      template: `<p><T i18n-key="m" :link="link"><template #b="{ children }"><b>{{ children }}</b></template></T></p>`,
     });
     expect(mountWith(i18n, C).html()).toBe(
       '<p>Read <a href="/terms">the <b>full</b> terms</a>.</p>',
@@ -156,7 +158,7 @@ describe("<T i18nKey>", () => {
     const i18n = en({ m: "<x>one <y>two</y> {k}</x>" });
     const kinds: string[] = [];
     const x = (c: unknown) => (
-      kinds.push(isVNode(c) ? "node" : typeof c),
+      kinds.push(Array.isArray(c) ? "parts" : typeof c),
       h("u", null, [c as never])
     );
     const warnings = await vueWarnings(() => {
@@ -164,7 +166,7 @@ describe("<T i18nKey>", () => {
         "<u>one <b>two</b> <kbd>K</kbd></u>",
       );
     });
-    expect(kinds).toEqual(["node"]);
+    expect(kinds).toEqual(["parts"]);
     expect(warnings).toEqual([]);
   });
 
@@ -233,7 +235,7 @@ describe("<T i18nKey>", () => {
         },
       }),
     );
-    expect(isVNode(out)).toBe(true);
+    expect(Array.isArray(out)).toBe(true);
     expect(params.x).toBe(x);
   });
 });
@@ -283,7 +285,7 @@ describe("params that only look like nodes (0.7 T-forged-node)", () => {
     expect(html(en({ m: "[{x}]" }), { i18nKey: "m", x: h("kbd", "K") })).toBe("[<kbd>K</kbd>]");
   });
 
-  it("t() returns a node for a rich message and a string otherwise", () => {
+  it("t() returns the parts of a rich message (a render function's child) and a string otherwise", () => {
     let rich: unknown;
     let plain: unknown;
     let text: unknown;
@@ -300,7 +302,9 @@ describe("params that only look like nodes (0.7 T-forged-node)", () => {
         },
       }),
     );
-    expect(isVNode(rich)).toBe(true);
+    expect(Array.isArray(rich)).toBe(true);
+    expect((rich as unknown[])[0]).toBe("a");
+    expect(isVNode((rich as unknown[])[1])).toBe(true);
     expect(plain).toBe("as");
     expect(text).toBe("*x*");
   });

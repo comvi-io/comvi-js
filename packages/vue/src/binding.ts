@@ -8,24 +8,24 @@
  *   instance is. Readers take a SLICE through `computed`: `locale` and `dir` re-render only
  *   when they change, `t()` / `$t()` read the whole state (a new snapshot re-renders what
  *   called them — the accepted compromise of §2.5, as in React).
- * - A namespace is activated after the component mounts (a post-flush watcher), never
- *   during setup or render; on a server, before the component renders (`onServerPrefetch`:
- *   `renderToString` waits for its catalogs).
+ * - A namespace is activated after the component mounts, never during setup or render
+ *   (React: in an effect). A server runs no `onMounted`: like React's, a server render shows
+ *   what the instance holds — the app loads the route's namespaces before it renders.
+ * - `useI18n(ns).T` is a functional component (its namespace is that `useI18n`'s); the
+ *   exported `<T>` (T.ts, its own chunk) activates the namespace of its `ns` attribute itself,
+ *   and is in an app's bundle only when the app imports it (the R3-10 binding cap: +500 B).
  */
 import {
   computed,
-  Fragment,
-  h,
   inject,
-  onServerPrefetch,
+  onMounted,
   shallowRef,
-  watchEffect,
+  type FunctionalComponent,
   type App,
   type ComputedRef,
-  type FunctionalComponent,
   type InjectionKey,
   type ShallowRef,
-  type VNode,
+  type VNodeArrayChildren,
   type VNodeChild,
   type WritableComputedRef,
 } from "vue";
@@ -45,50 +45,40 @@ declare const __DEV__: boolean;
 declare module "@comvi/core" {
   /**
    * What a tag handler of a generated catalog (`{ link: Tag }`) receives: the tag's
-   * children joined into ONE child — a string when they are all text (the usual
-   * `<link>terms</link>`), else a Fragment node. `h("a", props, children)` takes both.
+   * children as ONE child — their text when they are all text (the usual
+   * `<link>terms</link>`), else the list of their parts. `h("a", props, children)` takes
+   * both.
    */
   interface TagChildren {
-    vue: string | VNode;
+    vue: Children;
   }
 }
+
+/** A tag's children, or a rich message: text, or the list of its parts (strings and nodes). */
+export type Children = string | VNodeArrayChildren;
 
 /** The instance `createI18n` of `@comvi/vue` makes: core's, plus `install` for `app.use()`. */
 export type VueI18n = I18n & { install(app: App): void };
 
 /** Per instance: its published state, and the `locale` and `dir` slices of it. */
 type Cell = readonly [ShallowRef<State>, WritableComputedRef<string>, ComputedRef<"ltr" | "rtl">];
-const cells = new WeakMap<I18n, Cell>();
 
+/** The injection key, and the key of the cell on an instance this binding made. */
 const K: InjectionKey<I18n> = Symbol();
-const D = "default";
 /** Instances installed into an app on a server (development check, one per request). */
 const served = new WeakSet<I18n>();
 
 /**
- * Rich parts → one child: their text when every part is a string, else a Fragment of them.
- * Also the core's joiner, so a tag handler gets its children as this one child.
+ * Rich parts → one child: their text when every part is a string, else the parts (Vue renders
+ * an array child as a fragment). Also the core's joiner, so a tag handler gets its children
+ * as this one child.
  */
 const node = (r: unknown): any =>
-  Array.isArray(r) ? (r.every((x) => typeof x == "string") ? r.join("") : h(Fragment, r)) : r;
+  Array.isArray(r) && r.every((x) => typeof x == "string") ? r.join("") : r;
 
 /** `t()` of `i` for namespace `ns`, against the state its cell holds (a reactive read). */
 const tr = (i: I18n, ns?: string) => (k: string, p?: object) =>
-  node(translate(i, cells.get(i)![0].value, k, p as never, ns, node));
-
-function install(this: VueI18n, app: App): void {
-  // A server serves requests concurrently: one instance installed into two apps would
-  // render one request in the locale another request switched to (R3-18(3)).
-  if (__DEV__ && typeof document == "undefined") {
-    if (served.has(this))
-      throw Error(
-        "[@comvi/vue] an instance is installed into a second app on the server: create the i18n instance per request, in the function that creates the app",
-      );
-    served.add(this);
-  }
-  app.provide(K, this);
-  app.config.globalProperties.$t = tr(this) as never;
-}
+  node(translate(i, (i as unknown as Record<symbol, Cell>)[K][0].value, k, p as never, ns, node));
 
 /**
  * Creates the instance (core's `createI18n`, same options) and makes it a Vue plugin:
@@ -98,7 +88,7 @@ export const createI18n = (options: I18nOptions): VueI18n => {
   const i = create(options) as VueI18n;
   const s = shallowRef(state(i));
   i.on(() => (s.value = state(i)));
-  cells.set(i, [
+  (i as unknown as Record<symbol, Cell>)[K] = [
     s,
     computed({
       get: () => s.value.locale,
@@ -107,32 +97,28 @@ export const createI18n = (options: I18nOptions): VueI18n => {
       set: (l) => void i.setLocale(l).catch(() => {}),
     }),
     computed(() => s.value.dir),
-  ]);
-  i.install = install;
+  ];
+  i.install = (app) => {
+    // A server serves requests concurrently: one instance installed into two apps would
+    // render one request in the locale another request switched to (R3-18(3)).
+    if (__DEV__ && typeof document == "undefined") {
+      if (served.has(i))
+        throw Error(
+          "[@comvi/vue] an instance is installed into a second app on the server: create the i18n instance per request, in the function that creates the app",
+        );
+      served.add(i);
+    }
+    app.provide(K, i);
+    app.config.globalProperties.$t = tr(i) as never;
+  };
   return i;
 };
 
 /** The instance of the app this component belongs to. */
-const use = (): I18n => {
+export const use = (): I18n => {
   const i = inject(K);
   if (__DEV__ && !i) throw Error("[@comvi/vue] no app.use(i18n) above this component");
   return i!;
-};
-
-/**
- * Activates the namespace `ns()` names after the component mounts, and again when it
- * changes — never during setup or render. On a server the render waits for the namespace
- * (the default one too): `renderToString` then renders its catalogs, never its keys.
- */
-const live = (i: I18n, ns: () => string | undefined) => {
-  watchEffect(
-    () => {
-      const n = ns();
-      if (n) activate(i, n);
-    },
-    { flush: "post" },
-  );
-  onServerPrefetch(() => activate(i, ns() || D));
 };
 
 /**
@@ -142,13 +128,16 @@ const live = (i: I18n, ns: () => string | undefined) => {
  */
 export type UntypedParams = Record<
   string,
-  object | VNodeChild | ((children: string | VNode) => VNodeChild)
+  object | VNodeChild | ((children: Children) => VNodeChild)
 >;
 
 /** What a slot of `<T>` named after a tag receives. */
 export interface TagSlotProps {
-  /** The tag's children: their text, or a Fragment node when they hold markup. */
-  children: string | VNode;
+  /**
+   * The tag's children: their text (`{{ children }}`), or the list of their parts when they
+   * hold markup — give that tag a handler attribute instead (`:b="(c) => h('b', c)"`).
+   */
+  children: Children;
 }
 
 /**
@@ -159,27 +148,29 @@ export interface TagSlotProps {
 export type TComponent = [NsOf] extends [never]
   ? (
       props: { i18nKey: string; ns?: string; locale?: string; markers?: boolean } & UntypedParams,
-    ) => VNode
+    ) => VNodeChild
   : // The typo guard of `t()` (R3-2) is in the shared core type: see TComponentFor.
-    TComponentFor<VNode, 1>;
+    TComponentFor<VNodeChild, 1>;
 
 /** `<T>` bound to namespace NS (from `useI18n(ns)`): typed by that namespace's keys. */
 export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
   ? (
       props: { i18nKey: string; locale?: string; markers?: boolean; ns?: never } & UntypedParams,
-    ) => VNode
+    ) => VNodeChild
   : NS extends NsOf
-    ? BoundTFor<NS, VNode, 1>
+    ? BoundTFor<NS, VNodeChild, 1>
     : never;
 
 /** What `useI18n(ns)` returns. */
 export interface UseI18n<NS extends string = "default"> {
   /**
    * `t()` against the instance's state; a template calling it re-renders on a new state. A
-   * rich message renders a node (render functions; in a template use `<T>`). Without
-   * generated catalogs it is typed `string`.
+   * rich message renders the list of its parts (a render function's child; in a template use
+   * `<T>`). Without generated catalogs it is typed `string`.
    */
-  t: [NsOf] extends [never] ? (key: string, params?: UntypedParams) => string : TFor<NS, VNode>;
+  t: [NsOf] extends [never]
+    ? (key: string, params?: UntypedParams) => string
+    : TFor<NS, VNodeArrayChildren>;
   /** `<T>` bound to this namespace; the same component for every caller (R3-5(b)). */
   T: BoundT<NS>;
   /**
@@ -197,43 +188,35 @@ export interface UseI18n<NS extends string = "default"> {
   i18n: I18n;
 }
 
-/**
- * Renders one message; params are attributes, a tag handler is an attribute or a slot of
- * the tag's name (`<T i18nKey="terms"><template v-slot:link="{ children }"><a href="/terms">{{
- * children }}</a></template></T>`). Every attribute but `i18nKey` and the per-call options
- * `ns`, `locale` and `markers` is a message param — `class` too. `ns` is explicit: `<T>` never
- * takes the namespace of a `useI18n(ns)` above it (R3-5); `useI18n(ns).T` is the bound one.
- * `markers={false}` opts the message out of an in-context editor session (R3-14 H9).
- */
-export const T = {
-  props: ["i18nKey", "ns", "locale", "markers"],
-  inheritAttrs: false,
-  setup(
-    p: { i18nKey: string; ns?: string; locale?: string; markers?: boolean },
-    { attrs, slots }: { attrs: Record<string, unknown>; slots: Record<string, any> },
-  ) {
-    const i = use();
-    live(i, () => p.ns);
-    return () => {
-      // The per-call options sit in the params, where the core reads them.
-      const q: Record<string, unknown> = {
-        ...attrs,
-        ns: p.ns,
-        locale: p.locale,
-        markers: p.markers,
-      };
-      // An attribute wins over a slot of the same name.
-      for (const k in slots) q[k] ??= (children: unknown) => slots[k]({ children });
-      return tr(i, p.ns)(p.i18nKey, q);
-    };
-  },
-} as unknown as TComponent;
+/** Renders message `key` with `attrs` as params and the slots as tag handlers. */
+export const render = (
+  i: I18n,
+  ns: string | undefined,
+  key: string,
+  attrs: Record<string, unknown>,
+  slots: Record<string, any>,
+) => {
+  // `ns`, `locale` and `markers` are attributes too: the core reads them off the params as
+  // per-call options.
+  const q: Record<string, unknown> = { ns, ...attrs };
+  // An attribute wins over a slot of the same name.
+  for (const k in slots) if (!(k in q)) q[k] = (children: unknown) => slots[k]({ children });
+  return tr(i)(key, q);
+};
 
 /**
  * Bound `<T>` per namespace: one component identity for the app's lifetime. Prototype-free,
- * so a namespace called `constructor` gets its own component.
+ * so a namespace called `constructor` gets its own component. Functional: its namespace is
+ * activated by the `useI18n(ns)` that returned it.
  */
 const Ts: Record<string, FunctionalComponent> = Object.create(null);
+// With no declared props every attribute is a prop of a functional component, spelled as
+// the template spells it: `i18nKey` or `i18n-key` (the key reaches the params too; no
+// message uses it).
+const bind =
+  (ns: string): FunctionalComponent =>
+  (p: Record<string, any>, { slots }) =>
+    render(use(), ns, p.i18nKey || p["i18n-key"], p, slots);
 
 /**
  * The i18n of the app (`app.use(i18n)`). `ns` is the namespace of `t` and `T`; it is
@@ -242,16 +225,17 @@ const Ts: Record<string, FunctionalComponent> = Object.create(null);
  */
 export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => {
   const i = use();
-  const [s, locale, dir] = cells.get(i)!;
-  live(i, () => ns);
+  const [s, locale, dir] = (i as unknown as Record<symbol, Cell>)[K];
+  const n = ns || "default";
+  if (ns) onMounted(() => activate(i, ns));
   return {
-    t: tr(i, ns) as UseI18n<NS>["t"],
-    T: (ns ? (Ts[ns] ||= (q, { slots }) => h(T as never, { ...q, ns }, slots)) : T) as BoundT<NS>,
+    t: tr(i, n) as UseI18n<NS>["t"],
+    T: (Ts[n] ||= bind(n)) as unknown as BoundT<NS>,
     locale,
     dir,
     // Until the activation after mount, a namespace the loader will load is loading
     // already: no frame of its keys that says it is loaded (lot 1d).
-    isLoading: computed(() => !!coming(i, s.value, ns || D)),
+    isLoading: computed(() => coming(i, s.value, n)),
     setLocale: i.setLocale,
     i18n: i,
   };

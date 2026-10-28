@@ -53,6 +53,8 @@ const OPTIONS = { fallbackLocale: "en", timeZone: "UTC" };
 /** The server's response: the HTML and the payload the page embeds. */
 const serve = async (locale: string) => {
   const i18n = createI18n({ ...OPTIONS, locale, loader: loader() });
+  // The route's namespace and the locale's catalogs, loaded before the render.
+  await Promise.all([i18n.load("account"), i18n.ready]);
   const html = await renderToString(createSSRApp(App).use(i18n));
   return { html, payload: JSON.parse(JSON.stringify(handover(i18n))) as Handover };
 };

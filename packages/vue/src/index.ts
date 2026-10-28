@@ -5,10 +5,19 @@
  */
 import type { UseI18n } from "./binding";
 
-export { createI18n, T, useI18n } from "./binding";
+export { createI18n, useI18n } from "./binding";
+export { T } from "./T";
 export { handover } from "@comvi/core/internal";
 export type { Handover } from "@comvi/core/internal";
-export type { BoundT, TagSlotProps, TComponent, UntypedParams, UseI18n, VueI18n } from "./binding";
+export type {
+  BoundT,
+  Children,
+  TagSlotProps,
+  TComponent,
+  UntypedParams,
+  UseI18n,
+  VueI18n,
+} from "./binding";
 export type {
   Catalog,
   I18n,

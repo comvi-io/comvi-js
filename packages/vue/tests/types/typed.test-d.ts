@@ -3,29 +3,29 @@
  * by `pnpm test:types` (vue-tsc, tsconfig.test-types.json): every `@ts-expect-error` must
  * fire, and every other line must compile. Templates: Typed.vue.
  */
-import { h, type VNode } from "vue";
-import { createI18n, useI18n, type UseI18n } from "../../src";
+import { h, type VNodeArrayChildren, type VNodeChild } from "vue";
+import { createI18n, useI18n, type Children, type UseI18n } from "../../src";
 
 createI18n({ locale: "en" });
 
 export function setup() {
   const { t, locale, dir, isLoading, setLocale, T } = useI18n();
   const s: string = t("greeting", { name: "Ann" });
-  const r: VNode = t("terms", { link: (c) => h("a", c) });
-  // The registered TagChildren types an inline handler's argument: text or one node.
+  const r: VNodeArrayChildren = t("terms", { link: (c) => h("a", c) });
+  // The registered TagChildren types an inline handler's argument: text, or the parts.
   t("terms", {
     link: (c) => {
-      const child: string | VNode = c;
+      const child: Children = c;
       return h("a", child);
     },
   });
-  // @ts-expect-error a handler's argument is text or a node, not a number
+  // @ts-expect-error a handler's argument is text or the parts, not a number
   t("terms", { link: (c: number) => c });
   const n: string = t("cart.title", { ns: "shop", count: 2 });
   const m: string = t("greeting", { name: "Ann", markers: false });
   const shop = useI18n("shop");
   const c: string = shop.t("cart.title", { count: 1 });
-  // @ts-expect-error a rich key is a node, not a string
+  // @ts-expect-error a rich key renders its parts, not a string
   const e1: string = t("terms", { link: (x) => x });
   // @ts-expect-error missing param
   t("greeting");
@@ -35,7 +35,7 @@ export function setup() {
   shop.t("title");
   // The bound <T> of useI18n("shop") is typed by the shop keys (R3-5(b)).
   const ShopT = shop.T;
-  const bt: VNode = ShopT({ i18nKey: "cart.title", count: 1, markers: false });
+  const bt: VNodeChild = ShopT({ i18nKey: "cart.title", count: 1, markers: false });
   // @ts-expect-error a default-namespace key on the bound shop <T>
   ShopT({ i18nKey: "greeting", name: "x" });
   // @ts-expect-error missing param on the bound <T>

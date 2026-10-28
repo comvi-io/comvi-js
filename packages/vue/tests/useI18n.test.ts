@@ -314,9 +314,9 @@ describe("useI18n(ns)", () => {
     });
     const w = mountWith(i18n, C);
     expect(w.html()).toBe("<div><b>one <b>two</b></b></div>");
-    // `y` gets the text "two"; `x` gets one Fragment of "one " and `y`'s node.
+    // `y` gets the text "two"; `x` gets ONE child: the list of "one " and `y`'s node.
     expect(seen[0]).toBe("two");
-    expect(Array.isArray(seen[1])).toBe(false);
+    expect((seen[1] as unknown[]).length).toBe(2);
     i18n.setDefaultParams({ x: (c: unknown) => h("i", c as string), y: b });
     await nextTick();
     expect(w.html()).toBe("<div><i>one <b>two</b></i></div>");
