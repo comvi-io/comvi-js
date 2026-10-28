@@ -4863,60 +4863,6 @@
       "package": "packages/cli"
     },
     {
-      "snippet": "program.addCommand(createInitCommand());",
-      "kind": "tooling:static-mutant",
-      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 56,
-      "file": "src/cli/index.ts",
-      "mutators": ["all"],
-      "package": "packages/cli"
-    },
-    {
-      "snippet": "program.addCommand(createTypegenCommand());",
-      "kind": "tooling:static-mutant",
-      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 57,
-      "file": "src/cli/index.ts",
-      "mutators": ["all"],
-      "package": "packages/cli"
-    },
-    {
-      "snippet": "program.addCommand(createPullCommand());",
-      "kind": "tooling:static-mutant",
-      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 60,
-      "file": "src/cli/index.ts",
-      "mutators": ["all"],
-      "package": "packages/cli"
-    },
-    {
-      "snippet": "program.addCommand(createPushCommand());",
-      "kind": "tooling:static-mutant",
-      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 61,
-      "file": "src/cli/index.ts",
-      "mutators": ["all"],
-      "package": "packages/cli"
-    },
-    {
-      "package": "packages/cli",
-      "file": "src/commands/generate-types.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (error instanceof Error) {",
-      "lineHint": 50,
-      "kind": "equivalent",
-      "reason": "guard only distinguishes non-Error throws; every throw site reaching this catch (ConfigLoader, ApiClient via wrapError, commander, fs) throws Error instances, and TypeGenerator wraps non-Errors before rethrowing (hand-applied: condition->true, COMVI_MUTATION suite 339/339 green)"
-    },
-    {
-      "package": "packages/cli",
-      "file": "src/commands/generate-types.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (error instanceof Error) {",
-      "lineHint": 85,
-      "kind": "equivalent",
-      "reason": "same instanceof-Error guard in the legacy generate action; a non-Error escape is not producible through the public surface (hand-applied: 339/339 green)"
-    },
-    {
       "package": "packages/cli",
       "file": "src/commands/push.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
@@ -5170,42 +5116,6 @@
     },
     {
       "package": "packages/cli",
-      "file": "src/core/ApiClient.ts",
-      "mutators": ["ConditionalExpression", "LogicalOperator"],
-      "snippet": "if (generation !== this.subscriptionGeneration || this.eventSource !== eventSource) {",
-      "lineHint": 573,
-      "kind": "equivalent",
-      "reason": "generation bump and eventSource reset always happen in the same synchronous block, so the two mismatches co-vary on every reachable dispatch — either operand alone and ||->&& are unobservable; whole-condition mutants killed (hand-applied ids 1071/1072/1074: suite green)"
-    },
-    {
-      "package": "packages/cli",
-      "file": "src/core/ApiClient.ts",
-      "mutators": ["UpdateOperator"],
-      "snippet": "const generation = ++this.subscriptionGeneration;",
-      "lineHint": 541,
-      "kind": "needs-seam",
-      "reason": "++ vs -- diverges only when close()+subscribe collide inside the awaited import(eventsource) window; not deterministically reachable — a pending async doMock factory falls through to the REAL module on concurrent import, and the !== check is direction-agnostic (hand-applied id 1054: suite green)"
-    },
-    {
-      "package": "packages/cli",
-      "file": "src/core/ApiClient.ts",
-      "mutators": ["UpdateOperator"],
-      "snippet": "this.subscriptionGeneration++;",
-      "lineHint": 594,
-      "kind": "needs-seam",
-      "reason": "cleanup only bumps while its stream is current; a decrement can only re-collide through the same unreachable import-window interleaving (hand-applied id 1089: suite green)"
-    },
-    {
-      "package": "packages/cli",
-      "file": "src/core/ApiClient.ts",
-      "mutators": ["UpdateOperator"],
-      "snippet": "this.subscriptionGeneration++;",
-      "lineHint": 604,
-      "kind": "needs-seam",
-      "reason": "a single close() bump is direction-agnostic under the !== staleness check; divergence needs the same unreachable collision (hand-applied id 1091: suite green)"
-    },
-    {
-      "package": "packages/cli",
       "file": "src/utils/version.ts",
       "mutators": ["StringLiteral"],
       "snippet": "for (const rel of [\"../package.json\", \"../../package.json\"]) {",
@@ -5230,96 +5140,6 @@
       "lineHint": 198,
       "kind": "equivalent",
       "reason": "both surviving directions force the merge branch, which only decides whether to ALLOCATE. With no direct props `{ ...local.params }` has the same entries as `local.params` (and `{}` where it was undefined, which `hasParams` reads as empty just the same), and `prepareTranslation` copies whatever it is handed into its own transport — so no interpolation input and no rendered output can differ. Verified by applying both mutants by hand: 152/152 solid tests still pass each time. (The `-> false` direction, which would drop the direct props, is killed.)"
-    },
-    {
-      "package": "packages/vite-plugin",
-      "file": "src/extract.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "const content = await fs.readFile(file.filePath, \"utf-8\");",
-      "lineHint": 237,
-      "kind": "equivalent",
-      "reason": "with `\"\"` node ignores the encoding and resolves a Buffer; the only consumer is `JSON.parse`, which coerces it with `toString()` — a UTF-8 decode. Probed on node 22 with ASCII and non-ASCII catalogs: identical parse result."
-    },
-    {
-      "package": "packages/vite-plugin",
-      "file": "src/extract.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "const content = await fs.readFile(filePath, \"utf-8\");",
-      "lineHint": 256,
-      "kind": "equivalent",
-      "reason": "the fallback loop's copy of the same read; see the entry for the template loop above."
-    },
-    {
-      "package": "packages/vite-plugin",
-      "file": "src/index.ts",
-      "mutators": ["BooleanLiteral"],
-      "snippet": "let isBuildCommand = false;",
-      "lineHint": 77,
-      "kind": "equivalent",
-      "reason": "vite runs `configResolved` before `buildStart`, and it assigns `isBuildCommand = config.command === \"build\"` unconditionally, so the initializer is never read. Only a `buildStart` called without `configResolved` — outside the plugin contract, with `resolvedTranslationsPath` still undefined — could observe it."
-    },
-    {
-      "package": "packages/vite-plugin",
-      "file": "src/index.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "let lastContent = \"\";",
-      "lineHint": 78,
-      "kind": "equivalent",
-      "reason": "the seed is only ever compared against generated content, and every generated file starts with the `DO NOT EDIT` header, so no seed can equal the first result. The unchanged-write skip behaves identically for any seed value."
-    },
-    {
-      "package": "packages/vite-plugin",
-      "file": "src/index.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "await fs.writeFile(tempPath, content, { encoding: \"utf-8\", flag: \"wx\" });",
-      "lineHint": 196,
-      "kind": "equivalent",
-      "reason": "the `\"utf-8\"` encoding only. node writes a string as UTF-8 whether the encoding is `\"utf-8\"` or `\"\"` (probed on node 22: \"é\" round-trips as c3a9). The `\"wx\"` flag on the same line is NOT equivalent (`\"\"` overwrites an existing file) and is killed by tests/atomic-write.test.ts."
-    },
-    {
-      "package": "packages/vite-plugin",
-      "file": "src/index.ts",
-      "mutators": ["ObjectLiteral"],
-      "snippet": "void scheduleGenerate({ throwOnError: false });",
-      "lineHint": 139,
-      "kind": "equivalent",
-      "reason": "`{}` leaves `throwOnError` undefined; `pendingThrowOnError ||= undefined` keeps the flag falsy and `if (options.throwOnError)` reads `undefined` and `false` the same way. The `false -> true` mutant on this same line IS killed, by the watcher-failure test that asserts no rejection is left behind."
-    },
-    {
-      "package": "packages/vite-plugin",
-      "file": "src/scheduler.ts",
-      "mutators": ["BooleanLiteral"],
-      "snippet": "let rerunRequested = false;",
-      "lineHint": 14,
-      "kind": "equivalent",
-      "reason": "the run loop assigns `rerunRequested = false` before every `runGeneration`, and `while (rerunRequested)` is only reached afterwards, so the initializer can never be read. Hand-applied: the whole package stays green."
-    },
-    {
-      "package": "packages/vite-plugin",
-      "file": "src/index.ts",
-      "mutators": ["ObjectLiteral", "BooleanLiteral"],
-      "snippet": "await fs.rm(tempPath, { force: true }).catch(() => undefined);",
-      "lineHint": 199,
-      "kind": "equivalent",
-      "reason": "`force` only turns a missing file into success, and the `.catch` beside it swallows that ENOENT anyway: when the temp file was never created both arms resolve to nothing, and when it exists both remove it. Hand-applied (both variants), full suite 105/105 green."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/index.ts",
-      "mutators": ["Regex"],
-      "snippet": "return content.match(/^\\s+(?:'[^']*'|\"(?:[^\"\\\\]|\\\\.)*\"):.*$/gm)?.length ?? 0;",
-      "lineHint": 109,
-      "kind": "equivalent",
-      "reason": "dropping the trailing $ is a no-op: `.` never matches a newline, so `.*` already stops at end-of-line and the match span is identical. Moved verbatim from packages/cli (TypeGenerator.ts:119) with the code. The ^-drop and the [^']* quantifier siblings on this line ARE killed, by the column-zero test and the multi-character single-quoted key (hand-applied: suite green)."
-    },
-    {
-      "package": "packages/typegen",
-      "file": "src/index.ts",
-      "mutators": ["BlockStatement"],
-      "snippet": "} catch {",
-      "lineHint": 132,
-      "kind": "equivalent",
-      "reason": "`manifest` is declared without an initializer, so it is already `undefined` when the read throws; the assignment in the catch only says so."
     },
     {
       "package": "packages/plugin-in-context-editor",
