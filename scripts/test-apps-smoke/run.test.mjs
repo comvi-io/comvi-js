@@ -118,6 +118,20 @@ test(
   },
 );
 
+test("stopGroup: EPERM from the liveness probe means the group is still going (macOS), not an error", async () => {
+  const probes = ["EPERM", "EPERM", "ESRCH"];
+  const kill = (_pid, signal) => {
+    if (signal !== 0) return;
+    const code = probes.shift();
+    throw Object.assign(new Error(`kill ${code}`), { code });
+  };
+
+  const outcome = await stopGroup(123456, { kill, graceMs: 1_000 });
+
+  assert.equal(outcome, "terminated");
+  assert.deepEqual(probes, []);
+});
+
 test("stopGroup: a group that is already gone → resolves (ESRCH is not an error)", async () => {
   const kill = () => {
     throw Object.assign(new Error("kill ESRCH"), { code: "ESRCH" });
