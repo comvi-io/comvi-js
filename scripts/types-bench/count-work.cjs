@@ -20,13 +20,16 @@
 // `WorkCap: exceeded` and exits — a counted stop, so a red run over that regression ends in
 // seconds instead of hours. A green probe does a few thousand.
 //
-// The counters are injected into typescript/lib/_tsc.js at load time. If any function is
+// The counters are injected into typescript/lib/_tsc.js at load time (vue-tsc: into the
+// compiler it compiles under the `tsc.js` name). If any function is
 // not found, this throws: a gate that cannot count must not pass.
 const Module = require("module");
 const compile = Module.prototype._compile;
 const CAP = Number(process.env.COMVI_WORK_CAP) || 50_000_000;
+// vue-tsc (Volar's runTsc) compiles the whole compiler under the name of the `tsc.js` shim.
+const COMPILER = /\/typescript\/lib\/_?tsc\.js$/;
 Module.prototype._compile = function (content, filename) {
-  if (filename.replace(/\\/g, "/").endsWith("/typescript/lib/_tsc.js")) {
+  if (COMPILER.test(filename.replace(/\\/g, "/")) && content.length > 1e6) {
     const keyof = "function getLiteralTypeFromProperties(type, include, includeOrigin) {";
     const union =
       "function getUnionType(types, unionReduction = 1 /* Literal */, aliasSymbol, aliasTypeArguments, origin) {";

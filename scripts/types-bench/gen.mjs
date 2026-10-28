@@ -7,6 +7,7 @@
 //
 //   generateProbe(dir, { keys, kind, body })   kind: app300 | app30 | app2 | typo | untyped | body
 //                                              | jsx | jsxTypo (app2 + elements.tsx)
+//                                              | vue | vueTypo | vueBase (app2 + Probe.vue, vue-tsc)
 //   (`body`: lines appended after the probe header — the negative suite passes its cases
 //   (after one fixed line for `untyped`);
 //   a body probe also declares the small namespaces `one`, `r1` and `pair`)
@@ -114,6 +115,69 @@ export const JSX_OPTIONS = {
   },
 };
 
+/**
+ * The Vue binding's types over the real `vue` declarations (lot 4): `@comvi/vue` declares
+ * exactly these — `T: TComponentFor<VNodeChild, 1>`, `useI18n(ns).T: BoundTFor<NS, VNodeChild,
+ * 1>`, `t: TFor<NS, VNodeArrayChildren>` and `$t` on `ComponentCustomProperties`. A `.vue`
+ * probe is checked by vue-tsc, which types its template: `{{ t(…) }}`, `{{ $t(…) }}` and
+ * `<T i18n-key …>` elements, slots included.
+ */
+const VUE_DIR = path.dirname(
+  createRequire(path.join(ROOT, "packages/vue/package.json")).resolve("vue/package.json"),
+);
+export const VUE_TSC = path.join(
+  path.dirname(
+    createRequire(path.join(ROOT, "packages/vue/package.json")).resolve("vue-tsc/package.json"),
+  ),
+  "bin/vue-tsc.js",
+);
+export const VUE_LIB = `import type { VNodeArrayChildren, VNodeChild } from "vue";
+import type { BoundTFor, NsOf, TComponentFor, TFor } from "./lib";
+export declare const T: TComponentFor<VNodeChild, 1>;
+export declare function useT<NS extends string>(ns: NS): NS extends NsOf ? BoundTFor<NS, VNodeChild, 1> : never;
+export declare function useTr<NS extends string>(ns: NS): TFor<NS, VNodeArrayChildren>;
+declare module "vue" {
+  interface ComponentCustomProperties {
+    $t: TFor<"default", VNodeArrayChildren>;
+  }
+}
+`;
+const VUE_PROBES = {
+  // Valid calls of every kind: t(), the bound t(), $t() and <T>/the bound <T> elements.
+  vue: [
+    "<p>{{ t('s0.k1', { name: 'x' }) }}{{ t('s0.k0', { ns: 'shop', count: 1 }) }}</p>",
+    "<p>{{ st('s1.k0', { count: 2 }) }}{{ $t('s0.k3', { g: 'male', locale: 'de' }) }}</p>",
+    "<T i18n-key='s0.k1' name='x' />",
+    "<T i18n-key='s0.k0' ns='shop' :count='1' />",
+    "<T i18n-key='s1.k7'><template #link='{ children }'><a>{{ children }}</a></template></T>",
+    "<T i18n-key='s0.k2' :markers='false' />",
+    "<S i18n-key='s0.k1' name='x' />",
+    "<S i18n-key='s1.k0' :count='2' />",
+  ],
+  // Five key typos — the only five errors of the program.
+  vueTypo: [
+    "<p>{{ t('s0.zzz') }}{{ $t('s0.zzz', { count: 1 }) }}</p>",
+    "<T i18n-key='s0.zzz' />",
+    "<T i18n-key='s0.zzz' :count='1' />",
+    "<S i18n-key='s0.zzz' name='x' />",
+  ],
+  // The same program with no Comvi call in the template: the baseline of the Vue gates.
+  vueBase: ["<p>x</p>"],
+};
+const vueProbe = (lines) =>
+  [
+    '<script setup lang="ts">',
+    'import { T, useT, useTr } from "./vuelib";',
+    'const t = useTr("default");',
+    'const st = useTr("shop");',
+    'const S = useT("shop");',
+    "</script>",
+    "<template>",
+    ...lines.map((l) => `  ${l}`),
+    "</template>",
+    "",
+  ].join("\n");
+
 export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
   const all = keyList(keys);
   fs.rmSync(dir, { recursive: true, force: true });
@@ -133,8 +197,9 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
         moduleResolution: "bundler",
         skipLibCheck: true,
         ...(kind === "jsx" || kind === "jsxTypo" ? JSX_OPTIONS : {}),
+        ...(kind in VUE_PROBES ? { paths: { vue: [VUE_DIR] } } : {}),
       },
-      include: ["*.ts", "*.tsx"],
+      include: ["*.ts", "*.tsx", "*.vue"],
     }),
   );
   if (kind !== "untyped") {
@@ -164,7 +229,7 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
     "declare const tag: Tag; declare const cond: boolean;",
     "export const out: string[] = []; export const rich: RichParts[] = [];",
   ];
-  const app2 = kind === "app2" || kind === "jsx" || kind === "jsxTypo";
+  const app2 = kind === "app2" || kind === "jsx" || kind === "jsxTypo" || kind in VUE_PROBES;
   if (kind === "app300" || kind === "app30" || app2) {
     const calls = kind === "app300" ? 300 : kind === "app30" ? 30 : 2;
     const step = Math.floor(all.length / 300);
@@ -235,6 +300,10 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
             ]),
       ].join("\n") + "\n",
     );
+  }
+  if (kind in VUE_PROBES) {
+    fs.writeFileSync(path.join(dir, "vuelib.ts"), VUE_LIB);
+    fs.writeFileSync(path.join(dir, "Probe.vue"), vueProbe(VUE_PROBES[kind]));
   }
   return { dir, headerLines: 5 };
 }
