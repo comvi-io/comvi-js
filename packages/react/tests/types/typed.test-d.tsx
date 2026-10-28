@@ -40,7 +40,16 @@ export const app: ReactElement = (
 export function Component() {
   const { t, locale, dir, isLoading, setLocale } = useI18n();
   const s: string = t("greeting", { name: "Ann" });
-  const r: ReactElement = t("terms", { link: (c) => <a>{c as ReactNode}</a> });
+  const r: ReactElement = t("terms", { link: (c) => <a>{c}</a> });
+  // The registered TagChildren types an inline handler's argument: one React node.
+  t("terms", {
+    link: (c) => {
+      const node: ReactNode = c;
+      return <a>{node}</a>;
+    },
+  });
+  // @ts-expect-error a handler's argument is a ReactNode, not a number (was `any`)
+  t("terms", { link: (c: number) => c });
   const n: string = t("cart.title", { ns: "shop", count: 2 });
   const m: string = t("greeting", { name: "Ann", markers: false });
   void m;

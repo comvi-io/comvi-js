@@ -21,12 +21,22 @@
 export interface Catalogs {}
 
 /**
- * A rich-text tag handler. Its argument is the tag's children as the BINDING delivers
- * them: rich parts (`RichParts`) from the core's `t()`, one React node from
- * `@comvi/react` (lot 1c). It is typed loosely so a binding's handler type, such as
- * `(chunks: ReactNode) => ReactNode`, satisfies a catalog's `Tag` param.
+ * What a tag handler receives as its children, registered by the binding that joins them
+ * (lot 3): `@comvi/react` declares `interface TagChildren { react: ReactNode }`, so a
+ * generated `{ link: Tag }` gives an inline `(chunks) => <a>{chunks}</a>` a `ReactNode`
+ * argument with no annotation. With no binding registered it is `any` (the core's own
+ * `t()` passes rich parts, `RichParts`). One program registers one binding; the type is
+ * resolved once per program, never per call.
  */
-export type Tag = (chunks: any) => unknown;
+export interface TagChildren {}
+
+/**
+ * A rich-text tag handler: a generated param of this type marks the key rich (`OutOf`).
+ * Its argument is the tag's children as the binding delivers them ({@link TagChildren}).
+ */
+export type Tag = (
+  chunks: [keyof TagChildren] extends [never] ? any : TagChildren[keyof TagChildren],
+) => unknown;
 
 /** What a rich message renders: strings and whatever the tag handlers returned. */
 export type RichParts = readonly unknown[];
@@ -99,12 +109,23 @@ export type TranslateFn<NS extends NsOf, Rich = string> = <
   ...args: Args<N, ParamsFor<N, K>>
 ) => OutOf<ParamsFor<N, K>, Rich>;
 
-/** `t()` of a project with no generated catalogs: any key, any params, a string. */
-export type UntypedT = (key: string, params?: Record<string, unknown>) => string;
+/** A param value a plain `{x}` prints as text (`String(value)`, R3-17), or a list of them. */
+type Printed = string | number | bigint | boolean | Date | null | undefined;
+
+/**
+ * `t()` of a project with no generated catalogs: any key, any params. With params that
+ * are all printed as text it returns a string; a param that is an object or a function
+ * (a tag handler, a framework node) can come back as is, inside rich parts — so that
+ * call is typed `string | Rich` (review A6).
+ */
+export interface UntypedT<Rich = RichParts> {
+  (key: string, params?: Readonly<Record<string, Printed | readonly Printed[]>>): string;
+  (key: string, params: Readonly<Record<string, unknown>>): string | Rich;
+}
 
 /** The `t()` a binding hands out for namespace NS: typed when catalogs are declared. */
 export type TFor<NS extends string = "default", Rich = RichParts> = [NsOf] extends [never]
-  ? UntypedT
+  ? UntypedT<Rich>
   : NS extends NsOf
     ? TranslateFn<NS, Rich>
     : never;

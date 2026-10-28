@@ -30,6 +30,17 @@ import { activate, coming, state, translate, type State } from "@comvi/core/inte
 
 declare const __DEV__: boolean;
 
+declare module "@comvi/core" {
+  /**
+   * A tag handler of a generated catalog (`{ link: Tag }`) receives ONE React node: the
+   * binding joins the children into a Fragment (R4-20). Registered here, so an inline
+   * `(chunks) => <a>{chunks}</a>` needs no annotation (lot 3; review 1c, LOW).
+   */
+  interface TagChildren {
+    react: ReactNode;
+  }
+}
+
 /** Catalogs by namespace, then locale (the shape of `createI18n({ catalogs })`). */
 export type ProviderCatalogs = Readonly<Record<string, Readonly<Record<string, Catalog>>>>;
 

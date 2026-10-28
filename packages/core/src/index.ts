@@ -19,6 +19,7 @@ export type {
   ParamsFor,
   RichParts,
   Tag,
+  TagChildren,
   TFor,
   TranslateFn,
   UntypedT,

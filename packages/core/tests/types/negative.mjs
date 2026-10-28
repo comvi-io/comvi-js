@@ -62,6 +62,42 @@ const CASES = [
   ["out.push(s('s0.k12', { markers: true, name: 'x' }));", ""],
   ["s('s0.k0', { markers: 'no', count: 1 }); // E18 markers is a boolean", "TS2322"],
   ["s('s0.k17', { markers: 0 }); // E19 markers is a boolean (no-param key)", "TS2322"],
+  // t as a value (lot 3): a callback typed by real keys takes it; `Parameters<typeof t>`
+  // names the keys. A typed t is NOT `(k: string) => string` — that would let any string
+  // through, which the key check exists to stop (the diagnostic names t's own type).
+  ["const cb1: (k: 's0.k2') => string = t;", ""],
+  ["const cb2: (k: 's0.k2' | 's0.k4') => string = t;", ""],
+  ["const cb3: (k: 's0.k0', p: { count: number }) => string = t;", ""],
+  ["const p0: Parameters<typeof t>[0] = 's0.k2'; out.push(t(p0 as 's0.k2'));", ""],
+  ["out.push(...(['s0.k2', 's0.k4'] as const).map((k) => t(k)));", ""],
+  // KNOWN HOLE, pinned so a change of it is seen: assigned to a one-argument callback, t
+  // is accepted for a key WITH params (tsc does not check the arity of the generic rest
+  // `...args`); the call then renders `{name}` and reports missing_param. Closing it needs
+  // a non-rest signature, measured slower and less precise in S2 (handover, lot 3).
+  ["const cb4: (k: 's0.k5') => string = t;", ""],
+  [
+    "const cb5: (k: string) => string = t; // E20 a typed t takes keys, not any string",
+    "TS2322",
+    "own",
+  ],
+];
+
+/**
+ * The ungenerated project (no Catalogs): any key, any params. A call whose params are all
+ * printed as text is a string; one with an object or function param can return rich
+ * parts, and is typed so (review A6, lot 3).
+ */
+const UNTYPED_CASES = [
+  ["const u1: string = t('k', { n: 1, d: new Date(), l: [1, 2], ns: 'x', markers: false });", ""],
+  ["const u2: string | RichParts = t('k', { node: { a: 1 }, link: (c: unknown) => c });", ""],
+  [
+    "const u3: string = t('k', { link: (c: unknown) => c }); // U1 a handler param may return rich parts",
+    "TS2322",
+  ],
+  [
+    "const u4: string = t('k', { node: { a: 1 } }); // U2 an object param may come back as is",
+    "TS2322",
+  ],
 ];
 /**
  * Helper types that must never surface in a diagnostic. `NotAKey` (the typo marker) may,
@@ -79,28 +115,27 @@ const tsc = (dir) => {
     .filter((l) => /error TS\d+/.test(l) || /^\s{2}\S/.test(l));
 };
 
-const check = (typesSource, keys = 1000) => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-types-neg-"));
-  const failures = [];
-  try {
-    const { headerLines } = generateProbe(path.join(tmp, "neg"), {
-      keys,
-      kind: "body",
-      body: CASES.map((c) => c[0]),
-      typesSource,
-    });
-    const lines = tsc(path.join(tmp, "neg"));
+/** Runs `cases` in a probe of `kind` and pushes every mismatch onto `failures`. */
+const run = (dir, kind, cases, typesSource, keys, failures, offset = 0) => {
+  const { headerLines } = generateProbe(dir, {
+    keys,
+    kind,
+    body: cases.map((c) => c[0]),
+    typesSource,
+  });
+  const lines = tsc(dir);
+  {
     const byLine = new Map();
     let last;
     for (const l of lines) {
       const m = /app\.ts\((\d+),\d+\): error (TS\d+): (.*)$/.exec(l);
       if (m) {
-        last = +m[1] - headerLines - 1;
+        last = +m[1] - headerLines - 1 - offset;
         (byLine.get(last) ?? byLine.set(last, []).get(last)).push({ code: m[2], text: m[3] });
       } else if (/error TS/.test(l)) failures.push(`unexpected diagnostic outside app.ts: ${l}`);
       else if (last !== undefined) byLine.get(last).at(-1).text += " " + l.trim();
     }
-    CASES.forEach(([code, want], i) => {
+    cases.forEach(([code, want, own], i) => {
       const got = byLine.get(i) ?? [];
       if (!want && got.length)
         failures.push(
@@ -112,18 +147,27 @@ const check = (typesSource, keys = 1000) => {
         );
       for (const g of got)
         if (
-          INTERNAL.test(g.text) ||
-          (MARKER.test(g.text) && !/^Argument of type '"[^']*"' is not assignable/.test(g.text))
+          // "own": the diagnostic is about t itself, so it may name t's public type.
+          INTERNAL.test(own ? g.text.replace(/'TranslateFn<[^']*>'/g, "") : g.text) ||
+          (MARKER.test(g.text) &&
+            !/^Argument of type '"[^']*"' is not assignable/.test(g.text) &&
+            !own)
         )
           failures.push(`line ${i} names an internal type: ${g.text}`);
     });
     for (const n of byLine.keys())
-      if (n < 0 || n >= CASES.length) failures.push(`diagnostic on probe line ${n}`);
+      if (n < 0 || n >= cases.length)
+        failures.push(`${kind}: diagnostic on probe line ${n}: ${JSON.stringify(byLine.get(n))}`);
+  }
+};
 
-    generateProbe(path.join(tmp, "untyped"), { keys: 50, kind: "untyped", typesSource });
-    const untyped = tsc(path.join(tmp, "untyped"));
-    if (untyped.length)
-      failures.push(`ungenerated project must compile:\n    ${untyped.join("\n    ")}`);
+const check = (typesSource, keys = 1000) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-types-neg-"));
+  const failures = [];
+  try {
+    run(path.join(tmp, "neg"), "body", CASES, typesSource, keys, failures);
+    // The untyped probe has one fixed line before the cases.
+    run(path.join(tmp, "untyped"), "untyped", UNTYPED_CASES, typesSource, 50, failures, 1);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -131,7 +175,7 @@ const check = (typesSource, keys = 1000) => {
 };
 
 // Red runs first: the suite must notice (1) a signature without the typo guard (R3-2) — a
-// typo then intersects every key's params and E5b reports a different diagnostic — and
+// typo then intersects every key's params and E5b reports a different diagnostic —
 // (2) the 1a guard `[KeysOf[N]] extends [K]`, which took a one-key namespace for a typo
 // and let E12–E16 compile.
 const source = fs.readFileSync(TYPES_SOURCE, "utf8");
@@ -152,6 +196,13 @@ const REDS = {
   "1a guard [KeysOf[N]] extends [K]": plant("1a guard", [
     [GUARD, "[KeysOf[N]] extends [Exclude<K, NotAKey>]\n  ? NotAKey\n  : "],
   ]),
+  // (3) The untyped t() of lot 1, typed `string` for any params (review A6).
+  "untyped t() always a string": plant("untyped string", [
+    [
+      "export interface UntypedT<Rich = RichParts> {",
+      "export type UntypedT<Rich = RichParts> = (key: string, params?: Record<string, unknown>) => string;\ninterface Unused<Rich> {",
+    ],
+  ]),
 };
 const reds = [];
 for (const [label, variant] of Object.entries(REDS)) {
@@ -170,5 +221,5 @@ if (failures.length) {
 }
 console.log(
   `types: ${CASES.filter((c) => c[1]).length} negative + ${CASES.filter((c) => !c[1]).length} positive cases OK, ` +
-    `ungenerated project compiles; red variants caught (${reds.join("; ")} failure(s))`,
+    `ungenerated project: ${UNTYPED_CASES.filter((c) => c[1]).length} negative + ${UNTYPED_CASES.filter((c) => !c[1]).length} positive; red variants caught (${reds.join("; ")} failure(s))`,
 );

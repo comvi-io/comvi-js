@@ -23,4 +23,7 @@ export type {
   I18nOptions,
   Loader,
   Plugin,
+  // A generated comvi.d.ts that augments @comvi/react imports Tag from it (typegen v2).
+  Catalogs,
+  Tag,
 } from "@comvi/core";
