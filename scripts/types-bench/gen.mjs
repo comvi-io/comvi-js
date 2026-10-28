@@ -118,7 +118,9 @@ export const JSX_OPTIONS = {
 /**
  * The Vue binding's types over the real `vue` declarations (lot 4): `@comvi/vue` declares
  * exactly these — `T: TComponentFor<VNodeChild, 1>`, `useI18n(ns).T: BoundTFor<NS, VNodeChild,
- * 1>`, `t: TFor<NS, VNodeArrayChildren>` and `$t` on `ComponentCustomProperties`. A `.vue`
+ * 1>`, `t: TFor<NS, VNodeArrayChildren>` and `$t` on `ComponentCustomProperties` — asserted
+ * IDENTICAL to these by packages/vue/tests/types/typed.test-d.ts (`pnpm --filter @comvi/vue
+ * test:types`), so a binding type that drifts from the measured ones fails there. A `.vue`
  * probe is checked by vue-tsc, which types its template: `{{ t(…) }}`, `{{ $t(…) }}` and
  * `<T i18n-key …>` elements, slots included.
  */
