@@ -201,6 +201,8 @@ describe("no session, no devtools", () => {
         "handover",
         "inherit",
         "intl",
+        // Marks the app mounted for the clock (a handed-over serverNow); sets no hook.
+        "live",
         "loading",
         "lookup",
         "negotiate",

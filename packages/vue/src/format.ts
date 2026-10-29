@@ -13,6 +13,8 @@ import {
   formatNumber,
   formatRelativeTime,
 } from "@comvi/core/format";
+import { live } from "@comvi/core/internal";
+import { onMounted } from "vue";
 import { cell, use } from "./binding";
 
 export interface Formatters {
@@ -20,7 +22,10 @@ export interface Formatters {
   currency(value: number, currency: string, options?: Intl.NumberFormatOptions): string;
   date(value: Date | number, options?: Intl.DateTimeFormatOptions | string): string;
   dateRange(start: Date | number, end: Date | number, options?: Intl.DateTimeFormatOptions): string;
-  /** `value` relative to `now` (default: the instance's `now` option, then the clock). */
+  /**
+   * `value` relative to `now` (default: the instance's clock — the handed-over server clock
+   * during hydration, the browser's after mount; nothing re-renders as time moves on).
+   */
   relative(value: Date | number, now?: number, options?: Intl.RelativeTimeFormatOptions): string;
   list(items: readonly string[], options?: Intl.ListFormatOptions): string;
   displayName(code: string, type?: Intl.DisplayNamesOptions["type"]): string | undefined;
@@ -31,6 +36,8 @@ export const useFormat = (): Formatters => {
   const i = use();
   // The instance's `locale` slice: a render that formats re-renders on a locale change only.
   const locale = cell(i)[1];
+  // Once mounted (after the hydration), a handed-over server clock gives way to the browser's.
+  onMounted(() => live(i));
   return {
     number: (v, o) => formatNumber(i, v, o, locale.value),
     currency: (v, c, o) => formatCurrency(i, v, c, o, locale.value),

@@ -13,6 +13,8 @@
 import type { Catalog, Rendered } from "./compile/cache";
 import type { Env, Params } from "./compile/scanner";
 import { clock } from "./clock";
+
+export { live } from "./clock";
 import { CORE, type Core, type I18n } from "./instance";
 import { dir } from "./locale";
 import { layer, mk, N, type Slot, type State, type Store } from "./state";
@@ -149,9 +151,9 @@ export interface Handover {
   /**
    * The request's clock (epoch ms): the `now` option, else the one a server instance took
    * when it first read the clock (clock.ts). `formatRelativeTime` counts from it on both
-   * sides.
+   * sides until the browser's app has mounted, then from the browser's clock (lot 4b).
    */
-  now: number;
+  serverNow: number;
   /** By namespace, then locale; `null`: the load of that slot failed on the server. */
   catalogs: Record<string, Record<string, Catalog | null>>;
 }
@@ -180,5 +182,5 @@ export const handover = (i18n: I18n): Handover => {
       if (y || (x.o.loader && !s.ld.includes(l + "\0" + n)))
         (catalogs[n] ||= N())[l] = !y ? null : y.p ? N(y.m, y.p) : y.m;
     }
-  return { locale: s.locale, timeZone: x.o.timeZone, now: clock(i18n), catalogs };
+  return { locale: s.locale, timeZone: x.o.timeZone, serverNow: clock(i18n), catalogs };
 };

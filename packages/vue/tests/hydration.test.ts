@@ -54,8 +54,9 @@ const OPTIONS = { fallbackLocale: "en", timeZone: "UTC" };
 /** The server's response: the HTML and the payload the page embeds. */
 const serve = async (locale: string, load = loader()) => {
   const i18n = createI18n({ ...OPTIONS, locale, loader: load });
-  // The route's namespace and the locale's catalogs, loaded before the render.
-  await Promise.all([i18n.load("account"), i18n.ready]);
+  // The locale's catalogs; `useI18n("account")` loads its namespace before it renders
+  // (lot 4b: onServerPrefetch), so the route needs no `i18n.load("account")`.
+  await i18n.ready;
   const html = await renderToString(createSSRApp(App).use(i18n));
   const payload = JSON.parse(JSON.stringify(handover(i18n))) as Handover;
   i18n.destroy();

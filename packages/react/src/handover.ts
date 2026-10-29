@@ -20,7 +20,7 @@ import {
 } from "react";
 import type { I18n } from "@comvi/core";
 import { view } from "@comvi/core/internal";
-import { provide, useCtx, type Ctx, type ProviderCatalogs } from "./binding";
+import { painted, provide, useCtx, type Ctx, type ProviderCatalogs } from "./binding";
 
 // React 18 warns about useLayoutEffect in a server render; the server runs no effects.
 const useCommit = typeof document < "u" ? useLayoutEffect : useEffect;
@@ -87,3 +87,6 @@ export const I18nHandover = ({
   }, [i, target]);
   return provide(v, children);
 };
+// The provider's first-paint gate (`loading`, `suspense`) never hides a handover child:
+// the catalogs it carries reach the instance only when it commits.
+painted.add(I18nHandover);

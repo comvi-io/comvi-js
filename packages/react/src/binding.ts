@@ -26,7 +26,7 @@ import {
   type ReactNode,
 } from "react";
 import type { BoundTFor, Catalog, I18n, NsOf, TComponentFor, TFor } from "@comvi/core";
-import { activate, coming, state, translate, type State } from "@comvi/core/internal";
+import { activate, coming, N, state, translate, type State } from "@comvi/core/internal";
 
 declare const __DEV__: boolean;
 
@@ -64,7 +64,8 @@ export interface I18nProviderProps {
 /** What a provider gives its subtree: the instance and the state its render shows. */
 export type Ctx = readonly [I18n, State];
 
-const C = createContext<Ctx | null>(null);
+// No provider: `0` (development checks it; production trusts the setup).
+const C = createContext<Ctx>(0 as never);
 const L = createContext("");
 
 /**
@@ -81,32 +82,41 @@ export const provide = (v: Ctx, children: ReactNode) =>
     createElement(L.Provider, { value: v[1].locale }, children),
   );
 
+/** The context of the nearest provider (`<I18nHandover>` reads it). */
 export const useCtx = (): Ctx => {
   const c = useContext(C);
   if (__DEV__ && !c) throw Error("[@comvi/react] no <I18nProvider> above this component");
   return c!;
 };
 
-/** Instances whose subtree has painted: `loading` / `suspense` gate the first paint only. */
-const painted = new WeakSet<I18n>();
+/**
+ * Instances whose subtree has painted: `loading` / `suspense` gate the first paint only.
+ * Also holds `I18nHandover` (handover.ts): a child the gate never hides.
+ */
+export const painted = new WeakSet<object>();
 
 /** Makes `i18n` the instance of its subtree and re-renders it on every published change. */
 export const I18nProvider = ({
   i18n: i,
-  loading: spinner,
-  suspense,
   children,
+  // No `loading`: the children render while the first catalogs load (keys of what is
+  // still coming), as without a gate.
+  loading: spinner = children,
+  suspense,
 }: I18nProviderProps): ReactElement => {
   const get = () => state(i);
   const s = useSyncExternalStore(i.on, get, get);
   const v = useMemo((): Ctx => [i, s], [i, s]);
-  // The first paint waits for every load in flight (the locale's chain, its fallbacks).
-  // Marking an instance painted during render is idempotent and only ever moves one way:
-  // a render React abandons leaves a fact about the instance true, nothing published.
-  const busy = s.ld[0] && !painted.has(i);
-  if (!busy) painted.add(i);
+  // The first paint waits for every load in flight (the locale's chain, its fallbacks) —
+  // unless the child is an `<I18nHandover>`: its catalogs reach the instance only when it
+  // commits, so the gate never hides it (a hydration from a server payload).
+  const busy =
+    s.ld[0] && !painted.has(i) && !painted.has((children as unknown as { type: never })?.type);
+  // Painted when a render without the gate COMMITS: a render React abandons changes
+  // nothing about the first paint.
+  useEffect(() => void (busy || painted.add(i)));
   if (busy && suspense) throw i.ready;
-  return provide(v, busy && spinner !== undefined ? spinner : children);
+  return provide(v, busy ? spinner : children);
 };
 
 /**
@@ -151,7 +161,7 @@ export interface UseI18n<NS extends string = "default"> {
  * Bound `<T>` per namespace: one component identity for the app's lifetime. Prototype-free,
  * so a namespace called `constructor` or `toString` gets its own component.
  */
-const Ts: Record<string, (props: object) => ReactNode> = Object.create(null);
+const Ts = N<(props: object) => ReactNode>();
 
 /**
  * The i18n of the nearest `<I18nProvider>`. `ns` is the namespace of `t` and `T`; it is
@@ -159,28 +169,30 @@ const Ts: Record<string, (props: object) => ReactNode> = Object.create(null);
  * is not asked again by a remount — `i18n.load(ns)` retries.
  */
 export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => {
-  const c = useCtx();
-  const [i, s] = c;
-  useEffect(() => {
-    if (ns) activate(i, ns);
-  }, [i, ns]);
+  const c = useContext(C);
+  if (__DEV__ && !c) throw Error("[@comvi/react] no <I18nProvider> above this component");
+  const [i, s] = c!;
+  const n = ns || "default";
+  // `default` too: an app whose `namespaces` option leaves it out loads it on first use
+  // (activation never rejects; `i18n.load(ns)` is the call that reports).
+  useEffect(() => void activate(i, n), [i, n]);
   return useMemo(
     () => ({
-      // `node` joins rich parts into one node and, through the core, gives every tag
-      // handler (`defaultParams` ones too) its children as ONE node: `<a>{chunks}</a>`
-      // renders nested tags and element params without React's missing-key warning.
-      t: ((k: string, p?: Record<string, unknown>) =>
-        node(translate(i, s, k, p, ns, node))) as UseI18n<NS>["t"],
-      T: (ns ? (Ts[ns] ||= (q) => T({ ...q, ns } as never)) : T) as BoundT<NS>,
       locale: s.locale,
       dir: s.dir,
       // Until the activation after commit, a namespace the loader will load is loading
       // already: no frame of its keys that says it is loaded, no `missing_key` (lot 1d).
-      isLoading: coming(i, s, ns || "default"),
+      isLoading: coming(i, s, n),
       setLocale: i.setLocale,
       i18n: i,
+      // `node` joins rich parts into one node and, through the core, gives every tag
+      // handler (`defaultParams` ones too) its children as ONE node: `<a>{chunks}</a>`
+      // renders nested tags and element params without React's missing-key warning.
+      t: ((k: string, p?: Record<string, unknown>) =>
+        node(translate(i, s, k, p, n, node))) as UseI18n<NS>["t"],
+      T: (Ts[n] ||= (q) => T({ ...q, ns: n } as never)) as BoundT<NS>,
     }),
-    [c, ns],
+    [c, n],
   );
 };
 

@@ -1,0 +1,5 @@
+---
+"@comvi/core": minor
+---
+
+**BREAKING** (0.8-internal) — loading contracts. `setLocale(l)` waits for the namespaces active when it is called; one activated while it is pending loads for the locale on screen, then for `l` right after the switch. A later call wins: an earlier one never switches once a later one exists, and its promise resolves (it does not reject) once its loads settle or are aborted; the latest call rejects only when no namespace it waited for has a catalog of `l`'s own chain. `load(ns)` now rejects with the loader's error by the same rule (it used to resolve when its load failed) and resolves `undefined` otherwise, also when a switch aborted it; a binding's automatic activation never rejects. `t()` of a namespace still loading returns what a missing key returns, unreported. `handover()` emits the server clock as `serverNow` (was `now`): `createI18n({ ...payload })` formats relative time from it until a binding marks the app mounted, then from the browser clock; an explicit `now` option stays fixed. In production the `RangeError` of an invalid `setLocale()` tag carries the tag only.

@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createI18n } from "../../src";
 import { formatRelativeTime } from "../../src/format";
-import { activate, coming, handover, state } from "../../src/internal";
+import { activate, coming, handover, live, state } from "../../src/internal";
 
 describe("handover()", () => {
   it("hands over the chain (parents, fallback locales) of the active namespaces only", async () => {
@@ -26,7 +26,7 @@ describe("handover()", () => {
     expect(handover(i18n)).toEqual({
       locale: "de-AT",
       timeZone: "Europe/Vienna",
-      now: 7,
+      serverNow: 7,
       catalogs: {
         default: { "de-AT": { a: "A" }, de: { b: "B" }, en: { c: "C" } },
         shop: { en: { s: "S" } },
@@ -101,7 +101,8 @@ describe("handover()", () => {
         return n == "account" ? { profile: "Profile" } : { hi: l == "uk" ? "Привіт" : "Hi" };
       },
     });
-    await server.load("account");
+    // uk:account failed (only the fallback locale has it): load() rejects (lot 4b).
+    await expect(server.load("account")).rejects.toThrow("404 uk:account");
     return JSON.parse(JSON.stringify(handover(server)));
   };
 
@@ -157,12 +158,12 @@ describe("handover()", () => {
       const i18n = createI18n({ locale: "en", timeZone: "UTC" });
       const rendered = formatRelativeTime(i18n, 1_000_000 - 30_000);
       vi.setSystemTime(1_000_000 + 60_000);
-      const { now } = handover(i18n);
-      expect(now).toBe(1_000_000);
-      const client = createI18n({ locale: "en", timeZone: "UTC", now });
+      const { serverNow } = handover(i18n);
+      expect(serverNow).toBe(1_000_000);
+      const client = createI18n({ locale: "en", timeZone: "UTC", serverNow });
       expect(formatRelativeTime(client, 1_000_000 - 30_000)).toBe(rendered);
       // Another instance (another request) reads the clock of its own.
-      expect(handover(createI18n({ locale: "en", timeZone: "UTC" })).now).toBe(1_060_000);
+      expect(handover(createI18n({ locale: "en", timeZone: "UTC" })).serverNow).toBe(1_060_000);
     } finally {
       vi.useRealTimers();
     }
@@ -185,7 +186,41 @@ describe("handover()", () => {
   it("the clock defaults to now when the instance has no `now` option", () => {
     vi.spyOn(Date, "now").mockReturnValue(123);
     const i18n = createI18n({ locale: "en", timeZone: "UTC" });
-    expect(handover(i18n).now).toBe(123);
+    expect(handover(i18n).serverNow).toBe(123);
+  });
+
+  it("in a browser a handed-over serverNow holds until the app mounts, then the clock runs (lot 4b)", () => {
+    vi.stubGlobal("document", {});
+    vi.useFakeTimers({ now: 100_000, toFake: ["Date"] });
+    try {
+      // The server rendered at 40 000; the browser hydrates at 100 000.
+      const client = createI18n({ locale: "en", timeZone: "UTC", serverNow: 40_000 });
+      expect(formatRelativeTime(client, 10_000)).toBe("30 seconds ago"); // the server's text
+      vi.setSystemTime(160_000);
+      expect(formatRelativeTime(client, 10_000)).toBe("30 seconds ago"); // still hydrating
+      live(client); // a binding's useFormat() after mount
+      expect(formatRelativeTime(client, 10_000)).toBe("2 minutes ago"); // 150 s from the browser clock
+      vi.setSystemTime(10_000 + 3_600_000);
+      expect(formatRelativeTime(client, 10_000)).toBe("1 hour ago");
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("an explicit `now` stays fixed after mount; `now` wins over serverNow (lot 4b)", () => {
+    vi.stubGlobal("document", {});
+    vi.useFakeTimers({ now: 100_000, toFake: ["Date"] });
+    try {
+      const fixed = createI18n({ locale: "en", now: 40_000, serverNow: 70_000 });
+      expect(formatRelativeTime(fixed, 10_000)).toBe("30 seconds ago");
+      live(fixed);
+      vi.setSystemTime(1_000_000);
+      expect(formatRelativeTime(fixed, 10_000)).toBe("30 seconds ago");
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 
   it("throws without timeZone in development; the error names the option", () => {

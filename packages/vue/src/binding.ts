@@ -9,8 +9,9 @@
  *   when they change, `t()` / `$t()` read the whole state (a new snapshot re-renders what
  *   called them — the accepted compromise of §2.5, as in React).
  * - A namespace is activated after the component mounts, never during setup or render
- *   (React: in an effect). A server runs no `onMounted`: like React's, a server render shows
- *   what the instance holds — the app loads the route's namespaces before it renders.
+ *   (React: in an effect), and on a server before the component renders (`onServerPrefetch`:
+ *   `renderToString` waits for it, so `handover()` carries it; lot 4b). React cannot wait in
+ *   a server render: there the app loads the route's namespaces before it renders.
  * - `useI18n(ns).T` is a functional component (its namespace is that `useI18n`'s); the
  *   exported `<T>` (T.ts, its own chunk) activates the namespace of its `ns` attribute itself,
  *   and is in an app's bundle only when the app imports it (the R3-10 binding cap: +500 B).
@@ -18,18 +19,20 @@
 import {
   camelize,
   computed,
+  customRef,
   inject,
   onMounted,
+  onServerPrefetch,
   shallowRef,
   ssrContextKey,
   type FunctionalComponent,
   type App,
   type ComputedRef,
   type InjectionKey,
+  type Ref,
   type ShallowRef,
   type VNodeArrayChildren,
   type VNodeChild,
-  type WritableComputedRef,
 } from "vue";
 import {
   createI18n as create,
@@ -68,7 +71,7 @@ export type VueI18n = I18n & { install(app: App): void };
  */
 type Cell = readonly [
   ShallowRef<State>,
-  WritableComputedRef<string>,
+  Ref<string>,
   ComputedRef<"ltr" | "rtl">,
   Record<string, FunctionalComponent>,
 ];
@@ -106,12 +109,16 @@ export const createI18n = (options: I18nOptions): VueI18n => {
   i.on(() => (s.value = state(i)));
   (i as unknown as Record<symbol, Cell>)[K] = [
     s,
-    computed({
-      get: () => s.value.locale,
-      // A failed switch is reported through `onError` (load_failed, invalid_locale) and
-      // keeps the old locale; a `v-model` has nobody to hand the rejection to.
-      set: (l) => void i.setLocale(l).catch(() => {}),
-    }),
+    // The `locale` slice: re-renders its readers on a locale change only. A failed switch
+    // is reported through `onError` (load_failed, invalid_locale) and keeps the old
+    // locale; its readers re-render then too, so a `v-model` control shows the locale on
+    // screen again instead of the one it asked for. A `v-model` has nobody to hand the
+    // rejection to: `setLocale()` is the call that rejects.
+    ((l: ComputedRef<string>) =>
+      customRef((track, trigger) => ({
+        get: () => (track(), l.value),
+        set: (v: string) => void i.setLocale(v).catch(trigger),
+      })))(computed(() => s.value.locale)),
     computed(() => s.value.dir),
     N<FunctionalComponent>(),
   ];
@@ -213,9 +220,10 @@ export interface UseI18n<NS extends string = "default"> {
   T: BoundT<NS>;
   /**
    * The locale on screen. Setting it switches (`setLocale`): the value stays the old one
-   * until the new locale's catalogs are in. Re-renders only on a locale change.
+   * until the new locale's catalogs are in, and stays the old one when the switch fails
+   * (a `v-model` control shows it again). Re-renders only on a locale change.
    */
-  locale: WritableComputedRef<string>;
+  locale: Ref<string>;
   dir: ComputedRef<"ltr" | "rtl">;
   /**
    * A catalog of this namespace is loading, for any locale (a switch in progress too), or
@@ -252,19 +260,24 @@ export const render = (
 };
 
 /**
- * The i18n of the app (`app.use(i18n)`). `ns` is the namespace of `t` and `T`; it is
- * activated after the component mounts, never during setup. A failed load of it is not
- * asked again by a remount — `i18n.load(ns)` retries.
+ * The i18n of the app (`app.use(i18n)`). `ns` (default `default`) is the namespace of `t`
+ * and `T`; it is activated on a server before the component renders, in a browser after it
+ * mounts, never during setup. A failed load of it is not asked again by a remount —
+ * `i18n.load(ns)` retries.
  */
 export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => {
   const i = use();
   const [s, locale, dir, Ts] = cell(i);
   const n = ns || "default";
-  if (ns) onMounted(() => activate(i, ns));
+  const a = () => activate(i, n);
+  onServerPrefetch(a);
+  onMounted(a);
   return {
     t: tr(i, n) as UseI18n<NS>["t"],
-    // Functional, one per instance and namespace (R3-5(b)): every attribute is a prop of
-    // it. Its namespace is activated by this `useI18n(ns)`.
+    // Functional, one per instance and namespace (R3-5(b)): with no declared props every
+    // attribute is a prop of it, so every one reaches the params and none falls through —
+    // the exported `<T>`'s policy (`inheritAttrs: false`). Its namespace is activated by
+    // this `useI18n(ns)`.
     T: (Ts[n] ||= (p, { slots }) => render(i, n, p, slots)) as unknown as BoundT<NS>,
     locale,
     dir,
