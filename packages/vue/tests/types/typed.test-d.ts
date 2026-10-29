@@ -5,7 +5,7 @@
  */
 import { h, type ComponentCustomProperties, type VNodeArrayChildren, type VNodeChild } from "vue";
 import type { BoundTFor, TComponentFor, TFor } from "@comvi/core";
-import { createI18n, T, useI18n, type Children, type UseI18n } from "../../src";
+import { createI18n, T, useI18n, type Children, type TagComponent, type UseI18n } from "../../src";
 
 createI18n({ locale: "en" });
 
@@ -68,9 +68,10 @@ export function setup() {
  */
 type Equal<A, B> =
   (<X>() => X extends A ? 1 : 2) extends <X>() => X extends B ? 1 : 2 ? true : false;
-export const sameT: Equal<typeof T, TComponentFor<VNodeChild, 1>> = true;
-export const sameBound: Equal<UseI18n<"shop">["T"], BoundTFor<"shop", VNodeChild, 1>> = true;
-export const sameBoundDefault: Equal<UseI18n["T"], BoundTFor<"default", VNodeChild, 1>> = true;
+type C = Readonly<Record<string, TagComponent>>;
+export const sameT: Equal<typeof T, TComponentFor<VNodeChild, 1, C>> = true;
+export const sameBound: Equal<UseI18n<"shop">["T"], BoundTFor<"shop", VNodeChild, 1, C>> = true;
+export const sameBoundDefault: Equal<UseI18n["T"], BoundTFor<"default", VNodeChild, 1, C>> = true;
 export const sameTr: Equal<UseI18n<"shop">["t"], TFor<"shop", VNodeArrayChildren>> = true;
 export const same$t: Equal<
   ComponentCustomProperties["$t"],

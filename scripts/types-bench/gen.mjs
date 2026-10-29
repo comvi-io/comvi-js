@@ -93,18 +93,20 @@ export declare function useI18n<NS extends string = "default">(ns?: NS): { t: TF
  * The React binding's `<T>` and `useI18n(ns).T` over the real @types/react JSX namespace
  * (its LibraryManagedAttributes and IntrinsicAttributes are part of the cost: a neutral JSX
  * namespace hides the valid-key half of lot 3 review BLOCK 1). `@comvi/react` declares
- * exactly these: `TComponent = TComponentFor<ReactNode>`, `BoundT<NS> = BoundTFor<NS,
- * ReactNode>` — a separate file, so the other probes' programs do not load React.
+ * exactly these: `TComponent = TComponentFor<ReactNode, 1, C>`, `BoundT<NS> = BoundTFor<NS,
+ * ReactNode, 1, C>` with C its `components` prop (lot 4b) — a separate file, so the other
+ * probes' programs do not load React.
  */
 const REACT_TYPES = path.dirname(
   createRequire(path.join(ROOT, "packages/react/package.json")).resolve(
     "@types/react/package.json",
   ),
 );
-export const JSX_LIB = `import type { ReactNode } from "react";
+export const JSX_LIB = `import type { ComponentType, ReactNode } from "react";
 import type { BoundTFor, NsOf, TComponentFor } from "./lib";
-export declare const T: TComponentFor<ReactNode>;
-export declare function useT<NS extends string>(ns: NS): NS extends NsOf ? BoundTFor<NS, ReactNode> : never;
+type C = Readonly<Record<string, string | ComponentType<{ children?: ReactNode }>>>;
+export declare const T: TComponentFor<ReactNode, 1, C>;
+export declare function useT<NS extends string>(ns: NS): NS extends NsOf ? BoundTFor<NS, ReactNode, 1, C> : never;
 `;
 /** compilerOptions that resolve "react" and the automatic JSX runtime to @types/react. */
 export const JSX_OPTIONS = {
@@ -117,8 +119,9 @@ export const JSX_OPTIONS = {
 
 /**
  * The Vue binding's types over the real `vue` declarations (lot 4): `@comvi/vue` declares
- * exactly these — `T: TComponentFor<VNodeChild, 1>`, `useI18n(ns).T: BoundTFor<NS, VNodeChild,
- * 1>`, `t: TFor<NS, VNodeArrayChildren>` and `$t` on `ComponentCustomProperties` — asserted
+ * exactly these — `T: TComponentFor<VNodeChild, 1, C>`, `useI18n(ns).T: BoundTFor<NS,
+ * VNodeChild, 1, C>` (C: the `components` prop, lot 4b), `t: TFor<NS, VNodeArrayChildren>`
+ * and `$t` on `ComponentCustomProperties` — asserted
  * IDENTICAL to these by packages/vue/tests/types/typed.test-d.ts (`pnpm --filter @comvi/vue
  * test:types`), so a binding type that drifts from the measured ones fails there. A `.vue`
  * probe is checked by vue-tsc, which types its template: `{{ t(…) }}`, `{{ $t(…) }}` and
@@ -135,8 +138,9 @@ export const VUE_TSC = path.join(
 );
 export const VUE_LIB = `import type { VNodeArrayChildren, VNodeChild } from "vue";
 import type { BoundTFor, NsOf, TComponentFor, TFor } from "./lib";
-export declare const T: TComponentFor<VNodeChild, 1>;
-export declare function useT<NS extends string>(ns: NS): NS extends NsOf ? BoundTFor<NS, VNodeChild, 1> : never;
+type C = Readonly<Record<string, string | object>>;
+export declare const T: TComponentFor<VNodeChild, 1, C>;
+export declare function useT<NS extends string>(ns: NS): NS extends NsOf ? BoundTFor<NS, VNodeChild, 1, C> : never;
 export declare function useTr<NS extends string>(ns: NS): TFor<NS, VNodeArrayChildren>;
 declare module "vue" {
   interface ComponentCustomProperties {

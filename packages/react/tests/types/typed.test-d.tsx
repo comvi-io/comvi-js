@@ -4,7 +4,16 @@
  * fire, and every other line must compile.
  */
 import type { ReactElement, ReactNode } from "react";
-import { createI18n, I18nProvider, T, useI18n, type Tag } from "./lib";
+import type { BoundTFor, TComponentFor } from "@comvi/core";
+import {
+  createI18n,
+  I18nProvider,
+  T,
+  useI18n,
+  type Tag,
+  type TagComponent,
+  type UseI18n,
+} from "./lib";
 
 declare module "@comvi/core" {
   interface Catalogs {
@@ -34,6 +43,13 @@ export const app: ReactElement = (
     <T i18nKey="greeting" />
     {/* @ts-expect-error a key of another namespace */}
     <T i18nKey="cart.title" count={1} />
+    {/* A tag param is optional: `components` may render the tag (lot 4b). */}
+    <T i18nKey="terms" components={{ link: "a" }} />
+    <T i18nKey="terms" />
+    {/* @ts-expect-error a component entry is not a number */}
+    <T i18nKey="terms" components={{ link: 1 }} />
+    {/* @ts-expect-error a handler prop still has its type */}
+    <T i18nKey="terms" link={(c: number) => c} />
   </I18nProvider>
 );
 
@@ -78,3 +94,14 @@ export function Component() {
   const p: Promise<void> = setLocale("de");
   return [s, r, n, c, e1, bt, bt2, bt3, bt4, l, d, b, p];
 }
+
+/**
+ * The binding's `<T>` types ARE the core's guarded ones with the `components` prop (lot 4b):
+ * the types bench (scripts/types-bench/gen.mjs JSX_LIB) measures exactly these, so a binding
+ * type that drifts from the measured one fails here.
+ */
+type Equal<A, B> =
+  (<X>() => X extends A ? 1 : 2) extends <X>() => X extends B ? 1 : 2 ? true : false;
+type C = Readonly<Record<string, TagComponent>>;
+export const sameT: Equal<typeof T, TComponentFor<ReactNode, 1, C>> = true;
+export const sameBound: Equal<UseI18n<"shop">["T"], BoundTFor<"shop", ReactNode, 1, C>> = true;

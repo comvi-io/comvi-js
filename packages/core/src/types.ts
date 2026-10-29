@@ -132,22 +132,31 @@ type PropsOf<P, S> = [P] extends [never]
         };
 
 /**
- * A binding's typed `<T i18nKey ns? locale? markers? {...params}>`, rendering `Out`. The key
+ * A binding's typed `<T i18nKey ns? locale? markers? components? {...params}>`, rendering
+ * `Out`; `C` is the type of its `components` prop (`never`: none), `S` makes tag params
+ * optional (a slot or `components` may render the tag). The key
  * carries the same typo guard as `t()` (R3-2): without `NotAKey` in K's constraint, a JSX
  * element infers K as the whole key union while it types the attributes, and the props
  * intersect every key's params — minutes of tsc on a 5k catalog, for a typo AND for a valid
  * key (review of lot 3, BLOCK 1). Gated by `check:types-bench` and `check:types-ide` (JSX).
  */
-export type TComponentFor<Out, S = 0> = <
+export type TComponentFor<Out, S = 0, C = never> = <
   K extends KeysOf[N] | NotAKey,
   N extends NsOf = "default" & NsOf,
 >(
-  props: { i18nKey: K; ns?: N; locale?: string; markers?: boolean } & PropsOf<ParamsFor<N, K>, S>,
+  props: { i18nKey: K; ns?: N; locale?: string; markers?: boolean; components?: C } & PropsOf<
+    ParamsFor<N, K>,
+    S
+  >,
 ) => Out;
 
-/** `<T>` bound to namespace NS (`useI18n(ns).T`): no `ns` prop, the same typo guard. */
-export type BoundTFor<NS extends NsOf, Out, S = 0> = <K extends KeysOf[NS] | NotAKey>(
-  props: { i18nKey: K; ns?: never; locale?: string; markers?: boolean } & PropsOf<
+/**
+ * `<T>` bound to namespace NS (`useI18n(ns).T`): no `ns` prop, the same typo guard. `S` and
+ * `C` as in {@link TComponentFor}: `S` makes tag params optional (a slot or `components`
+ * may render the tag), `C` is the type of the binding's `components` prop.
+ */
+export type BoundTFor<NS extends NsOf, Out, S = 0, C = never> = <K extends KeysOf[NS] | NotAKey>(
+  props: { i18nKey: K; ns?: never; locale?: string; markers?: boolean; components?: C } & PropsOf<
     ParamsFor<NS, K>,
     S
   >,
@@ -160,11 +169,12 @@ type Printed = string | number | bigint | boolean | Date | null | undefined;
  * `t()` of a project with no generated catalogs: any key, any params. With params that
  * are all printed as text it returns a string; a param that is an object or a function
  * (a tag handler, a framework node) can come back as is, inside rich parts — so that
- * call is typed `string | Rich` (review A6).
+ * call is typed `string | Rich` (review A6). `P` is the params type of that call: a
+ * binding passes its own, so an inline tag handler gets its argument type (lot 4b).
  */
-export interface UntypedT<Rich = RichParts> {
+export interface UntypedT<Rich = RichParts, P = Readonly<Record<string, unknown>>> {
   (key: string, params?: Readonly<Record<string, Printed | readonly Printed[]>>): string;
-  (key: string, params: Readonly<Record<string, unknown>>): string | Rich;
+  (key: string, params?: P): string | Rich;
 }
 
 /** The `t()` a binding hands out for namespace NS: typed when catalogs are declared. */

@@ -17,13 +17,17 @@ const setup = (_: unknown, c: { attrs: Record<string, unknown>; slots: Record<st
 };
 
 /**
- * Renders one message; params are attributes, a tag handler is an attribute or a slot of
- * the tag's name (`<T i18nKey="terms"><template v-slot:link="{ children }"><a href="/terms">{{
- * children }}</a></template></T>`). Every attribute but `i18nKey` and the per-call options
- * `ns`, `locale` and `markers` is a message param — `class` too. `ns` is explicit: `<T>` never
- * takes the namespace of a `useI18n(ns)` above it (R3-5); `useI18n(ns).T` is the bound one.
- * `<T ns>` activates that namespace (`default` without one) on a server before it renders,
- * in a browser after it mounts, and again when the attribute changes.
+ * Renders one message; params are attributes. A tag renders through an attribute of its
+ * name (a handler), else its entry in `components` (`:components="{ b: 'strong' }"`, nested
+ * tags render too), else a slot of its name (`<template v-slot:link="{ children }"><a
+ * href="/terms">{{ children }}</a></template>`, `children` the tag's text when it holds
+ * text only — for nested markup use `components`); an attribute
+ * that is `undefined` leaves the tag to the next. Every attribute but `i18nKey`,
+ * `components` and the per-call options `ns`, `locale` and `markers` is a message param —
+ * `class` too (nothing falls through). `ns` is explicit: `<T>` never takes the namespace of
+ * a `useI18n(ns)` above it (R3-5); `useI18n(ns).T` is the bound one. `<T ns>` activates
+ * that namespace (`default` without one) on a server before it renders, in a browser after
+ * it mounts, and again when the attribute changes.
  * `:markers="false"` opts the message out of an in-context editor session (R3-14 H9).
  */
 // No props: every attribute, `i18nKey` (`i18n-key` in a template) too, is read camelized.

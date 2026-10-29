@@ -22,10 +22,11 @@ import {
   useEffect,
   useMemo,
   useSyncExternalStore,
+  type ComponentType,
   type ReactElement,
   type ReactNode,
 } from "react";
-import type { BoundTFor, Catalog, I18n, NsOf, TComponentFor, TFor } from "@comvi/core";
+import type { BoundTFor, Catalog, I18n, NsOf, TComponentFor, TFor, UntypedT } from "@comvi/core";
 import { activate, coming, N, state, translate, type State } from "@comvi/core/internal";
 
 declare const __DEV__: boolean;
@@ -129,21 +130,27 @@ export type UntypedParams = Record<string, object | ReactNode | ((chunks: ReactN
 /** `<T>` bound to namespace NS (from `useI18n(ns)`): typed by that namespace's keys. */
 export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
   ? (
-      props: { i18nKey: string; locale?: string; markers?: boolean; ns?: never } & UntypedParams,
+      props: {
+        i18nKey: string;
+        locale?: string;
+        markers?: boolean;
+        ns?: never;
+        components?: Readonly<Record<string, TagComponent>>;
+      } & UntypedParams,
     ) => ReactNode
   : NS extends NsOf
-    ? BoundTFor<NS, ReactNode>
+    ? BoundTFor<NS, ReactNode, 1, Readonly<Record<string, TagComponent>>>
     : never;
 
 /** What `useI18n(ns)` returns. */
 export interface UseI18n<NS extends string = "default"> {
   /**
-   * `t()` against what this render shows; a rich message renders a React element. Without
-   * generated catalogs it is typed `string` (render rich text with `<T>`).
+   * `t()` against what this render shows. A call whose params are all text (strings,
+   * numbers, dates…) returns a `string`; a rich message (a tag handler, an element param)
+   * returns a React element. Without generated catalogs a call with a handler or an element
+   * param is typed `string | ReactElement`: the message decides at run time.
    */
-  t: [NsOf] extends [never]
-    ? (key: string, params?: UntypedParams) => string
-    : TFor<NS, ReactElement>;
+  t: [NsOf] extends [never] ? UntypedT<ReactElement, UntypedParams> : TFor<NS, ReactElement>;
   /** `<T>` bound to this namespace; the same component on every render (R3-5(b)). */
   T: BoundT<NS>;
   locale: string;
@@ -196,31 +203,55 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
   );
 };
 
+/**
+ * What renders a tag through `components`: an HTML tag name (`"strong"`) or a component;
+ * the tag's content is its `children`. A tag that needs props of its own (`href`) takes a
+ * handler prop instead, or a component that sets them.
+ */
+export type TagComponent = string | ComponentType<{ children?: ReactNode }>;
+
 /** The locale this render shows. Re-renders on a locale change only, not on a namespace load. */
 export const useLocale = (): string => useContext(L);
 
 /**
- * `<T i18nKey ns? locale? markers? {...params}>`: typed by the generated catalogs when
- * declared. `markers={false}` keeps an in-context editor session from marking this
- * message (R3-14 H9).
+ * `<T i18nKey ns? locale? markers? components? {...params}>`: typed by the generated
+ * catalogs when declared (a tag param is optional: `components` may render the tag).
+ * `markers={false}` keeps an in-context editor session from marking this message (R3-14 H9).
  */
 export type TComponent = [NsOf] extends [never]
   ? (
-      props: { i18nKey: string; ns?: string; locale?: string; markers?: boolean } & UntypedParams,
+      props: {
+        i18nKey: string;
+        ns?: string;
+        locale?: string;
+        markers?: boolean;
+        components?: Readonly<Record<string, TagComponent>>;
+      } & UntypedParams,
     ) => ReactNode
   : // The typo guard of `t()` (R3-2) is in the shared core type: see TComponentFor.
-    TComponentFor<ReactNode>;
+    TComponentFor<ReactNode, 1, Readonly<Record<string, TagComponent>>>;
 
 /**
- * Renders one message; params are props, a tag handler is a prop of the tag's name
- * (`<T i18nKey="terms" link={(c) => <a href="/terms">{c}</a>} />`). Every prop but
- * `i18nKey` and the per-call options `ns`, `locale` and `markers` is a message param —
- * `children` and `className` too, so a tag named like a DOM prop is still a handler. `ns`
- * is explicit: `<T>` never takes the namespace of a `useI18n(ns)` above it (R3-5);
- * `useI18n(ns).T` is the bound one. `markers={false}` opts the message out of an
- * in-context editor session (R3-14 H9).
+ * Renders one message; params are props. A tag renders through, in this order: a prop of
+ * the tag's name (`link={(c) => <a href="/terms">{c}</a>}`), then its entry in
+ * `components` (`components={{ b: "strong", link: <a href="/terms" /> }}`) — a prop that is
+ * `undefined` leaves the tag to `components`; with neither, the tag's content renders as
+ * text. Every prop but `i18nKey`, `components` and the per-call options `ns`, `locale` and
+ * `markers` is a message param — `children` and `className` too, so a tag named like a DOM
+ * prop is still a handler. `ns` is explicit: `<T>` never takes the namespace of a
+ * `useI18n(ns)` above it (R3-5); `useI18n(ns).T` is the bound one. `markers={false}` opts
+ * the message out of an in-context editor session (R3-14 H9).
  */
-export const T = ((p: { i18nKey: string; ns?: string }) =>
+export const T = (({
+  components: m,
+  ...p
+}: {
+  i18nKey: string;
+  ns?: string;
+  components?: Record<string, TagComponent>;
+} & Record<string, unknown>) => {
+  for (const k in m) if (p[k] === undefined) p[k] = (c: ReactNode) => createElement(m[k], null, c);
   // The props are the params: `ns`, `locale` and `markers` are per-call options the core
   // reads off them, and `i18nKey` is a param no message uses.
-  (useI18n(p.ns).t as (k: string, p: object) => ReactNode)(p.i18nKey, p)) as TComponent;
+  return (useI18n(p.ns).t as (k: string, p: object) => ReactNode)(p.i18nKey, p);
+}) as TComponent;

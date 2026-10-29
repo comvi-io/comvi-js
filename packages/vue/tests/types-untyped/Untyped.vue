@@ -5,7 +5,7 @@ import { T } from "../../src";
 
 <template>
   <p>{{ $t("any.key", { n: 1 }) }}</p>
-  <T i18n-key="whatever" :n="1" ns="x">
+  <T i18n-key="whatever" :n="1" ns="x" :components="{ b: 'strong' }">
     <template #link="{ children }"
       ><a>{{ children }}</a></template
     >

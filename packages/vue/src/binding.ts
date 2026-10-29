@@ -20,6 +20,7 @@ import {
   camelize,
   computed,
   customRef,
+  h,
   inject,
   onMounted,
   onServerPrefetch,
@@ -42,6 +43,7 @@ import {
   type NsOf,
   type TComponentFor,
   type TFor,
+  type UntypedT,
 } from "@comvi/core";
 import { activate, coming, N, state, translate, type State } from "@comvi/core/internal";
 
@@ -179,11 +181,22 @@ export type UntypedParams = Record<
 /** What a slot of `<T>` named after a tag receives. */
 export interface TagSlotProps {
   /**
-   * The tag's children: their text (`{{ children }}`), or the list of their parts when they
-   * hold markup — give that tag a handler attribute instead (`:b="(c) => h('b', c)"`).
+   * The tag's children: their text (`{{ children }}`) when the tag holds text only, the
+   * usual `<link>terms</link>`. When it holds markup (a nested tag something renders, a
+   * node param) it is the list of their parts, which `{{ }}` cannot print: render that tag
+   * through `components` instead (development warns).
    */
   children: Children;
 }
+
+/**
+ * What renders a tag through `components`: an HTML tag name (`"strong"`) or a Vue
+ * component; the tag's content is its default slot, so nested tags render too. A tag that
+ * needs props of its own (`href`) takes a handler attribute, or a component that sets them.
+ * Typed `object` for a component, not Vue's `Component`: that union costs vue-tsc ~10k
+ * instantiations per program for every `<T>` (types bench, lot 4b).
+ */
+export type TagComponent = string | object;
 
 /**
  * `<T i18nKey ns? locale? markers? {...params}>`: typed by the generated catalogs when
@@ -192,29 +205,42 @@ export interface TagSlotProps {
  */
 export type TComponent = [NsOf] extends [never]
   ? (
-      props: { i18nKey: string; ns?: string; locale?: string; markers?: boolean } & UntypedParams,
+      props: {
+        i18nKey: string;
+        ns?: string;
+        locale?: string;
+        markers?: boolean;
+        components?: Readonly<Record<string, TagComponent>>;
+      } & UntypedParams,
     ) => VNodeChild
   : // The typo guard of `t()` (R3-2) is in the shared core type: see TComponentFor.
-    TComponentFor<VNodeChild, 1>;
+    TComponentFor<VNodeChild, 1, Readonly<Record<string, TagComponent>>>;
 
 /** `<T>` bound to namespace NS (from `useI18n(ns)`): typed by that namespace's keys. */
 export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
   ? (
-      props: { i18nKey: string; locale?: string; markers?: boolean; ns?: never } & UntypedParams,
+      props: {
+        i18nKey: string;
+        locale?: string;
+        markers?: boolean;
+        ns?: never;
+        components?: Readonly<Record<string, TagComponent>>;
+      } & UntypedParams,
     ) => VNodeChild
   : NS extends NsOf
-    ? BoundTFor<NS, VNodeChild, 1>
+    ? BoundTFor<NS, VNodeChild, 1, Readonly<Record<string, TagComponent>>>
     : never;
 
 /** What `useI18n(ns)` returns. */
 export interface UseI18n<NS extends string = "default"> {
   /**
    * `t()` against the instance's state; a template calling it re-renders on a new state. A
-   * rich message renders the list of its parts (a render function's child; in a template use
-   * `<T>`). Without generated catalogs it is typed `string`.
+   * call whose params are all text returns a `string`; a rich message renders the list of
+   * its parts (a render function's child; in a template use `<T>`). Without generated
+   * catalogs a call with a handler or a node param is typed `string | VNodeArrayChildren`.
    */
   t: [NsOf] extends [never]
-    ? (key: string, params?: UntypedParams) => string
+    ? UntypedT<VNodeArrayChildren, UntypedParams>
     : TFor<NS, VNodeArrayChildren>;
   /** `<T>` bound to this namespace; the same component for every caller (R3-5(b)). */
   T: BoundT<NS>;
@@ -234,24 +260,41 @@ export interface UseI18n<NS extends string = "default"> {
   i18n: I18n;
 }
 
+/** Development: (key, tag) pairs whose slot got markup, warned once each. */
+const flat = new Set<string>();
+
 /**
- * Renders message `i18nKey` of the attributes, the attributes as params and the slots as
- * tag handlers, in namespace `ns`. An attribute arrives as the template spells it
- * (`i18n-key`, `first-name`): camelized, as Vue camelizes props, so `:first-name` is
- * `{firstName}` — the name vue-tsc checks.
+ * Renders message `i18nKey` of the attributes, the attributes as params, in namespace `ns`.
+ * A tag renders through, in this order: an attribute of its name (a handler), its entry in
+ * `components`, a slot of its name; an attribute that is `undefined` leaves the tag to the
+ * next. An attribute arrives as the template spells it (`i18n-key`, `first-name`):
+ * camelized, as Vue camelizes props, so `:first-name` is `{firstName}` — the name vue-tsc
+ * checks.
  */
 export const render = (
   i: I18n,
   ns: unknown,
-  attrs: Record<string, unknown>,
+  attrs: Record<string, any>,
   slots: Record<string, any>,
 ) => {
   // Prototype-free: a slot named `constructor` is a handler, no inherited member.
   const q: Record<string, any> = N();
-  for (const k in slots) q[k] = (children: unknown) => slots[k]({ children });
-  // An attribute wins over a slot of the same name, even one bound to null or undefined:
-  // the tag is then unhandled.
-  for (const k in attrs) q[camelize(k)] = attrs[k];
+  const m = attrs.components;
+  for (const k in slots)
+    q[k] = (c: Children) => {
+      // Development: `{{ children }}` of a list of nodes prints JSON or throws.
+      if (__DEV__ && typeof c != "string" && !flat.has(q.i18nKey + "\0" + k)) {
+        flat.add(q.i18nKey + "\0" + k);
+        console.warn(
+          `[@comvi/vue] <${k}> in "${q.i18nKey}" holds markup, so its slot's \`children\` is a list of nodes, not text. Render <${k}> through \`components\` (or a handler attribute) to keep the markup`,
+        );
+      }
+      return slots[k]({ children: c });
+    };
+  for (const k in m)
+    // An element takes the content as its children, a component as its default slot.
+    q[k] = (c: Children) => h(m[k], null, () => c);
+  for (const k in attrs) if (attrs[k] !== undefined) q[camelize(k)] = attrs[k];
   // `ns`, `locale` and `markers` are attributes too: the core reads them off the params as
   // per-call options. The caller's namespace is set last: a bound `<T>`'s wins over an
   // `ns` attribute (one an untyped project can pass).

@@ -6,7 +6,8 @@
  *
  * Documented exceptions, each a framework's own idiom and nothing else:
  *   - `t`: the rich output is the framework's node (React `ReactElement`, Vue the list of
- *     parts, a render function's child); keys, params and options are core's one signature.
+ *     parts, a render function's child); keys, params and options are core's one signature,
+ *     and a call with text params only is `string` in both.
  *   - `T`: a component of the framework (a React function component, a Vue functional one).
  *   - `locale`, `dir`, `isLoading`: Vue hands out refs (`locale` writable: setting it
  *     switches), React plain values of the render.
@@ -32,8 +33,20 @@ export const state: Equal<
   Pick<V, "locale" | "dir" | "isLoading">
 > = true;
 export const verbs: Equal<Pick<R, "setLocale" | "i18n">, Pick<V, "setLocale" | "i18n">> = true;
-// Untyped project (no generated catalogs): t() is typed `string` in both.
-export const t: Equal<ReturnType<R["t"]>, ReturnType<V["t"]>> = true;
+// Untyped project (no generated catalogs): a text call is typed `string` in both; a rich
+// call is `string` or the framework's node (lot 4b: honest types).
+declare const rt: R["t"];
+declare const vt: V["t"];
+export const rText = rt("k", { n: 1, at: new Date() });
+export const vText = vt("k", { n: 1, at: new Date() });
+export const tText: Equal<typeof rText, string> = true;
+export const tTextSame: Equal<typeof rText, typeof vText> = true;
+export const rRich = rt("k", { b: (c) => c });
+export const vRich = vt("k", { b: (c) => c });
+export const tRichHasText: Equal<
+  Extract<typeof rRich, string>,
+  Extract<typeof vRich, string>
+> = true;
 
 // @ts-expect-error pendingLocale is in no binding (R3-5: all or none)
 export const noPendingReact: R["pendingLocale"] = undefined;

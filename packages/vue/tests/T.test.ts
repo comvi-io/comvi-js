@@ -208,10 +208,16 @@ describe("<T i18nKey>", () => {
     );
   });
 
-  it("an attribute present as null or undefined wins over a slot too: the tag has no handler", () => {
+  it("an attribute present as null wins over a slot: the tag has no handler", () => {
     const i18n = en({ m: "<x>a</x>" });
-    for (const x of [null, undefined])
-      expect(html(i18n, { i18nKey: "m", x }, { x: () => h("b", "slot") })).toBe("a");
+    expect(html(i18n, { i18nKey: "m", x: null }, { x: () => h("b", "slot") })).toBe("a");
+  });
+
+  it("an attribute that is undefined leaves the tag to the slot (lot 4b: an accidental undefined overrides nothing)", () => {
+    const i18n = en({ m: "<x>a</x>" });
+    expect(html(i18n, { i18nKey: "m", x: undefined }, { x: () => h("b", "slot") })).toBe(
+      "<b>slot</b>",
+    );
   });
 
   it("gives a handler its children as ONE child: nested tags and node params, no warning", async () => {
