@@ -1189,3 +1189,50 @@ ceiling):
 `fw-vue-default` (+145 B) and `fw-react-default` (+102 B) carry the core's and the binding's
 growth together (no loader in their graphs, so no `cdn()` to dilute it). `core-icu-devtools` is
 +457 B over `core-icu` (cap +500).
+
+## 2026-10-30: lot 4c fix pass (Fable review, Codex review, gate report on 1f58ee08)
+
+Fixes of the reviews of 1f58ee08 (R3-26): a consumer counted before its hold publishes (a
+subscriber switching in that publish waited for nothing), an idempotent release, `handover()`
+over every namespace with a catalog of the chain in place (inline catalogs a React server render
+read without a hold were lost: the browser's `{ ...options, ...payload }` replaces `catalogs`),
+Vue's `useI18n()` outside a component (no hook in any build, `isLoading` a load in flight only,
+its reads not a declared need), and the development diagnostic (a declared read covers its own
+namespace only; the idle check runs again after the render's task — development only, 0 B in
+production: its strings stay absent from the production dists, `contracts.test.ts`). One sweep
+after `TURBO_FORCE=true pnpm build`, `node --version` v24.22.1. The four rows over since lot 4c
+stay over, ceilings untouched, **left failing for the owner**:
+
+| row           | gzip B | 1f58ee08 | Δ   | budget | ceiling | increment over core-icu-cdn |
+| ------------- | ------ | -------- | --- | ------ | ------- | --------------------------- |
+| core-icu      | 4,532  | 4,507    | +25 | 4,449  | 4,449   | —                           |
+| core-icu-cdn  | 5,018  | 4,995    | +23 | 4,960  | 4,960   | —                           |
+| react-icu-cdn | 5,554  | 5,529    | +25 | 5,700  | 5,700   | +536, cap +527              |
+| vue-icu-cdn   | 5,718  | 5,669    | +49 | 5,560  | 5,560   | +700, cap +600              |
+
+Itemized (one piece reverted at a time on the finished build; gzip is not additive): the
+release's once-guard +8…9 B; the hold counted before `ensure()` publishes +4…5 B; `handover()`
+over `N(state.c, counts)` 0 B on these rows (`/internal`, a server path); Vue's flight-only
+`isLoading` outside a component through the core's predicate (`w(state, ns, flightsOnly)`) +6 B
+on vue-icu-cdn (an earlier Vue-side `ld.some()` arm cost +19 B and was dropped); the rest of
+Vue's +26 B over the core's growth is `getCurrentInstance()` kept in production (hooks were
+registered outside a component there) and the bound `<T>` passing its namespace as the call's.
+The React binding's source changed in JSDoc only: its +25 B is the core's.
+
+Rows that fit, re-baselined from the same sweep (budget = ceil(measured × 1.05), never above a
+ceiling):
+
+| row                     | gzip B | was   | budget | ceiling |
+| ----------------------- | ------ | ----- | ------ | ------- |
+| core-icu-cdn-store      | 5,185  | 5,160 | 5,445  | —       |
+| core-icu-api            | 5,536  | 5,513 | 5,813  | —       |
+| core-icu-devtools       | 4,985  | 4,964 | 5,017  | 5,017   |
+| core-format             | 5,187  | 5,167 | 5,447  | —       |
+| core-plugins            | 5,113  | 5,089 | 5,369  | —       |
+| fw-react-default        | 5,034  | 5,014 | 5,286  | —       |
+| fw-react-full-composite | 8,033  | 8,008 | 8,435  | —       |
+| fw-vue-default          | 5,202  | 5,151 | 5,463  | —       |
+| fw-vue-full-composite   | 7,907  | 7,866 | 8,303  | —       |
+
+`core-compile` (1,862), `core-locale` (584), `core-negotiate` (496) and `core-devtools` (639) did
+not move. `core-icu-devtools` is +453 B over `core-icu` (cap +500).
