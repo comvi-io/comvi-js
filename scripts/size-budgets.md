@@ -917,18 +917,18 @@ measured the same way at the start of the lot:
 | ----------------------- | ------ | ----- | ---- | ------ | ------- | ------------------------------------------- |
 | core-icu-cdn            | 4,921  | 4,900 | +21  | 4,960  | 4,960   | the core below; 39 B headroom               |
 | react-icu-cdn           | 5,420  | 5,371 | +49  | 5,470  | 5,470   | +499 B over core-icu-cdn (cap 500)          |
-| vue-icu-cdn             | 5,489  | 5,390 | +99  | 5,560  | 5,560   | +568 B over core-icu-cdn (cap 600)          |
+| vue-icu-cdn             | 5,494  | 5,390 | +104 | 5,560  | 5,560   | +573 B over core-icu-cdn (cap 600)          |
 | core-icu                | 4,445  | 4,432 | +13  | 4,449  | 4,449   | load()/setLocale() rules; 4 B headroom      |
 | core-locale             | 587    | 588   | −1   | 617    | —       | shared-chunk gzip noise                     |
 | core-icu-cdn-store      | 5,090  | 5,062 | +28  | 5,345  | —       | the same core                               |
 | core-icu-api            | 5,443  | 5,421 | +22  | 5,716  | —       | the same core                               |
 | core-icu-devtools       | 4,890  | 4,875 | +15  | 5,017  | 5,017   | the same core (+445 over core-icu, cap 500) |
-| core-format             | 5,092  | 5,034 | +58  | 5,347  | —       | `serverNow`/`live()` clock, relative opts   |
+| core-format             | 5,098  | 5,034 | +64  | 5,353  | —       | `serverNow`/`live()` clock, relative opts   |
 | core-plugins            | 5,020  | 5,013 | +7   | 5,271  | —       | the same core                               |
 | fw-react-default        | 4,912  | 4,871 | +41  | 5,158  | —       | the React binding                           |
-| fw-react-full-composite | 7,932  | 7,805 | +127 | 8,329  | —       | + `useFormat` mount mark, relative opts     |
-| fw-vue-default          | 4,972  | 4,889 | +83  | 5,221  | —       | the Vue binding                             |
-| fw-vue-full-composite   | 7,680  | 7,516 | +164 | 8,064  | —       | + `useFormat` mount mark, relative opts     |
+| fw-react-full-composite | 7,938  | 7,805 | +133 | 8,335  | —       | + `useFormat` mount mark, relative opts     |
+| fw-vue-default          | 4,978  | 4,889 | +89  | 5,227  | —       | the Vue binding                             |
+| fw-vue-full-composite   | 7,707  | 7,516 | +191 | 8,093  | —       | + `useFormat` mount mark, relative opts     |
 
 The other rows' baselines moved with the core and the bindings; their budgets follow the rule
 `ceil(baseline × 1.05)` (no ceiling on them), as `scripts/docs-snippets/run.test.mjs` checks.
@@ -950,19 +950,20 @@ exactly — gzip is not additive):
   is not in the lot). Golf to stay under +500 B, all without behaviour change: `N()` for the
   bound-`<T>` table, `useContext` inlined in `useI18n`, the bound `<T>` cached for `default` too,
   `loading: spinner = children` (−4 B), member order of the `useI18n()` object (−3 B).
-- **Vue (increment +490 → +568 B)**: `locale` as a `customRef` over the `computed` slice, so a
+- **Vue (increment +490 → +573 B)**: `locale` as a `customRef` over the `computed` slice, so a
   failed switch re-renders its readers (+26 B; the `i.on`-subscribed form was +32 B),
   `useI18n()` activates `default` (−2 B), `onServerPrefetch` (+17 B), `undefined` attributes
   leave the tag to the next source (+1 B), `<T components>` with the content as default slot
-  (+30 B). `inheritAttrs: false` on the bound `<T>`: not added — with no declared props every
+  (+30 B), `onServerPrefetch` registered only while the namespace is still coming (+5 B: the
+  hook made every component render async in `renderToString`, +8…17 % in `perf-vue.mjs`). `inheritAttrs: false` on the bound `<T>`: not added — with no declared props every
   attribute is a prop and none falls through (test `rich-4b.test.ts`), so the flag changes
   nothing in Vue 3.5 (seen: removing it from the exported `<T>` too keeps the test green).
 - **Stopped (does not fit +600 B, owner decision needed)**: the Vue slot `children` ALWAYS as
   the message's text (the brief's "slot gets a string built from the message before nested
   handlers run"). Measured on the finished graph: +67 B (a per-render map from handler output
   to the message text) and +85 B (a second render pass collecting every tag's text), i.e.
-  +635…653 B over `core-icu-cdn`, 35…53 B over the cap. Every other Vue item together is
-  +78 B; even with `components` AND server prefetch dropped, slot text (map form) measured
+  +640…658 B over `core-icu-cdn`, 40…58 B over the cap. Every other Vue item together is
+  +83 B; even with `components` AND server prefetch dropped, slot text (map form) measured
   5,525 B = +604 B, still 4 B over. Shipped instead: text-only slot content
   stays a string (the README case), a slot whose tag holds markup gets the parts, and
   development warns once to use `components` (0 B in production). Also not in the lot, for

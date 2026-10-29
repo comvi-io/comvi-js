@@ -122,13 +122,13 @@
       "name": "core-format",
       "entry": ["@comvi/core", "@comvi/core/format"],
       "fixture": "core-format.ts",
-      "gzipBudgetBytes": 5347,
+      "gzipBudgetBytes": 5353,
       "baseline": {
-        "minBytes": 10550,
-        "gzipBytes": 5092,
+        "minBytes": 10567,
+        "gzipBytes": 5098,
         "measuredAt": "2026-10-29"
       },
-      "note": "Gated: @comvi/core/format, every formatter, with the instance in the graph; re-baselined in the 1b fix pass for named formats and formatRelativeTime(i18n, date, now?) (design §3.3) and the per-chain formatter memo, in the size pass 2026-10-27, and in lot 1e (+58: the marking hook, H8 and H3 in the instance). Lot 1d (2026-10-28): 4882 → 4853, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 4853 → 4924, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 4924 → 4965, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 4965 → 4973, size-budgets.md 2026-10-28 lot 2c review fix pass. Lot 4b (2026-10-29): baseline 4973 → 5092 budget 5222 → 5347 (ceil × 1.05), size-budgets.md 2026-10-29 lot 4b."
+      "note": "Gated: @comvi/core/format, every formatter, with the instance in the graph; re-baselined in the 1b fix pass for named formats and formatRelativeTime(i18n, date, now?) (design §3.3) and the per-chain formatter memo, in the size pass 2026-10-27, and in lot 1e (+58: the marking hook, H8 and H3 in the instance). Lot 1d (2026-10-28): 4882 → 4853, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 4853 → 4924, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 4924 → 4965, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 4965 → 4973, size-budgets.md 2026-10-28 lot 2c review fix pass. Lot 4b (2026-10-29): baseline 4973 → 5098 budget 5222 → 5353 (ceil × 1.05), size-budgets.md 2026-10-29 lot 4b."
     },
     {
       "name": "core-plugins",
@@ -184,13 +184,13 @@
       ],
       "fixture": "framework/react-full-composite.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 8329,
+      "gzipBudgetBytes": 8335,
       "baseline": {
-        "minBytes": 16943,
-        "gzipBytes": 7932,
+        "minBytes": 16958,
+        "gzipBytes": 7938,
         "measuredAt": "2026-10-29"
       },
-      "note": "Gated React ceiling: every export of @comvi/react and /format (<I18nHandover>, <T>, useLocale, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 1c on the 0.8 binding (0.7: 13,526 B) and in lot 1e (−567: the thin devtools hook). Lot 1d (2026-10-28): 7603 → 7578, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 7578 → 7672, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 7672 → 7740, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 7740 → 7747, size-budgets.md 2026-10-28 lot 2c review fix pass. Lot 4b (2026-10-29): baseline 7747 → 7932 budget 8135 → 8329 (ceil × 1.05), size-budgets.md 2026-10-29 lot 4b."
+      "note": "Gated React ceiling: every export of @comvi/react and /format (<I18nHandover>, <T>, useLocale, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 1c on the 0.8 binding (0.7: 13,526 B) and in lot 1e (−567: the thin devtools hook). Lot 1d (2026-10-28): 7603 → 7578, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 7578 → 7672, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 7672 → 7740, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 7740 → 7747, size-budgets.md 2026-10-28 lot 2c review fix pass. Lot 4b (2026-10-29): baseline 7747 → 7938 budget 8135 → 8335 (ceil × 1.05), size-budgets.md 2026-10-29 lot 4b."
     },
     {
       "name": "vue-icu-cdn",
@@ -204,11 +204,11 @@
         "maxBytes": 600
       },
       "baseline": {
-        "minBytes": 11283,
-        "gzipBytes": 5489,
+        "minBytes": 11300,
+        "gzipBytes": 5494,
         "measuredAt": "2026-10-29"
       },
-      "note": "core-icu-cdn's graph on Vue: createI18n + cdn() + app.use(i18n) + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,910 + the R3-10 binding cap 500 (budget = the ceiling, below measured ×1.05); the increment over core-icu-cdn is HARD-capped at +500 B (lot 4: +490). Itemized accounting in size-budgets.md 2026-10-28 lot 4 and its final pass. Lot 4 N-1 fix (2026-10-28): ceiling 5,395 → 5,410 with core-icu-cdn's; 5380 → 5390 (+490 B), size-budgets.md 2026-10-28 lot 4 N-1 fix. Lot 4b (2026-10-29): ceiling 5,410 → 5,560 B and the increment cap +500 → +600 B (R3-25); 5390 → 5489 (+568 B over core-icu-cdn), budget = the ceiling, size-budgets.md 2026-10-29 lot 4b."
+      "note": "core-icu-cdn's graph on Vue: createI18n + cdn() + app.use(i18n) + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,910 + the R3-10 binding cap 500 (budget = the ceiling, below measured ×1.05); the increment over core-icu-cdn is HARD-capped at +500 B (lot 4: +490). Itemized accounting in size-budgets.md 2026-10-28 lot 4 and its final pass. Lot 4 N-1 fix (2026-10-28): ceiling 5,395 → 5,410 with core-icu-cdn's; 5380 → 5390 (+490 B), size-budgets.md 2026-10-28 lot 4 N-1 fix. Lot 4b (2026-10-29): ceiling 5,410 → 5,560 B and the increment cap +500 → +600 B (R3-25); 5390 → 5494 (+573 B over core-icu-cdn), budget = the ceiling, size-budgets.md 2026-10-29 lot 4b."
     },
     {
       "name": "fw-solid-default",
@@ -280,13 +280,13 @@
       "entry": ["@comvi/vue"],
       "fixture": "framework/vue-default.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 5221,
+      "gzipBudgetBytes": 5227,
       "baseline": {
-        "minBytes": 10131,
-        "gzipBytes": 4972,
+        "minBytes": 10148,
+        "gzipBytes": 4978,
         "measuredAt": "2026-10-29"
       },
-      "note": "Gated Vue floor: one `@comvi/vue` specifier, bundled catalogs, app.use(i18n) + useI18n() + t({name}). Re-baselined in lot 4 on the 0.8 binding (0.7: 7,709 B) and in its review fix pass (4,881 → 4,882) and final pass (4,882 → 4,880); size-budgets.md 2026-10-28 lot 4. Lot 4b (2026-10-29): baseline 4880 → 4972 budget 5124 → 5221 (ceil × 1.05), size-budgets.md 2026-10-29 lot 4b."
+      "note": "Gated Vue floor: one `@comvi/vue` specifier, bundled catalogs, app.use(i18n) + useI18n() + t({name}). Re-baselined in lot 4 on the 0.8 binding (0.7: 7,709 B) and in its review fix pass (4,881 → 4,882) and final pass (4,882 → 4,880); size-budgets.md 2026-10-28 lot 4. Lot 4b (2026-10-29): baseline 4880 → 4978 budget 5124 → 5227 (ceil × 1.05), size-budgets.md 2026-10-29 lot 4b."
     },
     {
       "name": "fw-vue-full-composite",
@@ -299,13 +299,13 @@
       ],
       "fixture": "framework/vue-full-composite.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 8064,
+      "gzipBudgetBytes": 8093,
       "baseline": {
-        "minBytes": 16393,
-        "gzipBytes": 7680,
+        "minBytes": 16441,
+        "gzipBytes": 7707,
         "measuredAt": "2026-10-29"
       },
-      "note": "Gated Vue ceiling: every export of @comvi/vue and /format (<T>, the bound <T>, handover, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 4 on the 0.8 binding (0.7: 13,567 B) and in its review fix pass (7,452 → 7,508) and final pass (7,508 → 7,505); size-budgets.md 2026-10-28 lot 4 final pass. Lot 4b (2026-10-29): baseline 7505 → 7680 budget 7881 → 8064 (ceil × 1.05), size-budgets.md 2026-10-29 lot 4b."
+      "note": "Gated Vue ceiling: every export of @comvi/vue and /format (<T>, the bound <T>, handover, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 4 on the 0.8 binding (0.7: 13,567 B) and in its review fix pass (7,452 → 7,508) and final pass (7,508 → 7,505); size-budgets.md 2026-10-28 lot 4 final pass. Lot 4b (2026-10-29): baseline 7505 → 7707 budget 7881 → 8093 (ceil × 1.05), size-budgets.md 2026-10-29 lot 4b."
     },
     {
       "name": "fw-next-server-default-loader",
