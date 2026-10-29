@@ -42,6 +42,38 @@ describe("<T components> (lot 4b, R3-24 in React)", () => {
     );
   });
 
+  it("an entry `{ component, props }` renders the tag with props of its own (R3-24)", () => {
+    const { i18n } = make({
+      locale: "en",
+      messages: { en: { m: "Read the <link>new <b>terms</b></link>." } },
+    });
+    const Link = ({ to, children }: { to: string; children?: ReactNode }) => (
+      <a href={to}>{children}</a>
+    );
+    const html = (components: Record<string, unknown>) =>
+      render(
+        <I18nProvider i18n={i18n}>
+          <T i18nKey="m" components={components as never} />
+        </I18nProvider>,
+      ).container.innerHTML;
+    expect(html({ link: { component: "a", props: { href: "/terms" } }, b: "strong" })).toBe(
+      'Read the <a href="/terms">new <strong>terms</strong></a>.',
+    );
+    expect(html({ link: { component: Link, props: { to: "/t" } }, b: "strong" })).toBe(
+      'Read the <a href="/t">new <strong>terms</strong></a>.',
+    );
+  });
+
+  it("a `components` entry that is `undefined` leaves the tag to the next source (text), no crash", () => {
+    const { i18n } = make({ locale: "en", messages, onError: () => {} });
+    const { container } = render(
+      <I18nProvider i18n={i18n}>
+        <T i18nKey="m" components={{ b: undefined as never, i: "em" }} />
+      </I18nProvider>,
+    );
+    expect(container.innerHTML).toBe("Read the <em>new</em> terms now.");
+  });
+
   it("the bound <T> takes components too; `components` is never a message param", () => {
     const { i18n } = make({
       locale: "en",

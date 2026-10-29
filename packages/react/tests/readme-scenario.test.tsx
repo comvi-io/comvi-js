@@ -139,7 +139,49 @@ describe("README React app (lot 4b)", () => {
     expect(s.errors).toEqual([]);
   });
 
-  it("hydration: the server's text, 0 mismatches, 0 requests for what the server sent", async () => {
+  it("hydration: the server's text, 0 mismatches, 0 catalog requests (the README's seeded client)", async () => {
+    const server = createI18n({
+      locale: "uk",
+      fallbackLocale: "en",
+      timeZone: "UTC",
+      catalogs: { default: { uk: CATALOGS["uk:default"], en: CATALOGS["en:default"] } },
+    });
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(ui(server));
+    const html = container.innerHTML;
+    expect(container.querySelector("h1")!.textContent).toBe("Привіт, Alice!");
+    // The page embeds handover(server); the browser's instance starts from it (README).
+    const payload = JSON.parse(JSON.stringify(handover(server)));
+    const l = manualLoader(CATALOGS);
+    const client = createI18n({ locale: "en", fallbackLocale: "en", loader: l.load, ...payload });
+    expect(client.locale).toBe("uk");
+    const recoverable: unknown[] = [];
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    let root!: ReturnType<typeof hydrateRoot>;
+    await act(async () => {
+      root = hydrateRoot(container, ui(client), {
+        onRecoverableError: (e) => recoverable.push(e),
+      });
+    });
+    await settle();
+    expect(recoverable).toEqual([]);
+    expect(err).not.toHaveBeenCalled();
+    err.mockRestore();
+    expect(container.innerHTML).toBe(html);
+    // R3-21: nothing is asked for after the hydration.
+    expect(l.requested).toEqual([]);
+    // The app goes on: a switch loads what the payload did not carry.
+    await act(
+      async () =>
+        void fireEvent.change(container.querySelector("select")!, { target: { value: "de" } }),
+    );
+    await l.answer("de:default");
+    expect(container.querySelector("h1")!.textContent).toBe("Hallo, Alice!");
+    expect(l.requested).toEqual(["de:default"]);
+    act(() => root.unmount());
+  });
+
+  it("hydration through <I18nHandover> props on a client that is still loading: the server's text, 0 mismatches, nothing asked of what the server sent", async () => {
     const server = createI18n({
       locale: "uk",
       fallbackLocale: "en",
@@ -157,10 +199,11 @@ describe("README React app (lot 4b)", () => {
     const container = document.createElement("div");
     container.innerHTML = renderToString(page(server));
     const html = container.innerHTML;
-    expect(container.querySelector("h1")!.textContent).toBe("Привіт, Alice!");
-    // The browser's instance knows nothing yet: its loader would fetch en:default.
+    // A client made before the payload is known (a module instance): its startup load of
+    // en:default is its own, not one of the hydration's.
     const l = manualLoader(CATALOGS);
     const client = createI18n({ locale: "en", fallbackLocale: "en", loader: l.load });
+    expect(l.requested).toEqual(["en:default"]);
     const recoverable: unknown[] = [];
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     let root!: ReturnType<typeof hydrateRoot>;
@@ -174,12 +217,10 @@ describe("README React app (lot 4b)", () => {
     expect(err).not.toHaveBeenCalled();
     err.mockRestore();
     expect(container.innerHTML).toBe(html);
-    // The instance's own startup load (made before the hydration, with no payload) lands;
-    // the handed-over locale is committed then. Nothing the server sent is asked for.
     await l.answer("en:default");
     expect(client.locale).toBe("uk");
     expect(container.innerHTML).toBe(html);
-    expect(l.requested).toEqual(["en:default"]);
+    expect(l.requested).toEqual(["en:default"]); // nothing after the hydration
     act(() => root.unmount());
   });
 });

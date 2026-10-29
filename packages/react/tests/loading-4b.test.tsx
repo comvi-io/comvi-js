@@ -1,9 +1,10 @@
 /**
  * Lot 4b part A (owner brief 29.10): the first-paint gate commits (a render React abandons
- * changes nothing), a direct `<I18nHandover>` child is never hidden by it, and `useI18n()`
- * activates `default` too; a failed load ends the placeholder.
+ * changes nothing), waits only while a namespace has no text at all, never hides a
+ * hydration (an `<I18nHandover>` at any depth), and `useI18n()` activates `default` too; a
+ * failed load ends the placeholder.
  */
-import { startTransition } from "react";
+import { startTransition, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
@@ -66,7 +67,9 @@ describe("first-paint gate (lot 4b)", () => {
     expect(container.textContent).toBe("en:Hello");
   });
 
-  it("a direct <I18nHandover> child renders through `loading`: its catalogs paint at once", async () => {
+  it("a client render (no hydration): a handover under a gated provider waits like any child", async () => {
+    // `<I18nHandover catalogs>` carries a server payload: the page it comes with hydrates
+    // (below). Rendered on a client with no server HTML, it is one more child of the gate.
     const l = manualLoader();
     const { i18n } = make({ locale: "en", loader: l.load }); // en:default in flight
     const catalogs: ProviderCatalogs = { default: { uk: { hi: "Привіт" } } };
@@ -77,25 +80,77 @@ describe("first-paint gate (lot 4b)", () => {
         </I18nHandover>
       </I18nProvider>,
     );
+    expect(container.textContent).toBe("wait");
+    await l.answer("en:default");
     expect(container.textContent).toBe("uk:Привіт");
     await settle();
     expect(i18n.locale).toBe("uk");
     expect(l.requested.filter((r) => r.startsWith("uk"))).toEqual([]);
   });
 
-  it("hydrates a server render through `loading` on a client instance still loading (0 mismatches, 0 requests for the payload)", async () => {
-    const catalogs: ProviderCatalogs = { default: { uk: { hi: "Привіт" } } };
-    const ui = (i: ReturnType<typeof createI18n>, suspense?: boolean) => (
-      <I18nProvider i18n={i} loading="wait" suspense={suspense}>
-        <I18nHandover locale="uk" catalogs={catalogs}>
-          <Show />
-        </I18nHandover>
-      </I18nProvider>
+  it("the gate waits only while a namespace has no text at all: inline or fallback text shows at once", async () => {
+    const l = manualLoader();
+    // Inline English, the French fallback still loading: English text, no placeholder.
+    const a = make({
+      locale: "en",
+      fallbackLocale: "fr",
+      messages: { en: { hi: "Hello" } },
+      loader: l.load,
+    }).i18n;
+    expect(l.requested).toContain("fr:default");
+    const one = render(
+      <I18nProvider i18n={a} loading="wait">
+        <Show />
+      </I18nProvider>,
     );
+    expect(one.container.textContent).toBe("en:Hello");
+    // German on screen, its catalog loading, an English fallback in place: the fallback.
+    const b = make({
+      locale: "de",
+      fallbackLocale: "en",
+      messages: { en: { hi: "Hello" } },
+      loader: l.load,
+    }).i18n;
+    const two = render(
+      <I18nProvider i18n={b} loading="wait">
+        <Show />
+      </I18nProvider>,
+    );
+    expect(two.container.textContent).toBe("de:Hello");
+  });
+
+  it("hydrates a server render through `loading` on a client instance still loading, whatever wraps the handover (0 mismatches, 0 requests for the payload)", async () => {
+    const catalogs: ProviderCatalogs = { default: { uk: { hi: "Привіт" } } };
+    const Layout = ({ children }: { children: React.ReactNode }) => <main>{children}</main>;
+    const shapes: ((x: React.ReactNode) => React.ReactNode)[] = [
+      (x) => x,
+      (x) => <>{x}</>,
+      (x) => <Suspense fallback="…">{x}</Suspense>,
+      (x) => <Layout>{x}</Layout>,
+      (x) => (
+        <Layout>
+          <section>
+            <Suspense fallback="…">{x}</Suspense>
+          </section>
+        </Layout>
+      ),
+    ];
     const server = createI18n({ locale: "uk", messages: { uk: { hi: "Привіт" } } });
-    for (const suspense of [false, true]) {
+    for (const [shape, suspense] of shapes.flatMap((w) => [
+      [w, false],
+      [w, true],
+    ]) as [(x: React.ReactNode) => React.ReactNode, boolean][]) {
+      const ui = (i: ReturnType<typeof createI18n>) => (
+        <I18nProvider i18n={i} loading="wait" suspense={suspense}>
+          {shape(
+            <I18nHandover locale="uk" catalogs={catalogs}>
+              <Show />
+            </I18nHandover>,
+          )}
+        </I18nProvider>
+      );
       const container = document.createElement("div");
-      container.innerHTML = renderToString(ui(server, suspense));
+      container.innerHTML = renderToString(ui(server));
       expect(container.textContent).toBe("uk:Привіт");
       const loader = vi.fn(
         (_l: string, _n: string, _s: AbortSignal) => new Promise<never>(() => {}),
@@ -105,7 +160,7 @@ describe("first-paint gate (lot 4b)", () => {
       const err = vi.spyOn(console, "error").mockImplementation(() => {});
       let root!: ReturnType<typeof hydrateRoot>;
       await act(async () => {
-        root = hydrateRoot(container, ui(client, suspense), {
+        root = hydrateRoot(container, ui(client), {
           onRecoverableError: (e) => errors.push(e),
         });
       });
