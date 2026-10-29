@@ -155,7 +155,8 @@ const own = Object.prototype.hasOwnProperty;
  * string can name any identifier (`{constructor}`, `<toString>`), and nothing inherited
  * from Object.prototype may become a value or a tag handler.
  */
-export const arg = (p: Params, name: string): unknown => (own.call(p, name) ? p[name] : undefined);
+export const arg = (p: Params | undefined, name: string): unknown =>
+  p && own.call(p, name) ? p[name] : undefined;
 
 /** A rendered value as a part result: text as is, anything else as a one-value frame. */
 const frame = (v: unknown): string | unknown[] => (typeof v === "string" ? v : [v]);

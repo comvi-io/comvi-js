@@ -41,7 +41,7 @@ export const canonicalize = (tag: string): string | undefined =>
     try {
       return Intl.getCanonicalLocales(tag.replace(/_/g, "-"))[0];
     } catch {
-      return undefined;
+      // Not a tag: `undefined`.
     }
   });
 

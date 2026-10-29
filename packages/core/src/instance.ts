@@ -587,8 +587,8 @@ export const createI18n = (o: I18nOptions): I18n => {
       if (!dead) {
         dead = ++seq;
         fl.forEach((f) => f[1].abort());
+        // No load in flight: `ready` is the shared resolved promise from now on.
         fl.clear();
-        rd = 0;
         subs.clear();
         // Every teardown runs, last plugin first, even when one throws.
         downs.reverse().forEach(safe);

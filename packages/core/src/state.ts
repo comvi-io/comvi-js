@@ -105,7 +105,7 @@ export const mk = (
   dp,
   tg,
   mk: m,
-  pr: s && !s.p && !m ? s.c : undefined,
+  pr: m || s?.p ? undefined : s?.c,
 });
 
 /**
