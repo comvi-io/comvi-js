@@ -234,3 +234,64 @@ describe("handover()", () => {
     );
   });
 });
+
+describe("`messages` with `catalogs` (Codex re-check HIGH B): merged per locale, `catalogs` wins", () => {
+  it("different locales: both are in place; a seeded client asks the loader for neither", () => {
+    const loader = vi.fn(() => new Promise<never>(() => {}));
+    const i18n = createI18n({
+      locale: "uk",
+      fallbackLocale: "en",
+      loader,
+      messages: { en: { hi: "hi", only_en: "only en" } },
+      catalogs: { default: { uk: { hi: "Привіт" } } },
+    });
+    expect(i18n.t("hi")).toBe("Привіт");
+    expect(i18n.t("only_en")).toBe("only en");
+    expect(loader).not.toHaveBeenCalled();
+  });
+
+  it("the same locale: the `catalogs` slot wins over `messages` (the server's catalog)", () => {
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { hi: "inline", inline_only: "x" } },
+      catalogs: { default: { en: { hi: "server" } } },
+    });
+    expect(i18n.t("hi")).toBe("server");
+    // The slot is the server's catalog as a whole, not a key-by-key mix.
+    expect(i18n.t("inline_only")).toBe("inline_only");
+  });
+
+  it("a `null` slot (failed on the server) wins over `messages` of its locale: not asked again", () => {
+    const loader = vi.fn(() => new Promise<never>(() => {}));
+    const i18n = createI18n({
+      locale: "uk",
+      fallbackLocale: "en",
+      loader,
+      messages: { uk: { hi: "inline uk" }, en: { hi: "hi" } },
+      catalogs: { default: { uk: null } },
+    });
+    expect(i18n.t("hi")).toBe("hi");
+    expect(loader).not.toHaveBeenCalled();
+  });
+
+  it("handover() → messages + payload on the client: the server's text, zero requests", () => {
+    const server = createI18n({
+      locale: "uk",
+      fallbackLocale: "en",
+      timeZone: "UTC",
+      messages: { en: { hi: "hi" } },
+      catalogs: { default: { uk: { hi: "Привіт" } } },
+    });
+    const payload = JSON.parse(JSON.stringify(handover(server)));
+    const loader = vi.fn(() => new Promise<never>(() => {}));
+    const client = createI18n({
+      locale: "en",
+      fallbackLocale: "en",
+      loader,
+      messages: { en: { hi: "hi" } },
+      ...payload,
+    });
+    expect([server.t("hi"), client.t("hi")]).toEqual(["Привіт", "Привіт"]);
+    expect(loader).not.toHaveBeenCalled();
+  });
+});

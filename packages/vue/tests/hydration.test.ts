@@ -106,6 +106,26 @@ describe("hydration from handover()", () => {
     expect(el.textContent).toBe("Привіт, Ann!Only EnglishПрофіль");
   });
 
+  it("inline `messages` with the payload (Codex re-check HIGH B): the payload's slots win, 0 requests, no mismatch", async () => {
+    // The app ships en inline (`messages`) and spreads the server's payload over its options:
+    // the inline en must not replace the handed-over uk of the same namespace.
+    const INLINE = { en: CATALOGS["en:default"] };
+    const load0 = loader();
+    const server = createI18n({ ...OPTIONS, locale: "uk", messages: INLINE, loader: load0 });
+    await server.ready;
+    const html = await renderToString(createSSRApp(App).use(server));
+    const payload = JSON.parse(JSON.stringify(handover(server))) as Handover;
+    server.destroy();
+    expect(html).toContain("Привіт, Ann!");
+    const load = loader();
+    // The app's own options (its locale is en), then the payload over them.
+    const app = { ...OPTIONS, locale: "en", messages: INLINE };
+    const { el, warnings } = await hydrate(html, { ...app, ...payload, loader: load });
+    expect(warnings).toEqual([]);
+    expect(load).not.toHaveBeenCalled();
+    expect(el.innerHTML).toBe(html);
+  });
+
   it("asks only for what the server did not send: a later view's namespace, another locale", async () => {
     const { html, payload } = await serve("uk");
     const load = loader();

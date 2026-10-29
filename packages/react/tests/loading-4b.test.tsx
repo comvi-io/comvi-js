@@ -149,6 +149,52 @@ describe("first-paint gate (lot 4b)", () => {
     },
   );
 
+  it.each([false, true])(
+    "inline `messages` with the payload (Codex re-check HIGH B): the payload's slots win, 0 requests, no mismatch (suspense: %s)",
+    async (suspense) => {
+      const INLINE = { en: { hi: "Hello" } };
+      const server = createI18n({
+        locale: "uk",
+        fallbackLocale: "en",
+        timeZone: "UTC",
+        messages: INLINE,
+        catalogs: { default: { uk: { hi: "Привіт" } } },
+      });
+      const ui = (i: ReturnType<typeof createI18n>) => (
+        <Suspense fallback="wait">
+          <I18nProvider i18n={i} loading="wait" suspense={suspense}>
+            <Show />
+          </I18nProvider>
+        </Suspense>
+      );
+      const container = document.createElement("div");
+      container.innerHTML = renderToString(ui(server));
+      const html = container.innerHTML;
+      expect(container.textContent).toBe("uk:Привіт");
+      const payload = JSON.parse(JSON.stringify(handover(server)));
+      const l = manualLoader();
+      const { i18n } = make({
+        locale: "en",
+        fallbackLocale: "en",
+        loader: l.load,
+        messages: INLINE,
+        ...payload,
+      });
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      const recoverable: unknown[] = [];
+      let root!: ReturnType<typeof hydrateRoot>;
+      await act(async () => {
+        root = hydrateRoot(container, ui(i18n), { onRecoverableError: (e) => recoverable.push(e) });
+      });
+      await settle();
+      expect([recoverable, err.mock.calls]).toEqual([[], []]);
+      err.mockRestore();
+      expect(container.innerHTML).toBe(html);
+      expect(l.requested).toEqual([]);
+      act(() => root.unmount());
+    },
+  );
+
   it("the gate waits only while a namespace has no text at all: inline or fallback text shows at once", async () => {
     const l = manualLoader();
     // Inline English, the French fallback still loading: English text, no placeholder.

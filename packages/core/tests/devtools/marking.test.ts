@@ -233,8 +233,46 @@ describe("no session, no devtools", () => {
     });
     expect(got).toEqual([[i18n]]);
     expect(Object.keys(internal)).not.toContain("MS");
+    expect(Object.keys(internal).some((k) => /mark|setter/i.test(k))).toBe(false);
     expect(i18n.t("hi")).toBe("Hi");
     expect(state(i18n).mk).toBeUndefined();
+  });
+
+  it("an instance created during an earlier plugin's setup does not take devtools()'s setter: each handle marks only its own instance", () => {
+    // Codex re-check HIGH A: the setter is the instance's own, not the one of whichever
+    // instance was constructed last.
+    let inner!: I18n;
+    let innerDev!: I18n;
+    const outer = createI18n({
+      locale: "en",
+      messages: { en: MSGS },
+      plugins: [
+        {
+          name: "nested",
+          setup: () => {
+            inner = createI18n({ locale: "en", messages: { en: { hi: "Inner" } } });
+            innerDev = createI18n({
+              locale: "en",
+              messages: { en: { hi: "InnerDev" } },
+              plugins: [devtools()],
+            });
+          },
+        },
+        devtools(),
+      ],
+    });
+    const handle = (i: I18n) => win.__COMVI__!.find((e) => e.i === i)!.x;
+    handle(outer).mark(bracket());
+    expect(outer.t("hi")).toBe("[default|hi|Hi]");
+    expect(inner.t("hi")).toBe("Inner");
+    expect(state(inner).mk).toBeUndefined();
+    expect(innerDev.t("hi")).toBe("InnerDev");
+    handle(innerDev).mark(bracket());
+    expect(innerDev.t("hi")).toBe("[default|hi|InnerDev]");
+    expect(inner.t("hi")).toBe("Inner");
+    handle(outer).mark(null);
+    expect(outer.t("hi")).toBe("Hi");
+    expect(innerDev.t("hi")).toBe("[default|hi|InnerDev]");
   });
 
   it("devtools() without a session marks nothing and calls nothing", () => {

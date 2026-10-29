@@ -93,12 +93,9 @@ describe("destroy()", () => {
   });
 
   it("drops every subscriber: a later publish reaches none", () => {
-    let mark: (f: null) => void = () => {};
-    const i18n = createI18n({
-      locale: "en",
-      // The setter `devtools()` reads during its setup (instance.ts `MS`).
-      plugins: [{ name: "mark", setup: () => void (mark = MS as typeof mark) }],
-    });
+    // The setter `devtools()` reads during its setup (instance.ts `MS`, keyed by instance).
+    const i18n = createI18n({ locale: "en" });
+    const mark = MS.get(i18n)!;
     const sub = vi.fn();
     i18n.on(sub);
     i18n.destroy();

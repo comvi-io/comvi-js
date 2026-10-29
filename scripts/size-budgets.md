@@ -1103,3 +1103,35 @@ only). One sweep after `TURBO_FORCE=true` builds, `node --version` v24.22.1.
 ceil(500 × 1.05) = +525 B over `core-icu-cdn` (was +500; the owner's earlier +520 is
 superseded). `core-icu-cdn` (4,925 / 4,960), Vue (+600) and `core-icu-devtools` (+500)
 unchanged.
+
+## 2026-10-29: lot 4b Codex re-check fix (HIGH A marking setter, HIGH B messages + catalogs)
+
+Codex's final re-check of 5fa808f5 (two HIGH). One sweep after `TURBO_FORCE=true` builds,
+`node --version` v24.22.1; "was" = fix pass 3. Budgets = `ceil(measured × 1.05)`, capped at the
+ceiling where the row has one; `react-icu-cdn`'s budget, ceiling and increment cap follow the
+owner's rule of fix pass 3 (ceiling = budget = ceil(measured × 1.05), cap = ceil(increment ×
+1.05)). No owner ceiling moved: `core-icu` 4,449 and `core-icu-cdn` 4,960 hold.
+
+| row                     | gzip B | was   | Δ   | budget | ceiling | note                             |
+| ----------------------- | ------ | ----- | --- | ------ | ------- | -------------------------------- |
+| core-icu                | 4,445  | 4,443 | +2  | 4,449  | 4,449   | 4 B headroom                     |
+| core-icu-cdn            | 4,927  | 4,925 | +2  | 4,960  | 4,960   | 33 B headroom                    |
+| core-icu-cdn-store      | 5,093  | 5,091 | +2  | 5,348  | —       |                                  |
+| core-icu-api            | 5,439  | 5,440 | −1  | 5,711  | —       |                                  |
+| core-icu-devtools       | 4,895  | 4,891 | +4  | 5,017  | 5,017   | +450 over core-icu (cap 500)     |
+| core-devtools           | 631    | 628   | +3  | 644    | 644     | `MS.get(i18n)`                   |
+| core-format             | 5,091  | 5,088 | +3  | 5,346  | —       |                                  |
+| react-icu-cdn           | 5,428  | 5,425 | +3  | 5,700  | 5,700   | +501 over core-icu-cdn, cap +527 |
+| fw-react-default        | 4,912  | 4,908 | +4  | 5,158  | —       |                                  |
+| fw-react-full-composite | 7,956  | 7,955 | +1  | 8,354  | —       |                                  |
+| vue-icu-cdn             | 5,520  | 5,516 | +4  | 5,560  | 5,560   | +593 over core-icu-cdn (cap 600) |
+| fw-vue-default          | 5,006  | 5,002 | +4  | 5,257  | —       |                                  |
+| fw-vue-full-composite   | 7,796  | 7,794 | +2  | 8,186  | —       |                                  |
+
+Itemized on `core-icu` (one change at a time; gzip is not additive): the marking setter in a
+private `WeakMap` keyed by the instance (`MS`, not exported by `/internal`) instead of a module
+variable: +4 B; `messages` merged per locale under `catalogs` (`N(o.messages, cats[D])`) inside
+`if (o.messages)`: +4 B; both: +7 B (4,450, over the 4,449 ceiling). Shipped: the merge without
+the `if` (with neither option `default` is an empty record, which the ingest loop skips): +2 B
+in all. Tried and dropped: the setter keyed by the instance's `Core` record in the `CORE` map
+(no gain on `core-icu`, +2 B on `core-icu-cdn`).

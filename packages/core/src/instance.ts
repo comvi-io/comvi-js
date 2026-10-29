@@ -55,11 +55,17 @@ export interface I18nOptions {
    * list, or a list per locale with a `default` list for the others.
    */
   fallbackLocale?: string | readonly string[] | Readonly<Record<string, readonly string[]>>;
-  /** Flat catalogs of the `default` namespace, by locale. */
+  /**
+   * Flat catalogs of the `default` namespace, by locale. Merged per locale with `catalogs`:
+   * a `default` slot of a locale that `catalogs` also has is the `catalogs` one (a server
+   * payload wins over inline messages), the other locales come from here.
+   */
   messages?: Readonly<Record<string, Catalog>>;
   /**
    * Flat catalogs by namespace, then locale. A `null` slot is one whose load failed on the
    * server (`handover()`): not asked for again until `load(ns)` or a switch to its locale.
+   * For the `default` namespace a slot here wins over `messages` of the same locale, a
+   * `null` one too; the slots are merged by locale, never key by key.
    */
   catalogs?: Readonly<Record<string, Readonly<Record<string, Catalog | null>>>>;
   loader?: Loader;
@@ -194,13 +200,14 @@ export interface Core {
 export const CORE = new WeakMap<object, Core>();
 
 /**
- * The marking hook's setter of the instance whose plugins `createI18n` set up last
- * (R3-14 H4): it sets (or, with `null`, clears) the hook of an in-context editor
- * session and publishes a state carrying it. Only `devtools()` reads it, during its setup —
- * a plugin's `setup` gets the instance alone, and no seam of `/internal` re-exports it, so
- * nothing marks without `devtools()` installed.
+ * The marking hook's setter, per instance (R3-14 H4): it sets (or, with `null`, clears) the
+ * hook of an in-context editor session and publishes a state carrying it. Keyed by the
+ * instance, so an instance created during another one's plugin setup never takes its
+ * setter. Only `devtools()` reads it, for the instance it is set up on — a plugin's `setup`
+ * gets the instance alone, and no seam of `/internal` re-exports it, so nothing marks
+ * without `devtools()` installed.
  */
-export let MS: ((f: Mark | null) => void) | undefined;
+export const MS = new WeakMap<object, (f: Mark | null) => void>();
 
 const D = "default";
 const K = "\0";
@@ -341,7 +348,10 @@ export const createI18n = (o: I18nOptions): I18n => {
 
   let c0: Store = N();
   const cats: Record<string, Readonly<Record<string, Catalog | null>>> = N(o.catalogs);
-  if (o.messages) cats[D] = o.messages;
+  // `messages` fills the `default` slots that `catalogs` leaves out: per locale, `catalogs`
+  // wins (a `null` slot too), never the whole namespace (Codex re-check HIGH B). With
+  // neither, `default` is an empty record: nothing to ingest.
+  cats[D] = N(o.messages, cats[D]);
   // A `null` slot failed to load on the server (`handover()`): it starts in the negative
   // cache, so the browser asks for it only on an explicit retry (`load(ns)`, a switch to
   // its locale), and its namespace starts active (not "still coming" at hydration). The
@@ -611,10 +621,10 @@ export const createI18n = (o: I18nOptions): I18n => {
   });
 
   // The marking hook's setter, for `devtools()` only (R3-14 H4).
-  MS = (f) => {
+  MS.set(i18n, (f) => {
     mf = f;
     pub();
-  };
+  });
   for (const p of o.plugins || [])
     try {
       downs.push(p.setup(i18n));

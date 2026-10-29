@@ -108,9 +108,9 @@ export const devtools = (): Plugin => ({
   setup(i18n) {
     if (typeof window == "undefined") return;
     const c = CORE.get(i18n)!;
-    // The marking hook's setter of this instance: `createI18n` holds it out to its plugins'
-    // setup only, and only this module reads it (R3-14 H4).
-    const m = MS as (f: Mark | null) => void;
+    // The marking hook's setter of this instance (keyed by it); only this module reads it
+    // (R3-14 H4).
+    const m = MS.get(i18n)!;
     /** Set by destroy(): the handle an editor may still hold marks nothing. */
     let d: unknown;
     const e: ComviQueueEntry = {
