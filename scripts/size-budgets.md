@@ -1023,3 +1023,59 @@ document` guard +11 B); the direct-`<I18nHandover>` exception and its `painted` 
   outside-`setup()` guard and the `$t` idle-namespace warning are development-only (0 B).
 - Declined for bytes: none. The React element form (`components={ link: <a href /> }`)
   is not in the lot: `{ component, props }` (R3-24) covers it, and `cloneElement` was +29 B.
+
+## 2026-10-29: lot 4b fix pass 2 (Codex re-check of abff1418)
+
+Within the R3-25 ceilings; no ceiling or increment cap moved. One sweep after `TURBO_FORCE=true`
+builds of the finished graphs, `node --version` v24.22.1; "was" = abff1418 (the rows of the
+section above). Budgets = `ceil(measured × 1.05)`, capped at the ceiling where the row has one.
+
+| row                     | gzip B | was   | Δ   | budget | ceiling | why                                                      |
+| ----------------------- | ------ | ----- | --- | ------ | ------- | -------------------------------------------------------- |
+| core-compile            | 1,861  | 1,865 | −4  | 1,955  | 2,000   | text pass only for a 2-parameter handler; no `EMPTY`     |
+| core-locale             | 583    | 584   | −1  | 613    | —       | `canonicalize` falls through its `catch`                 |
+| core-negotiate          | 496    | 497   | −1  | 521    | —       | the same                                                 |
+| core-icu                | 4,443  | 4,447 | −4  | 4,449  | 4,449   | see below; 6 B headroom                                  |
+| core-icu-cdn            | 4,925  | 4,926 | −1  | 4,960  | 4,960   | the core above; 35 B headroom                            |
+| core-icu-cdn-store      | 5,091  | 5,093 | −2  | 5,346  | —       | the same core                                            |
+| core-icu-api            | 5,440  | 5,444 | −4  | 5,712  | —       | the same core                                            |
+| core-icu-devtools       | 4,891  | 4,891 | 0   | 5,017  | 5,017   | +448 over core-icu (cap 500): the setter moved to `MS`   |
+| core-devtools           | 628    | 625   | +3  | 644    | 644     | `devtools()` reads the setter from `MS`                  |
+| core-format             | 5,088  | 5,092 | −4  | 5,343  | —       | the same core                                            |
+| core-plugins            | 5,020  | 5,021 | −1  | 5,271  | —       | the same core                                            |
+| react-icu-cdn           | 5,425  | 5,425 | 0   | 5,470  | 5,470   | +500 B over core-icu-cdn (cap 500); React unchanged      |
+| fw-react-default        | 4,908  | 4,909 | −1  | 5,154  | —       | the core                                                 |
+| fw-react-full-composite | 7,955  | 7,954 | +1  | 8,353  | —       | the core                                                 |
+| vue-icu-cdn             | 5,516  | 5,520 | −4  | 5,560  | 5,560   | +591 B over core-icu-cdn (cap 600): slot text as a value |
+| fw-vue-default          | 5,002  | 5,008 | −6  | 5,253  | —       | the same                                                 |
+| fw-vue-full-composite   | 7,794  | 7,793 | +1  | 8,184  | —       | the same                                                 |
+
+Itemized (one change at a time on `core-icu`; gzip is not additive):
+
+- **Slot text before the nested handlers (Codex re-check HIGH 2)**: a handler that declares a
+  second parameter gets the text, rendered BEFORE the children; a one-parameter handler gets
+  no text pass (no closure per call either). +6 B in the first form, +3 B in the shipped one
+  (the text pass inside the function branch).
+- **The marking setter out of `Plugin.setup` (HIGH 3)**: `createI18n` puts it in the module
+  variable `MS`, which only `devtools()` reads during its setup (+7 B; keying it in the `CORE`
+  map by `CORE` itself was +8 B, a setter beside `pub` +9 B).
+- Paid for, without behaviour change: `arg()` reads no param from `undefined`, so a render
+  without params needs no shared empty object (`EMPTY` and `p || EMPTY` gone, −8 B; a plain
+  `{}` instead of the frozen one was −3 B); `pr` written as `m || s?.p ? undefined : s?.c`
+  (−1 B); `canonicalize` returns `undefined` by falling through its `catch` (−1 B);
+  `destroy()` no longer resets `ready`'s promise, which `fl.size` already bypasses (−1 B).
+  Tried and dropped (0 B or worse): arrow `on` / `load`, `pub(void (mf = f))`.
+- **Stopped (does not fit +500 B, owner decision needed): React client-side handover under a
+  shut `loading` gate (HIGH 1, Fable 6, Codex 7).** The provider decides the gate before the
+  children render, so on a client render (no server HTML) a handover among them cannot bring
+  its catalogs first. Measured on the finished graph against React at +500/500 B:
+  - the children mounted hidden beside `loading` (`<div hidden>`, only when `loading` is
+    given) so a handover at any depth commits: +17 B (with `core(i).s` as the getter, −8 B)
+    → +517 B;
+  - the gate decided at commit (children render first, a layout effect shuts the gate before
+    the paint when a namespace still has no text; works for `suspense` too): +59 B → +559 B;
+  - the hidden mount installed by the handover module (0 B for apps without a handover, +8 B
+    hook on the provider): rejected — the module's side effect then depends on tree-shaking,
+    so development (no shaking) and production would behave differently.
+    Shipped instead: unchanged (hydration at any depth passes the gate; a client render waits
+    like any child, as `loading-4b.test.tsx` pins).
