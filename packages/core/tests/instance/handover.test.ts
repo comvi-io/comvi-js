@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createI18n } from "../../src";
 import { formatRelativeTime } from "../../src/format";
-import { activate, clock, coming, handover, state } from "../../src/internal";
+import { acquire, clock, coming, handover, state } from "../../src/internal";
 
 describe("handover()", () => {
   it("hands over the chain (parents, fallback locales) of the active namespaces only", async () => {
@@ -106,7 +106,7 @@ describe("handover()", () => {
     return JSON.parse(JSON.stringify(handover(server)));
   };
 
-  it("hydration does not ask for a slot that failed on the server, even when a binding activates its namespace", async () => {
+  it("hydration does not ask for a slot that failed on the server, even when a binding holds its namespace", async () => {
     const payload = await failedOnServer();
     expect(payload.catalogs.account).toEqual({ uk: null, en: { profile: "Profile" } });
     const loader = vi.fn(async () => ({ profile: "Профіль" }));
@@ -115,7 +115,7 @@ describe("handover()", () => {
     expect(coming(client, state(client), "account")).toBe(false);
     expect(client.t("profile", { ns: "account" })).toBe("Profile");
     // What a binding's useI18n("account") does after commit.
-    await activate(client, "account");
+    acquire(client, "account");
     await client.ready;
     expect(loader).not.toHaveBeenCalled();
     expect(client.t("profile", { ns: "account" })).toBe("Profile");

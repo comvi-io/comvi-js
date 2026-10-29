@@ -9,6 +9,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { cdn } from "../../src/cdn";
 import type { I18nError } from "../../src/errors";
 import { createI18n, type I18nOptions } from "../../src/instance";
+import { acquire } from "../../src/internal";
 import { startWorkerHost } from "./worker-host";
 
 let host: Awaited<ReturnType<typeof startWorkerHost>>;
@@ -53,7 +54,9 @@ describe("cdn() against the CDN v1 worker", () => {
   it("3 · switches en → de (root + shop), reuses the en fallback, renders per-call locale", async () => {
     const { i18n } = mk();
     await i18n.ready;
-    await i18n.load("shop");
+    // A component holds shop (lot 4c: load() alone would not keep it active for the switch).
+    acquire(i18n, "shop");
+    await i18n.ready;
     host.reset();
     await i18n.setLocale("de");
     expect(i18n.locale).toBe("de");
@@ -66,7 +69,9 @@ describe("cdn() against the CDN v1 worker", () => {
   it("4 · partial failure (R4-11): uk has a root but no shop — the switch happens, shop/uk is reported", async () => {
     const { i18n, errors } = mk();
     await i18n.ready;
-    await i18n.load("shop");
+    // A component holds shop (lot 4c: load() alone would not keep it active for the switch).
+    acquire(i18n, "shop");
+    await i18n.ready;
     await i18n.setLocale("uk");
     expect(i18n.locale).toBe("uk");
     expect(i18n.t("items", { count: 3 })).toBe("3 товари");
@@ -80,7 +85,9 @@ describe("cdn() against the CDN v1 worker", () => {
   it("5 · a failed pair is not refetched on every read or switch, only when asked for again", async () => {
     const { i18n } = mk();
     await i18n.ready;
-    await i18n.load("shop");
+    // A component holds shop (lot 4c: load() alone would not keep it active for the switch).
+    acquire(i18n, "shop");
+    await i18n.ready;
     await i18n.setLocale("uk"); // uk:shop 404s; uk:default switches (R4-11)
     host.reset();
     i18n.t("cart.title", { ns: "shop" });

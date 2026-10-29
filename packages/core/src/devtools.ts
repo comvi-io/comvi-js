@@ -36,7 +36,7 @@ export interface ComviHandle {
   /** The messages of (ns, locale) as the catalogs hold them: keys to ICU source, no markers. */
   read(ns: string, locale: string): Record<string, string>;
   /**
-   * The instance's published state as of the call, with its active namespaces (`ns`) —
+   * The instance's published state as of the call, with the namespaces it needed (`ns`) —
    * a fresh object on every call (compare `rev`, not identity). Protocol 2 guarantees
    * only the fields of {@link HandleState}; the rest of `State` is internal.
    */
@@ -74,7 +74,10 @@ export interface HandleState {
   readonly c: Readonly<Record<string, Readonly<Record<string, Pick<Slot, "m" | "p">>>>>;
   /** Loads in flight, as `locale + "\0" + ns`. */
   readonly ld: readonly string[];
-  /** The active namespaces — loaded, still loading, failed or empty alike. */
+  /**
+   * The namespaces the instance needed — pinned by `namespaces`, held by a component or
+   * `load()`ed, never removed (lot 4c) — loaded, still loading, failed or empty alike.
+   */
   readonly ns: readonly string[];
 }
 
@@ -123,7 +126,7 @@ export const devtools = (): Plugin => ({
           const s = c.s().c[ns]?.[l];
           return { ...s?.m, ...s?.p };
         },
-        state: () => ({ ...c.s(), ns: [...c.n] }),
+        state: () => ({ ...c.s(), ns: Object.keys(c.k) }),
         mark: (f) => d || m(typeof f == "function" ? f : null),
         load: (v = "latest") =>
           // Everything runs inside the executor: what throws here — a version that is not

@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { I18nError } from "../../src/errors";
 import { createI18n } from "../../src/instance";
-import { loading, state, translate, view } from "../../src/internal";
+import { acquire, loading, state, translate, view } from "../../src/internal";
 import { flush, make, manualLoader, tableLoader } from "./helpers";
 
 describe("add() of the catalog a slot already holds is a no-op (H5 livelock class)", () => {
@@ -89,28 +89,63 @@ describe("partial failure counts the target's own chain (R4-11)", () => {
   });
 });
 
-describe("a namespace activated while a switch is pending (setLocale contract point 5)", () => {
+describe("a namespace held while a switch is pending (setLocale contract point 5, lot 4c)", () => {
   it("does not hold the switch; it loads for the old locale, then for the target right after", async () => {
     const l = manualLoader({ "fr:default": { a: "A-fr" }, "fr:shop": { s: "S-fr" } });
     const { i18n } = make({ locale: "en", messages: { en: { a: "A-en" } }, loader: l.load });
     const sw = i18n.setLocale("fr");
     expect(l.requested).toEqual(["fr:default"]);
-    const shop = i18n.load("shop");
+    // A component mounting now (its hold).
+    acquire(i18n, "shop");
     expect(l.requested).toEqual(["fr:default", "en:shop"]);
     await l.answer("fr:default");
     await sw;
     // The switch waited for the namespaces active at the call only.
     expect(i18n.locale).toBe("fr");
     expect(i18n.t("a")).toBe("A-fr");
-    // The old locale's load is obsolete; the target's starts with the switch.
+    // The old locale's load is obsolete; the active need reacts to the new locale.
     expect(l.signals.get("en:shop")!.aborted).toBe(true);
     expect(l.requested).toEqual(["fr:default", "en:shop", "fr:shop"]);
     expect(loading(state(i18n), "shop")).toBe(true);
-    // load("shop") was for en: a switch aborted it, so it resolves.
-    await expect(shop).resolves.toBeUndefined();
     await l.answer("fr:shop");
     expect(i18n.t("s", { ns: "shop" })).toBe("S-fr");
     expect(loading(state(i18n))).toBe(false);
+  });
+
+  it("a load(ns) started meanwhile pins nothing: aborted by the switch, it resolves and the target does not load ns", async () => {
+    const l = manualLoader({ "fr:default": { a: "A-fr" } });
+    const { i18n } = make({ locale: "en", messages: { en: { a: "A-en" } }, loader: l.load });
+    const sw = i18n.setLocale("fr");
+    const shop = i18n.load("shop");
+    expect(l.requested).toEqual(["fr:default", "en:shop"]);
+    await l.answer("fr:default");
+    await sw;
+    expect(l.signals.get("en:shop")!.aborted).toBe(true);
+    await expect(shop).resolves.toBeUndefined();
+    // Nobody holds shop: the new locale does not load it.
+    expect(l.requested).toEqual(["fr:default", "en:shop"]);
+    expect(loading(state(i18n), "shop")).toBe(false);
+  });
+
+  it("a rejected switch loads again what its start aborted for the locale kept on screen", async () => {
+    const l = manualLoader();
+    const { i18n } = make({
+      locale: "en",
+      messages: { en: { a: "A-en" } },
+      loader: l.load,
+    });
+    acquire(i18n, "shop"); // en:shop in flight
+    const sw = i18n.setLocale("fr"); // aborts en:shop (outside fr's chain)
+    expect(l.signals.get("en:shop")!.aborted).toBe(true);
+    await l.fail("fr:default");
+    await l.fail("fr:shop");
+    await expect(sw).rejects.toThrow("404 fr:default");
+    expect(i18n.locale).toBe("en");
+    // en:shop asked for again: the consumer is not left loading forever.
+    expect(l.requested.filter((k) => k == "en:shop")).toHaveLength(2);
+    await l.answer("en:shop", { s: "S-en" });
+    expect(i18n.t("s", { ns: "shop" })).toBe("S-en");
+    expect(loading(state(i18n), "shop")).toBe(false);
   });
 });
 

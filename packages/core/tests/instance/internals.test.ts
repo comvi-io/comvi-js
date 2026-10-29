@@ -5,7 +5,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { CORE, MS, createI18n } from "../../src/instance";
-import { coming, loading, state, translate, view } from "../../src/internal";
+import { coming, state, translate, view } from "../../src/internal";
 import { flush, make, manualLoader } from "./helpers";
 
 describe("the chain memo", () => {
@@ -131,7 +131,7 @@ describe("view() internals", () => {
     expect(v.ld).toEqual([]);
   });
 
-  it("in another locale lists an active namespace that has no catalog at all", () => {
+  it("in another locale, a namespace with no catalog of that chain is loading by the core's rule (lot 4c)", () => {
     const { i18n } = make({
       locale: "en",
       namespaces: ["default", "shop"],
@@ -139,9 +139,12 @@ describe("view() internals", () => {
       loader: () => new Promise(() => {}),
     });
     const v = view(i18n, { ...state(i18n), ld: [] }, {}, "de");
-    expect(v.ld).toEqual(["de\0default", "de\0shop"]);
-    expect(loading(v, "shop")).toBe(true);
-    expect(loading(v, "hop")).toBe(false);
+    // No flight is invented: the view keeps the state's.
+    expect(v.ld).toEqual([]);
+    // `isLoading`: what the switch at commit loads (the chain of de lacks it, nothing failed).
+    expect(coming(i18n, v, "shop")).toBe(true);
+    expect(coming(i18n, v, "default")).toBe(true);
+    expect(coming(i18n, { ...state(i18n), ld: [] }, "default")).toBe(false);
   });
 
   it("lists a load already in flight once", async () => {
