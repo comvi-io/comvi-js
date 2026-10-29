@@ -1,10 +1,12 @@
 /**
  * The app of the SSR handover gate (R3-21): the same components on the server and in the
  * browser. The server renders `uk` with the `account` and `legal` namespaces its route loads
- * (`legal` is translated in `en` only: the server renders it through the fallback chain) and
- * `shop`, which nobody preloads: a standalone `<T ns="shop">` loads it during the server's
- * render (lot 4b); `help` is a later view's namespace the server never sent, `de` a locale
- * it never sent.
+ * with `i18n.load()` (`legal` is translated in `en` only: the server renders it through the
+ * fallback chain) and `shop`, which nobody preloads: the `Cart` component's `useI18n("shop")`
+ * holds and loads it during the server's render, and it shows its text only when `isReady`
+ * (the same branch on both sides, lot 4c). `help` is a later view's namespace the server
+ * never sent, `de` a locale it never sent; closing the help view releases `help`, so a switch
+ * does not load it until the view opens again (lot 4c).
  */
 import { defineComponent, h, ref } from "vue";
 import { cdn } from "@comvi/core/cdn";
@@ -14,6 +16,17 @@ export const options = (base: string): Omit<I18nOptions, "locale"> => ({
   fallbackLocale: "en",
   timeZone: "UTC",
   loader: cdn(base),
+});
+
+/** Reads `shop` through the `<T>` its `useI18n` holds; a placeholder until it is ready. */
+const Cart = defineComponent({
+  setup() {
+    const { T: S, isReady } = useI18n("shop");
+    return () =>
+      h("p", { "data-testid": "cart" }, [
+        isReady.value ? h(S as never, { i18nKey: "cart" }) : h("i", "…"),
+      ]);
+  },
 });
 
 const Help = defineComponent({
@@ -42,9 +55,10 @@ export const App = defineComponent({
             { link: ({ children }: { children: string }) => h("a", { href: "/terms" }, children) },
           ),
         ]),
-        h("p", { "data-testid": "cart" }, [h(T as never, { i18nKey: "cart", ns: "shop" })]),
+        h(Cart),
         h("span", { "data-testid": "locale" }, locale.value),
         h("button", { "data-testid": "help-open", onClick: () => (help.value = true) }, "?"),
+        h("button", { "data-testid": "help-close", onClick: () => (help.value = false) }, "x"),
         h("button", { "data-testid": "to-de", onClick: () => (locale.value = "de") }, "de"),
         help.value ? h(Help) : null,
       ]);

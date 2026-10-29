@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { useI18n } from "@comvi/vue";
 
-// Rows from the `account` namespace, which the `/about` route loads (main.ts).
+// Rows from the `account` namespace, which the `/about` route loads (main.ts);
+// useI18n("account") holds it while the page shows.
 defineProps<{ name: string }>();
 
 const { t } = useI18n("account");

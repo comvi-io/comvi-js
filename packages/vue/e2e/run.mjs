@@ -5,8 +5,9 @@
  * and an SSR bundle over the BUILT @comvi/vue and @comvi/core) served by a small Node server
  * that also plays the CDN, driven in Chromium:
  *
- *   gate "html"        plain-HTTP `/` already carries the uk text, `shop` too (a standalone
- *                      `<T ns>` loads its namespace during the server's render);
+ *   gate "html"        plain-HTTP `/` already carries the uk text, `shop` too (a component's
+ *                      `useI18n("shop")` holds and loads it during the server's render, and
+ *                      shows it on `isReady`: the same branch in the hydration);
  *   gate "requests"    0 requests to /cdn from the browser up to hydration and network idle
  *                      (`legal`, which the server rendered through the fallback chain because
  *                      uk:legal is a 404, included);
@@ -14,7 +15,8 @@
  *                      the server's, and Vue reports no hydration mismatch;
  *   gate "later"       what the server did not send is requested, and only that: a later
  *                      view's namespace (help: uk, en), another locale (de: default,
- *                      account, help, legal);
+ *                      account, legal, shop — not help, whose view was closed: released,
+ *                      lot 4c); reopening the view loads help for de;
  *
  *   node e2e/run.mjs                    the gate (exit 1 on a failed gate)
  *   node e2e/run.mjs --red no-handover  the same gates on a page without the payload; exits
@@ -131,7 +133,7 @@ try {
   const serverHtml = await (await fetch(`${origin}/`)).text();
   await gate("html", () => {
     assert.match(serverHtml, /data-testid="greeting">Привіт, Ann!</, "the server HTML is uk");
-    // `<T ns="shop">` loaded its namespace during the render: no route preloaded it.
+    // `useI18n("shop")` loaded its namespace during the render: no route preloaded it.
     assert.match(serverHtml, /data-testid="cart">(<!--\[-->)?Кошик/, "the server rendered shop");
   });
 
@@ -189,21 +191,23 @@ try {
       await tab.getByTestId("help-open").click();
       await tab.getByTestId("help").filter({ hasText: "Питання" }).waitFor();
       assert.deepEqual([...cdnRequests].sort(), ["/cdn/help/en.json", "/cdn/help/uk.json"]);
+      // The help view closes: its namespace has no consumer left (lot 4c).
+      await tab.getByTestId("help-close").click();
+      await tab.getByTestId("help").waitFor({ state: "detached" });
       cdnRequests.length = 0;
       await tab.getByTestId("to-de").click();
       await tab.getByTestId("locale").filter({ hasText: "de" }).waitFor();
       assert.deepEqual(
         [...cdnRequests].sort(),
-        [
-          "/cdn/account/de.json",
-          "/cdn/de.json",
-          "/cdn/help/de.json",
-          "/cdn/legal/de.json",
-          "/cdn/shop/de.json",
-        ],
-        "a switch to de asks for de only: en came with the payload",
+        ["/cdn/account/de.json", "/cdn/de.json", "/cdn/legal/de.json", "/cdn/shop/de.json"],
+        "a switch to de asks for de only (en came with the payload), and not for the released help",
       );
       assert.equal(await tab.getByTestId("greeting").textContent(), "Hallo, Ann!");
+      // Back to the help view: it loads help for the locale on screen.
+      cdnRequests.length = 0;
+      await tab.getByTestId("help-open").click();
+      await tab.getByTestId("help").filter({ hasText: "Fragen" }).waitFor();
+      assert.deepEqual(cdnRequests, ["/cdn/help/de.json"], "the help view loads help for de");
     });
   }
 } finally {
