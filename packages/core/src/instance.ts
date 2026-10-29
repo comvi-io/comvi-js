@@ -213,8 +213,11 @@ export interface Core {
    * does not load it); nothing is aborted or evicted.
    */
   h(ns: string): () => void;
-  /** `isLoading` of namespace `ns` in `state` (see `coming` in createI18n). */
-  w(state: State, ns: string): unknown;
+  /**
+   * `isLoading` of namespace `ns` in `state` (see `coming` in createI18n); `f`: a load in flight
+   * only — for a reader that holds nothing (Vue's `useI18n()` outside a component).
+   */
+  w(state: State, ns: string, f?: unknown): unknown;
   /** `isReady` of namespace `ns` in `state` (see `usable` in createI18n). */
   r(state: State, ns: string): boolean;
 }
@@ -414,9 +417,9 @@ export const createI18n = (o: I18nOptions): I18n => {
    * the render). A failed pair is a known result, so no catalog and nothing in flight is never
    * an endless loading state.
    */
-  const coming = (s: State, n: string): unknown =>
+  const coming = (s: State, n: string, f?: unknown): unknown =>
     s.ld.some((x) => x.endsWith(K + n)) ||
-    (load && chain(s.locale).some((x) => !s.c[n]?.[x[0]] && !bad.has(x[0] + K + n)));
+    (!f && load && chain(s.locale).some((x) => !s.c[n]?.[x[0]] && !bad.has(x[0] + K + n)));
 
   /** The message `look()` found last; copied by the caller before anything can call back. */
   let hit: Compiled;

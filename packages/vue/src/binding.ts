@@ -377,7 +377,7 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
     onUnmounted(off);
   }
   return {
-    t: tr(i, n, (__DEV__ && g ? 1 : undefined) as 1) as UseI18n<NS>["t"],
+    t: (__DEV__ && !g ? tr(i, n) : tr(i, n, 1)) as UseI18n<NS>["t"],
     // Functional, one per instance and namespace (R3-5(b)): with no declared props every
     // attribute is a prop of it, so every one reaches the params and none falls through —
     // the exported `<T>`'s policy (`inheritAttrs: false`). It reads the namespace this
@@ -390,9 +390,7 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
     // Until the hold at mount, what the hold will load is loading already: no frame that
     // says "unavailable", no `missing_key` (lot 1d, 4c).
     isReady: computed(() => x.r(s.value, n)),
-    isLoading: computed(() =>
-      g ? !!x.w(s.value, n) : s.value.ld.some((k) => k.endsWith("\0" + n)),
-    ),
+    isLoading: computed(() => !!x.w(s.value, n, !g)),
     setLocale: i.setLocale,
     i18n: i,
   };
