@@ -7,7 +7,9 @@
  *
  *   gate "html"        plain-HTTP `/` already carries the uk text, `shop` too (a component's
  *                      `useI18n("shop")` holds and loads it during the server's render, and
- *                      shows it on `isReady`: the same branch in the hydration);
+ *                      shows it on `isReady`: the same branch in the hydration), and `promo`
+ *                      (preloaded with `load()`, read by `<T ns>` alone: held by nothing, still
+ *                      in the payload, so "requests" and "flicker" see it if it is dropped);
  *   gate "requests"    0 requests to /cdn from the browser up to hydration and network idle
  *                      (`legal`, which the server rendered through the fallback chain because
  *                      uk:legal is a 404, included);
@@ -127,7 +129,7 @@ const gate = async (id, f) => {
   }
 };
 
-const TEXTS = ["greeting", "only", "title", "legal", "terms", "cart", "locale"];
+const TEXTS = ["greeting", "only", "title", "legal", "terms", "cart", "promo", "locale"];
 const browser = await chromium.launch();
 try {
   const serverHtml = await (await fetch(`${origin}/`)).text();
@@ -135,6 +137,12 @@ try {
     assert.match(serverHtml, /data-testid="greeting">Привіт, Ann!</, "the server HTML is uk");
     // `useI18n("shop")` loaded its namespace during the render: no route preloaded it.
     assert.match(serverHtml, /data-testid="cart">(<!--\[-->)?Кошик/, "the server rendered shop");
+    // `promo`: preloaded with `load()`, read by `<T ns>` only — nothing holds it.
+    assert.match(
+      serverHtml,
+      /data-testid="promo">(<!--\[-->)?Знижки тижня/,
+      "the server rendered promo",
+    );
   });
 
   const tab = await browser.newPage();
