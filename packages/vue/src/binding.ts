@@ -201,12 +201,12 @@ export type UntypedParams = Record<
 /** What a slot of `<T>` named after a tag receives. */
 export interface TagSlotProps {
   /**
-   * The tag's children: their text (`{{ children }}`) when the tag holds text only, the
-   * usual `<link>terms</link>`. When it holds markup (a nested tag something renders, a
-   * node param) it is the list of their parts, which `{{ }}` cannot print: render that tag
-   * through `components` instead (development warns).
+   * The text of the tag's content, from the message before any nested handler runs
+   * (`{{ children }}`). Nested markup is flattened to its text and a node param leaves
+   * none: render such a tag through `components` or a handler attribute to keep the markup
+   * (development warns).
    */
-  children: Children;
+  children: string;
 }
 
 /**
@@ -301,9 +301,10 @@ export const render = (
   const q: Record<string, any> = N();
   const m = attrs.components;
   for (const k in slots)
-    // `c`: the tag's content as rendered (nested handlers ran); `x()`: its text, from the
-    // message with no handler run (the core's second argument to a handler).
-    q[k] = (c: Children, x: () => unknown) => {
+    // `c`: the tag's content as rendered (nested handlers ran); `x`: its text, from the
+    // message with no handler run — the core's second argument to a handler that declares
+    // one, built before the content (so before any nested handler runs).
+    q[k] = (c: Children, x: unknown) => {
       // Development: the slot gets text, so the markup of a nested tag or a node is lost.
       if (__DEV__ && typeof c != "string" && !flat.has(q.i18nKey + "\0" + k)) {
         flat.add(q.i18nKey + "\0" + k);
@@ -314,7 +315,7 @@ export const render = (
       // A node param has no text: only the message's text reaches the slot.
       return slots[k]({
         children: ([] as unknown[])
-          .concat(x())
+          .concat(x)
           .filter((e) => typeof e == "string")
           .join(""),
       });

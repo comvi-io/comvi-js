@@ -48,7 +48,7 @@ export interface Env {
   j?: (parts: unknown[]) => unknown;
   /**
    * Text mode: no tag handler runs, a tag's children render inline — the text of a tag's
-   * content that the core hands every handler as its second argument (lot 4b: the text a
+   * content that the core hands a handler declaring a second parameter (lot 4b: the text a
    * Vue slot receives, built from the message before any nested handler runs).
    */
   t?: 1;
@@ -306,18 +306,18 @@ export const message = (
 const hashPart: PartFn = (_p, l, _x, h) => formatNumber(h, l);
 
 /**
- * A rich-text tag: the parameter of the same name renders the children, and gets their text
- * (no handler run, see `Env.t`) as a second argument on demand.
+ * A rich-text tag: the parameter of the same name renders the children. A handler that
+ * declares a second parameter (a Vue slot's) gets their text there too (no handler run, see
+ * `Env.t`), rendered BEFORE the children — before any nested handler runs.
  */
 const tagPart =
   (key: string | undefined, name: string, kids: readonly Part[]): PartFn =>
   (p, l, x, h) => {
-    const children = run(kids, p, l, x, h);
     const handler = !x?.t && arg(p, name);
     if (typeof handler === "function") {
-      const c = ([] as unknown[]).concat(children || []);
-      // Second argument: the content's text, rendered on demand in text mode.
-      return frame(handler(x?.j ? x.j(c) : c, () => run(kids, p, l, { ...x, t: 1 }, h)));
+      const t = handler.length > 1 && run(kids, p, l, { ...x, t: 1 }, h);
+      const c = ([] as unknown[]).concat(run(kids, p, l, x, h) || []);
+      return frame(handler(x?.j ? x.j(c) : c, t));
     }
     // Text mode leaves every tag unhandled on purpose: nothing to warn about.
     if (__DEV__ && !x?.t) {
@@ -326,5 +326,5 @@ const tagPart =
         `<${name}> in "${key}" has no handler; its children render as plain text`,
       );
     }
-    return children;
+    return run(kids, p, l, x, h);
   };

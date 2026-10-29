@@ -5,7 +5,15 @@
  */
 import { h, type ComponentCustomProperties, type VNodeArrayChildren, type VNodeChild } from "vue";
 import type { BoundTFor, TComponentFor, TFor } from "@comvi/core";
-import { createI18n, T, useI18n, type Children, type TagComponent, type UseI18n } from "../../src";
+import {
+  createI18n,
+  T,
+  useI18n,
+  type Children,
+  type TagComponent,
+  type TagSlotProps,
+  type UseI18n,
+} from "../../src";
 
 createI18n({ locale: "en" });
 
@@ -77,3 +85,9 @@ export const same$t: Equal<
   ComponentCustomProperties["$t"],
   TFor<"default", VNodeArrayChildren>
 > = true;
+
+// A slot named after a tag gets the TEXT of the tag's content (lot 4b): a string, never the
+// parts a handler attribute gets.
+export const slotText = (slot: TagSlotProps): string => slot.children;
+// @ts-expect-error a slot's children are text, not a list of parts
+export const slotParts = (slot: TagSlotProps): VNodeArrayChildren => slot.children;

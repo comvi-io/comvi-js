@@ -85,6 +85,43 @@ describe("<T components> (R3-24, lot 4b)", () => {
     expect(quiet.filter((w) => w.includes("holds markup"))).toEqual([]);
   });
 
+  it("the slot's text is built before a nested handler runs: one that changes a param does not reach it", async () => {
+    // Codex re-check: a nested handler moving a Date from 2026 to 2030 used to show 2030 in
+    // the slot (the text pass ran after the children).
+    // Its own key: development warns once per (key, tag), and this slot holds markup.
+    const msgs = { en: { order: "<link><b>{d}</b></link>" } };
+    const d = new Date(2026, 5, 1);
+    const order: string[] = [];
+    const seen: unknown[] = [];
+    const Root = defineComponent({
+      setup: () => () =>
+        h(
+          T as Component,
+          {
+            i18nKey: "order",
+            d,
+            b: (c: never) => (order.push("b"), d.setFullYear(2030), h("b", c)),
+          },
+          {
+            link: ({ children }: { children: unknown }) => (
+              order.push("link"),
+              seen.push(children),
+              h("a", children as never)
+            ),
+          },
+        ),
+    });
+    const { i18n } = make({ locale: "en", messages: msgs, onError: () => {} });
+    let html = "";
+    const warnings = await vueWarnings(
+      () => void (html = mountWith(i18n, Root).html({ raw: true })),
+    );
+    expect(warnings.filter((w) => w.includes("holds markup"))).toHaveLength(1);
+    expect(html).toBe(`<a>${String(new Date(2026, 5, 1))}</a>`);
+    expect(order).toEqual(["b", "link"]);
+    expect(seen).toEqual([String(new Date(2026, 5, 1))]);
+  });
+
   it("`{{ children }}` of a slot whose tag holds markup prints text, never throws (DOM and SSR)", async () => {
     const msgs = { en: { m: "Read the <link><b>new</b> terms</link>." } };
     const App = defineComponent({
