@@ -10,7 +10,7 @@ import { formatRelativeTime } from "../../src/format";
 import { acquire, clock, coming, handover, state } from "../../src/internal";
 
 describe("handover()", () => {
-  it("hands over the chain (parents, fallback locales) of the active namespaces only", async () => {
+  it("hands over the chain (parents, fallback locales) of every namespace in place — an inline one nothing needed too", async () => {
     const i18n = createI18n({
       locale: "de-AT",
       fallbackLocale: "en",
@@ -30,6 +30,9 @@ describe("handover()", () => {
       catalogs: {
         default: { "de-AT": { a: "A" }, de: { b: "B" }, en: { c: "C" } },
         shop: { en: { s: "S" } },
+        // The client's `{ ...options, ...payload }` replaces its `catalogs`: an inline one a
+        // server render read without a hold would be lost (Codex review of lot 4c, HIGH).
+        inactive: { de: { x: "X" } },
       },
     });
   });

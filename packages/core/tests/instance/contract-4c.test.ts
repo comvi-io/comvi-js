@@ -10,6 +10,9 @@ import { createI18n, type I18n } from "../../src/instance";
 import { acquire, available, coming, core, handover, state } from "../../src/internal";
 import { flush, make, manualLoader, tableLoader } from "./helpers";
 
+/** Lets the development diagnostic's timer run (it re-checks after the render's task). */
+const tick = () => new Promise((y) => setTimeout(y));
+
 /** `[isReady, isLoading]` of `ns` in the instance's published state. */
 const rl = (i18n: I18n, ns = "default") => [
   available(i18n, state(i18n), ns),
@@ -116,7 +119,7 @@ describe("reading never loads (brief §1)", () => {
     i18n.t("x", { ns: "shop" });
     i18n.ns("help")("y");
     i18n.t("a", { locale: "de" });
-    await flush();
+    await tick(); // the diagnostic's re-check runs under the spy
     expect(l.requested).toEqual([]);
     warn.mockRestore();
   });
@@ -370,12 +373,90 @@ describe("handover accounting (brief §5)", () => {
   });
 });
 
+describe("the hold's bookkeeping (review of lot 4c)", () => {
+  it("is counted before anything publishes: a subscriber switching in that publish loads the target for it", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", namespaces: [], loader: l.load });
+    let sw: Promise<void> | undefined;
+    const off = i18n.on(() => {
+      off();
+      sw = i18n.setLocale("de");
+    });
+    acquire(i18n, "shop");
+    expect(l.requested).toEqual(["en:shop", "de:shop"]);
+    await l.answer("de:shop", { s: "S-de" });
+    await sw;
+    expect(i18n.locale).toBe("de");
+    expect(rl(i18n, "shop")).toEqual([true, false]);
+    expect(i18n.t("s", { ns: "shop" })).toBe("S-de");
+  });
+
+  it("a release called twice releases once: another consumer keeps the namespace active", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const a = acquire(i18n, "shop");
+    acquire(i18n, "shop");
+    await l.answer("en:shop");
+    a();
+    a();
+    const sw = i18n.setLocale("de");
+    expect(l.requested).toEqual(["en:shop", "de:default", "de:shop"]);
+    await l.answer("de:default");
+    await l.answer("de:shop");
+    await sw;
+  });
+
+  it("the key scenario through load(): a route preload of account, then default, then a switch — only default loads", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", loader: l.load });
+    await l.answer("en:default");
+    const p = i18n.load("account");
+    await l.answer("en:account", { title: "Account" });
+    await p;
+    const sw = i18n.setLocale("de");
+    expect(l.requested).toEqual(["en:default", "en:account", "de:default"]);
+    await l.answer("de:default");
+    await sw;
+    // Back on account: not ready, loading until something holds or loads it.
+    expect(rl(i18n, "account")).toEqual([false, true]);
+    const q = i18n.load("account");
+    expect(l.requested.at(-1)).toBe("de:account");
+    await l.answer("de:account", { title: "Konto" });
+    await q;
+    expect(i18n.t("title", { ns: "account" })).toBe("Konto");
+  });
+});
+
+describe("handover: inline catalogs a passive read rendered (review of lot 4c)", () => {
+  it("an inline namespace nothing held is handed over; the client renders it with 0 requests", async () => {
+    const server = createI18n({
+      locale: "en",
+      timeZone: "UTC",
+      catalogs: { account: { en: { title: "Account" }, de: { title: "Konto" } } },
+      loader: async () => ({}),
+    });
+    await server.ready;
+    // A React server render: useI18n("account") holds nothing there; it reads the inline one.
+    expect(server.t("title", { ns: "account" })).toBe("Account");
+    const payload = JSON.parse(JSON.stringify(handover(server)));
+    expect(payload.catalogs.account).toEqual({ en: { title: "Account" } });
+    const l = manualLoader();
+    // The client's options are replaced by the payload's catalogs.
+    const client = createI18n({ locale: "en", catalogs: {}, loader: l.load, ...payload });
+    expect(rl(client, "account")).toEqual([true, false]);
+    acquire(client, "account");
+    await flush();
+    expect(l.requested).toEqual([]);
+    expect(client.t("title", { ns: "account" })).toBe("Account");
+  });
+});
+
 describe("development: reading a namespace nothing loads (brief §6)", () => {
   let warn: ReturnType<typeof vi.spyOn>;
   afterEach(() => warn.mockRestore());
   const spy = () => (warn = vi.spyOn(console, "warn").mockImplementation(() => {}));
 
-  it("warns once per instance and namespace, naming the fixes", () => {
+  it("warns once per instance and namespace, naming the fixes", async () => {
     spy();
     const l = manualLoader();
     const a = make({ locale: "en", messages: { en: {} }, loader: l.load }).i18n;
@@ -384,6 +465,9 @@ describe("development: reading a namespace nothing loads (brief §6)", () => {
     a.t("y", { ns: "shop" });
     a.ns("shop")("z");
     b.t("x", { ns: "shop" });
+    await tick();
+    a.t("w", { ns: "shop" });
+    await tick();
     expect(warn).toHaveBeenCalledTimes(2);
     expect(String(warn.mock.calls[0][0])).toContain('"shop"');
     expect(String(warn.mock.calls[0][0])).toContain('useI18n("shop")');
@@ -419,21 +503,54 @@ describe("development: reading a namespace nothing loads (brief §6)", () => {
     void i18n.setLocale("fr");
     expect(l.signals.get("en:kept")!.aborted).toBe(true);
     i18n.t("x", { ns: "kept" });
+    await tick();
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it("a declared read (useI18n(ns) before its hold) does not warn; no loader, nothing to warn about", () => {
+  it("a read before the hold of the same task does not warn: <T ns> beside useI18n(ns) (review of lot 4c)", async () => {
+    spy();
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    // The render reads (the exported <T ns="account">), the commit or mount holds after it.
+    i18n.t("title", { ns: "account" });
+    acquire(i18n, "account");
+    await tick();
+    expect(warn).not.toHaveBeenCalled();
+    // A read nothing follows still warns, after the task — and once only.
+    i18n.t("x", { ns: "idle" });
+    expect(warn).not.toHaveBeenCalled();
+    await tick();
+    i18n.t("y", { ns: "idle" });
+    await tick();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain('"idle"');
+  });
+
+  it("a declared read (useI18n(ns) before its hold) does not warn; no loader, nothing to warn about", async () => {
     spy();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: manualLoader().load });
     // The binding's declared read (development's `d`): a useI18n(ns), whose hold follows.
     expect(core(i18n).d!(state(i18n), "x", undefined, "shop")).toBe("x");
+    await tick();
     expect(warn).not.toHaveBeenCalled();
     // Without it, the same read warns.
     core(i18n).tr(state(i18n), "x", undefined, "shop");
+    await tick();
     expect(warn).toHaveBeenCalledTimes(1);
     warn.mockClear();
     const plain = make({ locale: "en", messages: { en: {} } }).i18n;
     plain.t("x", { ns: "shop" });
+    await tick();
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("a declared read covers its own namespace only: a per-call { ns } of another is checked (review of lot 4c)", async () => {
+    spy();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: manualLoader().load });
+    // useI18n("default").t("title", { ns: "undeclared" })
+    core(i18n).d!(state(i18n), "title", { ns: "undeclared" }, "default");
+    await tick();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain('"undeclared"');
   });
 });

@@ -187,8 +187,9 @@ export interface Core {
   tr(state: State, key: string, params?: Params, ns?: string, j?: Env["j"]): Rendered;
   /**
    * Development builds only (absent in production): `tr` for the read of a `useI18n(ns)`, a
-   * declared need whose hold follows the render — it never warns about an idle namespace. A
-   * binding calls `(__DEV__ ? x.d! : x.tr)(…)`.
+   * declared need of namespace `ns` whose hold follows the render — a read of `ns` itself
+   * never warns about an idle namespace; one of another namespace (a per-call `{ ns }`) is
+   * checked as any read. A binding calls `(__DEV__ ? x.d! : x.tr)(…)`.
    */
   d?: Core["tr"];
   /** The lookup chain of a locale. */
@@ -207,8 +208,9 @@ export interface Core {
    * A consumer holds namespace `ns` (lot 4c): it joins the active set and what the displayed
    * locale's chain lacks of it loads, WITHOUT asking its failed loads again — a binding holding
    * on every mount must not turn one failure into a refetch per mount (`load()` is the explicit
-   * retry). Returns the release, to call once: at no consumer left the namespace leaves the
-   * active set (the next `setLocale()` does not load it); nothing is aborted or evicted.
+   * retry). Counted before anything publishes. Returns the release (a second call of it does
+   * nothing): at no consumer left the namespace leaves the active set (the next `setLocale()`
+   * does not load it); nothing is aborted or evicted.
    */
   h(ns: string): () => void;
   /** `isLoading` of namespace `ns` in `state` (see `coming` in createI18n). */
@@ -279,8 +281,8 @@ export const createI18n = (o: I18nOptions): I18n => {
   const act = () => Object.keys(cnt).filter((n) => cnt[n]);
   /** Development: namespaces whose idle read was warned about (once each, per instance). */
   const idle = new Set<string>();
-  /** Development: a declared read (`Core.d`) is rendering. */
-  let dec = 0;
+  /** Development: the namespace of the declared read (`Core.d`) rendering now. */
+  let dec: string | 0 = 0;
   const downs: (void | (() => void))[] = [];
   let chains: Record<string, Chain> = N();
   let nch = 0;
@@ -454,21 +456,25 @@ export const createI18n = (o: I18nOptions): I18n => {
     } else {
       // Development (lot 4c, brief §6): a read of a namespace with no catalog in the chain, no
       // consumer, no load in flight and no failed load (a known result) — nothing will load
-      // it. Not for the read of a `useI18n(ns)` (`dec`), whose hold follows its render.
-      // Once per namespace.
-      if (
-        __DEV__ &&
-        load &&
-        !dec &&
-        !idle.has(n) &&
-        !cnt[n] &&
-        !s.ld.some((x) => x.endsWith(K + n)) &&
-        !chain(l).some((x) => s.c[n]?.[x[0]] || bad.has(x[0] + K + n))
-      ) {
-        idle.add(n);
-        console.warn(
-          `[@comvi/core] "${key}" reads namespace "${n}", which has no catalog for "${l}" and which nothing loads: hold it with useI18n(${JSON.stringify(n)}) in a component, call i18n.load(${JSON.stringify(n)}), or add it to the \`namespaces\` option`,
-        );
+      // it. Not for the read of a `useI18n(ns)` of its own namespace (`dec`), whose hold
+      // follows its render. Checked again after the render's task (a timer): a component's
+      // hold lands at its commit or mount, after the render that read — a `<T ns>` beside
+      // `useI18n(ns)` is not idle. Once per instance and namespace.
+      if (__DEV__ && load && dec !== n && !idle.has(n)) {
+        const q = (s: State) =>
+          !cnt[n] &&
+          !s.ld.some((x) => x.endsWith(K + n)) &&
+          !chain(l).some((x) => s.c[n]?.[x[0]] || bad.has(x[0] + K + n));
+        if (q(s)) {
+          idle.add(n);
+          setTimeout(() =>
+            dead || !q(S)
+              ? idle.delete(n)
+              : console.warn(
+                  `[@comvi/core] "${key}" reads namespace "${n}", which has no catalog for "${l}" and which nothing loads: hold it with useI18n(${JSON.stringify(n)}) in a component, call i18n.load(${JSON.stringify(n)}), or add it to the \`namespaces\` option`,
+                ),
+          );
+        }
       }
       // A key of a namespace still coming is not missing yet. With no reporter to call
       // (production without `onError`: `defaultOnError` is silent there) nothing is checked
@@ -561,14 +567,19 @@ export const createI18n = (o: I18nOptions): I18n => {
   /**
    * Loads what the current chain lacks of `n` (failed pairs stay failed); with `x` (`load()`)
    * rejects by the rule of `load()`. `n` is needed from now on (`handover()` hands it over);
-   * the first time, in the one publish of `ensure()`.
+   * the first time, in the one publish of `ensure()`. `y`: a consumer's hold, counted BEFORE
+   * anything publishes — a subscriber that switches the locale in that publish sees `n` in
+   * the active set (Codex review of lot 4c, HIGH).
    */
-  const use = (n: string, x?: 1): Promise<void> =>
-    dead
+  const use = (n: string, x?: unknown, y = 0): Promise<void> => {
+    const g = !(n in cnt);
+    cnt[n] = (cnt[n] | 0) + y;
+    return dead
       ? R
-      : Promise.all(ensure(S.locale, [n], !(n in cnt) && !(cnt[n] = 0))).then(() => {
+      : Promise.all(ensure(S.locale, [n], g)).then(() => {
           if (x && lost(n)) throw bad.get(S.locale + K + n);
         });
+  };
 
   const lost = (n: string, l = S.locale, ch = chain(l)) =>
     bad.has(l + K + n) && !ch.slice(0, ch.o).some((x) => S.c[n]?.[x[0]]);
@@ -682,21 +693,22 @@ export const createI18n = (o: I18nOptions): I18n => {
     o,
     k: cnt,
     b: bad,
-    h: (n) => {
-      void use(n);
-      cnt[n]++;
-      return () => void --cnt[n];
+    h: (n, a = 1) => {
+      void use(n, 0, 1);
+      // Once: a second call of the same release changes nothing.
+      return () => void (a && ((a = 0), cnt[n]--));
     },
     w: coming,
     r: usable,
   };
   if (__DEV__)
-    c.d = (...a) => {
-      dec++;
+    c.d = (s, k, p, n, j) => {
+      const o = dec;
+      dec = n || D;
       try {
-        return tr(...a);
+        return tr(s, k, p, n, j);
       } finally {
-        dec--;
+        dec = o;
       }
     };
   CORE.set(i18n, c);

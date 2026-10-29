@@ -149,9 +149,9 @@ export const loading = (state: State, ns?: string): boolean =>
 
 /**
  * What a server render hands the browser (design §2.6, R3-21): the locale, the time zone and
- * the clock the render used, and the catalogs it rendered with — every namespace the
- * instance needed (pinned, held or `load()`ed: never the hold counts of the moment, lot 4c)
- * in the locale's chain (its parents and fallback locales), in the shape of
+ * the clock the render used, and the catalogs it rendered with — every namespace with a
+ * catalog in place (inline ones too) or that the instance needed (pinned, held or `load()`ed:
+ * never the hold counts of the moment, lot 4c) in the locale's chain (its parents and fallback locales), in the shape of
  * `createI18n({ catalogs })`, a slot whose load failed as `null`. The browser's
  * `createI18n({ ...options, ...handover })` then renders what the server rendered and asks
  * the loader for none of it; a `null` slot is asked for again only on an explicit retry
@@ -184,7 +184,10 @@ export const handover = (i18n: I18n): Handover => {
       "[@comvi/core] a server render needs the timeZone option: the server and the browser must format dates in one zone",
     );
   const catalogs = N<Record<string, Catalog | null>>();
-  for (const n in x.k)
+  // Every namespace with a catalog in place (an inline one a passive read rendered too: no
+  // consumer holds anything in a React server render) and every one the instance needed —
+  // the hold counts of the moment never decide (Codex review of lot 4c, HIGH).
+  for (const n in N(s.c, x.k))
     for (const [l] of x.ch(s.locale)) {
       const y = s.c[n]?.[l];
       // A patched slot is handed over as one catalog: the base with the patch on top. A
