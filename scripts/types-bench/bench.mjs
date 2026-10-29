@@ -362,19 +362,20 @@ if (unexpected) {
     `x probes report unexpected errors (app5k ${m.app5k.errors}, app20k ${m.app20k.errors}, file20k ${m.file20k.errors}, typo20k ${m.typo20k.errors} ≠ 2)`,
   );
 }
-// The JSX probes: valid elements compile, each of the three typo elements errs once (a
-// capped probe printed no diagnostics: its gates above already failed).
+// The JSX probes: valid elements compile, each of the five error elements (three key
+// typos, a misspelled required param, a tag with no handler and no `components`) errs once
+// (a capped probe printed no diagnostics: its gates above already failed).
 for (const [p, want] of [
   ["jsx20k", 0],
-  ["jsxTypo20k", 3],
+  ["jsxTypo20k", 5],
   // The Vue probes: the valid template compiles; five key typos ($t, t, two <T>, the bound
-  // <T>) err once each — on the key only.
+  // <T>) err once each — on the key only — and the misspelled required param once.
   ["vue5k", 0],
   ["vue20k", 0],
   ["vueBase5k", 0],
   ["vueBase20k", 0],
-  ["vueTypo5k", 5],
-  ["vueTypo20k", 5],
+  ["vueTypo5k", 6],
+  ["vueTypo20k", 6],
 ])
   if (!m[p].capped && m[p].errors !== want) {
     failed++;

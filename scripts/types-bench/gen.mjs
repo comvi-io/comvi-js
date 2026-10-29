@@ -93,9 +93,10 @@ export declare function useI18n<NS extends string = "default">(ns?: NS): { t: TF
  * The React binding's `<T>` and `useI18n(ns).T` over the real @types/react JSX namespace
  * (its LibraryManagedAttributes and IntrinsicAttributes are part of the cost: a neutral JSX
  * namespace hides the valid-key half of lot 3 review BLOCK 1). `@comvi/react` declares
- * exactly these: `TComponent = TComponentFor<ReactNode, 1, C>`, `BoundT<NS> = BoundTFor<NS,
- * ReactNode, 1, C>` with C its `components` prop (lot 4b) — a separate file, so the other
- * probes' programs do not load React.
+ * exactly these: `TComponent = TComponentFor<ReactNode, 2, C>`, `BoundT<NS> = BoundTFor<NS,
+ * ReactNode, 2, C>` with C its `components` prop (lot 4b; `2`: a tag param is optional only
+ * when `components` is passed) — a separate file, so the other probes' programs do not load
+ * React.
  */
 const REACT_TYPES = path.dirname(
   createRequire(path.join(ROOT, "packages/react/package.json")).resolve(
@@ -104,9 +105,10 @@ const REACT_TYPES = path.dirname(
 );
 export const JSX_LIB = `import type { ComponentType, ReactNode } from "react";
 import type { BoundTFor, NsOf, TComponentFor } from "./lib";
-type C = Readonly<Record<string, string | ComponentType<{ children?: ReactNode }>>>;
-export declare const T: TComponentFor<ReactNode, 1, C>;
-export declare function useT<NS extends string>(ns: NS): NS extends NsOf ? BoundTFor<NS, ReactNode, 1, C> : never;
+type C = Readonly<Record<string, string | ComponentType<{ children?: ReactNode }> | { component: string | ComponentType<any>; props?: Readonly<Record<string, unknown>> }>>;
+export declare const T: TComponentFor<ReactNode, 2, C>;
+export declare function useT<NS extends string>(ns: NS): NS extends NsOf ? BoundTFor<NS, ReactNode, 2, C> : never;
+export declare const Em: ComponentType<{ children?: ReactNode }>;
 `;
 /** compilerOptions that resolve "react" and the automatic JSX runtime to @types/react. */
 export const JSX_OPTIONS = {
@@ -159,13 +161,18 @@ const VUE_PROBES = {
     "<T i18n-key='s0.k2' :markers='false' />",
     "<S i18n-key='s0.k1' name='x' />",
     "<S i18n-key='s1.k0' :count='2' />",
+    // `components` (lot 4b): an HTML tag name, a component, on both <T>s.
+    "<T i18n-key='s1.k7' :components=\"{ link: 'a' }\" />",
+    "<S i18n-key='s1.k7' :components='{ link: {} }' />",
   ],
-  // Five key typos — the only five errors of the program.
+  // Five key typos and one param typo (a misspelled required param: the newcomer's case,
+  // DX review) — the only six errors of the program.
   vueTypo: [
     "<p>{{ t('s0.zzz') }}{{ $t('s0.zzz', { count: 1 }) }}</p>",
     "<T i18n-key='s0.zzz' />",
     "<T i18n-key='s0.zzz' :count='1' />",
     "<S i18n-key='s0.zzz' name='x' />",
+    "<T i18n-key='s0.k1' nmae='x' />",
   ],
   // The same program with no Comvi call in the template: the baseline of the Vue gates.
   vueBase: ["<p>x</p>"],
@@ -282,7 +289,7 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
       path.join(dir, "elements.tsx"),
       [
         "import type { Tag } from './lib';",
-        "import { T, useT } from './jsxlib';",
+        "import { Em, T, useT } from './jsxlib';",
         "declare const tag: Tag;",
         "const S = useT('shop');",
         ...(kind === "jsx"
@@ -295,6 +302,10 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
               "  <T i18nKey='s0.k2' markers={false} />,",
               "  <S i18nKey='s0.k1' name='x' />,",
               "  <S i18nKey='s1.k0' count={2} />,",
+              // `components` (lot 4b): a tag name, a component, on both <T>s.
+              "  <T i18nKey='s1.k7' components={{ link: 'a' }} />,",
+              "  <S i18nKey='s1.k7' components={{ link: Em }} />,",
+              "  <T i18nKey='s1.k7' components={{ link: { component: 'a', props: { href: '/x' } } }} />,",
               "];",
             ]
           : [
@@ -302,6 +313,10 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
               "  <T i18nKey='s0.zzz' />,",
               "  <T i18nKey='s0.zzz' count={1} />,",
               "  <S i18nKey='s0.zzz' name='x' />,",
+              // A misspelled required param, and a rich key with no handler and no
+              // `components` (lot 4b) — one error each.
+              "  <T i18nKey='s0.k1' nmae='x' />,",
+              "  <T i18nKey='s1.k7' />,",
               "];",
             ]),
       ].join("\n") + "\n",
