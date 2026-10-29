@@ -919,16 +919,19 @@ measured the same way at the start of the lot:
 | react-icu-cdn           | 5,420  | 5,371 | +49  | 5,470  | 5,470   | +499 B over core-icu-cdn (cap 500)          |
 | vue-icu-cdn             | 5,489  | 5,390 | +99  | 5,560  | 5,560   | +568 B over core-icu-cdn (cap 600)          |
 | core-icu                | 4,445  | 4,432 | +13  | 4,449  | 4,449   | load()/setLocale() rules; 4 B headroom      |
-| core-locale             | 587    | 588   | −1   | 618    | —       | shared-chunk gzip noise                     |
-| core-icu-cdn-store      | 5,090  | 5,062 | +28  | 5,308  | —       | the same core                               |
-| core-icu-api            | 5,443  | 5,421 | +22  | 5,684  | —       | the same core                               |
+| core-locale             | 587    | 588   | −1   | 617    | —       | shared-chunk gzip noise                     |
+| core-icu-cdn-store      | 5,090  | 5,062 | +28  | 5,345  | —       | the same core                               |
+| core-icu-api            | 5,443  | 5,421 | +22  | 5,716  | —       | the same core                               |
 | core-icu-devtools       | 4,890  | 4,875 | +15  | 5,017  | 5,017   | the same core (+445 over core-icu, cap 500) |
-| core-format             | 5,092  | 5,034 | +58  | 5,222  | —       | `serverNow`/`live()` clock, relative opts   |
-| core-plugins            | 5,020  | 5,013 | +7   | 5,254  | —       | the same core                               |
-| fw-react-default        | 4,912  | 4,871 | +41  | 5,101  | —       | the React binding                           |
-| fw-react-full-composite | 7,932  | 7,805 | +127 | 8,135  | —       | + `useFormat` mount mark, relative opts     |
-| fw-vue-default          | 4,972  | 4,889 | +83  | 5,124  | —       | the Vue binding                             |
-| fw-vue-full-composite   | 7,680  | 7,516 | +164 | 7,881  | —       | + `useFormat` mount mark, relative opts     |
+| core-format             | 5,092  | 5,034 | +58  | 5,347  | —       | `serverNow`/`live()` clock, relative opts   |
+| core-plugins            | 5,020  | 5,013 | +7   | 5,271  | —       | the same core                               |
+| fw-react-default        | 4,912  | 4,871 | +41  | 5,158  | —       | the React binding                           |
+| fw-react-full-composite | 7,932  | 7,805 | +127 | 8,329  | —       | + `useFormat` mount mark, relative opts     |
+| fw-vue-default          | 4,972  | 4,889 | +83  | 5,221  | —       | the Vue binding                             |
+| fw-vue-full-composite   | 7,680  | 7,516 | +164 | 8,064  | —       | + `useFormat` mount mark, relative opts     |
+
+The other rows' baselines moved with the core and the bindings; their budgets follow the rule
+`ceil(baseline × 1.05)` (no ceiling on them), as `scripts/docs-snippets/run.test.mjs` checks.
 
 Itemized (gzip deltas measured one change at a time on the row named; they do not add up
 exactly — gzip is not additive):
