@@ -23,10 +23,8 @@ components, and `<T>` for translations that contain markup.
 ## Install
 
 ```bash
-npm install @comvi/vue @comvi/core # peer: vue ^3.5.0
+npm install @comvi/vue @comvi/core # peer: vue ^3.5.0; the app imports @comvi/core/cdn
 ```
-
-`@comvi/core` is listed because the app imports from it too (`@comvi/core/cdn` below).
 
 ## Setup
 
@@ -38,12 +36,8 @@ import App from "./App.vue";
 const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-  messages: {
-    en: { greeting: "Hello, {name}!" },
-    uk: { greeting: "Привіт, {name}!" },
-  },
+  messages: { en: { greeting: "Hello, {name}!" }, uk: { greeting: "Привіт, {name}!" } },
 });
-
 createApp(App).use(i18n).mount("#app");
 ```
 
@@ -65,23 +59,34 @@ const { t, locale } = useI18n();
 </template>
 ```
 
-`t()` fills `{name}` from its second argument; `{ ns }` and `{ locale }` there switch the
-namespace and the locale for one call. `$t` is the same `t()` in every template; it loads
-nothing itself, so its namespace (`default`) loads when it is in the `namespaces` option (the
-default) or a component calls `useI18n()` (development warns otherwise). `locale` is
-writable: setting it switches, and it keeps the old value until the new locale's catalogs are in;
-when you switch twice quickly the last switch wins. A failed switch keeps the old locale (the
-`<select>` shows it again), reported as `load_failed` through `onError`; `setLocale()` is the
-call that rejects, if you want to catch it: when, for every namespace it waited for, no
-catalog of the new locale or its parent (`de` for `de-AT`) loaded, and for an invalid locale
-tag. A switch that a later one replaced resolves without switching. `useI18n("admin")` binds `t` and `T` to a namespace
-and loads it (`useI18n()` loads `default`): on a server before the component renders, in the
-browser after it mounts. While a catalog of it is on the way `isLoading` is `true` and `t()`
-returns what a missing key returns (the key, or your `missing()`), unreported: show your
-placeholder from `isLoading`. A load that failed ends that state (fallback text or the key) and
-is not fetched again when a component mounts; `i18n.load("admin")` asks again and rejects when
-the current locale's own load of it fails with no catalog of that locale or its parent in place
-(a fallback locale's failure alone, or a load a switch replaced, resolves).
+`t()` fills `{name}` from its second argument (`{ ns }`, `{ locale }` there apply to one call);
+`$t` is the same `t()` in every template. `locale` is writable: setting it switches once the new
+catalogs are in (the last of quick switches wins; a failed one keeps the old locale, reported as
+`load_failed`). `setLocale()` rejects for an invalid tag, or when no catalog of the locale or its
+parent (`de` for `de-AT`) loaded for any namespace it waited for.
+
+```vue title="src/Account.vue"
+<script setup lang="ts">
+import { useI18n } from "@comvi/vue";
+
+const { t, isReady, isLoading } = useI18n("account");
+</script>
+
+<template>
+  <h2 v-if="isReady">{{ t("title") }}</h2>
+  <p v-else-if="isLoading" class="spinner" />
+  <p v-else>Not available</p>
+</template>
+```
+
+`useI18n("account")` binds `t` and `T` and holds the namespace from mount to unmount (inside
+`<KeepAlive>` while active; `v-show` keeps it): it loads for the locale on screen and every
+switch; with no component holding it, it stays cached and a switch skips it. `isReady`: a catalog
+of the locale on screen, its parent or a `fallbackLocale` is in; `isLoading`: one is on the way.
+A failed load is `false`/`false`; a remount does not retry, `i18n.load("account")` does. `t()`,
+`$t` and `<T>` only read (development warns about a namespace nothing loads). Outside a component
+use `i18n.load()`, which holds nothing (`beforeEnter: () => i18n.load("account").catch(() => {})`
+preloads a page), or the `namespaces` option.
 
 ## Load from Comvi
 
@@ -92,15 +97,8 @@ import { cdn } from "@comvi/core/cdn";
 import App from "./App.vue";
 
 const i18n = createI18n({ locale: "en", loader: cdn("https://cdn.comvi.io/<project-token>") });
-
-const app = createApp(App).use(i18n);
-// Mount once the first catalogs are in.
-i18n.ready.then(() => app.mount("#app"));
+i18n.ready.then(() => createApp(App).use(i18n).mount("#app")); // once the first catalogs are in
 ```
-
-Later loads keep the app on screen (`isLoading`); a route can load its namespace before it
-renders: `beforeEnter: () => i18n.load("account").catch(() => {})` (a rejected guard would
-cancel the navigation; the page renders the fallback text instead).
 
 ## Markup in a translation
 
@@ -116,25 +114,16 @@ import TermsLink from "./TermsLink.vue"; // <a href="/terms"><slot /></a>
 </template>
 ```
 
-Each tag renders through, in this order, a handler attribute of its name
-(`:link="(c) => h('a', c)"`), its entry in `components` (an HTML tag name, a component, or
-`{ component, props }` for one that needs props of its own, such as
-`{ component: RouterLink, props: { to: "/terms" } }`; the content is its default slot, nested
-tags included), or a slot of its name (`<template #link="{ children }">{{ children }}</template>`:
-`children` is always the tag's text from the message; markup inside it is flattened to text, and
-development warns — keep it with `components`). An attribute or an entry that is `undefined`
-leaves the tag to the next; a tag with none of them renders as text. In a template, render a
-message with markup through `<T>`: `{{ t("terms", { link }) }}` would print a list of nodes. Every attribute but `i18n-key`, `components` and the per-call options `ns`, `locale` and
-`markers` is a message param, camelized (`:first-name` is `{firstName}`); `:markers="false"`
-keeps the editor from marking the message. `useI18n(ns).T` takes no `ns`. On neither `<T>` do
-`class` or `style` fall through (they are params): wrap `<T>` in your own element to style it.
+A tag renders through a handler attribute of its name (`:link="(c) => h('a', c)"`), else its
+`components` entry (a tag name, a component, or `{ component: RouterLink, props: { to: "/terms" } }`;
+the content is its default slot, nested tags included), else a slot of its name
+(`<template #link="{ children }">`, `children` the tag's text), else as text. Every other
+attribute but `i18n-key`, `ns`, `locale` and `markers` is a param, camelized, `class` too.
 
 ## Server rendering
 
-An instance per request, created with the app. `useI18n(ns)` and `<T ns>` load their namespace
-before they render (`renderToString` waits for them), and `handover()` carries it even when its
-catalog was inline, so the request only waits for the locale's first catalogs, then hands
-everything over:
+An instance per request; `useI18n(ns)` loads before its component renders, and `handover()`
+carries every namespace the request needed (a route's `load()` too):
 
 ```ts title="server.ts"
 import { createSSRApp } from "vue";
@@ -148,25 +137,13 @@ const payload = JSON.stringify(handover(i18n)).replace(/</g, "\\u003c");
 // The page embeds it: <script>window.__I18N__ = ${payload}</script>
 ```
 
-In the browser, `createI18n({ ...options, ...window.__I18N__ })` starts with the server's locale,
-time zone, clock (`serverNow`) and catalogs: the app hydrates without a mismatch and fetches
-nothing the server rendered. Relative time counts from the server's clock while a component
-hydrates and from the browser's for every other render, a component mounted later included;
-nothing re-renders by itself as time passes.
-
-### How it works
-
-`app.use(i18n)` provides the instance and `$t`. The binding keeps one `shallowRef` of the
-instance's state; `locale` and `dir` are slices of it, so a component that reads only the locale
-does not re-render when a namespace loads. `useFormat()` from `@comvi/vue/format` formats
-numbers, dates, currency and relative time (`relative(date, { now?, numeric?, style? })`) in the
-locale on screen.
+In the browser, `createI18n({ ...options, ...window.__I18N__ })` starts from the server's state:
+the same `isReady`/`isLoading`, no mismatch, nothing fetched that the server rendered.
 
 ## Read next
 
 - [Vue guide](https://comvi.io/docs/i18n/vue): markup inside a translation, first paint, SSR.
 - [Loading translations](https://comvi.io/docs/i18n/loading-translations): loaders, namespaces, fallbacks.
-- [Type safety](https://comvi.io/docs/i18n/type-safety): `t()`, `$t` and `<T>` check keys and params.
 
 ## License
 
