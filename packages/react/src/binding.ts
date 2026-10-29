@@ -243,11 +243,11 @@ export type TComponent = [NsOf] extends [never]
  * the tag's name (`link={(c) => <a href="/terms">{c}</a>}`), then its entry in `components`
  * (`components={{ b: "strong", link: { component: "a", props: { href: "/terms" } } }}`) — a
  * prop or an entry that is `undefined` leaves the tag to the next; with neither, the tag's
- * content renders as text. Every prop but `i18nKey`, `components` and the per-call options `ns`, `locale` and
- * `markers` is a message param — `children` and `className` too, so a tag named like a DOM
- * prop is still a handler. `ns` is explicit: `<T>` never takes the namespace of a
- * `useI18n(ns)` above it (R3-5); `useI18n(ns).T` is the bound one. `markers={false}` opts
- * the message out of an in-context editor session (R3-14 H9).
+ * content renders as text. Every prop but `i18nKey`, `components` and the per-call options
+ * `ns`, `locale` and `markers` is a message param — `children` and `className` too, so a tag
+ * named like a DOM prop is still a handler. `ns` is explicit: `<T>` never takes the namespace
+ * of a `useI18n(ns)` above it (R3-5); `useI18n(ns).T` is the bound one. `markers={false}`
+ * opts the message out of an in-context editor session (R3-14 H9).
  */
 export const T = (({
   components: m,
@@ -257,10 +257,10 @@ export const T = (({
   ns?: string;
   components?: Record<string, TagComponent>;
 } & Record<string, unknown>) => {
-  // An entry that is `undefined` leaves the tag to be rendered as text.
   for (const k in m) {
-    // A tag name, a component, or `{ component, props }` (R3-24). A component (a function,
-    // a class, a memo/forwardRef/lazy object) has no `props` of its own to misread.
+    // A tag name, a component, or `{ component, props }` (R3-24); a component (a function,
+    // a class, a memo/forwardRef/lazy object) has no `props` of its own to misread. An
+    // entry that is `undefined` leaves the tag to be rendered as text.
     const e = m[k] as { component?: ComponentType; props?: object } & ComponentType;
     if (p[k] === undefined && e)
       p[k] = (c: ReactNode) => createElement(e.component || e, e.props, c);

@@ -969,3 +969,57 @@ exactly — gzip is not additive):
   development warns once to use `components` (0 B in production). Also not in the lot, for
   bytes: `{ component, props }` in Vue `components` (+17 B) — a component that sets the props,
   or a handler attribute, covers it.
+
+## 2026-10-29: lot 4b fix pass (Fable review, Codex review, gate report on 6adc82c4)
+
+Within the R3-25 ceilings; no ceiling or increment cap moved. One sweep after `TURBO_FORCE=true`
+builds of the finished graphs, `node --version` v24.22.1; "was" = 6adc82c4 (the rows of the
+section above). Budgets = `ceil(measured × 1.05)`, capped at the ceiling where the row has one.
+
+| row                     | gzip B | was   | Δ   | budget | ceiling | why                                                              |
+| ----------------------- | ------ | ----- | --- | ------ | ------- | ---------------------------------------------------------------- |
+| core-compile            | 1,865  | 1,857 | +8  | 1,959  | 2,000   | the text pass of a tag (handler 2nd argument), loose equality    |
+| core-locale             | 584    | 587   | −3  | 614    | —       | loose equality in `locale.ts`                                    |
+| core-negotiate          | 497    | 498   | −1  | 522    | —       | the same                                                         |
+| core-icu                | 4,447  | 4,445 | +2  | 4,449  | 4,449   | +17 B text pass, −10 B golf (see below); 2 B headroom            |
+| core-icu-cdn            | 4,926  | 4,921 | +5  | 4,960  | 4,960   | the core above; 34 B headroom                                    |
+| core-icu-cdn-store      | 5,093  | 5,090 | +3  | 5,348  | —       | the same core                                                    |
+| core-icu-api            | 5,444  | 5,443 | +1  | 5,717  | —       | the same core                                                    |
+| core-icu-devtools       | 4,891  | 4,890 | +1  | 5,017  | 5,017   | the same core; `setup(i18n, mark)` (+444 over core-icu, cap 500) |
+| core-format             | 5,092  | 5,098 | −6  | 5,347  | —       | `clock(i18n, live)` replaces the `LIVE` set; `now` destructured  |
+| core-plugins            | 5,021  | 5,020 | +1  | 5,273  | —       | the same core                                                    |
+| react-icu-cdn           | 5,425  | 5,420 | +5  | 5,470  | 5,470   | +499 B over core-icu-cdn (cap 500)                               |
+| fw-react-default        | 4,909  | 4,912 | −3  | 5,155  | —       | the React binding                                                |
+| fw-react-full-composite | 7,954  | 7,938 | +16 | 8,352  | —       | + `useFormat` hydration-aware clock                              |
+| vue-icu-cdn             | 5,520  | 5,494 | +26 | 5,560  | 5,560   | +594 B over core-icu-cdn (cap 600)                               |
+| fw-vue-default          | 5,008  | 4,978 | +30 | 5,259  | —       | the Vue binding                                                  |
+| fw-vue-full-composite   | 7,793  | 7,707 | +86 | 8,183  | —       | + `useFormat` hydration-aware clock                              |
+
+Itemized (one change at a time on the row named; gzip is not additive):
+
+- **Vue slot `children` always text (the STOP above, resolved)**: the core renders a tag's
+  content a second time on demand, in a text mode where no handler runs, and hands it to every
+  handler as a second argument (`(children, text) => …`) — +17 B on `core-icu`, +20 B on
+  `core-icu-cdn`, which the Vue increment does not pay. Paid for in the core: loose equality
+  where both sides are always strings or numbers (scanner, ICU reader, locale helpers, the
+  compile cache; −9 B on `core-icu`) and a tag's parts as `[].concat(children || [])` (−6 B).
+  The Vue slot keeps only the strings of that text (a node param has none): +12 B increment.
+- **The binding seam**: `@comvi/core/internal` exports `core(i18n)` and both bindings read
+  `s`, `a`, `w`, `tr` off it instead of four wrapper functions (React −28 B, Vue −33 B
+  increment). The editor's marking setter left the seam for `Plugin.setup(i18n, mark)` (0 B),
+  so no `/internal` export can mark (the marking test pins the seam's members).
+- **React (+471 → +499 B, cap 500)**: the first-paint gate waits only while a flight's
+  namespace has no catalog at all (+3 B), never on a server or in a hydration (the provider's
+  server snapshot marks it, +4 B; a separate `useSyncExternalStore` was +38 B, a `typeof
+document` guard +11 B); the direct-`<I18nHandover>` exception and its `painted` registration
+  are gone (−8 B); an `undefined` `components` entry is skipped (+3 B); `{ component, props }`
+  entries (R3-24, +13 B; a component has no `props` of its own, so no `component` check);
+  the joiner tests `r.map` instead of `Array.isArray` (−3 B).
+- **Vue (+573 → +594 B, cap 600)**: slot text (+12 B, above); `{ component, props }` entries
+  (R3-24, +16 B; a component object's own `props` option is not read); an `undefined` entry
+  skipped (+3 B); server activation of an inline namespace, so `handover()` carries it, with
+  the server render told by its SSR context (`inject(ssrContextKey)`, +7 B; `typeof document`
+  was cheaper but wrong under a DOM, as in tests); `$t` assigned without a local (−4 B); the
+  outside-`setup()` guard and the `$t` idle-namespace warning are development-only (0 B).
+- Declined for bytes: none. The React element form (`components={ link: <a href /> }`)
+  is not in the lot: `{ component, props }` (R3-24) covers it, and `cloneElement` was +29 B.
