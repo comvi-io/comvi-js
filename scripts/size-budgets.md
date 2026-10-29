@@ -1135,3 +1135,57 @@ variable: +4 B; `messages` merged per locale under `catalogs` (`N(o.messages, ca
 the `if` (with neither option `default` is an empty record, which the ingest loop skips): +2 B
 in all. Tried and dropped: the setter keyed by the instance's `Core` record in the `CORE` map
 (no gain on `core-icu`, +2 B on `core-icu-cdn`).
+
+## 2026-10-29: lot 4c — namespace holds, `isReady`, `<T>` reads only (R3-26)
+
+The owner's brief `lot4c-brief-owner-2026-10-29.md` (R3-26): per-instance consumer counts and the
+active set, `isReady` / `isLoading` as core predicates, `useI18n(ns)` holding its namespace (React
+effect with cleanup; Vue mount/unmount and `KeepAlive`), `<T>` and `$t` read only, the React gate on
+`isReady` (the owner's review of e5a3788d, HIGH), a rejected switch reloading what its start
+aborted, the dev-only idle-read diagnostic (0 B in production: its strings are absent from the
+production dists, and the declared-read flag is the development-only seam `Core.d`). Measured on
+the finished implementation; one sweep after `TURBO_FORCE=true pnpm build`, `node --version`
+v24.22.1. Per the lot's rule (correctness first, no ceiling raised by the executor) **four rows
+fail and are left failing for the owner**:
+
+| row           | gzip B | was (4b) | Δ    | budget | ceiling | increment over core-icu-cdn |
+| ------------- | ------ | -------- | ---- | ------ | ------- | --------------------------- |
+| core-icu      | 4,507  | 4,445    | +62  | 4,449  | 4,449   | —                           |
+| core-icu-cdn  | 4,995  | 4,927    | +68  | 4,960  | 4,960   | —                           |
+| react-icu-cdn | 5,529  | 5,428    | +101 | 5,700  | 5,700   | +534, cap +527              |
+| vue-icu-cdn   | 5,669  | 5,520    | +149 | 5,560  | 5,560   | +674, cap +600              |
+
+Itemized (a relative probe from `src`, esbuild minify + gzip -9, one piece removed at a time;
+gzip is not additive): core — the `isReady` predicate and its seam +13…15 B, the reloading of a
+rejected switch +4…5 B, the rest (hold counts with the pin of `namespaces`, the active set as
+`Object.keys(counts)`, `load()` without a pin, the first-need publish, `handover()` over every
+needed namespace with failed pairs from the negative cache, the `isLoading` rule over the chain
+and the negative cache) ≈ +45 B; `view()` lost its invented loading entries (−, `/internal`).
+React — `isReady` +9 B, the hold's cleanup and `<T>` reading through the context instead of
+`useI18n()` ≈ +20 B, the gate on the core's `isReady` 0 B (gate sweep). Vue — `isReady` +10 B,
+`KeepAlive` (`onActivated`/`onDeactivated`) +22 B, the release machinery in all (the hold's
+release, `onUnmounted`, the two closures, `KeepAlive`) +43 B. Tried and dropped (no gain on the
+gate): the hold as one arrow expression, the `isLoading` rule as `!(a || b)`, the active set as
+`> 0`; a Vue `tr` with `core(i)` as a default parameter (+5 B).
+
+Rows that fit, re-baselined from the same sweep (budget = ceil(measured × 1.05), never above a
+ceiling):
+
+| row                     | gzip B | was   | budget | ceiling |
+| ----------------------- | ------ | ----- | ------ | ------- |
+| core-compile            | 1,862  | 1,861 | 1,956  | 2,000   |
+| core-locale             | 584    | 583   | 614    | —       |
+| core-icu-cdn-store      | 5,160  | 5,093 | 5,418  | —       |
+| core-icu-api            | 5,513  | 5,439 | 5,789  | —       |
+| core-icu-devtools       | 4,964  | 4,895 | 5,017  | 5,017   |
+| core-devtools           | 639    | 631   | 644    | 644     |
+| core-format             | 5,167  | 5,091 | 5,426  | —       |
+| core-plugins            | 5,089  | 5,020 | 5,344  | —       |
+| fw-react-default        | 5,014  | 4,912 | 5,265  | —       |
+| fw-react-full-composite | 8,008  | 7,956 | 8,409  | —       |
+| fw-vue-default          | 5,151  | 5,006 | 5,409  | —       |
+| fw-vue-full-composite   | 7,866  | 7,796 | 8,260  | —       |
+
+`fw-vue-default` (+145 B) and `fw-react-default` (+102 B) carry the core's and the binding's
+growth together (no loader in their graphs, so no `cdn()` to dilute it). `core-icu-devtools` is
++457 B over `core-icu` (cap +500).
