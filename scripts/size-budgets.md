@@ -901,3 +901,67 @@ core-icu-cdn`. One sweep after `TURBO_FORCE=true pnpm build`, Node v24.22.1:
 
 Baselines moved for the three rows named by the owner's decision (`core-icu-cdn`,
 `react-icu-cdn`, `vue-icu-cdn`); the others stay at their last re-baseline, all within budget.
+
+## 2026-10-29: lot 4b — DX contracts on core, React and Vue (R3-25)
+
+The owner (29.10.2026, R3-25) raised three ceilings for lot 4b: `core-icu-cdn` **4,910 →
+4,960 B**; `react-icu-cdn` **5,410 → 5,470 B** with the React increment over `core-icu-cdn`
+still capped at **+500 B**; `vue-icu-cdn` **5,410 → 5,560 B** with the Vue increment cap raised
+**+500 → +600 B** (`increment.maxBytes` of the row). No other ceiling moved: `core-icu` stays at
+4,449 B (R3-13), which held the core's share of the lot to +13 B. Budgets of the three rows =
+`ceil(measured × 1.05)` capped at the ceiling = the ceiling. One sweep after `TURBO_FORCE=true`
+builds of the finished graphs, `node --version` v24.22.1; "was" = `origin/next` @ 8881e561
+measured the same way at the start of the lot:
+
+| row                     | gzip B | was   | Δ    | budget | ceiling | why                                         |
+| ----------------------- | ------ | ----- | ---- | ------ | ------- | ------------------------------------------- |
+| core-icu-cdn            | 4,921  | 4,900 | +21  | 4,960  | 4,960   | the core below; 39 B headroom               |
+| react-icu-cdn           | 5,420  | 5,371 | +49  | 5,470  | 5,470   | +499 B over core-icu-cdn (cap 500)          |
+| vue-icu-cdn             | 5,489  | 5,390 | +99  | 5,560  | 5,560   | +568 B over core-icu-cdn (cap 600)          |
+| core-icu                | 4,445  | 4,432 | +13  | 4,449  | 4,449   | load()/setLocale() rules; 4 B headroom      |
+| core-locale             | 587    | 588   | −1   | 618    | —       | shared-chunk gzip noise                     |
+| core-icu-cdn-store      | 5,090  | 5,062 | +28  | 5,308  | —       | the same core                               |
+| core-icu-api            | 5,443  | 5,421 | +22  | 5,684  | —       | the same core                               |
+| core-icu-devtools       | 4,890  | 4,875 | +15  | 5,017  | 5,017   | the same core (+445 over core-icu, cap 500) |
+| core-format             | 5,092  | 5,034 | +58  | 5,222  | —       | `serverNow`/`live()` clock, relative opts   |
+| core-plugins            | 5,020  | 5,013 | +7   | 5,254  | —       | the same core                               |
+| fw-react-default        | 4,912  | 4,871 | +41  | 5,101  | —       | the React binding                           |
+| fw-react-full-composite | 7,932  | 7,805 | +127 | 8,135  | —       | + `useFormat` mount mark, relative opts     |
+| fw-vue-default          | 4,972  | 4,889 | +83  | 5,124  | —       | the Vue binding                             |
+| fw-vue-full-composite   | 7,680  | 7,516 | +164 | 7,881  | —       | + `useFormat` mount mark, relative opts     |
+
+Itemized (gzip deltas measured one change at a time on the row named; they do not add up
+exactly — gzip is not additive):
+
+- **core (`core-icu`, +13 B)**: `setLocale()` snapshots the active set (−5 B, the old re-check
+  over `act` was longer), loads late namespaces after the switch (`ensure(l, act)`), `load()`
+  rejects by the own-chain rule shared with `setLocale()` (`lost()`, +35…41 B in four tried
+  forms); paid for by the production `RangeError` of an invalid `setLocale()` tag carrying the
+  tag only (the message stays in development; `invalid_locale` is reported either way), −23 B.
+  Variants tried and dropped: the promise executor form of `setLocale` (+5 B, gzip), rest
+  arguments in `translate()` (0 B).
+- **React (increment +471 → +499 B)**: `useI18n()` activates `default` (−3 B), the first-paint
+  mark at commit (`useEffect`, +6 B), a direct `<I18nHandover>` child passes the gate (the
+  handover registers itself in the `painted` WeakSet, +6 B; a `type.h` marker was +9 B),
+  `<T components>` (+38 B; the element form `<a href />` via `cloneElement` was +29 B more and
+  is not in the lot). Golf to stay under +500 B, all without behaviour change: `N()` for the
+  bound-`<T>` table, `useContext` inlined in `useI18n`, the bound `<T>` cached for `default` too,
+  `loading: spinner = children` (−4 B), member order of the `useI18n()` object (−3 B).
+- **Vue (increment +490 → +568 B)**: `locale` as a `customRef` over the `computed` slice, so a
+  failed switch re-renders its readers (+26 B; the `i.on`-subscribed form was +32 B),
+  `useI18n()` activates `default` (−2 B), `onServerPrefetch` (+17 B), `undefined` attributes
+  leave the tag to the next source (+1 B), `<T components>` with the content as default slot
+  (+30 B). `inheritAttrs: false` on the bound `<T>`: not added — with no declared props every
+  attribute is a prop and none falls through (test `rich-4b.test.ts`), so the flag changes
+  nothing in Vue 3.5 (seen: removing it from the exported `<T>` too keeps the test green).
+- **Stopped (does not fit +600 B, owner decision needed)**: the Vue slot `children` ALWAYS as
+  the message's text (the brief's "slot gets a string built from the message before nested
+  handlers run"). Measured on the finished graph: +67 B (a per-render map from handler output
+  to the message text) and +85 B (a second render pass collecting every tag's text), i.e.
+  +635…653 B over `core-icu-cdn`, 35…53 B over the cap. Every other Vue item together is
+  +78 B; even with `components` AND server prefetch dropped, slot text (map form) measured
+  5,525 B = +604 B, still 4 B over. Shipped instead: text-only slot content
+  stays a string (the README case), a slot whose tag holds markup gets the parts, and
+  development warns once to use `components` (0 B in production). Also not in the lot, for
+  bytes: `{ component, props }` in Vue `components` (+17 B) — a component that sets the props,
+  or a handler attribute, covers it.

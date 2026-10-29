@@ -65,10 +65,16 @@ const { t, locale } = useI18n();
 
 `t()` fills `{name}` from its second argument; `{ ns }` and `{ locale }` there switch the
 namespace and the locale for one call. `$t` is the same `t()` in every template. `locale` is
-writable: setting it switches, and it keeps the old value until the new locale's catalogs are in.
-`useI18n("admin")` binds `t` and `T` to a namespace and loads it after the component mounts;
-`isLoading` tells you when one of its catalogs is on the way. A load that failed is not fetched
-again when a component mounts; `i18n.load("admin")` asks again.
+writable: setting it switches, and it keeps the old value until the new locale's catalogs are in;
+when you switch twice quickly the last switch wins. A failed switch keeps the old locale (the
+`<select>` shows it again), reported as `load_failed` through `onError`; `setLocale()` is the
+call that rejects, if you want to catch it. `useI18n("admin")` binds `t` and `T` to a namespace
+and loads it (`useI18n()` loads `default`): on a server before the component renders, in the
+browser after it mounts. While a catalog of it is on the way `isLoading` is `true` and `t()`
+returns what a missing key returns (the key, or your `missing()`), unreported: show your
+placeholder from `isLoading`. A load that failed ends that state (fallback text or the key) and
+is not fetched again when a component mounts; `i18n.load("admin")` asks again and rejects when
+it fails.
 
 ## Load from Comvi
 
@@ -81,39 +87,44 @@ import App from "./App.vue";
 const i18n = createI18n({ locale: "en", loader: cdn("https://cdn.comvi.io/<project-token>") });
 
 const app = createApp(App).use(i18n);
-// Mount once the first catalogs are in, so raw keys never paint.
+// Mount once the first catalogs are in.
 i18n.ready.then(() => app.mount("#app"));
 ```
 
 Later loads keep the app on screen (`isLoading`); a route can load its namespace before it
-renders: `beforeEnter: () => i18n.load("account")`.
+renders: `beforeEnter: () => i18n.load("account").catch(() => {})` (a rejected guard would
+cancel the navigation; the page renders the fallback text instead).
 
 ## Markup in a translation
 
 ```vue
 <script setup lang="ts">
 import { T } from "@comvi/vue";
+import TermsLink from "./TermsLink.vue"; // <a href="/terms"><slot /></a>
 </script>
 
 <template>
-  <!-- "terms": "Read the <link>terms</link>." -->
-  <T i18n-key="terms">
-    <template #link="{ children }">
-      <a href="/terms">{{ children }}</a>
-    </template>
-  </T>
+  <!-- "terms": "Read the <link>terms</link>, <b>in <i>full</i></b>." -->
+  <T i18n-key="terms" :components="{ link: TermsLink, b: 'strong', i: 'em' }" />
 </template>
 ```
 
-Each tag is a slot of the same name, or a handler attribute (`:link="(c) => h('a', c)"`, for a tag
-that holds markup itself); a tag without either renders as text. Every attribute but `i18n-key`
-and the per-call options `ns`, `locale` and `markers` is a message param, camelized
-(`:first-name` is `{firstName}`); `:markers="false"` keeps the editor from marking the message.
-`useI18n(ns).T` takes no `ns`; on it `class` and `style` also fall through to its root element.
+Each tag renders through, in this order, a handler attribute of its name
+(`:link="(c) => h('a', c)"`), its entry in `components` (an HTML tag name or a component; the
+content is its default slot, nested tags included), or a slot of its name
+(`<template #link="{ children }">{{ children }}</template>`: `children` is the tag's text when
+it holds text only; a tag that holds markup takes `components`, and development warns). An
+attribute that is `undefined` leaves the tag to the next; a tag with none of them renders as
+text. Every attribute but `i18n-key`, `components` and the per-call options `ns`, `locale` and
+`markers` is a message param, camelized (`:first-name` is `{firstName}`); `:markers="false"`
+keeps the editor from marking the message. `useI18n(ns).T` takes no `ns`. On neither `<T>` do
+`class` or `style` fall through (they are params): wrap `<T>` in your own element to style it.
 
 ## Server rendering
 
-An instance per request, created with the app; load what the route needs, then hand it over:
+An instance per request, created with the app. `useI18n(ns)` and `<T ns>` load their namespace
+before they render (`renderToString` waits for them), so the request only waits for the locale's
+first catalogs, then hands everything over:
 
 ```ts title="server.ts"
 import { createSSRApp } from "vue";
@@ -121,22 +132,24 @@ import { renderToString } from "vue/server-renderer";
 import { createI18n, handover } from "@comvi/vue";
 
 const i18n = createI18n({ ...options, locale, timeZone: "UTC" }); // timeZone: required
-await Promise.all([i18n.load("account"), i18n.ready]);
+await i18n.ready;
 const html = await renderToString(createSSRApp(App).use(i18n));
 const payload = JSON.stringify(handover(i18n)).replace(/</g, "\\u003c");
 // The page embeds it: <script>window.__I18N__ = ${payload}</script>
 ```
 
 In the browser, `createI18n({ ...options, ...window.__I18N__ })` starts with the server's locale,
-time zone, clock and catalogs: the app hydrates without a mismatch and fetches nothing the server
-rendered.
+time zone, clock (`serverNow`) and catalogs: the app hydrates without a mismatch and fetches
+nothing the server rendered. Relative time counts from the server's clock during the hydration
+and from the browser's after mount; nothing re-renders by itself as time passes.
 
 ### How it works
 
 `app.use(i18n)` provides the instance and `$t`. The binding keeps one `shallowRef` of the
-instance's state; `locale` and `dir` are `computed` slices of it, so a component that reads only
-the locale does not re-render when a namespace loads. `useFormat()` from `@comvi/vue/format`
-formats numbers, dates and currency in the locale on screen.
+instance's state; `locale` and `dir` are slices of it, so a component that reads only the locale
+does not re-render when a namespace loads. `useFormat()` from `@comvi/vue/format` formats
+numbers, dates, currency and relative time (`relative(date, { now?, numeric?, style? })`) in the
+locale on screen.
 
 ## Read next
 

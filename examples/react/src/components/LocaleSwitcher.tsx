@@ -16,7 +16,9 @@ export function LocaleSwitcher() {
               key={code}
               data-testid={`locale-${code}`}
               aria-pressed={locale === code}
-              onClick={() => void setLocale(code)}
+              // A failed switch keeps the locale on screen and is reported through
+              // onError; the promise rejects too, so the click handler catches it.
+              onClick={() => setLocale(code).catch(() => {})}
             >
               {code}
             </button>

@@ -11,6 +11,7 @@ import {
   formatList,
   formatNumber,
   formatRelativeTime,
+  type RelativeTimeOptions,
 } from "@comvi/core/format";
 import { live } from "@comvi/core/internal";
 import { useEffect, useMemo } from "react";
@@ -22,10 +23,11 @@ export interface Formatters {
   date(value: Date | number, options?: Intl.DateTimeFormatOptions | string): string;
   dateRange(start: Date | number, end: Date | number, options?: Intl.DateTimeFormatOptions): string;
   /**
-   * `value` relative to `now` (default: the instance's clock — the handed-over server clock
-   * during hydration, the browser's after mount; nothing re-renders as time moves on).
+   * `value` relative to `options.now` (default: the instance's clock — the handed-over
+   * server clock during hydration, the browser's after mount; nothing re-renders as time
+   * moves on).
    */
-  relative(value: Date | number, now?: number, options?: Intl.RelativeTimeFormatOptions): string;
+  relative(value: Date | number, options?: RelativeTimeOptions): string;
   list(items: readonly string[], options?: Intl.ListFormatOptions): string;
   displayName(code: string, type?: Intl.DisplayNamesOptions["type"]): string | undefined;
 }
@@ -45,7 +47,7 @@ export const useFormat = (): Formatters => {
       currency: (v, c, o) => formatCurrency(i, v, c, o, l),
       date: (v, o) => formatDate(i, v, o, l),
       dateRange: (a, b, o) => formatDateRange(i, a, b, o, l),
-      relative: (v, now, o) => formatRelativeTime(i, v, now, o, l),
+      relative: (v, o) => formatRelativeTime(i, v, o, l),
       list: (v, o) => formatList(i, v, o, l),
       displayName: (c, t) => displayName(i, c, t, l),
     }),

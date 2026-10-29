@@ -8,9 +8,9 @@
  * Each takes the instance and formats in its locale chain (canonical; the app may spell
  * the locale `pt_BR`), or in `locale` alone when passed. Dates use the instance `timeZone` unless
  * the options name one. `formatNumber` and `formatDate` also take the NAME of an entry of the
- * instance's `formats` option; `formatRelativeTime` counts from the instance's clock (its
- * `now` option, or on a server the request's one clock — see clock.ts — serialised by
- * `handover()`, so server and client agree) unless a `now` is passed.
+ * instance's `formats` option; `formatRelativeTime` counts from the instance's clock (see
+ * clock.ts; a server's is serialised by `handover()` as `serverNow`, so the hydration
+ * matches) unless its options pass a `now`.
  */
 import { clock } from "./clock";
 import { intl } from "./compile/fmt";
@@ -142,22 +142,31 @@ const UNITS: readonly [Intl.RelativeTimeFormatUnit, number][] = [
   ["second", 1000],
 ];
 
+/** Options of `formatRelativeTime`: Intl's, and the `now` to count from. */
+export interface RelativeTimeOptions extends Intl.RelativeTimeFormatOptions {
+  /** Epoch ms to count from. Default: the instance's clock (clock.ts). */
+  now?: number;
+}
+
 /**
  * `date` relative to `now` ("in 3 days", "yesterday"), in the largest unit that fits at
- * least once; `now` defaults to the instance's clock (clock.ts: its `now` option, on a
- * server the request's one clock, in a browser the running clock). `numeric`
- * defaults to `"auto"`.
+ * least once; `now` defaults to the instance's clock (clock.ts: its `now` option; the
+ * `serverNow` a server handed over, until the app mounts; on a server the request's one
+ * clock; in a browser the running clock). `numeric` defaults to `"auto"`. Nothing
+ * re-renders when time moves on: a later render counts from the clock again.
  */
 export const formatRelativeTime = (
   i18n: I18n,
   date: Date | number,
-  now?: number,
-  options?: Intl.RelativeTimeFormatOptions,
+  options?: RelativeTimeOptions,
   locale?: string,
 ): string => {
-  const ms = +date - (now ?? clock(i18n));
+  // `now` is not an Intl option: kept out of the formatter's cache key.
+  const { now = clock(i18n), ...rest } = options || {};
+  const ms = +date - now;
   const [unit, size] = UNITS.find((u) => Math.abs(ms) >= u[1]) || UNITS[6];
-  const o = options ? { numeric: AUTO.numeric, ...options } : AUTO;
+  // Only `now` (or nothing): the default formatter, kept on the chain.
+  const o = Object.keys(rest).length ? { numeric: AUTO.numeric, ...rest } : AUTO;
   return get<Intl.RelativeTimeFormat>(
     "RelativeTimeFormat",
     i18n,

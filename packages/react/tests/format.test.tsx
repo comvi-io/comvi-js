@@ -46,6 +46,39 @@ describe("useFormat()", () => {
     expect(f.list(["a", "b", "c"])).toBe("a, b und c");
     expect(f.displayName("en")).toBe("Englisch");
     expect(f.relative(Date.UTC(2026, 0, 9))).toBe("gestern");
+    // `now` and Intl's options in one object, like every other formatter (lot 4b).
+    expect(f.relative(Date.UTC(2026, 0, 3), { now: Date.UTC(2026, 0, 5), numeric: "always" })).toBe(
+      "vor 2 Tagen",
+    );
+  });
+
+  it("a handed-over serverNow holds for the hydration render, the browser clock after mount (lot 4b)", () => {
+    const real = Date.now;
+    Date.now = () => 1_000_000;
+    try {
+      // The server rendered at 940 000: "1 minute ago" for 880 000 then.
+      const i18n = createI18n({ locale: "en", timeZone: "UTC", serverNow: 940_000 });
+      const seen: string[] = [];
+      const Ago = () => {
+        const f = useFormat();
+        seen.push(f.relative(880_000));
+        return null;
+      };
+      const { rerender } = render(
+        <I18nProvider i18n={i18n}>
+          <Ago />
+        </I18nProvider>,
+      );
+      rerender(
+        <I18nProvider i18n={i18n}>
+          <Ago />
+        </I18nProvider>,
+      );
+      expect(seen[0]).toBe("1 minute ago"); // what the server rendered
+      expect(seen.at(-1)).toBe("2 minutes ago"); // after mount: the browser's clock
+    } finally {
+      Date.now = real;
+    }
   });
 
   it("re-renders with new formatters on a locale switch", async () => {

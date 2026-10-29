@@ -89,21 +89,21 @@ describe("formatters", () => {
   });
 });
 
-describe("formatRelativeTime(i18n, date, now?) — design §3.3", () => {
+describe("formatRelativeTime(i18n, date, { now }?) — design §3.3, lot 4b", () => {
   const DAY = 86_400_000;
 
   it("picks the largest unit that fits and counts from the explicit `now`", () => {
     const i18n = createI18n({ locale: "en" });
-    expect(formatRelativeTime(i18n, D - 3 * DAY, D)).toBe("3 days ago");
-    expect(formatRelativeTime(i18n, D + DAY, D)).toBe("tomorrow");
-    expect(formatRelativeTime(i18n, D - DAY, D)).toBe("yesterday");
-    expect(formatRelativeTime(i18n, D + 2 * 3_600_000, D)).toBe("in 2 hours");
-    expect(formatRelativeTime(i18n, D - 120_000, D)).toBe("2 minutes ago");
-    expect(formatRelativeTime(i18n, D + 14 * DAY, D)).toBe("in 2 weeks");
-    expect(formatRelativeTime(i18n, D - 400 * DAY, D)).toBe("last year");
-    expect(formatRelativeTime(i18n, new Date(D), D)).toBe("now");
-    expect(formatRelativeTime(i18n, D + 2 * DAY, D, { numeric: "always" })).toBe("in 2 days");
-    expect(formatRelativeTime(i18n, D + 2 * DAY, D, undefined, "de")).toBe("übermorgen");
+    expect(formatRelativeTime(i18n, D - 3 * DAY, { now: D })).toBe("3 days ago");
+    expect(formatRelativeTime(i18n, D + DAY, { now: D })).toBe("tomorrow");
+    expect(formatRelativeTime(i18n, D - DAY, { now: D })).toBe("yesterday");
+    expect(formatRelativeTime(i18n, D + 2 * 3_600_000, { now: D })).toBe("in 2 hours");
+    expect(formatRelativeTime(i18n, D - 120_000, { now: D })).toBe("2 minutes ago");
+    expect(formatRelativeTime(i18n, D + 14 * DAY, { now: D })).toBe("in 2 weeks");
+    expect(formatRelativeTime(i18n, D - 400 * DAY, { now: D })).toBe("last year");
+    expect(formatRelativeTime(i18n, new Date(D), { now: D })).toBe("now");
+    expect(formatRelativeTime(i18n, D + 2 * DAY, { now: D, numeric: "always" })).toBe("in 2 days");
+    expect(formatRelativeTime(i18n, D + 2 * DAY, { now: D }, "de")).toBe("übermorgen");
   });
 
   it("defaults `now` to the instance's `now` option (SSR: server and client agree)", () => {
@@ -111,6 +111,15 @@ describe("formatRelativeTime(i18n, date, now?) — design §3.3", () => {
     const client = createI18n({ locale: "en", now: D });
     expect(formatRelativeTime(server, D - 5 * DAY)).toBe("5 days ago");
     expect(formatRelativeTime(client, D - 5 * DAY)).toBe(formatRelativeTime(server, D - 5 * DAY));
+  });
+
+  it("`now` is not an Intl option: two `now`s share one formatter", () => {
+    const i18n = createI18n({ locale: "en" });
+    const spy = vi.spyOn(Intl, "RelativeTimeFormat");
+    formatRelativeTime(i18n, D - DAY, { now: D, style: "short" });
+    formatRelativeTime(i18n, D - DAY, { now: D + 1, style: "short" });
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
   });
 
   it("without a `now` anywhere it counts from the clock", () => {
@@ -143,12 +152,12 @@ describe("the formatter memo of a chain", () => {
     const i18n = createI18n({ locale: "en" });
     const DAY = 86_400_000;
     formatNumber(i18n, 1);
-    formatRelativeTime(i18n, D + DAY, D);
+    formatRelativeTime(i18n, D + DAY, { now: D });
     _resetIntlCache();
     const nf = vi.spyOn(Intl, "NumberFormat");
     const rtf = vi.spyOn(Intl, "RelativeTimeFormat");
     expect(formatNumber(i18n, 1234)).toBe("1,234");
-    expect(formatRelativeTime(i18n, D + DAY, D)).toBe("tomorrow");
+    expect(formatRelativeTime(i18n, D + DAY, { now: D })).toBe("tomorrow");
     expect([nf.mock.calls.length, rtf.mock.calls.length]).toEqual([0, 0]);
   });
 });
@@ -166,10 +175,10 @@ describe("cache variants of option objects", () => {
   it("relative time: explicit options never reuse the default `numeric: auto` formatter", () => {
     const i18n = createI18n({ locale: "en" });
     const DAY = 86_400_000;
-    expect(formatRelativeTime(i18n, D + DAY, D)).toBe("tomorrow");
-    expect(formatRelativeTime(i18n, D + DAY, D, { numeric: "always" })).toBe("in 1 day");
+    expect(formatRelativeTime(i18n, D + DAY, { now: D })).toBe("tomorrow");
+    expect(formatRelativeTime(i18n, D + DAY, { now: D, numeric: "always" })).toBe("in 1 day");
     // Options without `numeric` keep the `auto` default.
-    expect(formatRelativeTime(i18n, D + DAY, D, { style: "short" })).toBe("tomorrow");
+    expect(formatRelativeTime(i18n, D + DAY, { now: D, style: "short" })).toBe("tomorrow");
   });
 });
 
@@ -183,7 +192,7 @@ describe("an object that is not an instance", () => {
     expect(formatRelativeTime(fake, Date.now() - 3 * 86_400_000)).toBe(
       new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(-3, "day"),
     );
-    expect(formatRelativeTime(fake, D - 86_400_000, D)).toBe(
+    expect(formatRelativeTime(fake, D - 86_400_000, { now: D })).toBe(
       new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(-1, "day"),
     );
   });

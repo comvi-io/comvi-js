@@ -12,6 +12,7 @@ import {
   formatList,
   formatNumber,
   formatRelativeTime,
+  type RelativeTimeOptions,
 } from "@comvi/core/format";
 import { live } from "@comvi/core/internal";
 import { onMounted } from "vue";
@@ -23,10 +24,11 @@ export interface Formatters {
   date(value: Date | number, options?: Intl.DateTimeFormatOptions | string): string;
   dateRange(start: Date | number, end: Date | number, options?: Intl.DateTimeFormatOptions): string;
   /**
-   * `value` relative to `now` (default: the instance's clock — the handed-over server clock
-   * during hydration, the browser's after mount; nothing re-renders as time moves on).
+   * `value` relative to `options.now` (default: the instance's clock — the handed-over
+   * server clock during hydration, the browser's after mount; nothing re-renders as time
+   * moves on).
    */
-  relative(value: Date | number, now?: number, options?: Intl.RelativeTimeFormatOptions): string;
+  relative(value: Date | number, options?: RelativeTimeOptions): string;
   list(items: readonly string[], options?: Intl.ListFormatOptions): string;
   displayName(code: string, type?: Intl.DisplayNamesOptions["type"]): string | undefined;
 }
@@ -43,7 +45,7 @@ export const useFormat = (): Formatters => {
     currency: (v, c, o) => formatCurrency(i, v, c, o, locale.value),
     date: (v, o) => formatDate(i, v, o, locale.value),
     dateRange: (a, b, o) => formatDateRange(i, a, b, o, locale.value),
-    relative: (v, now, o) => formatRelativeTime(i, v, now, o, locale.value),
+    relative: (v, o) => formatRelativeTime(i, v, o, locale.value),
     list: (v, o) => formatList(i, v, o, locale.value),
     displayName: (c, t) => displayName(i, c, t, locale.value),
   };

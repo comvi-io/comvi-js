@@ -6,7 +6,7 @@
  * they are CALLED (a reactive read), so a template that formats re-renders on a switch —
  * and only on a switch; React's are bound to the render's locale instead.
  */
-import { defineComponent, h, nextTick } from "vue";
+import { defineComponent, h, nextTick, ref } from "vue";
 import { describe, expect, it } from "vitest";
 import { createI18n, type VueI18n } from "../src";
 import { useFormat, type Formatters } from "../src/format";
@@ -52,6 +52,32 @@ describe("useFormat()", () => {
     expect(f.list(["a", "b", "c"])).toBe("a, b und c");
     expect(f.displayName("en")).toBe("Englisch");
     expect(f.relative(Date.UTC(2026, 0, 9))).toBe("gestern");
+    // `now` and Intl's options in one object, like every other formatter (lot 4b).
+    expect(f.relative(Date.UTC(2026, 0, 3), { now: Date.UTC(2026, 0, 5), numeric: "always" })).toBe(
+      "vor 2 Tagen",
+    );
+  });
+
+  it("a handed-over serverNow holds for the hydration render, the browser clock after mount (lot 4b)", async () => {
+    const real = Date.now;
+    Date.now = () => 1_000_000;
+    try {
+      const i18n = createI18n({ locale: "en", timeZone: "UTC", serverNow: 940_000 });
+      const tick = ref(0);
+      const C = defineComponent({
+        setup() {
+          const f = useFormat();
+          return () => h("p", (tick.value, f.relative(880_000)));
+        },
+      });
+      const w = mountWith(i18n, C);
+      expect(w.text()).toBe("1 minute ago"); // the hydration render: the server's clock
+      tick.value++;
+      await nextTick();
+      expect(w.text()).toBe("2 minutes ago"); // mounted: the browser's clock
+    } finally {
+      Date.now = real;
+    }
   });
 
   it("a template's formatted output changes on a locale switch", async () => {
