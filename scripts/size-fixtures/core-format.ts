@@ -9,7 +9,7 @@ export const out = [
   format.formatCurrency(i18n, 1, "EUR"),
   format.formatDate(i18n, 0),
   format.formatDateRange(i18n, 0, 1),
-  format.formatRelativeTime(i18n, 0, 1),
+  format.formatRelativeTime(i18n, 0, { now: 1 }),
   format.formatList(i18n, ["a"]),
   format.displayName(i18n, "de"),
 ];

@@ -2,9 +2,9 @@
  * Server rendering (design §2.6, R3-18(3), R3-21; lot 4 gate "SSR smoke createSSRApp").
  * Ported by meaning from 0.7 ssr-locale-loader.test.ts and ssr-locale-failed-load.test.ts:
  * a server render shows the catalogs the request loaded before it rendered, never keys; a
- * failed load renders the keys and reports. As in React, a server render activates nothing
- * (no `onMounted`): the request loads its route's namespaces and awaits `ready`, as a router
- * guard or a route loader does. New in 0.8: an instance per request (the app factory makes
+ * failed load renders the keys and reports. Lot 4b: `useI18n(ns)` and `<T ns>` load their
+ * namespace on the server before the component renders (`onServerPrefetch`), so a route
+ * that forgot `i18n.load(ns)` still renders text and hands the catalog over. New in 0.8: an instance per request (the app factory makes
  * both), the handover payload, and the development guard against one instance installed
  * into two apps on a server. Runs with no DOM (environment node).
  */
@@ -76,14 +76,50 @@ describe("server render", () => {
     expect(requested.sort()).toEqual(["de:account", "de:default"]);
   });
 
-  it("activates nothing during the render: a namespace nobody loaded renders its keys, asked for nothing", async () => {
+  it("useI18n(ns) loads its namespace before it renders (lot 4b): text, and it is handed over", async () => {
     const requested: string[] = [];
     const i18n = createI18n({ locale: "en", loader: loader(requested), timeZone: "UTC" });
     await i18n.ready;
     const html = await renderToString(createSSRApp(App).use(i18n));
     expect(html).toContain("<p>Hello, Ann!</p>");
-    expect(html).toContain("<h2>title</h2>");
-    expect(requested).toEqual(["en:default"]);
+    expect(html).toContain("<h2>Account</h2>");
+    expect(requested).toEqual(["en:default", "en:account"]);
+    expect(handover(i18n).catalogs.account).toEqual({ en: CATALOGS["en:account"] });
+  });
+
+  it("<T ns> alone loads its namespace before it renders (lot 4b)", async () => {
+    const requested: string[] = [];
+    const i18n = createI18n({ locale: "de", loader: loader(requested), timeZone: "UTC" });
+    const Page = defineComponent({
+      setup: () => () => h(T as never, { i18nKey: "title", ns: "account" }),
+    });
+    const html = await renderToString(createSSRApp(Page).use(i18n));
+    expect(html).toBe("Konto");
+    expect(requested.sort()).toEqual(["de:account", "de:default"]);
+  });
+
+  it("a namespace whose server load fails renders the key, rejects nothing, and is handed over as null", async () => {
+    const errors: I18nError[] = [];
+    const i18n = createI18n({
+      locale: "fr",
+      loader: async (l, n) =>
+        n == "default" ? { hi: "Salut" } : Promise.reject(Error(`404 ${l}:${n}`)),
+      timeZone: "UTC",
+      onError: (e) => errors.push(e),
+    });
+    const Page = defineComponent({
+      setup() {
+        const { t } = useI18n("account");
+        return () => h("h2", t("title"));
+      },
+    });
+    const html = await renderToString(createSSRApp(Page).use(i18n));
+    expect(html).toBe("<h2>title</h2>");
+    expect(errors.map((e) => [e.code, e.ns])).toEqual([
+      ["load_failed", "account"],
+      ["missing_key", "account"],
+    ]);
+    expect(handover(i18n).catalogs.account).toEqual({ fr: null });
   });
 
   it("a failed load renders the keys and reports load_failed (0.7 ssr-locale-failed-load)", async () => {
@@ -136,7 +172,7 @@ describe("one request, one clock and one zone (design §2.6)", () => {
     const html = await renderToString(createSSRApp(Ago).use(server));
     vi.setSystemTime(START + 60_000);
     const payload = JSON.parse(JSON.stringify(handover(server)));
-    expect(payload.now).toBe(START);
+    expect(payload.serverNow).toBe(START);
     const client = createI18n({ messages: { en: {} }, ...payload });
     expect(await renderToString(createSSRApp(Ago).use(client))).toBe(html);
     expect(html).toBe("<p>30 seconds ago</p>");
@@ -144,7 +180,7 @@ describe("one request, one clock and one zone (design §2.6)", () => {
 
   it("an explicit `now` option is the request's clock", () => {
     const i18n = createI18n({ locale: "en", messages: { en: {} }, timeZone: "UTC", now: 7 });
-    expect(handover(i18n).now).toBe(7);
+    expect(handover(i18n).serverNow).toBe(7);
   });
 });
 
@@ -162,7 +198,8 @@ describe("handover() of a namespace served through the fallback chain", () => {
         return { faq: `${l}:${n}` };
       },
     });
-    await Promise.all([i18n.load("help"), i18n.ready]);
+    // de:help failed and nothing of de's own chain has it: load() rejects (lot 4b).
+    await Promise.all([i18n.load("help").catch(() => {}), i18n.ready]);
     expect(handover(i18n).catalogs.help).toEqual({ de: null, en: { faq: "en:help" } });
   });
 });
@@ -174,13 +211,13 @@ describe("handover() (R3-21)", () => {
     expect(JSON.parse(JSON.stringify(payload))).toEqual({
       locale: "de",
       timeZone: "UTC",
-      now: payload.now,
+      serverNow: payload.serverNow,
       catalogs: {
         default: { de: CATALOGS["de:default"] },
         account: { de: CATALOGS["de:account"] },
       },
     });
-    expect(typeof payload.now).toBe("number");
+    expect(typeof payload.serverNow).toBe("number");
   });
 
   it("hands over the fallback chain too, and only the active namespaces of the locale's chain", async () => {
@@ -196,10 +233,10 @@ describe("handover() (R3-21)", () => {
       },
     });
     await renderToString(createSSRApp(App).use(i18n));
-    const { catalogs, now } = handover(i18n);
-    expect(now).toBe(42);
-    // A server render activates nothing: App's `useI18n("account")` never made `account`
-    // active, so nothing of it is handed over (the request did not load it).
+    const { catalogs, serverNow } = handover(i18n);
+    expect(serverNow).toBe(42);
+    // App's `useI18n("account")` activated `account` on the server (lot 4b); with no loader
+    // nothing can load it, so nothing of it is handed over.
     expect(Object.keys(catalogs)).toEqual(["default"]);
     expect(Object.keys(catalogs.default).sort()).toEqual(["de", "de-AT", "en"]);
     expect(catalogs.unused).toBeUndefined();

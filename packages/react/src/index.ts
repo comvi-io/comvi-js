@@ -11,6 +11,7 @@ export type {
   BoundT,
   I18nProviderProps,
   ProviderCatalogs,
+  TagComponent,
   TComponent,
   UntypedParams,
   UseI18n,

@@ -24,13 +24,11 @@ components, and `<T>` for translations that contain markup.
 ## Install
 
 ```bash
-npm install @comvi/react
+npm install @comvi/react @comvi/core # the app imports @comvi/core/cdn too
 # Peer: react ^18.0.0 || ^19.0.0
 ```
 
 ## Setup
-
-In `src/main.tsx`:
 
 ```tsx title="src/main.tsx"
 import { createRoot } from "react-dom/client";
@@ -39,7 +37,6 @@ import App from "./App";
 
 const i18n = createI18n({
   locale: "en",
-  fallbackLocale: "en",
   messages: {
     en: { greeting: "Hello, {name}!" },
     uk: { greeting: "Привіт, {name}!" },
@@ -60,11 +57,10 @@ import { useI18n } from "@comvi/react";
 
 export default function App() {
   const { t, locale, setLocale } = useI18n();
-
   return (
     <>
       <h1>{t("greeting", { name: "Alice" })}</h1>
-      <select value={locale} onChange={(e) => setLocale(e.target.value)}>
+      <select value={locale} onChange={(e) => setLocale(e.target.value).catch(() => {})}>
         <option value="en">English</option>
         <option value="uk">Українська</option>
       </select>
@@ -73,61 +69,68 @@ export default function App() {
 }
 ```
 
-`t()` fills `{name}` from its second argument; `{ ns }` and `{ locale }` there switch the
-namespace and the locale for one call. `setLocale()` switches once the new locale's catalogs are
-in. `useI18n("admin")` binds `t` and `T` to a namespace and loads it after the component
-mounts; `isLoading` tells you when one of its catalogs is on the way, from the first render on. A load that failed is not
-fetched again when a component mounts; `i18n.load("admin")` asks again.
+`t()` fills `{name}` from its second argument (`{ ns }`, `{ locale }` there apply to one call);
+text params give a string, a tag handler or an element a React element. `setLocale()` switches
+once the new catalogs are in (the old locale stays on screen; of two quick calls the last wins);
+it rejects for an invalid tag or when no catalog of the locale or its parent (`de` for `de-AT`)
+loaded, and `onError` reports it. `useI18n("admin")` binds `t` and `T` to a namespace and loads
+it after mount (`useI18n()` loads `default`); meanwhile `isLoading` is `true` and `t()` returns
+what a missing key returns, unreported. A failed load is retried by `i18n.load("admin")` only.
 
 ## Load from Comvi
 
 ```tsx title="src/main.tsx"
+import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
 import { cdn } from "@comvi/core/cdn";
 import App from "./App";
 
+// 1. Data. A server-rendered page embeds `handover(i18n)` (`@comvi/core/internal`) as window.__I18N__
+//    (its catalogs win over inline `messages`) and calls hydrateRoot(root, …) instead of createRoot.
 const i18n = createI18n({
   locale: "en",
-  fallbackLocale: "en",
   loader: cdn("https://cdn.comvi.io/<project-token>"),
+  ...(window as { __I18N__?: object }).__I18N__,
 });
 
-// `loading` renders until the first catalogs are in, so raw keys never paint.
-<I18nProvider i18n={i18n} loading={<div className="spinner" />}>
-  <App />
-</I18nProvider>;
+// 2. Gate: `loading` shows while the first catalogs have no text. 3. Content.
+createRoot(document.getElementById("root")!).render(
+  <I18nProvider i18n={i18n} loading={<div className="spinner" />}>
+    <App />
+  </I18nProvider>,
+);
 ```
 
 With `suspense` instead of `loading`, the provider suspends to the nearest `<Suspense>`. Both
-cover the first paint only: a namespace loaded later keeps the app on screen (show
-`isLoading`), and a locale switch keeps the old locale until the new one is in.
+gate the first paint only, while a namespace being loaded has no catalog of any locale. The gate
+is decided before the children render, so an `<I18nHandover>` under a shut gate renders only
+when it opens: pass the data first, as above. Server renders and hydrations are never gated.
 
 ## Markup in a translation
 
 ```tsx
 import { T } from "@comvi/react";
 
-// "terms": "Read the <link>terms</link>."
-<T i18nKey="terms" link={(chunks) => <a href="/terms">{chunks}</a>} />;
+// "terms": "Read the <link>terms</link>, <b>in <i>full</i></b>."
+<T
+  i18nKey="terms"
+  link={(chunks) => <a href="/terms">{chunks}</a>}
+  components={{ b: "strong", i: "em" }}
+/>;
 ```
 
-Each tag a translator wrote is a prop of the same name; the handler gets the tag's content as one
-React node. A tag without a handler renders its content as text. Every prop but `i18nKey` and
-the per-call options `ns`, `locale` and `markers` is a message param, `children` included.
-`markers={false}` keeps the in-context editor from marking that message (`t()` takes
-`{ markers: false }`).
+A tag renders through a prop of its name (a handler gets the content as one node), else its
+`components` entry (a tag name, a component, or `{ component, props }` with the content as
+`children`), else as text; an `undefined` one is skipped. Every prop but `i18nKey`, `components`,
+`ns`, `locale` and `markers` is a param; `markers={false}` opts out of in-context editor marks.
 
 ### How it works
 
-`<I18nProvider>` subscribes to the instance once, through `useSyncExternalStore`, and re-renders
-every `useI18n()` consumer when the locale or a catalog changes. `useLocale()` reads the locale
-alone, so a namespace load does not re-render a component that only shows the locale.
-`<I18nHandover catalogs locale>` renders its subtree with catalogs a server sent and in the route's
-locale at once, and gives both to the instance only when the render commits: a render React
-abandons, suspends or runs on the server changes nothing. To hydrate, give the client the same
-props; a client provider with `loading` must start from the server's catalogs
-(`createI18n({ catalogs })`), or its spinner will not match the server HTML. `useFormat()` from
-`@comvi/react/format` formats numbers, dates and currency in the locale on screen.
+`<I18nProvider>` subscribes once (`useSyncExternalStore`) and re-renders `useI18n()` consumers on
+a locale or catalog change; `useLocale()` on the locale only. `<I18nHandover catalogs locale>`
+renders with a server's catalogs at once and hands them over at commit (any depth in a
+hydration). `useFormat()` from `@comvi/react/format` formats numbers, dates, currency and
+relative time in the locale on screen, from a handed-over `serverNow` during hydration.
 
 ## Read next
 

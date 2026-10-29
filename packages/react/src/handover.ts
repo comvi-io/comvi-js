@@ -46,6 +46,11 @@ export interface I18nHandoverProps {
 /**
  * Renders its subtree with `catalogs` and in `locale` before the instance has them, and
  * hands both to the instance at commit (inside an `<I18nProvider>`).
+ *
+ * Order: data → gate → content. The first paint's payload goes to `createI18n({ ...options,
+ * ...payload })`, before an `<I18nProvider loading | suspense>` decides its gate; the provider
+ * does not look for a handover inside the subtree it gates, which renders only when the gate
+ * opens on a client render. A hydration is never gated: there it works at any depth.
  */
 export const I18nHandover = ({
   catalogs,

@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createI18n } from "../../src";
 import { formatRelativeTime } from "../../src/format";
-import { activate, coming, handover, state } from "../../src/internal";
+import { activate, clock, coming, handover, state } from "../../src/internal";
 
 describe("handover()", () => {
   it("hands over the chain (parents, fallback locales) of the active namespaces only", async () => {
@@ -26,7 +26,7 @@ describe("handover()", () => {
     expect(handover(i18n)).toEqual({
       locale: "de-AT",
       timeZone: "Europe/Vienna",
-      now: 7,
+      serverNow: 7,
       catalogs: {
         default: { "de-AT": { a: "A" }, de: { b: "B" }, en: { c: "C" } },
         shop: { en: { s: "S" } },
@@ -101,7 +101,8 @@ describe("handover()", () => {
         return n == "account" ? { profile: "Profile" } : { hi: l == "uk" ? "Привіт" : "Hi" };
       },
     });
-    await server.load("account");
+    // uk:account failed (only the fallback locale has it): load() rejects (lot 4b).
+    await expect(server.load("account")).rejects.toThrow("404 uk:account");
     return JSON.parse(JSON.stringify(handover(server)));
   };
 
@@ -157,12 +158,12 @@ describe("handover()", () => {
       const i18n = createI18n({ locale: "en", timeZone: "UTC" });
       const rendered = formatRelativeTime(i18n, 1_000_000 - 30_000);
       vi.setSystemTime(1_000_000 + 60_000);
-      const { now } = handover(i18n);
-      expect(now).toBe(1_000_000);
-      const client = createI18n({ locale: "en", timeZone: "UTC", now });
+      const { serverNow } = handover(i18n);
+      expect(serverNow).toBe(1_000_000);
+      const client = createI18n({ locale: "en", timeZone: "UTC", serverNow });
       expect(formatRelativeTime(client, 1_000_000 - 30_000)).toBe(rendered);
       // Another instance (another request) reads the clock of its own.
-      expect(handover(createI18n({ locale: "en", timeZone: "UTC" })).now).toBe(1_060_000);
+      expect(handover(createI18n({ locale: "en", timeZone: "UTC" })).serverNow).toBe(1_060_000);
     } finally {
       vi.useRealTimers();
     }
@@ -185,12 +186,112 @@ describe("handover()", () => {
   it("the clock defaults to now when the instance has no `now` option", () => {
     vi.spyOn(Date, "now").mockReturnValue(123);
     const i18n = createI18n({ locale: "en", timeZone: "UTC" });
-    expect(handover(i18n).now).toBe(123);
+    expect(handover(i18n).serverNow).toBe(123);
+  });
+
+  it("in a browser a handed-over serverNow is the clock of a render that is not live; a live one runs (lot 4b)", () => {
+    vi.stubGlobal("document", {});
+    vi.useFakeTimers({ now: 100_000, toFake: ["Date"] });
+    try {
+      // The server rendered at 40 000; the browser hydrates at 100 000.
+      const client = createI18n({ locale: "en", timeZone: "UTC", serverNow: 40_000 });
+      expect(formatRelativeTime(client, 10_000)).toBe("30 seconds ago"); // the server's text
+      vi.setSystemTime(160_000);
+      expect(clock(client)).toBe(40_000); // a hydration render: the server's clock
+      // Every other render (a binding's useFormat() passes `live`): the browser's clock,
+      // for this instance's other components at the same time.
+      expect(clock(client, 1)).toBe(160_000);
+      expect(
+        formatRelativeTime(client, 10_000, { now: clock(client, 1) }), // 150 s from the browser clock
+      ).toBe("2 minutes ago");
+      expect(clock(client)).toBe(40_000); // nothing instance-wide moved
+      vi.setSystemTime(10_000 + 3_600_000);
+      expect(formatRelativeTime(client, 10_000, { now: clock(client, 1) })).toBe("1 hour ago");
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("an explicit `now` stays fixed after mount; `now` wins over serverNow (lot 4b)", () => {
+    vi.stubGlobal("document", {});
+    vi.useFakeTimers({ now: 100_000, toFake: ["Date"] });
+    try {
+      const fixed = createI18n({ locale: "en", now: 40_000, serverNow: 70_000 });
+      expect(formatRelativeTime(fixed, 10_000)).toBe("30 seconds ago");
+      vi.setSystemTime(1_000_000);
+      expect(clock(fixed, 1)).toBe(40_000); // a live render too
+      expect(formatRelativeTime(fixed, 10_000, { now: clock(fixed, 1) })).toBe("30 seconds ago");
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 
   it("throws without timeZone in development; the error names the option", () => {
     expect(() => handover(createI18n({ locale: "en" }))).toThrow(
       "[@comvi/core] a server render needs the timeZone option",
     );
+  });
+});
+
+describe("`messages` with `catalogs` (Codex re-check HIGH B): merged per locale, `catalogs` wins", () => {
+  it("different locales: both are in place; a seeded client asks the loader for neither", () => {
+    const loader = vi.fn(() => new Promise<never>(() => {}));
+    const i18n = createI18n({
+      locale: "uk",
+      fallbackLocale: "en",
+      loader,
+      messages: { en: { hi: "hi", only_en: "only en" } },
+      catalogs: { default: { uk: { hi: "Привіт" } } },
+    });
+    expect(i18n.t("hi")).toBe("Привіт");
+    expect(i18n.t("only_en")).toBe("only en");
+    expect(loader).not.toHaveBeenCalled();
+  });
+
+  it("the same locale: the `catalogs` slot wins over `messages` (the server's catalog)", () => {
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { hi: "inline", inline_only: "x" } },
+      catalogs: { default: { en: { hi: "server" } } },
+    });
+    expect(i18n.t("hi")).toBe("server");
+    // The slot is the server's catalog as a whole, not a key-by-key mix.
+    expect(i18n.t("inline_only")).toBe("inline_only");
+  });
+
+  it("a `null` slot (failed on the server) wins over `messages` of its locale: not asked again", () => {
+    const loader = vi.fn(() => new Promise<never>(() => {}));
+    const i18n = createI18n({
+      locale: "uk",
+      fallbackLocale: "en",
+      loader,
+      messages: { uk: { hi: "inline uk" }, en: { hi: "hi" } },
+      catalogs: { default: { uk: null } },
+    });
+    expect(i18n.t("hi")).toBe("hi");
+    expect(loader).not.toHaveBeenCalled();
+  });
+
+  it("handover() → messages + payload on the client: the server's text, zero requests", () => {
+    const server = createI18n({
+      locale: "uk",
+      fallbackLocale: "en",
+      timeZone: "UTC",
+      messages: { en: { hi: "hi" } },
+      catalogs: { default: { uk: { hi: "Привіт" } } },
+    });
+    const payload = JSON.parse(JSON.stringify(handover(server)));
+    const loader = vi.fn(() => new Promise<never>(() => {}));
+    const client = createI18n({
+      locale: "en",
+      fallbackLocale: "en",
+      loader,
+      messages: { en: { hi: "hi" } },
+      ...payload,
+    });
+    expect([server.t("hi"), client.t("hi")]).toEqual(["Привіт", "Привіт"]);
+    expect(loader).not.toHaveBeenCalled();
   });
 });

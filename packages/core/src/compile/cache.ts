@@ -31,8 +31,6 @@ export type Render = (params: Params | undefined, locale: string, env?: Env) => 
 export type Compiled = string | Render;
 export type CompiledRecord = Record<string, Compiled>;
 
-// A plain object is safe: parameters are read as own properties only (`arg`).
-const EMPTY: Params = Object.freeze({});
 /** Characters that can start syntax at the top level; a template without them is static. */
 const SYNTAX_START = /[{'<]/;
 
@@ -48,7 +46,7 @@ export const compile = (template: string, key?: string): Compiled => {
   try {
     parts = message(P, false, false, false);
   } catch (e) {
-    if (e !== SYNTAX) throw e;
+    if (e != SYNTAX) throw e;
     // Development: the parser's explanation. Production: only the messages that ship
     // (the useFormat() hint for `{x, number|date|time}`), otherwise `undefined`.
     const text = SYNTAX.m;
@@ -60,7 +58,8 @@ export const compile = (template: string, key?: string): Compiled => {
   }
   // Quoting was the only syntax: the unquoted text is static.
   if (parts.length < 2 && typeof parts[0] !== "function") return parts[0] || "";
-  const render: Render = (p, l, x) => run(parts, p || EMPTY, l, x, NaN);
+  // No params: `arg` reads none from `undefined`.
+  const render: Render = (p, l, x) => run(parts, p as Params, l, x, NaN);
   if (__DEV__ && P.w) {
     return (p, l, x) => {
       devWarn(
@@ -102,7 +101,7 @@ export const lookup = (
   key: string,
 ): Compiled | undefined => {
   const hit = record[key];
-  if (hit !== undefined) return hit;
+  if (hit != null) return hit;
   const template = arg(catalog, key);
   return typeof template === "string" ? (record[key] = compile(template, key)) : undefined;
 };

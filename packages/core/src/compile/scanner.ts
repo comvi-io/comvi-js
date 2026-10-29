@@ -46,6 +46,12 @@ export interface Env {
    * varargs); absent, the handler gets the parts array.
    */
   j?: (parts: unknown[]) => unknown;
+  /**
+   * Text mode: no tag handler runs, a tag's children render inline — the text of a tag's
+   * content that the core hands a handler declaring a second parameter (lot 4b: the text a
+   * Vue slot receives, built from the message before any nested handler runs).
+   */
+  t?: 1;
 }
 
 /**
@@ -132,7 +138,7 @@ export const token = (P: Scan): string => {
   skipSpace(P);
   const start = P.i;
   let c: string | undefined;
-  while ((c = P.s[P.i]) && c !== "," && c !== "}" && c !== "{" && !isSpace(c)) P.i++;
+  while ((c = P.s[P.i]) && c != "," && c != "}" && c != "{" && !isSpace(c)) P.i++;
   const t = P.s.slice(start, P.i);
   skipSpace(P);
   return t;
@@ -149,7 +155,8 @@ const own = Object.prototype.hasOwnProperty;
  * string can name any identifier (`{constructor}`, `<toString>`), and nothing inherited
  * from Object.prototype may become a value or a tag handler.
  */
-export const arg = (p: Params, name: string): unknown => (own.call(p, name) ? p[name] : undefined);
+export const arg = (p: Params | undefined, name: string): unknown =>
+  p && own.call(p, name) ? p[name] : undefined;
 
 /** A rendered value as a part result: text as is, anything else as a one-value frame. */
 const frame = (v: unknown): string | unknown[] => (typeof v === "string" ? v : [v]);
@@ -216,16 +223,16 @@ export const message = (
     buf = "";
   };
   while ((c = s[P.i])) {
-    if (c === "'") {
+    if (c == "'") {
       c = s[++P.i];
-      if (c === "'") {
+      if (c == "'") {
         buf += c;
         P.i++;
-      } else if (c === "{" || c === "}" || c === "<" || (hash && c === "#")) {
+      } else if (c == "{" || c == "}" || c == "<" || (hash && c == "#")) {
         // Quoted literal: up to the next lone apostrophe; `''` inside is one apostrophe.
         for (; (c = s[P.i]); P.i++) {
-          if (c === "'") {
-            if (s[P.i + 1] !== "'") {
+          if (c == "'") {
+            if (s[P.i + 1] != "'") {
               P.i++;
               break;
             }
@@ -234,16 +241,16 @@ export const message = (
           buf += c;
         }
       } else buf += "'";
-    } else if (c === "{") {
+    } else if (c == "{") {
       P.i++;
       const name = token(P);
       c = s[P.i];
-      if (!name || (c !== "}" && c !== ",")) {
+      if (!name || (c != "}" && c != ",")) {
         if (__DEV__) fail(!c ? "unclosed `{`" : `invalid argument \`{${name} ${c}\``);
         fail();
       }
       flush();
-      if (c === "}") {
+      if (c == "}") {
         P.i++;
         if (__DEV__ && P.o) P.o(0, name);
         parts.push((p, l, x) => {
@@ -258,20 +265,20 @@ export const message = (
         P.i++;
         parts.push(argument(P, name, under));
       }
-    } else if (c === "}") {
+    } else if (c == "}") {
       if (nested) break;
       buf += c;
       P.i++;
-    } else if (c === "#" && hash) {
+    } else if (c == "#" && hash) {
       flush();
       parts.push(hashPart);
       P.i++;
-    } else if (c === "<" && (m = ((TAG.lastIndex = P.i), TAG.exec(s)))) {
+    } else if (c == "<" && (m = ((TAG.lastIndex = P.i), TAG.exec(s)))) {
       const name = m[2];
       P.i += m[0].length;
       if (m[1]) {
         // A closing tag ends the children of the tag it names; nothing else may close.
-        if (m[3] || name !== tag) {
+        if (m[3] || name != tag) {
           if (__DEV__) fail(`\`</${name}>\` closes no open tag`);
           fail();
         }
@@ -282,12 +289,12 @@ export const message = (
       if (__DEV__ && P.o) P.o(4, name);
       parts.push(tagPart(P.k, name, m[3] ? [] : message(P, hash, under, nested, name)));
     } else {
-      if (__DEV__ && c === "#" && under) P.w = true;
+      if (__DEV__ && c == "#" && under) P.w = true;
       buf += c;
       P.i++;
     }
   }
-  if (tag !== undefined) {
+  if (tag != null) {
     // The loop ended without the closing tag: end of text or the `}` of a sub-message.
     if (__DEV__) fail(`\`<${tag}>\` is never closed`);
     fail();
@@ -299,21 +306,26 @@ export const message = (
 /** `#`: the count of the nearest plural, minus its offset, formatted for the locale. */
 const hashPart: PartFn = (_p, l, _x, h) => formatNumber(h, l);
 
-/** A rich-text tag: the parameter of the same name renders the children. */
+/**
+ * A rich-text tag: the parameter of the same name renders the children. A handler that
+ * declares a second parameter (a Vue slot's) gets their text there too (no handler run, see
+ * `Env.t`), rendered BEFORE the children — before any nested handler runs.
+ */
 const tagPart =
   (key: string | undefined, name: string, kids: readonly Part[]): PartFn =>
   (p, l, x, h) => {
-    const children = run(kids, p, l, x, h);
-    const handler = arg(p, name);
+    const handler = !x?.t && arg(p, name);
     if (typeof handler === "function") {
-      const c = typeof children === "string" ? (children ? [children] : []) : children;
-      return frame(handler(x?.j ? x.j(c) : c));
+      const t = handler.length > 1 && run(kids, p, l, { ...x, t: 1 }, h);
+      const c = ([] as unknown[]).concat(run(kids, p, l, x, h) || []);
+      return frame(handler(x?.j ? x.j(c) : c, t));
     }
-    if (__DEV__) {
+    // Text mode leaves every tag unhandled on purpose: nothing to warn about.
+    if (__DEV__ && !x?.t) {
       devWarn(
         "tag\0" + key + "\0" + name,
         `<${name}> in "${key}" has no handler; its children render as plain text`,
       );
     }
-    return children;
+    return run(kids, p, l, x, h);
   };

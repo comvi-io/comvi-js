@@ -89,8 +89,8 @@ describe("partial failure counts the target's own chain (R4-11)", () => {
   });
 });
 
-describe("a namespace activated while a switch is pending (no race)", () => {
-  it("loads it for the target before switching, and drops the old locale's load", async () => {
+describe("a namespace activated while a switch is pending (setLocale contract point 5)", () => {
+  it("does not hold the switch; it loads for the old locale, then for the target right after", async () => {
     const l = manualLoader({ "fr:default": { a: "A-fr" }, "fr:shop": { s: "S-fr" } });
     const { i18n } = make({ locale: "en", messages: { en: { a: "A-en" } }, loader: l.load });
     const sw = i18n.setLocale("fr");
@@ -98,15 +98,19 @@ describe("a namespace activated while a switch is pending (no race)", () => {
     const shop = i18n.load("shop");
     expect(l.requested).toEqual(["fr:default", "en:shop"]);
     await l.answer("fr:default");
-    expect(l.requested).toEqual(["fr:default", "en:shop", "fr:shop"]);
-    expect(i18n.locale).toBe("en"); // not before fr:shop settled
-    await l.answer("fr:shop");
     await sw;
+    // The switch waited for the namespaces active at the call only.
     expect(i18n.locale).toBe("fr");
-    expect(i18n.t("s", { ns: "shop" })).toBe("S-fr");
+    expect(i18n.t("a")).toBe("A-fr");
+    // The old locale's load is obsolete; the target's starts with the switch.
     expect(l.signals.get("en:shop")!.aborted).toBe(true);
-    expect(loading(state(i18n))).toBe(false);
+    expect(l.requested).toEqual(["fr:default", "en:shop", "fr:shop"]);
+    expect(loading(state(i18n), "shop")).toBe(true);
+    // load("shop") was for en: a switch aborted it, so it resolves.
     await expect(shop).resolves.toBeUndefined();
+    await l.answer("fr:shop");
+    expect(i18n.t("s", { ns: "shop" })).toBe("S-fr");
+    expect(loading(state(i18n))).toBe(false);
   });
 });
 
@@ -270,7 +274,7 @@ describe("missing_key waits for every load of the namespace", () => {
     // Activated and failed: missing from now on.
     const p = i18n.load("shop");
     await l.fail("en:shop");
-    await p;
+    await expect(p).rejects.toThrow("404 en:shop");
     expect(i18n.ns("shop")("title")).toBe("title");
     expect(errors.filter((e) => e.code === "missing_key")).toEqual([
       expect.objectContaining({ key: "title", ns: "shop" }),

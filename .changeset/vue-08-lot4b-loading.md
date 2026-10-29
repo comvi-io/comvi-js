@@ -1,0 +1,5 @@
+---
+"@comvi/vue": minor
+---
+
+`useI18n().locale` is a `Ref<string>` (was a `WritableComputedRef`): after a failed switch its readers re-render, so a `v-model` control shows the locale on screen again instead of the one it asked for. `useI18n(ns?)` and `<T ns?>` activate their namespace (`default` without one) in a server render before the component renders — `renderToString` waits for what is still coming (`onServerPrefetch`), and `handover()` carries it, an inline catalog too — so a route no longer has to call `i18n.load(ns)` before the render; in a browser they still activate after mount. Outside a component (`app.runWithContext()`, a store) `useI18n()` registers no lifecycle hook. `$t` activates nothing; development warns once when it reads a namespace nothing loads. `useFormat()` counts relative time from a handed-over `serverNow` only while a component hydrates (an async component hydrated later too) and from the browser clock in every other render, a component mounted after the hydration included.

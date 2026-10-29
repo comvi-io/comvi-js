@@ -41,6 +41,14 @@ const ShopT = useI18n("shop").T;
   <T i18n-key="greting" name="Ann" />
   <!-- @vue-expect-error missing param -->
   <T i18n-key="greeting" />
+  <!--
+    A misspelt attribute that leaves a required param out (`nmae="Ann"`, DX review item 14)
+    is gated by the types bench (vueTypo: vue-tsc's own error count), not here: vue-tsc hides
+    the unknown attribute's TS2353, and a hidden error still satisfies @vue-expect-error.
+  -->
+  <!-- Any other attribute is a param of no message: allowed (nothing falls through). -->
+  <T i18n-key="greeting" name="Ann" class="x" />
+  <T i18n-key="terms" :components="{ link: 'a' }" />
   <!-- @vue-expect-error a key of another namespace -->
   <T i18n-key="cart.title" :count="1" />
   <ShopT i18n-key="cart.title" :count="2" />

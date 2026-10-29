@@ -12,6 +12,7 @@ export type { Handover } from "@comvi/core/internal";
 export type {
   BoundT,
   Children,
+  TagComponent,
   TagSlotProps,
   TComponent,
   UntypedParams,

@@ -5,7 +5,8 @@
  * and an SSR bundle over the BUILT @comvi/vue and @comvi/core) served by a small Node server
  * that also plays the CDN, driven in Chromium:
  *
- *   gate "html"        plain-HTTP `/` already carries the uk text;
+ *   gate "html"        plain-HTTP `/` already carries the uk text, `shop` too (a standalone
+ *                      `<T ns>` loads its namespace during the server's render);
  *   gate "requests"    0 requests to /cdn from the browser up to hydration and network idle
  *                      (`legal`, which the server rendered through the fallback chain because
  *                      uk:legal is a 404, included);
@@ -124,13 +125,15 @@ const gate = async (id, f) => {
   }
 };
 
-const TEXTS = ["greeting", "only", "title", "legal", "terms", "locale"];
+const TEXTS = ["greeting", "only", "title", "legal", "terms", "cart", "locale"];
 const browser = await chromium.launch();
 try {
   const serverHtml = await (await fetch(`${origin}/`)).text();
-  await gate("html", () =>
-    assert.match(serverHtml, /data-testid="greeting">Привіт, Ann!</, "the server HTML is uk"),
-  );
+  await gate("html", () => {
+    assert.match(serverHtml, /data-testid="greeting">Привіт, Ann!</, "the server HTML is uk");
+    // `<T ns="shop">` loaded its namespace during the render: no route preloaded it.
+    assert.match(serverHtml, /data-testid="cart">(<!--\[-->)?Кошик/, "the server rendered shop");
+  });
 
   const tab = await browser.newPage();
   const cdnRequests = [];
@@ -191,7 +194,13 @@ try {
       await tab.getByTestId("locale").filter({ hasText: "de" }).waitFor();
       assert.deepEqual(
         [...cdnRequests].sort(),
-        ["/cdn/account/de.json", "/cdn/de.json", "/cdn/help/de.json", "/cdn/legal/de.json"],
+        [
+          "/cdn/account/de.json",
+          "/cdn/de.json",
+          "/cdn/help/de.json",
+          "/cdn/legal/de.json",
+          "/cdn/shop/de.json",
+        ],
         "a switch to de asks for de only: en came with the payload",
       );
       assert.equal(await tab.getByTestId("greeting").textContent(), "Hallo, Ann!");

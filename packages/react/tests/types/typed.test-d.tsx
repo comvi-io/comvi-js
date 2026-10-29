@@ -4,7 +4,16 @@
  * fire, and every other line must compile.
  */
 import type { ReactElement, ReactNode } from "react";
-import { createI18n, I18nProvider, T, useI18n, type Tag } from "./lib";
+import type { BoundTFor, TComponentFor } from "@comvi/core";
+import {
+  createI18n,
+  I18nProvider,
+  T,
+  useI18n,
+  type Tag,
+  type TagComponent,
+  type UseI18n,
+} from "./lib";
 
 declare module "@comvi/core" {
   interface Catalogs {
@@ -34,6 +43,15 @@ export const app: ReactElement = (
     <T i18nKey="greeting" />
     {/* @ts-expect-error a key of another namespace */}
     <T i18nKey="cart.title" count={1} />
+    {/* A tag param is optional when `components` is passed: it may render the tag (lot 4b). */}
+    <T i18nKey="terms" components={{ link: "a" }} />
+    {/* @ts-expect-error without `components` a tag still needs its handler */}
+    <T i18nKey="terms" />
+    <T i18nKey="terms" components={{ link: { component: "a", props: { href: "/terms" } } }} />
+    {/* @ts-expect-error a component entry is not a number */}
+    <T i18nKey="terms" components={{ link: 1 }} />
+    {/* @ts-expect-error a handler prop still has its type */}
+    <T i18nKey="terms" link={(c: number) => c} />
   </I18nProvider>
 );
 
@@ -72,9 +90,26 @@ export function Component() {
   const bt3: ReactNode = <ShopT i18nKey="cart.title" />;
   // @ts-expect-error a typo on the bound <T> (the key errs; its params stay loose, R3-2)
   const bt4: ReactNode = <ShopT i18nKey="cart.titel" count={1} />;
+  // The bound default <T>: a tag needs its handler unless `components` is passed.
+  const DefT = useI18n().T;
+  const bt5: ReactNode = <DefT i18nKey="terms" components={{ link: "a" }} />;
+  const bt6: ReactNode = <DefT i18nKey="terms" link={(x) => <a>{x}</a>} />;
+  // @ts-expect-error a missing tag handler on the bound <T>, no components
+  const bt7: ReactNode = <DefT i18nKey="terms" />;
   const l: string = locale;
   const d: "ltr" | "rtl" = dir;
   const b: boolean = isLoading;
   const p: Promise<void> = setLocale("de");
-  return [s, r, n, c, e1, bt, bt2, bt3, bt4, l, d, b, p];
+  return [s, r, n, c, e1, bt, bt2, bt3, bt4, bt5, bt6, bt7, l, d, b, p];
 }
+
+/**
+ * The binding's `<T>` types ARE the core's guarded ones with the `components` prop (lot 4b):
+ * the types bench (scripts/types-bench/gen.mjs JSX_LIB) measures exactly these, so a binding
+ * type that drifts from the measured one fails here.
+ */
+type Equal<A, B> =
+  (<X>() => X extends A ? 1 : 2) extends <X>() => X extends B ? 1 : 2 ? true : false;
+type C = Readonly<Record<string, TagComponent>>;
+export const sameT: Equal<typeof T, TComponentFor<ReactNode, 2, C>> = true;
+export const sameBound: Equal<UseI18n<"shop">["T"], BoundTFor<"shop", ReactNode, 2, C>> = true;

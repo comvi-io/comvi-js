@@ -7,10 +7,18 @@
  * mismatch and requests for every catalog. The built-app, real-browser gate of R3-21 is
  * `pnpm --filter @comvi/vue test:e2e` (e2e/run.mjs).
  */
-import { createSSRApp, defineComponent, h, nextTick, ref, type App as VueApp } from "vue";
+import {
+  createSSRApp,
+  defineComponent,
+  h,
+  nextTick,
+  ref,
+  type App as VueApp,
+  type Component,
+} from "vue";
 import { renderToString } from "vue/server-renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createI18n, handover, useI18n, type Catalog, type Handover } from "../src";
+import { createI18n, handover, T, useI18n, type Catalog, type Handover } from "../src";
 import { settle, vueWarnings } from "./helpers";
 
 const CATALOGS: Record<string, Catalog> = {
@@ -54,8 +62,9 @@ const OPTIONS = { fallbackLocale: "en", timeZone: "UTC" };
 /** The server's response: the HTML and the payload the page embeds. */
 const serve = async (locale: string, load = loader()) => {
   const i18n = createI18n({ ...OPTIONS, locale, loader: load });
-  // The route's namespace and the locale's catalogs, loaded before the render.
-  await Promise.all([i18n.load("account"), i18n.ready]);
+  // The locale's catalogs; `useI18n("account")` loads its namespace before it renders
+  // (lot 4b: onServerPrefetch), so the route needs no `i18n.load("account")`.
+  await i18n.ready;
   const html = await renderToString(createSSRApp(App).use(i18n));
   const payload = JSON.parse(JSON.stringify(handover(i18n))) as Handover;
   i18n.destroy();
@@ -97,6 +106,26 @@ describe("hydration from handover()", () => {
     expect(el.textContent).toBe("Привіт, Ann!Only EnglishПрофіль");
   });
 
+  it("inline `messages` with the payload (Codex re-check HIGH B): the payload's slots win, 0 requests, no mismatch", async () => {
+    // The app ships en inline (`messages`) and spreads the server's payload over its options:
+    // the inline en must not replace the handed-over uk of the same namespace.
+    const INLINE = { en: CATALOGS["en:default"] };
+    const load0 = loader();
+    const server = createI18n({ ...OPTIONS, locale: "uk", messages: INLINE, loader: load0 });
+    await server.ready;
+    const html = await renderToString(createSSRApp(App).use(server));
+    const payload = JSON.parse(JSON.stringify(handover(server))) as Handover;
+    server.destroy();
+    expect(html).toContain("Привіт, Ann!");
+    const load = loader();
+    // The app's own options (its locale is en), then the payload over them.
+    const app = { ...OPTIONS, locale: "en", messages: INLINE };
+    const { el, warnings } = await hydrate(html, { ...app, ...payload, loader: load });
+    expect(warnings).toEqual([]);
+    expect(load).not.toHaveBeenCalled();
+    expect(el.innerHTML).toBe(html);
+  });
+
   it("asks only for what the server did not send: a later view's namespace, another locale", async () => {
     const { html, payload } = await serve("uk");
     const load = loader();
@@ -126,6 +155,42 @@ describe("hydration from handover()", () => {
     expect(load).not.toHaveBeenCalled();
     expect(el.innerHTML).toBe(html);
   });
+
+  it.each(["useI18n", "<T ns>"])(
+    "a namespace whose catalog was inline on the server (%s) is handed over: 0 requests, no mismatch",
+    async (api) => {
+      // Nobody preloads `shop`: its catalog is inline; only the server's render activates it.
+      const Shop = defineComponent({
+        setup() {
+          if (api == "useI18n") {
+            const { t } = useI18n("shop");
+            return () => h("p", t("cart"));
+          }
+          return () => h(T as Component, { i18nKey: "cart", ns: "shop" });
+        },
+      });
+      const inline = { shop: { uk: { cart: "Кошик" }, en: { cart: "Cart" } } };
+      const server = createI18n({ ...OPTIONS, locale: "uk", catalogs: inline, loader: loader() });
+      await server.ready;
+      const html = await renderToString(createSSRApp(Shop).use(server));
+      expect(html).toContain("Кошик");
+      const payload = JSON.parse(JSON.stringify(handover(server))) as Handover;
+      expect(Object.keys(payload.catalogs)).toContain("shop");
+      const el = document.createElement("div");
+      el.innerHTML = html;
+      const load = loader();
+      const client = createI18n({ ...OPTIONS, ...payload, loader: load });
+      const app = createSSRApp(Shop).use(client);
+      mounted.push([app, client]);
+      const warnings = await vueWarnings(async () => {
+        app.mount(el);
+        await settle();
+      });
+      expect(warnings).toEqual([]);
+      expect(el.innerHTML).toBe(html);
+      expect(load).not.toHaveBeenCalled();
+    },
+  );
 
   it("control: without the payload the client mismatches the server and refetches every catalog", async () => {
     const { html } = await serve("uk");

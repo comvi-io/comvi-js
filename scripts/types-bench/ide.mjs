@@ -176,12 +176,12 @@ const REDS = {
     gates: ["workcap"],
     types: [
       [
-        "export type TComponentFor<Out, S = 0> = <\n  K extends KeysOf[N] | NotAKey,\n  N extends NsOf",
-        "export type TComponentFor<Out, S = 0> = <\n  K extends KeysOf[N],\n  N extends NsOf",
+        "export type TComponentFor<Out, S = 0, C = never> = <\n  K extends KeysOf[N] | NotAKey,\n  N extends NsOf",
+        "export type TComponentFor<Out, S = 0, C = never> = <\n  K extends KeysOf[N],\n  N extends NsOf",
       ],
       [
-        "export type BoundTFor<NS extends NsOf, Out, S = 0> = <K extends KeysOf[NS] | NotAKey>(",
-        "export type BoundTFor<NS extends NsOf, Out, S = 0> = <K extends KeysOf[NS]>(",
+        "export type BoundTFor<NS extends NsOf, Out, S = 0, C = never> = <K extends KeysOf[NS] | NotAKey>(",
+        "export type BoundTFor<NS extends NsOf, Out, S = 0, C = never> = <K extends KeysOf[NS]>(",
       ],
     ],
   },

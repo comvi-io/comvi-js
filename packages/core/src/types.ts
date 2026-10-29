@@ -132,24 +132,48 @@ type PropsOf<P, S> = [P] extends [never]
         };
 
 /**
- * A binding's typed `<T i18nKey ns? locale? markers? {...params}>`, rendering `Out`. The key
+ * The `components` prop and the params of a `<T>`: `S = 1` makes the `Tag` params optional
+ * always (Vue: a slot of the tag's name may render it) and takes any other attribute — so
+ * vue-tsc, which hides an unknown attribute's error, still reports a required param that a
+ * misspelt attribute left out (`nmae="x"` for `{name}`, DX review item 14); `S = 2` makes
+ * them optional only when `components` is passed (React: without it nothing but a handler
+ * prop renders a tag, so a missing handler stays a type error); `S = 0` never.
+ */
+type ComponentProps<P, S, C> = [S] extends [2]
+  ? ({ components: C } & PropsOf<P, 1>) | ({ components?: undefined } & PropsOf<P, 0>)
+  : [S] extends [1]
+    ? { components?: C } & PropsOf<P, S> & Record<string, unknown>
+    : { components?: C } & PropsOf<P, S>;
+
+/**
+ * A binding's typed `<T i18nKey ns? locale? markers? components? {...params}>`, rendering
+ * `Out`; `C` is the type of its `components` prop (`never`: none), `S` the optionality of
+ * the tag params ({@link ComponentProps}). The key
  * carries the same typo guard as `t()` (R3-2): without `NotAKey` in K's constraint, a JSX
  * element infers K as the whole key union while it types the attributes, and the props
  * intersect every key's params — minutes of tsc on a 5k catalog, for a typo AND for a valid
  * key (review of lot 3, BLOCK 1). Gated by `check:types-bench` and `check:types-ide` (JSX).
  */
-export type TComponentFor<Out, S = 0> = <
+export type TComponentFor<Out, S = 0, C = never> = <
   K extends KeysOf[N] | NotAKey,
   N extends NsOf = "default" & NsOf,
 >(
-  props: { i18nKey: K; ns?: N; locale?: string; markers?: boolean } & PropsOf<ParamsFor<N, K>, S>,
+  props: { i18nKey: K; ns?: N; locale?: string; markers?: boolean } & ComponentProps<
+    ParamsFor<N, K>,
+    S,
+    C
+  >,
 ) => Out;
 
-/** `<T>` bound to namespace NS (`useI18n(ns).T`): no `ns` prop, the same typo guard. */
-export type BoundTFor<NS extends NsOf, Out, S = 0> = <K extends KeysOf[NS] | NotAKey>(
-  props: { i18nKey: K; ns?: never; locale?: string; markers?: boolean } & PropsOf<
+/**
+ * `<T>` bound to namespace NS (`useI18n(ns).T`): no `ns` prop, the same typo guard. `S` and
+ * `C` as in {@link TComponentFor}.
+ */
+export type BoundTFor<NS extends NsOf, Out, S = 0, C = never> = <K extends KeysOf[NS] | NotAKey>(
+  props: { i18nKey: K; ns?: never; locale?: string; markers?: boolean } & ComponentProps<
     ParamsFor<NS, K>,
-    S
+    S,
+    C
   >,
 ) => Out;
 
@@ -160,11 +184,12 @@ type Printed = string | number | bigint | boolean | Date | null | undefined;
  * `t()` of a project with no generated catalogs: any key, any params. With params that
  * are all printed as text it returns a string; a param that is an object or a function
  * (a tag handler, a framework node) can come back as is, inside rich parts — so that
- * call is typed `string | Rich` (review A6).
+ * call is typed `string | Rich` (review A6). `P` is the params type of that call: a
+ * binding passes its own, so an inline tag handler gets its argument type (lot 4b).
  */
-export interface UntypedT<Rich = RichParts> {
+export interface UntypedT<Rich = RichParts, P = Readonly<Record<string, unknown>>> {
   (key: string, params?: Readonly<Record<string, Printed | readonly Printed[]>>): string;
-  (key: string, params: Readonly<Record<string, unknown>>): string | Rich;
+  (key: string, params?: P): string | Rich;
 }
 
 /** The `t()` a binding hands out for namespace NS: typed when catalogs are declared. */

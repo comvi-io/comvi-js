@@ -901,3 +901,237 @@ core-icu-cdn`. One sweep after `TURBO_FORCE=true pnpm build`, Node v24.22.1:
 
 Baselines moved for the three rows named by the owner's decision (`core-icu-cdn`,
 `react-icu-cdn`, `vue-icu-cdn`); the others stay at their last re-baseline, all within budget.
+
+## 2026-10-29: lot 4b — DX contracts on core, React and Vue (R3-25)
+
+The owner (29.10.2026, R3-25) raised three ceilings for lot 4b: `core-icu-cdn` **4,910 →
+4,960 B**; `react-icu-cdn` **5,410 → 5,470 B** with the React increment over `core-icu-cdn`
+still capped at **+500 B**; `vue-icu-cdn` **5,410 → 5,560 B** with the Vue increment cap raised
+**+500 → +600 B** (`increment.maxBytes` of the row). No other ceiling moved: `core-icu` stays at
+4,449 B (R3-13), which held the core's share of the lot to +13 B. Budgets of the three rows =
+`ceil(measured × 1.05)` capped at the ceiling = the ceiling. One sweep after `TURBO_FORCE=true`
+builds of the finished graphs, `node --version` v24.22.1; "was" = `origin/next` @ 8881e561
+measured the same way at the start of the lot:
+
+| row                     | gzip B | was   | Δ    | budget | ceiling | why                                         |
+| ----------------------- | ------ | ----- | ---- | ------ | ------- | ------------------------------------------- |
+| core-icu-cdn            | 4,921  | 4,900 | +21  | 4,960  | 4,960   | the core below; 39 B headroom               |
+| react-icu-cdn           | 5,420  | 5,371 | +49  | 5,470  | 5,470   | +499 B over core-icu-cdn (cap 500)          |
+| vue-icu-cdn             | 5,494  | 5,390 | +104 | 5,560  | 5,560   | +573 B over core-icu-cdn (cap 600)          |
+| core-icu                | 4,445  | 4,432 | +13  | 4,449  | 4,449   | load()/setLocale() rules; 4 B headroom      |
+| core-locale             | 587    | 588   | −1   | 617    | —       | shared-chunk gzip noise                     |
+| core-icu-cdn-store      | 5,090  | 5,062 | +28  | 5,345  | —       | the same core                               |
+| core-icu-api            | 5,443  | 5,421 | +22  | 5,716  | —       | the same core                               |
+| core-icu-devtools       | 4,890  | 4,875 | +15  | 5,017  | 5,017   | the same core (+445 over core-icu, cap 500) |
+| core-format             | 5,098  | 5,034 | +64  | 5,353  | —       | `serverNow`/`live()` clock, relative opts   |
+| core-plugins            | 5,020  | 5,013 | +7   | 5,271  | —       | the same core                               |
+| fw-react-default        | 4,912  | 4,871 | +41  | 5,158  | —       | the React binding                           |
+| fw-react-full-composite | 7,938  | 7,805 | +133 | 8,335  | —       | + `useFormat` mount mark, relative opts     |
+| fw-vue-default          | 4,978  | 4,889 | +89  | 5,227  | —       | the Vue binding                             |
+| fw-vue-full-composite   | 7,707  | 7,516 | +191 | 8,093  | —       | + `useFormat` mount mark, relative opts     |
+
+The other rows' baselines moved with the core and the bindings; their budgets follow the rule
+`ceil(baseline × 1.05)` (no ceiling on them), as `scripts/docs-snippets/run.test.mjs` checks.
+
+Itemized (gzip deltas measured one change at a time on the row named; they do not add up
+exactly — gzip is not additive):
+
+- **core (`core-icu`, +13 B)**: `setLocale()` snapshots the active set (−5 B, the old re-check
+  over `act` was longer), loads late namespaces after the switch (`ensure(l, act)`), `load()`
+  rejects by the own-chain rule shared with `setLocale()` (`lost()`, +35…41 B in four tried
+  forms); paid for by the production `RangeError` of an invalid `setLocale()` tag carrying the
+  tag only (the message stays in development; `invalid_locale` is reported either way), −23 B.
+  Variants tried and dropped: the promise executor form of `setLocale` (+5 B, gzip), rest
+  arguments in `translate()` (0 B).
+- **React (increment +471 → +499 B)**: `useI18n()` activates `default` (−3 B), the first-paint
+  mark at commit (`useEffect`, +6 B), a direct `<I18nHandover>` child passes the gate (the
+  handover registers itself in the `painted` WeakSet, +6 B; a `type.h` marker was +9 B),
+  `<T components>` (+38 B; the element form `<a href />` via `cloneElement` was +29 B more and
+  is not in the lot). Golf to stay under +500 B, all without behaviour change: `N()` for the
+  bound-`<T>` table, `useContext` inlined in `useI18n`, the bound `<T>` cached for `default` too,
+  `loading: spinner = children` (−4 B), member order of the `useI18n()` object (−3 B).
+- **Vue (increment +490 → +573 B)**: `locale` as a `customRef` over the `computed` slice, so a
+  failed switch re-renders its readers (+26 B; the `i.on`-subscribed form was +32 B),
+  `useI18n()` activates `default` (−2 B), `onServerPrefetch` (+17 B), `undefined` attributes
+  leave the tag to the next source (+1 B), `<T components>` with the content as default slot
+  (+30 B), `onServerPrefetch` registered only while the namespace is still coming (+5 B: the
+  hook made every component render async in `renderToString`, +8…17 % in `perf-vue.mjs`). `inheritAttrs: false` on the bound `<T>`: not added — with no declared props every
+  attribute is a prop and none falls through (test `rich-4b.test.ts`), so the flag changes
+  nothing in Vue 3.5 (seen: removing it from the exported `<T>` too keeps the test green).
+- **Stopped (does not fit +600 B, owner decision needed)**: the Vue slot `children` ALWAYS as
+  the message's text (the brief's "slot gets a string built from the message before nested
+  handlers run"). Measured on the finished graph: +67 B (a per-render map from handler output
+  to the message text) and +85 B (a second render pass collecting every tag's text), i.e.
+  +640…658 B over `core-icu-cdn`, 40…58 B over the cap. Every other Vue item together is
+  +83 B; even with `components` AND server prefetch dropped, slot text (map form) measured
+  5,525 B = +604 B, still 4 B over. Shipped instead: text-only slot content
+  stays a string (the README case), a slot whose tag holds markup gets the parts, and
+  development warns once to use `components` (0 B in production). Also not in the lot, for
+  bytes: `{ component, props }` in Vue `components` (+17 B) — a component that sets the props,
+  or a handler attribute, covers it.
+
+## 2026-10-29: lot 4b fix pass (Fable review, Codex review, gate report on 6adc82c4)
+
+Within the R3-25 ceilings; no ceiling or increment cap moved. One sweep after `TURBO_FORCE=true`
+builds of the finished graphs, `node --version` v24.22.1; "was" = 6adc82c4 (the rows of the
+section above). Budgets = `ceil(measured × 1.05)`, capped at the ceiling where the row has one.
+
+| row                     | gzip B | was   | Δ   | budget | ceiling | why                                                              |
+| ----------------------- | ------ | ----- | --- | ------ | ------- | ---------------------------------------------------------------- |
+| core-compile            | 1,865  | 1,857 | +8  | 1,959  | 2,000   | the text pass of a tag (handler 2nd argument), loose equality    |
+| core-locale             | 584    | 587   | −3  | 614    | —       | loose equality in `locale.ts`                                    |
+| core-negotiate          | 497    | 498   | −1  | 522    | —       | the same                                                         |
+| core-icu                | 4,447  | 4,445 | +2  | 4,449  | 4,449   | +17 B text pass, −10 B golf (see below); 2 B headroom            |
+| core-icu-cdn            | 4,926  | 4,921 | +5  | 4,960  | 4,960   | the core above; 34 B headroom                                    |
+| core-icu-cdn-store      | 5,093  | 5,090 | +3  | 5,348  | —       | the same core                                                    |
+| core-icu-api            | 5,444  | 5,443 | +1  | 5,717  | —       | the same core                                                    |
+| core-icu-devtools       | 4,891  | 4,890 | +1  | 5,017  | 5,017   | the same core; `setup(i18n, mark)` (+444 over core-icu, cap 500) |
+| core-format             | 5,092  | 5,098 | −6  | 5,347  | —       | `clock(i18n, live)` replaces the `LIVE` set; `now` destructured  |
+| core-plugins            | 5,021  | 5,020 | +1  | 5,273  | —       | the same core                                                    |
+| react-icu-cdn           | 5,425  | 5,420 | +5  | 5,470  | 5,470   | +499 B over core-icu-cdn (cap 500)                               |
+| fw-react-default        | 4,909  | 4,912 | −3  | 5,155  | —       | the React binding                                                |
+| fw-react-full-composite | 7,954  | 7,938 | +16 | 8,352  | —       | + `useFormat` hydration-aware clock                              |
+| vue-icu-cdn             | 5,520  | 5,494 | +26 | 5,560  | 5,560   | +594 B over core-icu-cdn (cap 600)                               |
+| fw-vue-default          | 5,008  | 4,978 | +30 | 5,259  | —       | the Vue binding                                                  |
+| fw-vue-full-composite   | 7,793  | 7,707 | +86 | 8,183  | —       | + `useFormat` hydration-aware clock                              |
+
+Itemized (one change at a time on the row named; gzip is not additive):
+
+- **Vue slot `children` always text (the STOP above, resolved)**: the core renders a tag's
+  content a second time on demand, in a text mode where no handler runs, and hands it to every
+  handler as a second argument (`(children, text) => …`) — +17 B on `core-icu`, +20 B on
+  `core-icu-cdn`, which the Vue increment does not pay. Paid for in the core: loose equality
+  where both sides are always strings or numbers (scanner, ICU reader, locale helpers, the
+  compile cache; −9 B on `core-icu`) and a tag's parts as `[].concat(children || [])` (−6 B).
+  The Vue slot keeps only the strings of that text (a node param has none): +12 B increment.
+- **The binding seam**: `@comvi/core/internal` exports `core(i18n)` and both bindings read
+  `s`, `a`, `w`, `tr` off it instead of four wrapper functions (React −28 B, Vue −33 B
+  increment). The editor's marking setter left the seam for `Plugin.setup(i18n, mark)` (0 B),
+  so no `/internal` export can mark (the marking test pins the seam's members).
+- **React (+471 → +499 B, cap 500)**: the first-paint gate waits only while a flight's
+  namespace has no catalog at all (+3 B), never on a server or in a hydration (the provider's
+  server snapshot marks it, +4 B; a separate `useSyncExternalStore` was +38 B, a `typeof
+document` guard +11 B); the direct-`<I18nHandover>` exception and its `painted` registration
+  are gone (−8 B); an `undefined` `components` entry is skipped (+3 B); `{ component, props }`
+  entries (R3-24, +13 B; a component has no `props` of its own, so no `component` check);
+  the joiner tests `r.map` instead of `Array.isArray` (−3 B).
+- **Vue (+573 → +594 B, cap 600)**: slot text (+12 B, above); `{ component, props }` entries
+  (R3-24, +16 B; a component object's own `props` option is not read); an `undefined` entry
+  skipped (+3 B); server activation of an inline namespace, so `handover()` carries it, with
+  the server render told by its SSR context (`inject(ssrContextKey)`, +7 B; `typeof document`
+  was cheaper but wrong under a DOM, as in tests); `$t` assigned without a local (−4 B); the
+  outside-`setup()` guard and the `$t` idle-namespace warning are development-only (0 B).
+- Declined for bytes: none. The React element form (`components={ link: <a href /> }`)
+  is not in the lot: `{ component, props }` (R3-24) covers it, and `cloneElement` was +29 B.
+
+## 2026-10-29: lot 4b fix pass 2 (Codex re-check of abff1418)
+
+Within the R3-25 ceilings; no ceiling or increment cap moved. One sweep after `TURBO_FORCE=true`
+builds of the finished graphs, `node --version` v24.22.1; "was" = abff1418 (the rows of the
+section above). Budgets = `ceil(measured × 1.05)`, capped at the ceiling where the row has one.
+
+| row                     | gzip B | was   | Δ   | budget | ceiling | why                                                      |
+| ----------------------- | ------ | ----- | --- | ------ | ------- | -------------------------------------------------------- |
+| core-compile            | 1,861  | 1,865 | −4  | 1,955  | 2,000   | text pass only for a 2-parameter handler; no `EMPTY`     |
+| core-locale             | 583    | 584   | −1  | 613    | —       | `canonicalize` falls through its `catch`                 |
+| core-negotiate          | 496    | 497   | −1  | 521    | —       | the same                                                 |
+| core-icu                | 4,443  | 4,447 | −4  | 4,449  | 4,449   | see below; 6 B headroom                                  |
+| core-icu-cdn            | 4,925  | 4,926 | −1  | 4,960  | 4,960   | the core above; 35 B headroom                            |
+| core-icu-cdn-store      | 5,091  | 5,093 | −2  | 5,346  | —       | the same core                                            |
+| core-icu-api            | 5,440  | 5,444 | −4  | 5,712  | —       | the same core                                            |
+| core-icu-devtools       | 4,891  | 4,891 | 0   | 5,017  | 5,017   | +448 over core-icu (cap 500): the setter moved to `MS`   |
+| core-devtools           | 628    | 625   | +3  | 644    | 644     | `devtools()` reads the setter from `MS`                  |
+| core-format             | 5,088  | 5,092 | −4  | 5,343  | —       | the same core                                            |
+| core-plugins            | 5,020  | 5,021 | −1  | 5,271  | —       | the same core                                            |
+| react-icu-cdn           | 5,425  | 5,425 | 0   | 5,470  | 5,470   | +500 B over core-icu-cdn (cap 500); React unchanged      |
+| fw-react-default        | 4,908  | 4,909 | −1  | 5,154  | —       | the core                                                 |
+| fw-react-full-composite | 7,955  | 7,954 | +1  | 8,353  | —       | the core                                                 |
+| vue-icu-cdn             | 5,516  | 5,520 | −4  | 5,560  | 5,560   | +591 B over core-icu-cdn (cap 600): slot text as a value |
+| fw-vue-default          | 5,002  | 5,008 | −6  | 5,253  | —       | the same                                                 |
+| fw-vue-full-composite   | 7,794  | 7,793 | +1  | 8,184  | —       | the same                                                 |
+
+Itemized (one change at a time on `core-icu`; gzip is not additive):
+
+- **Slot text before the nested handlers (Codex re-check HIGH 2)**: a handler that declares a
+  second parameter gets the text, rendered BEFORE the children; a one-parameter handler gets
+  no text pass (no closure per call either). +6 B in the first form, +3 B in the shipped one
+  (the text pass inside the function branch).
+- **The marking setter out of `Plugin.setup` (HIGH 3)**: `createI18n` puts it in the module
+  variable `MS`, which only `devtools()` reads during its setup (+7 B; keying it in the `CORE`
+  map by `CORE` itself was +8 B, a setter beside `pub` +9 B).
+- Paid for, without behaviour change: `arg()` reads no param from `undefined`, so a render
+  without params needs no shared empty object (`EMPTY` and `p || EMPTY` gone, −8 B; a plain
+  `{}` instead of the frozen one was −3 B); `pr` written as `m || s?.p ? undefined : s?.c`
+  (−1 B); `canonicalize` returns `undefined` by falling through its `catch` (−1 B);
+  `destroy()` no longer resets `ready`'s promise, which `fl.size` already bypasses (−1 B).
+  Tried and dropped (0 B or worse): arrow `on` / `load`, `pub(void (mf = f))`.
+- **Stopped (does not fit +500 B, owner decision needed): React client-side handover under a
+  shut `loading` gate (HIGH 1, Fable 6, Codex 7).** The provider decides the gate before the
+  children render, so on a client render (no server HTML) a handover among them cannot bring
+  its catalogs first. Measured on the finished graph against React at +500/500 B:
+  - the children mounted hidden beside `loading` (`<div hidden>`, only when `loading` is
+    given) so a handover at any depth commits: +17 B (with `core(i).s` as the getter, −8 B)
+    → +517 B;
+  - the gate decided at commit (children render first, a layout effect shuts the gate before
+    the paint when a namespace still has no text; works for `suspense` too): +59 B → +559 B;
+  - the hidden mount installed by the handover module (0 B for apps without a handover, +8 B
+    hook on the provider): rejected — the module's side effect then depends on tree-shaking,
+    so development (no shaking) and production would behave differently.
+    Shipped instead: unchanged (hydration at any depth passes the gate; a client render waits
+    like any child, as `loading-4b.test.tsx` pins).
+
+## 2026-10-29: lot 4b fix pass 3 (owner decisions on HIGH 1)
+
+Owner decisions (29.10.2026): the hidden mount (children in `<b hidden>` beside `loading`,
++520 B, 4d80bc9d) is rejected and reverted (1fd738df); correctness and DX outrank the size
+budget; a handover at arbitrary depth under the gate is no longer required (the contract is
+data → gate → content); the budget comes from the simplest correct implementation with the
+repo's headroom, `ceil(measured × 1.05)`, and the `react-icu-cdn` ceiling and the React
+increment cap follow from it. The commit-time gate (a server-guarded layout effect, 5,487 B,
++62 B) failed the owner's lifecycle conditions (`.lot1-pending-tests.md`, fix pass 3: a DOM
+copy of the children, a second mount, effects before the gate opens) and is not shipped. The
+simplest correct implementation is the binding as it was: no binding code changed (JSDoc
+only). One sweep after `TURBO_FORCE=true` builds, `node --version` v24.22.1.
+
+| row                     | gzip B | was   | budget | ceiling | increment cap                 |
+| ----------------------- | ------ | ----- | ------ | ------- | ----------------------------- |
+| react-icu-cdn           | 5,425  | 5,425 | 5,697  | 5,697   | +525 (measured +500), was 500 |
+| fw-react-default        | 4,908  | 4,908 | 5,154  | —       | —                             |
+| fw-react-full-composite | 7,955  | 7,955 | 8,353  | —       | —                             |
+
+`react-icu-cdn`: budget = ceiling = ceil(5,425 × 1.05) = 5,697 B (was 5,470); increment cap =
+ceil(500 × 1.05) = +525 B over `core-icu-cdn` (was +500; the owner's earlier +520 is
+superseded). `core-icu-cdn` (4,925 / 4,960), Vue (+600) and `core-icu-devtools` (+500)
+unchanged.
+
+## 2026-10-29: lot 4b Codex re-check fix (HIGH A marking setter, HIGH B messages + catalogs)
+
+Codex's final re-check of 5fa808f5 (two HIGH). One sweep after `TURBO_FORCE=true` builds,
+`node --version` v24.22.1; "was" = fix pass 3. Budgets = `ceil(measured × 1.05)`, capped at the
+ceiling where the row has one; `react-icu-cdn`'s budget, ceiling and increment cap follow the
+owner's rule of fix pass 3 (ceiling = budget = ceil(measured × 1.05), cap = ceil(increment ×
+1.05)). No owner ceiling moved: `core-icu` 4,449 and `core-icu-cdn` 4,960 hold.
+
+| row                     | gzip B | was   | Δ   | budget | ceiling | note                             |
+| ----------------------- | ------ | ----- | --- | ------ | ------- | -------------------------------- |
+| core-icu                | 4,445  | 4,443 | +2  | 4,449  | 4,449   | 4 B headroom                     |
+| core-icu-cdn            | 4,927  | 4,925 | +2  | 4,960  | 4,960   | 33 B headroom                    |
+| core-icu-cdn-store      | 5,093  | 5,091 | +2  | 5,348  | —       |                                  |
+| core-icu-api            | 5,439  | 5,440 | −1  | 5,711  | —       |                                  |
+| core-icu-devtools       | 4,895  | 4,891 | +4  | 5,017  | 5,017   | +450 over core-icu (cap 500)     |
+| core-devtools           | 631    | 628   | +3  | 644    | 644     | `MS.get(i18n)`                   |
+| core-format             | 5,091  | 5,088 | +3  | 5,346  | —       |                                  |
+| react-icu-cdn           | 5,428  | 5,425 | +3  | 5,700  | 5,700   | +501 over core-icu-cdn, cap +527 |
+| fw-react-default        | 4,912  | 4,908 | +4  | 5,158  | —       |                                  |
+| fw-react-full-composite | 7,956  | 7,955 | +1  | 8,354  | —       |                                  |
+| vue-icu-cdn             | 5,520  | 5,516 | +4  | 5,560  | 5,560   | +593 over core-icu-cdn (cap 600) |
+| fw-vue-default          | 5,006  | 5,002 | +4  | 5,257  | —       |                                  |
+| fw-vue-full-composite   | 7,796  | 7,794 | +2  | 8,186  | —       |                                  |
+
+Itemized on `core-icu` (one change at a time; gzip is not additive): the marking setter in a
+private `WeakMap` keyed by the instance (`MS`, not exported by `/internal`) instead of a module
+variable: +4 B; `messages` merged per locale under `catalogs` (`N(o.messages, cats[D])`) inside
+`if (o.messages)`: +4 B; both: +7 B (4,450, over the 4,449 ceiling). Shipped: the merge without
+the `if` (with neither option `default` is an empty record, which the ingest loop skips): +2 B
+in all. Tried and dropped: the setter keyed by the instance's `Core` record in the `CORE` map
+(no gain on `core-icu`, +2 B on `core-icu-cdn`).

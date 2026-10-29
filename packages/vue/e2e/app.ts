@@ -1,8 +1,10 @@
 /**
  * The app of the SSR handover gate (R3-21): the same components on the server and in the
  * browser. The server renders `uk` with the `account` and `legal` namespaces its route loads
- * (`legal` is translated in `en` only: the server renders it through the fallback chain);
- * `help` is a later view's namespace the server never sent, `de` a locale it never sent.
+ * (`legal` is translated in `en` only: the server renders it through the fallback chain) and
+ * `shop`, which nobody preloads: a standalone `<T ns="shop">` loads it during the server's
+ * render (lot 4b); `help` is a later view's namespace the server never sent, `de` a locale
+ * it never sent.
  */
 import { defineComponent, h, ref } from "vue";
 import { cdn } from "@comvi/core/cdn";
@@ -40,6 +42,7 @@ export const App = defineComponent({
             { link: ({ children }: { children: string }) => h("a", { href: "/terms" }, children) },
           ),
         ]),
+        h("p", { "data-testid": "cart" }, [h(T as never, { i18nKey: "cart", ns: "shop" })]),
         h("span", { "data-testid": "locale" }, locale.value),
         h("button", { "data-testid": "help-open", onClick: () => (help.value = true) }, "?"),
         h("button", { "data-testid": "to-de", onClick: () => (locale.value = "de") }, "de"),

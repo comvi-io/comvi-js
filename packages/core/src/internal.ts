@@ -6,13 +6,20 @@
  * `state(i18n)` (the published snapshot), `view(i18n, state, extra)` (a render-local
  * snapshot with extra catalogs layered in, never published, `rev` unchanged) and
  * `translate(i18n, state, key, params, ns)`, plus `loading(state, ns)`,
- * `coming(i18n, state, ns)` and `activate(i18n, ns)`. A state carries the marking hook of an editor session (`mk`,
+ * `coming(i18n, state, ns)` and `activate(i18n, ns)` — or, in a binding, `core(i18n)`, the
+ * seam those read. A state carries the marking hook of an editor session (`mk`,
  * R3-14 H4), which only the `/devtools` handle sets; nothing here sets it. `handover(i18n)`
  * is what a server render gives the browser (design §2.6, R3-21).
  */
 import type { Catalog, Rendered } from "./compile/cache";
 import type { Env, Params } from "./compile/scanner";
 import { clock } from "./clock";
+
+/**
+ * The instance's clock (clock.ts): `live` — a render that is not a component's hydration —
+ * counts from the browser's clock even when a server handed over its `serverNow`.
+ */
+export { clock } from "./clock";
 import { CORE, type Core, type I18n } from "./instance";
 import { dir } from "./locale";
 import { layer, mk, N, type Slot, type State, type Store } from "./state";
@@ -30,8 +37,12 @@ export type { Mark, Slot, State, Store } from "./state";
 
 declare const __DEV__: boolean;
 
-/** The seam of `i18n`. Development checks that it is an instance; production trusts the types. */
-const core = (i18n: I18n): Core => {
+/**
+ * The seam of `i18n` (its {@link Core}): a binding calls it once per hook and reads the
+ * members it needs, so no wrapper per member ships with it. Development checks that it is
+ * an instance; production trusts the types.
+ */
+export const core = (i18n: I18n): Core => {
   const c = CORE.get(i18n);
   if (__DEV__ && !c) throw new TypeError("[@comvi/core] not an instance of createI18n()");
   return c!;
@@ -148,10 +159,11 @@ export interface Handover {
   timeZone?: string;
   /**
    * The request's clock (epoch ms): the `now` option, else the one a server instance took
-   * when it first read the clock (clock.ts). `formatRelativeTime` counts from it on both
-   * sides.
+   * when it first read the clock (clock.ts). A binding's `useFormat()` counts from it on
+   * both sides for a component's hydration, from the browser's clock for every other
+   * render (lot 4b).
    */
-  now: number;
+  serverNow: number;
   /** By namespace, then locale; `null`: the load of that slot failed on the server. */
   catalogs: Record<string, Record<string, Catalog | null>>;
 }
@@ -180,5 +192,5 @@ export const handover = (i18n: I18n): Handover => {
       if (y || (x.o.loader && !s.ld.includes(l + "\0" + n)))
         (catalogs[n] ||= N())[l] = !y ? null : y.p ? N(y.m, y.p) : y.m;
     }
-  return { locale: s.locale, timeZone: x.o.timeZone, now: clock(i18n), catalogs };
+  return { locale: s.locale, timeZone: x.o.timeZone, serverNow: clock(i18n), catalogs };
 };

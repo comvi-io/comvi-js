@@ -214,8 +214,8 @@ const REDS = {
   // (3) The untyped t() of lot 1, typed `string` for any params (review A6).
   "untyped t() always a string": plant("untyped string", [
     [
-      "export interface UntypedT<Rich = RichParts> {",
-      "export type UntypedT<Rich = RichParts> = (key: string, params?: Record<string, unknown>) => string;\ninterface Unused<Rich> {",
+      "export interface UntypedT<Rich = RichParts, P = Readonly<Record<string, unknown>>> {",
+      "export type UntypedT<Rich = RichParts, P = Readonly<Record<string, unknown>>> = (key: string, params?: Record<string, unknown>) => string;\ninterface Unused<Rich, P> {",
     ],
   ]),
 };

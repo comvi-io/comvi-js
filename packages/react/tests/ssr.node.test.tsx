@@ -41,15 +41,18 @@ describe("SSR (renderToString)", () => {
     ).toBe('<p lang="de" dir="ltr">Hallo Ann</p>');
   });
 
-  it("renders `loading` while the current locale loads on the server, the children otherwise", () => {
+  it("renders the children on the server, never `loading` (lot 4b: the gate is a client's first paint)", () => {
+    // A hydration renders the children too, so the server must: what it renders while a
+    // catalog is still loading is the contract's text (the key), and the app preloads.
     const pending = createI18n({ locale: "en", loader: () => new Promise(() => {}) });
     const ready = createI18n({ locale: "en", messages: { en: { hi: "Hi" } } });
-    const ui = (i: typeof ready) => (
-      <I18nProvider i18n={i} loading="wait">
+    const ui = (i: typeof ready, suspense?: boolean) => (
+      <I18nProvider i18n={i} loading="wait" suspense={suspense}>
         <T i18nKey="hi" />
       </I18nProvider>
     );
-    expect(renderToString(ui(pending))).toBe("wait");
+    expect(renderToString(ui(pending))).toBe("hi");
+    expect(renderToString(ui(pending, true))).toBe("hi");
     expect(renderToString(ui(ready))).toBe("Hi");
   });
 

@@ -113,3 +113,54 @@ describe("tag children without a handler", () => {
     expect(fmt("x <b>a{n}b</b> y", { n: node })).toEqual(["x a", node, "b y"]);
   });
 });
+
+describe("a handler's second argument: the text of its tag (lot 4b)", () => {
+  it("is the content's text from the message: nested tags inline, params filled, no handler run", () => {
+    const ran: string[] = [];
+    const texts: unknown[] = [];
+    const out = fmt("Read <link>the <b>{what}</b> terms</link>.", {
+      what: "new",
+      b: (c: readonly unknown[]) => (ran.push("b"), { b: c }),
+      link: (c: readonly unknown[], text: unknown) => (texts.push(text), { a: c }),
+    });
+    expect(texts).toEqual(["the new terms"]);
+    // The nested handler ran once, for the rendered children — never for the text.
+    expect(ran).toEqual(["b"]);
+    expect(out).toEqual(["Read ", { a: ["the ", { b: ["new"] }, " terms"] }, "."]);
+  });
+
+  it("is built BEFORE the children: a nested handler that changes a param does not reach it", () => {
+    const texts: unknown[] = [];
+    const p: Record<string, unknown> = { d: "2026" };
+    fmt(
+      "<link><b>{d}</b></link>",
+      Object.assign(p, {
+        b: (c: readonly unknown[]) => ((p.d = "2030"), c),
+        link: (c: readonly unknown[], text: unknown) => (texts.push(text), c),
+      }),
+    );
+    // The text is the message's as it was before the nested handler ran (a text pass after
+    // the children would read "2030").
+    expect(texts).toEqual(["2026"]);
+  });
+
+  it("only a handler declaring a second parameter gets the text (no text pass for the others)", () => {
+    const seen: unknown[] = [];
+    fmt("<b>a</b>", {
+      b: function (this: unknown, c: unknown) {
+        // eslint-disable-next-line prefer-rest-params
+        seen.push(arguments[1]);
+        return c;
+      },
+    });
+    expect(seen).toEqual([false]);
+  });
+
+  it("the text pass warns about no tag (it leaves every tag unhandled on purpose)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const before = warn.mock.calls.length;
+    fmt("<x><y>a</y></x>", { x: (_c: unknown, text: unknown) => text, y: () => "Y" });
+    expect(warn.mock.calls.length).toBe(before);
+    warn.mockRestore();
+  });
+});

@@ -56,8 +56,10 @@ export const routes: RouteObject[] = [
         path: "about",
         // The page's own namespace loads with the route, before the page renders:
         // no frame shows its keys. Once loaded, it follows every language switch.
+        // A failed load rejects (and is reported through onError): the page still
+        // opens, with the fallback language's text.
         loader: async () => {
-          await i18n.load("account");
+          await i18n.load("account").catch(() => {});
           return null;
         },
         Component: About,

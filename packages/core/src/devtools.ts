@@ -17,7 +17,7 @@
  * thin delegates to the core plus `load()`, which puts the editor on the page.
  */
 import type { Rendered } from "./compile/cache";
-import { CORE, type I18n, type Plugin } from "./instance";
+import { CORE, MS, type I18n, type Plugin } from "./instance";
 import type { Mark, Slot } from "./state";
 
 declare const __VERSION__: string;
@@ -108,6 +108,9 @@ export const devtools = (): Plugin => ({
   setup(i18n) {
     if (typeof window == "undefined") return;
     const c = CORE.get(i18n)!;
+    // The marking hook's setter of this instance (keyed by it); only this module reads it
+    // (R3-14 H4).
+    const m = MS.get(i18n)!;
     /** Set by destroy(): the handle an editor may still hold marks nothing. */
     let d: unknown;
     const e: ComviQueueEntry = {
@@ -121,7 +124,7 @@ export const devtools = (): Plugin => ({
           return { ...s?.m, ...s?.p };
         },
         state: () => ({ ...c.s(), ns: [...c.n] }),
-        mark: (f) => d || c.m(typeof f == "function" ? f : null),
+        mark: (f) => d || m(typeof f == "function" ? f : null),
         load: (v = "latest") =>
           // Everything runs inside the executor: what throws here — a version that is not
           // one, no document, a Trusted Types policy refusing the `src` — rejects.

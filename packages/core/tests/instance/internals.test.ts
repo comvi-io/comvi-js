@@ -4,7 +4,7 @@
  * view()'s slot memo and loading entries (design §2.5, R4-11, R4-15).
  */
 import { describe, expect, it, vi } from "vitest";
-import { CORE, createI18n } from "../../src/instance";
+import { CORE, MS, createI18n } from "../../src/instance";
 import { coming, loading, state, translate, view } from "../../src/internal";
 import { flush, make, manualLoader } from "./helpers";
 
@@ -93,11 +93,13 @@ describe("destroy()", () => {
   });
 
   it("drops every subscriber: a later publish reaches none", () => {
+    // The setter `devtools()` reads during its setup (instance.ts `MS`, keyed by instance).
     const i18n = createI18n({ locale: "en" });
+    const mark = MS.get(i18n)!;
     const sub = vi.fn();
     i18n.on(sub);
     i18n.destroy();
-    CORE.get(i18n)!.m(null); // the one publish that is not guarded by destroy()
+    mark(null); // the one publish that is not guarded by destroy()
     expect(sub).not.toHaveBeenCalled();
   });
 });

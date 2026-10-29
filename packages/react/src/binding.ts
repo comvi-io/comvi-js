@@ -8,8 +8,9 @@
  *   the locale (a namespace load re-renders nothing that reads it). The context value is
  *   memoized on (instance, state): a provider re-rendered by its parent re-renders no
  *   consumer.
- * - `loading` / `suspense` gate the FIRST paint of an instance only: once its subtree has
- *   rendered, a lazy namespace, a retry or a switch never unmounts it.
+ * - `loading` / `suspense` gate the FIRST paint of an instance only, and only while a
+ *   namespace has no text at all: once its subtree has rendered, a lazy namespace, a retry
+ *   or a switch never unmounts it.
  * - `<I18nHandover>` (handover.ts) renders its subtree from a render-local `view()` and
  *   publishes at commit (S9).
  * - Fixed hook order in every component; nothing publishes during render (R4-17).
@@ -22,11 +23,12 @@ import {
   useEffect,
   useMemo,
   useSyncExternalStore,
+  type ComponentType,
   type ReactElement,
   type ReactNode,
 } from "react";
-import type { BoundTFor, Catalog, I18n, NsOf, TComponentFor, TFor } from "@comvi/core";
-import { activate, coming, state, translate, type State } from "@comvi/core/internal";
+import type { BoundTFor, Catalog, I18n, NsOf, TComponentFor, TFor, UntypedT } from "@comvi/core";
+import { core, N, type State } from "@comvi/core/internal";
 
 declare const __DEV__: boolean;
 
@@ -47,14 +49,19 @@ export type ProviderCatalogs = Readonly<Record<string, Readonly<Record<string, C
 export interface I18nProviderProps {
   i18n: I18n;
   /**
-   * Rendered instead of the children until the instance's first catalogs are in (its
-   * first paint). After that the children stay mounted: a lazy namespace shows through
+   * Rendered instead of the children for the instance's first paint while a namespace is
+   * loading with no catalog of any locale in place yet (no text to show). Inline catalogs,
+   * a fallback locale's catalog or a server payload the instance was created from open it.
+   * After that the children stay mounted: a lazy namespace shows through
    * `useI18n(ns).isLoading`, a switch keeps the old locale until the new one lands.
+   * The children do not render while it shows, so an `<I18nHandover>` among them waits too on
+   * a client render (a hydration is never gated): give the instance its data first
+   * (`createI18n({ ...options, ...payload })`).
    */
   loading?: ReactNode;
   /**
-   * Suspend instead (throw `i18n.ready` to the nearest `<Suspense>`) until the instance's
-   * first catalogs are in. `ready` is one promise per set of loads, so a re-render while
+   * Suspend instead (throw `i18n.ready` to the nearest `<Suspense>`) where `loading` would
+   * render. `ready` is one promise per set of loads, so a re-render while
    * they are in flight does not suspend again; after the first paint nothing suspends.
    */
   suspense?: boolean;
@@ -64,15 +71,15 @@ export interface I18nProviderProps {
 /** What a provider gives its subtree: the instance and the state its render shows. */
 export type Ctx = readonly [I18n, State];
 
-const C = createContext<Ctx | null>(null);
+// No provider: `0` (development checks it; production trusts the setup).
+const C = createContext<Ctx>(0 as never);
 const L = createContext("");
 
 /**
  * Rich parts → one node: a Fragment with the parts as varargs (no keys, no cloneElement).
  * Also the core's joiner, so a tag handler gets its children as this one node.
  */
-const node = (r: unknown): any =>
-  Array.isArray(r) ? createElement(Fragment, null, ...(r as ReactNode[])) : r;
+const node = (r: any): any => (r.map ? createElement(Fragment, null, ...(r as ReactNode[])) : r);
 
 export const provide = (v: Ctx, children: ReactNode) =>
   createElement(
@@ -81,6 +88,7 @@ export const provide = (v: Ctx, children: ReactNode) =>
     createElement(L.Provider, { value: v[1].locale }, children),
   );
 
+/** The context of the nearest provider (`<I18nHandover>` reads it). */
 export const useCtx = (): Ctx => {
   const c = useContext(C);
   if (__DEV__ && !c) throw Error("[@comvi/react] no <I18nProvider> above this component");
@@ -93,20 +101,28 @@ const painted = new WeakSet<I18n>();
 /** Makes `i18n` the instance of its subtree and re-renders it on every published change. */
 export const I18nProvider = ({
   i18n: i,
-  loading: spinner,
-  suspense,
   children,
+  // No `loading`: the children render while the first catalogs load (keys of what is
+  // still coming), as without a gate.
+  loading: spinner = children,
+  suspense,
 }: I18nProviderProps): ReactElement => {
-  const get = () => state(i);
-  const s = useSyncExternalStore(i.on, get, get);
+  const get = () => core(i).s();
+  // Not gated: painted already, or a server or hydration render — React reads the server
+  // snapshot there, which marks `open` (with the state itself: any truthy value does).
+  let open: unknown = painted.has(i);
+  const s = useSyncExternalStore(i.on, get, () => (open = get()));
   const v = useMemo((): Ctx => [i, s], [i, s]);
-  // The first paint waits for every load in flight (the locale's chain, its fallbacks).
-  // Marking an instance painted during render is idempotent and only ever moves one way:
-  // a render React abandons leaves a fact about the instance true, nothing published.
-  const busy = s.ld[0] && !painted.has(i);
-  if (!busy) painted.add(i);
+  // The first paint waits while a load is in flight for a namespace that has no catalog
+  // at all yet (no text to show: not even a fallback locale's) — but never on a server or
+  // in a hydration: the hydration renders what the server rendered (the children), and an
+  // `<I18nHandover>` anywhere among them brings its catalogs at commit.
+  const busy = !open && s.ld.some((k) => !s.c[k.split("\0")[1]]);
+  // Painted when a render without the gate COMMITS: a render React abandons changes
+  // nothing about the first paint.
+  useEffect(() => void (busy || painted.add(i)));
   if (busy && suspense) throw i.ready;
-  return provide(v, busy && spinner !== undefined ? spinner : children);
+  return provide(v, busy ? spinner : children);
 };
 
 /**
@@ -119,21 +135,27 @@ export type UntypedParams = Record<string, object | ReactNode | ((chunks: ReactN
 /** `<T>` bound to namespace NS (from `useI18n(ns)`): typed by that namespace's keys. */
 export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
   ? (
-      props: { i18nKey: string; locale?: string; markers?: boolean; ns?: never } & UntypedParams,
+      props: {
+        i18nKey: string;
+        locale?: string;
+        markers?: boolean;
+        ns?: never;
+        components?: Readonly<Record<string, TagComponent>>;
+      } & UntypedParams,
     ) => ReactNode
   : NS extends NsOf
-    ? BoundTFor<NS, ReactNode>
+    ? BoundTFor<NS, ReactNode, 2, Readonly<Record<string, TagComponent>>>
     : never;
 
 /** What `useI18n(ns)` returns. */
 export interface UseI18n<NS extends string = "default"> {
   /**
-   * `t()` against what this render shows; a rich message renders a React element. Without
-   * generated catalogs it is typed `string` (render rich text with `<T>`).
+   * `t()` against what this render shows. A call whose params are all text (strings,
+   * numbers, dates…) returns a `string`; a rich message (a tag handler, an element param)
+   * returns a React element. Without generated catalogs a call with a handler or an element
+   * param is typed `string | ReactElement`: the message decides at run time.
    */
-  t: [NsOf] extends [never]
-    ? (key: string, params?: UntypedParams) => string
-    : TFor<NS, ReactElement>;
+  t: [NsOf] extends [never] ? UntypedT<ReactElement, UntypedParams> : TFor<NS, ReactElement>;
   /** `<T>` bound to this namespace; the same component on every render (R3-5(b)). */
   T: BoundT<NS>;
   locale: string;
@@ -151,7 +173,7 @@ export interface UseI18n<NS extends string = "default"> {
  * Bound `<T>` per namespace: one component identity for the app's lifetime. Prototype-free,
  * so a namespace called `constructor` or `toString` gets its own component.
  */
-const Ts: Record<string, (props: object) => ReactNode> = Object.create(null);
+const Ts = N<(props: object) => ReactNode>();
 
 /**
  * The i18n of the nearest `<I18nProvider>`. `ns` is the namespace of `t` and `T`; it is
@@ -159,56 +181,94 @@ const Ts: Record<string, (props: object) => ReactNode> = Object.create(null);
  * is not asked again by a remount — `i18n.load(ns)` retries.
  */
 export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => {
-  const c = useCtx();
-  const [i, s] = c;
-  useEffect(() => {
-    if (ns) activate(i, ns);
-  }, [i, ns]);
+  const c = useContext(C);
+  if (__DEV__ && !c) throw Error("[@comvi/react] no <I18nProvider> above this component");
+  const [i, s] = c!;
+  const x = core(i);
+  const n = ns || "default";
+  // `default` too: an app whose `namespaces` option leaves it out loads it on first use
+  // (activation never rejects; `i18n.load(ns)` is the call that reports).
+  useEffect(() => void x.a(n), [x, n]);
   return useMemo(
     () => ({
-      // `node` joins rich parts into one node and, through the core, gives every tag
-      // handler (`defaultParams` ones too) its children as ONE node: `<a>{chunks}</a>`
-      // renders nested tags and element params without React's missing-key warning.
-      t: ((k: string, p?: Record<string, unknown>) =>
-        node(translate(i, s, k, p, ns, node))) as UseI18n<NS>["t"],
-      T: (ns ? (Ts[ns] ||= (q) => T({ ...q, ns } as never)) : T) as BoundT<NS>,
       locale: s.locale,
       dir: s.dir,
       // Until the activation after commit, a namespace the loader will load is loading
       // already: no frame of its keys that says it is loaded, no `missing_key` (lot 1d).
-      isLoading: coming(i, s, ns || "default"),
+      isLoading: !!x.w(s, n),
       setLocale: i.setLocale,
       i18n: i,
+      // `node` joins rich parts into one node and, through the core, gives every tag
+      // handler (`defaultParams` ones too) its children as ONE node: `<a>{chunks}</a>`
+      // renders nested tags and element params without React's missing-key warning.
+      t: ((k: string, p?: Record<string, unknown>) =>
+        node(x.tr(s, k, p, n, node))) as UseI18n<NS>["t"],
+      T: (Ts[n] ||= (q) => T({ ...q, ns: n } as never)) as BoundT<NS>,
     }),
-    [c, ns],
+    [c, n],
   );
 };
+
+/**
+ * What renders a tag through `components` (R3-24): an HTML tag name (`"strong"`), a
+ * component, or `{ component, props }` for one that needs props of its own
+ * (`{ component: "a", props: { href: "/terms" } }`); the tag's content is its `children`.
+ */
+export type TagComponent =
+  | string
+  | ComponentType<{ children?: ReactNode }>
+  | { component: string | ComponentType<any>; props?: Readonly<Record<string, unknown>> };
 
 /** The locale this render shows. Re-renders on a locale change only, not on a namespace load. */
 export const useLocale = (): string => useContext(L);
 
 /**
- * `<T i18nKey ns? locale? markers? {...params}>`: typed by the generated catalogs when
- * declared. `markers={false}` keeps an in-context editor session from marking this
- * message (R3-14 H9).
+ * `<T i18nKey ns? locale? markers? components? {...params}>`: typed by the generated
+ * catalogs when declared. A tag param is required unless `components` is passed (it may
+ * render the tag; which tags it covers is not checked).
+ * `markers={false}` keeps an in-context editor session from marking this message (R3-14 H9).
  */
 export type TComponent = [NsOf] extends [never]
   ? (
-      props: { i18nKey: string; ns?: string; locale?: string; markers?: boolean } & UntypedParams,
+      props: {
+        i18nKey: string;
+        ns?: string;
+        locale?: string;
+        markers?: boolean;
+        components?: Readonly<Record<string, TagComponent>>;
+      } & UntypedParams,
     ) => ReactNode
   : // The typo guard of `t()` (R3-2) is in the shared core type: see TComponentFor.
-    TComponentFor<ReactNode>;
+    TComponentFor<ReactNode, 2, Readonly<Record<string, TagComponent>>>;
 
 /**
- * Renders one message; params are props, a tag handler is a prop of the tag's name
- * (`<T i18nKey="terms" link={(c) => <a href="/terms">{c}</a>} />`). Every prop but
- * `i18nKey` and the per-call options `ns`, `locale` and `markers` is a message param —
- * `children` and `className` too, so a tag named like a DOM prop is still a handler. `ns`
- * is explicit: `<T>` never takes the namespace of a `useI18n(ns)` above it (R3-5);
- * `useI18n(ns).T` is the bound one. `markers={false}` opts the message out of an
- * in-context editor session (R3-14 H9).
+ * Renders one message; params are props. A tag renders through, in this order: a prop of
+ * the tag's name (`link={(c) => <a href="/terms">{c}</a>}`), then its entry in `components`
+ * (`components={{ b: "strong", link: { component: "a", props: { href: "/terms" } } }}`) — a
+ * prop or an entry that is `undefined` leaves the tag to the next; with neither, the tag's
+ * content renders as text. Every prop but `i18nKey`, `components` and the per-call options
+ * `ns`, `locale` and `markers` is a message param — `children` and `className` too, so a tag
+ * named like a DOM prop is still a handler. `ns` is explicit: `<T>` never takes the namespace
+ * of a `useI18n(ns)` above it (R3-5); `useI18n(ns).T` is the bound one. `markers={false}`
+ * opts the message out of an in-context editor session (R3-14 H9).
  */
-export const T = ((p: { i18nKey: string; ns?: string }) =>
+export const T = (({
+  components: m,
+  ...p
+}: {
+  i18nKey: string;
+  ns?: string;
+  components?: Record<string, TagComponent>;
+} & Record<string, unknown>) => {
+  for (const k in m) {
+    // A tag name, a component, or `{ component, props }` (R3-24); a component (a function,
+    // a class, a memo/forwardRef/lazy object) has no `props` of its own to misread. An
+    // entry that is `undefined` leaves the tag to be rendered as text.
+    const e = m[k] as { component?: ComponentType; props?: object } & ComponentType;
+    if (p[k] === undefined && e)
+      p[k] = (c: ReactNode) => createElement(e.component || e, e.props, c);
+  }
   // The props are the params: `ns`, `locale` and `markers` are per-call options the core
   // reads off them, and `i18nKey` is a param no message uses.
-  (useI18n(p.ns).t as (k: string, p: object) => ReactNode)(p.i18nKey, p)) as TComponent;
+  return (useI18n(p.ns).t as (k: string, p: object) => ReactNode)(p.i18nKey, p);
+}) as TComponent;
