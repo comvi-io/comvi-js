@@ -304,4 +304,4 @@ const read = (
  * `i18n.load`, the `namespaces` option) loads it (lot 4c). `markers={false}` opts the message
  * out of an in-context editor session (R3-14 H9).
  */
-export const T = ((p) => read(p)) as TComponent;
+export const T = ((p) => read(p as never)) as TComponent;
