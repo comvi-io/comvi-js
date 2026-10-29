@@ -1079,3 +1079,27 @@ Itemized (one change at a time on `core-icu`; gzip is not additive):
     so development (no shaking) and production would behave differently.
     Shipped instead: unchanged (hydration at any depth passes the gate; a client render waits
     like any child, as `loading-4b.test.tsx` pins).
+
+## 2026-10-29: lot 4b fix pass 3 (owner decisions on HIGH 1)
+
+Owner decisions (29.10.2026): the hidden mount (children in `<b hidden>` beside `loading`,
++520 B, 4d80bc9d) is rejected and reverted (1fd738df); correctness and DX outrank the size
+budget; a handover at arbitrary depth under the gate is no longer required (the contract is
+data → gate → content); the budget comes from the simplest correct implementation with the
+repo's headroom, `ceil(measured × 1.05)`, and the `react-icu-cdn` ceiling and the React
+increment cap follow from it. The commit-time gate (a server-guarded layout effect, 5,487 B,
++62 B) failed the owner's lifecycle conditions (`.lot1-pending-tests.md`, fix pass 3: a DOM
+copy of the children, a second mount, effects before the gate opens) and is not shipped. The
+simplest correct implementation is the binding as it was: no binding code changed (JSDoc
+only). One sweep after `TURBO_FORCE=true` builds, `node --version` v24.22.1.
+
+| row                     | gzip B | was   | budget | ceiling | increment cap                 |
+| ----------------------- | ------ | ----- | ------ | ------- | ----------------------------- |
+| react-icu-cdn           | 5,425  | 5,425 | 5,697  | 5,697   | +525 (measured +500), was 500 |
+| fw-react-default        | 4,908  | 4,908 | 5,154  | —       | —                             |
+| fw-react-full-composite | 7,955  | 7,955 | 8,353  | —       | —                             |
+
+`react-icu-cdn`: budget = ceiling = ceil(5,425 × 1.05) = 5,697 B (was 5,470); increment cap =
+ceil(500 × 1.05) = +525 B over `core-icu-cdn` (was +500; the owner's earlier +520 is
+superseded). `core-icu-cdn` (4,925 / 4,960), Vue (+600) and `core-icu-devtools` (+500)
+unchanged.

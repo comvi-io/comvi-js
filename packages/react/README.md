@@ -117,6 +117,21 @@ once. A namespace loaded later keeps the app on screen (show `isLoading`), and a
 keeps the old locale until the new one is in. A server render and a hydration always render the
 children: the server preloads what it renders.
 
+With a server payload the order is data → gate → content. The first paint's data goes to the
+instance itself, so the gate never waits for it:
+
+```tsx
+const i18n = createI18n({ ...options, ...payload }); // data: handover(server) from the page
+
+<I18nProvider i18n={i18n} loading={<div className="spinner" />}>
+  <App />
+</I18nProvider>;
+```
+
+The provider does not look for data inside the subtree it gates: an `<I18nHandover>` under a
+gate that is shut on a client render (no server HTML) renders only when the gate opens. A
+hydration is never gated, so there a handover works at any depth.
+
 ## Markup in a translation
 
 ```tsx

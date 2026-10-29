@@ -54,6 +54,9 @@ export interface I18nProviderProps {
    * a fallback locale's catalog or a server payload the instance was created from open it.
    * After that the children stay mounted: a lazy namespace shows through
    * `useI18n(ns).isLoading`, a switch keeps the old locale until the new one lands.
+   * The children do not render while it shows, so an `<I18nHandover>` among them waits too on
+   * a client render (a hydration is never gated): give the instance its data first
+   * (`createI18n({ ...options, ...payload })`).
    */
   loading?: ReactNode;
   /**

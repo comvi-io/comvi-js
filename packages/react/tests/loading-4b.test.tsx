@@ -4,13 +4,14 @@
  * hydration (an `<I18nHandover>` at any depth), and `useI18n()` activates `default` too; a
  * failed load ends the placeholder.
  */
-import { startTransition, Suspense } from "react";
+import { startTransition, Suspense, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { act, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { createI18n, I18nHandover, I18nProvider, useI18n, type ProviderCatalogs } from "../src";
+import { handover } from "../../core/src/internal";
 import { make, manualLoader, settle } from "./helpers";
 
 const Show = () => {
@@ -67,26 +68,86 @@ describe("first-paint gate (lot 4b)", () => {
     expect(container.textContent).toBe("en:Hello");
   });
 
-  it("a client render (no hydration): a handover under a gated provider waits like any child", async () => {
-    // `<I18nHandover catalogs>` carries a server payload: the page it comes with hydrates
-    // (below). Rendered on a client with no server HTML, it is one more child of the gate.
-    const l = manualLoader();
-    const { i18n } = make({ locale: "en", loader: l.load }); // en:default in flight
-    const catalogs: ProviderCatalogs = { default: { uk: { hi: "Привіт" } } };
-    const { container } = render(
-      <I18nProvider i18n={i18n} loading="wait">
-        <I18nHandover locale="uk" catalogs={catalogs}>
-          <Show />
-        </I18nHandover>
-      </I18nProvider>,
-    );
-    expect(container.textContent).toBe("wait");
-    await l.answer("en:default");
-    expect(container.textContent).toBe("uk:Привіт");
-    await settle();
-    expect(i18n.locale).toBe("uk");
-    expect(l.requested.filter((r) => r.startsWith("uk"))).toEqual([]);
-  });
+  it.each([false, true])(
+    "UNSUPPORTED (README): a handover under a shut gate on a client render waits like any child (suspense: %s)",
+    async (suspense) => {
+      // The provider gets its data before the gate decides (createI18n({ ...payload })); it
+      // does not look for a handover in its own gated subtree, which renders only when the
+      // gate opens. A hydration is not gated (below). Next's data path is lot 6.
+      const l = manualLoader();
+      const { i18n } = make({ locale: "en", loader: l.load }); // en:default in flight
+      const catalogs: ProviderCatalogs = { default: { uk: { hi: "Привіт" } } };
+      const { container } = render(
+        <Suspense fallback="wait">
+          <I18nProvider i18n={i18n} loading="wait" suspense={suspense}>
+            <I18nHandover locale="uk" catalogs={catalogs}>
+              <Show />
+            </I18nHandover>
+          </I18nProvider>
+        </Suspense>,
+      );
+      expect(container.textContent).toBe("wait");
+      await l.answer("en:default");
+      expect(container.textContent).toBe("uk:Привіт");
+      await settle();
+      expect(i18n.locale).toBe("uk");
+      expect(l.requested.filter((r) => r.startsWith("uk"))).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["client", false],
+    ["client", true],
+    ["hydration", false],
+    ["hydration", true],
+  ] as const)(
+    "data → gate → content: an instance created from the server payload never shuts the gate (%s, suspense: %s)",
+    async (mode, suspense) => {
+      const server = createI18n({
+        locale: "uk",
+        timeZone: "UTC",
+        messages: { uk: { hi: "Привіт" } },
+      });
+      const payload = JSON.parse(JSON.stringify(handover(server)));
+      let mounts = 0;
+      let effects = 0;
+      const Counted = () => {
+        useState(() => mounts++);
+        useEffect(() => void effects++, []);
+        return <Show />;
+      };
+      const ui = (i: ReturnType<typeof createI18n>) => (
+        <Suspense fallback="wait">
+          <I18nProvider i18n={i} loading="wait" suspense={suspense}>
+            <Counted />
+          </I18nProvider>
+        </Suspense>
+      );
+      const container = document.createElement("div");
+      if (mode == "hydration") container.innerHTML = renderToString(ui(server));
+      mounts = 0;
+      const l = manualLoader();
+      const { i18n } = make({ locale: "en", loader: l.load, ...payload });
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      const recoverable: unknown[] = [];
+      let root!: ReturnType<typeof createRoot>;
+      await act(async () => {
+        if (mode == "hydration")
+          root = hydrateRoot(container, ui(i18n), {
+            onRecoverableError: (e) => recoverable.push(e),
+          });
+        else (root = createRoot(container)).render(ui(i18n));
+      });
+      expect(container.textContent).toBe("uk:Привіт");
+      await settle();
+      expect([recoverable, err.mock.calls]).toEqual([[], []]);
+      err.mockRestore();
+      expect(container.textContent).toBe("uk:Привіт");
+      expect([mounts, effects]).toEqual([1, 1]);
+      expect(l.requested).toEqual([]);
+      act(() => root.unmount());
+    },
+  );
 
   it("the gate waits only while a namespace has no text at all: inline or fallback text shows at once", async () => {
     const l = manualLoader();
