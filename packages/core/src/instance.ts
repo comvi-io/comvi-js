@@ -44,13 +44,7 @@ export type Loader = (locale: string, ns: string, signal: AbortSignal) => Promis
 /** A plugin: set up once by `createI18n`; the returned function runs on `destroy()`. */
 export interface Plugin {
   name: string;
-  /**
-   * `mark` sets (or, with `null`, clears) the marking hook of an in-context editor session
-   * and publishes a state carrying it (R3-14 H4) — what the `/devtools` plugin hands an
-   * editor as `x.mark`. Only a plugin the app installs gets it: no seam of `/internal`
-   * reaches it.
-   */
-  setup(i18n: I18n, mark: (fn: Mark | null) => void): void | (() => void);
+  setup(i18n: I18n): void | (() => void);
 }
 
 export interface I18nOptions {
@@ -198,6 +192,15 @@ export interface Core {
 
 /** Instance → its internal seam; read by `@comvi/core/internal` only. */
 export const CORE = new WeakMap<object, Core>();
+
+/**
+ * The marking hook's setter of the instance whose plugins `createI18n` set up last
+ * (R3-14 H4): it sets (or, with `null`, clears) the hook of an in-context editor
+ * session and publishes a state carrying it. Only `devtools()` reads it, during its setup —
+ * a plugin's `setup` gets the instance alone, and no seam of `/internal` re-exports it, so
+ * nothing marks without `devtools()` installed.
+ */
+export let MS: ((f: Mark | null) => void) | undefined;
 
 const D = "default";
 const K = "\0";
@@ -607,15 +610,14 @@ export const createI18n = (o: I18nOptions): I18n => {
     w: coming,
   });
 
+  // The marking hook's setter, for `devtools()` only (R3-14 H4).
+  MS = (f) => {
+    mf = f;
+    pub();
+  };
   for (const p of o.plugins || [])
     try {
-      // The marking hook's setter goes to the plugins only (R3-14 H4).
-      downs.push(
-        p.setup(i18n, (f) => {
-          mf = f;
-          pub();
-        }),
-      );
+      downs.push(p.setup(i18n));
     } catch (e) {
       // Transactional: what the earlier plugins set up is torn down before the throw.
       i18n.destroy();

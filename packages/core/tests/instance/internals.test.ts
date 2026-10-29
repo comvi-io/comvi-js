@@ -4,7 +4,7 @@
  * view()'s slot memo and loading entries (design §2.5, R4-11, R4-15).
  */
 import { describe, expect, it, vi } from "vitest";
-import { CORE, createI18n } from "../../src/instance";
+import { CORE, MS, createI18n } from "../../src/instance";
 import { coming, loading, state, translate, view } from "../../src/internal";
 import { flush, make, manualLoader } from "./helpers";
 
@@ -96,7 +96,8 @@ describe("destroy()", () => {
     let mark: (f: null) => void = () => {};
     const i18n = createI18n({
       locale: "en",
-      plugins: [{ name: "mark", setup: (_, m) => void (mark = m) }],
+      // The setter `devtools()` reads during its setup (instance.ts `MS`).
+      plugins: [{ name: "mark", setup: () => void (mark = MS as typeof mark) }],
     });
     const sub = vi.fn();
     i18n.on(sub);

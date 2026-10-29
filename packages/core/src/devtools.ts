@@ -17,7 +17,7 @@
  * thin delegates to the core plus `load()`, which puts the editor on the page.
  */
 import type { Rendered } from "./compile/cache";
-import { CORE, type I18n, type Plugin } from "./instance";
+import { CORE, MS, type I18n, type Plugin } from "./instance";
 import type { Mark, Slot } from "./state";
 
 declare const __VERSION__: string;
@@ -105,9 +105,12 @@ const VER =
 /** The devtools plugin: makes the instance discoverable by the Comvi browser extension. */
 export const devtools = (): Plugin => ({
   name: "devtools",
-  setup(i18n, m) {
+  setup(i18n) {
     if (typeof window == "undefined") return;
     const c = CORE.get(i18n)!;
+    // The marking hook's setter of this instance: `createI18n` holds it out to its plugins'
+    // setup only, and only this module reads it (R3-14 H4).
+    const m = MS as (f: Mark | null) => void;
     /** Set by destroy(): the handle an editor may still hold marks nothing. */
     let d: unknown;
     const e: ComviQueueEntry = {

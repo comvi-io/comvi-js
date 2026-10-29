@@ -223,17 +223,18 @@ describe("no session, no devtools", () => {
     expect(win.__COMVI__).toBeUndefined();
   });
 
-  it("only a plugin's setup receives the hook's setter: it marks, a destroyed instance does not", () => {
-    let mark: (f: Mark | null) => void = () => {};
+  it("a plugin other than devtools() gets the instance alone: nothing it is handed marks", () => {
+    // R3-14 H4: marking goes through `x.mark()` only, so no marking without devtools().
+    const got: unknown[][] = [];
     const i18n = createI18n({
       locale: "en",
       messages: { en: MSGS },
-      plugins: [{ name: "probe", setup: (_, m) => void (mark = m) }],
+      plugins: [{ name: "probe", setup: (...a: unknown[]) => void got.push(a) }],
     });
-    mark((out) => "[" + String(out) + "]");
-    expect(i18n.t("hi")).toBe("[Hi]");
-    mark(null);
+    expect(got).toEqual([[i18n]]);
+    expect(Object.keys(internal)).not.toContain("MS");
     expect(i18n.t("hi")).toBe("Hi");
+    expect(state(i18n).mk).toBeUndefined();
   });
 
   it("devtools() without a session marks nothing and calls nothing", () => {
