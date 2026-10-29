@@ -161,12 +161,16 @@ export const formatRelativeTime = (
   options?: RelativeTimeOptions,
   locale?: string,
 ): string => {
-  // `now` is not an Intl option: kept out of the formatter's cache key.
-  const { now = clock(i18n), ...rest } = options || {};
-  const ms = +date - now;
+  const ms = +date - (options?.now ?? clock(i18n));
   const [unit, size] = UNITS.find((u) => Math.abs(ms) >= u[1]) || UNITS[6];
-  // Only `now` (or nothing): the default formatter, kept on the chain.
-  const o = Object.keys(rest).length ? { numeric: AUTO.numeric, ...rest } : AUTO;
+  // Only `now` (or nothing): the default formatter, kept on the chain, no allocation. `now`
+  // is not an Intl option: blanked, so its value never splits the formatter cache.
+  let o: Intl.RelativeTimeFormatOptions = AUTO;
+  for (const k in options)
+    if (k != "now") {
+      o = { numeric: AUTO.numeric, ...options, now: undefined } as Intl.RelativeTimeFormatOptions;
+      break;
+    }
   return get<Intl.RelativeTimeFormat>(
     "RelativeTimeFormat",
     i18n,

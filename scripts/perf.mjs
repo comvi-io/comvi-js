@@ -229,6 +229,9 @@ export async function buildCaseThunks(distRoot) {
   const bigI18n = createI18n({ locale: "en", messages: { en: big } });
   for (let i = 0; i < 10_000; i++) bigI18n.t(`k${i}`, { name: "x" });
   const b = (chunks) => chunks;
+  // `now`: positional before lot 4b (`(i18n, date, now?, options?)`, five params), a member
+  // of the options since (`(i18n, date, { now }?)`, four): built once, outside the timing.
+  const now = formatRelativeTime.length > 4 ? date : { now: date };
   return [
     () => make(),
     () => staticI18n.t("key0"),
@@ -242,8 +245,8 @@ export async function buildCaseThunks(distRoot) {
     () => formatDate(bareI18n, date),
     () => formatDate(fallbackI18n, date),
     // 0.8 takes (date, now) and picks the unit: the same "3 days ago" as 0.7's (-3, "day").
-    () => formatRelativeTime(bareI18n, date - 3 * 86_400_000, date),
-    () => formatRelativeTime(fallbackI18n, date - 3 * 86_400_000, date),
+    () => formatRelativeTime(bareI18n, date - 3 * 86_400_000, now),
+    () => formatRelativeTime(fallbackI18n, date - 3 * 86_400_000, now),
     () => bigI18n.add("en", { k1: `Changed ${n++} {name}` }),
   ];
 }

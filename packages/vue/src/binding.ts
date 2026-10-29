@@ -313,7 +313,9 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
   const [s, locale, dir, Ts] = cell(i);
   const n = ns || "default";
   const a = () => activate(i, n);
-  onServerPrefetch(a);
+  // A server render waits only for what is still coming: a namespace in place costs it no
+  // async step.
+  if (coming(i, s.value, n)) onServerPrefetch(a);
   onMounted(a);
   return {
     t: tr(i, n) as UseI18n<NS>["t"],

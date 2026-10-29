@@ -3,14 +3,14 @@
  * imports it carries none of it — `useI18n(ns).T` is the functional bound one (binding.ts).
  */
 import { onServerPrefetch, watchEffect } from "vue";
-import { activate } from "@comvi/core/internal";
+import { activate, coming, state } from "@comvi/core/internal";
 import { render, use, type TComponent } from "./binding";
 
 const setup = (_: unknown, c: { attrs: Record<string, unknown>; slots: Record<string, any> }) => {
   const i = use();
   const ns = () => (c.attrs.ns as string) || "default";
-  // On a server before the render (`renderToString` waits for it).
-  onServerPrefetch(() => activate(i, ns()));
+  // On a server before the render (`renderToString` waits for it), when it is still coming.
+  if (coming(i, state(i), ns())) onServerPrefetch(() => activate(i, ns()));
   // In a browser after the render; `attrs` is tracked: a new `ns` activates that namespace.
   watchEffect(() => activate(i, ns()), { flush: "post" });
   return () => render(i, c.attrs.ns, c.attrs, c.slots);
