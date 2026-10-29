@@ -6,11 +6,20 @@
  * they are CALLED (a reactive read), so a template that formats re-renders on a switch —
  * and only on a switch; React's are bound to the render's locale instead.
  */
-import { defineComponent, h, nextTick, ref } from "vue";
+import {
+  createSSRApp,
+  defineAsyncComponent,
+  defineComponent,
+  h,
+  nextTick,
+  ref,
+  type Component,
+} from "vue";
+import { renderToString } from "vue/server-renderer";
 import { describe, expect, it } from "vitest";
-import { createI18n, type VueI18n } from "../src";
+import { createI18n, handover, type VueI18n } from "../src";
 import { useFormat, type Formatters } from "../src/format";
-import { manualLoader, make, mountWith, probe } from "./helpers";
+import { manualLoader, make, mountWith, probe, vueWarnings } from "./helpers";
 
 const capture = (i18n: VueI18n) => {
   let f!: Formatters;
@@ -58,23 +67,76 @@ describe("useFormat()", () => {
     );
   });
 
-  it("a handed-over serverNow holds for the hydration render, the browser clock after mount (lot 4b)", async () => {
+  it("a handed-over serverNow holds for a component's hydration only: later renders and late mounts run live (lot 4b)", async () => {
     const real = Date.now;
-    Date.now = () => 1_000_000;
+    let clockNow = 940_000;
+    Date.now = () => clockNow;
     try {
-      const i18n = createI18n({ locale: "en", timeZone: "UTC", serverNow: 940_000 });
+      // 880 000 is "1 minute ago" for the server's render at 940 000.
       const tick = ref(0);
-      const C = defineComponent({
-        setup() {
+      const late = ref(false);
+      let resolve!: (c: Component) => void;
+      const Ago = defineComponent({
+        props: { id: String },
+        setup(p) {
           const f = useFormat();
-          return () => h("p", (tick.value, f.relative(880_000)));
+          return () => h("i", { id: p.id }, (tick.value, f.relative(880_000)));
         },
       });
-      const w = mountWith(i18n, C);
-      expect(w.text()).toBe("1 minute ago"); // the hydration render: the server's clock
+      // Hydrated later than the rest (an async component): its own hydration still counts
+      // from the server's clock.
+      const Later = defineAsyncComponent(() => new Promise<Component>((y) => (resolve = y)));
+      const App = defineComponent({
+        setup: () => () => [
+          h(Ago, { id: "a" }),
+          h(Later, { id: "later" }),
+          late.value ? h(Ago, { id: "late" }) : null,
+        ],
+      });
+      const server = createI18n({ locale: "en", timeZone: "UTC" });
+      const ServerApp = defineComponent({
+        setup: () => () => [h(Ago, { id: "a" }), h(Ago, { id: "later" }), null],
+      });
+      const html = await renderToString(createSSRApp(ServerApp).use(server));
+      const payload = JSON.parse(JSON.stringify(handover(server)));
+      expect(payload.serverNow).toBe(940_000);
+      // The browser hydrates a minute later.
+      clockNow = 1_000_000;
+      const el = document.createElement("div");
+      el.innerHTML = html;
+      const client = createI18n({ locale: "en", ...payload });
+      const app = createSSRApp(App).use(client);
+      const warnings = await vueWarnings(async () => {
+        app.mount(el);
+        await nextTick();
+        expect(el.querySelector("#a")!.textContent).toBe("1 minute ago"); // what the server rendered
+        resolve(Ago);
+        await new Promise((y) => setTimeout(y, 0));
+        await nextTick();
+      });
+      // No hydration mismatch: each component's hydration matched the server's text.
+      expect(warnings).toEqual([]);
+      expect(el.querySelector("#later")!.textContent).toBe("1 minute ago");
+      // After mount, a re-render counts from the browser's clock.
       tick.value++;
       await nextTick();
-      expect(w.text()).toBe("2 minutes ago"); // mounted: the browser's clock
+      expect(el.querySelector("#a")!.textContent).toBe("2 minutes ago");
+      // A component mounted after the hydration is live at its first render.
+      late.value = true;
+      await nextTick();
+      expect(el.querySelector("#late")!.textContent).toBe("2 minutes ago");
+      app.unmount();
+    } finally {
+      Date.now = real;
+    }
+  });
+
+  it("an explicit `now` option stays fixed in every render (lot 4b)", () => {
+    const real = Date.now;
+    Date.now = () => 5_000_000;
+    try {
+      const i18n = createI18n({ locale: "en", now: 940_000, serverNow: 100 });
+      expect(capture(i18n).relative(880_000)).toBe("1 minute ago");
     } finally {
       Date.now = real;
     }

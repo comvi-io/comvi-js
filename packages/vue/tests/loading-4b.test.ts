@@ -6,7 +6,7 @@
 import { defineComponent, h } from "vue";
 import { describe, expect, it } from "vitest";
 import { useI18n } from "../src";
-import { make, manualLoader, mountWith, settle } from "./helpers";
+import { make, manualLoader, mountWith, settle, vueWarnings } from "./helpers";
 
 describe("the writable locale after a failed switch (lot 4b)", () => {
   it("a v-model <select> shows the locale on screen again; the instance keeps it", async () => {
@@ -108,5 +108,52 @@ describe("useI18n() activates `default` (lot 4b)", () => {
     expect(w.text()).toBe("…");
     await l.fail("en:shop");
     expect(w.text()).toBe("title");
+  });
+});
+
+describe("useI18n() outside a component (lot 4b)", () => {
+  it("in app.runWithContext() (a store, a router guard) it registers no lifecycle hook: Vue warns nothing", async () => {
+    const l = manualLoader({ "en:default": { hi: "Hello" } });
+    const { i18n } = make({ locale: "en", loader: l.load });
+    const { createApp } = await import("vue");
+    const app = createApp({ render: () => null }).use(i18n);
+    const warnings = await vueWarnings(() => {
+      const { t, setLocale } = app.runWithContext(() => useI18n("shop"));
+      expect(typeof t).toBe("function");
+      expect(setLocale).toBe(i18n.setLocale);
+    });
+    expect(warnings).toEqual([]);
+    // Nothing was activated there: `i18n.load("shop")` is the call that loads.
+    expect(l.requested).toEqual(["en:default"]);
+  });
+});
+
+describe("$t of a namespace nothing loads (lot 4b)", () => {
+  it("development warns once, naming the namespace and the ways to load it; $t activates nothing", async () => {
+    const l = manualLoader({ "en:account": {}, "en:default": { hi: "Hello" } });
+    const { i18n } = make({ locale: "en", namespaces: ["account"], loader: l.load });
+    const Root = defineComponent({
+      template: "<p>{{ $t('hi') }}{{ $t('hi') }}</p>",
+    });
+    const warnings = await vueWarnings(async () => {
+      mountWith(i18n, Root);
+      await settle();
+    });
+    const idle = warnings.filter((w) => w.includes("which nothing loads"));
+    expect(idle).toHaveLength(1);
+    expect(idle[0]).toContain('"default"');
+    expect(idle[0]).toContain("`namespaces`");
+    expect(l.requested).toEqual(["en:account"]);
+  });
+
+  it("an app that loads the namespace hears nothing", async () => {
+    const l = manualLoader({ "en:default": { hi: "Hello" } });
+    const { i18n } = make({ locale: "en", loader: l.load });
+    const Root = defineComponent({ template: "<p>{{ $t('hi') }}</p>" });
+    const warnings = await vueWarnings(async () => {
+      mountWith(i18n, Root);
+      await l.answer("en:default");
+    });
+    expect(warnings.filter((w) => w.includes("which nothing loads"))).toEqual([]);
   });
 });

@@ -2,17 +2,22 @@
  * The exported `<T>` (design §3.5, R3-5): its own module and chunk, so an app that never
  * imports it carries none of it — `useI18n(ns).T` is the functional bound one (binding.ts).
  */
-import { onServerPrefetch, watchEffect } from "vue";
-import { activate, coming, state } from "@comvi/core/internal";
+import { inject, onServerPrefetch, ssrContextKey, watchEffect } from "vue";
+import { core } from "@comvi/core/internal";
 import { render, use, type TComponent } from "./binding";
 
 const setup = (_: unknown, c: { attrs: Record<string, unknown>; slots: Record<string, any> }) => {
   const i = use();
+  const x = core(i);
   const ns = () => (c.attrs.ns as string) || "default";
-  // On a server before the render (`renderToString` waits for it), when it is still coming.
-  if (coming(i, state(i), ns())) onServerPrefetch(() => activate(i, ns()));
+  // On a server: active at once (`handover()` carries an inline catalog too), and the
+  // render waits for it (`renderToString` waits for a prefetch) when it is still coming.
+  if (inject(ssrContextKey, null)) {
+    x.a(ns());
+    if (x.w(x.s(), ns())) onServerPrefetch(() => x.a(ns()));
+  }
   // In a browser after the render; `attrs` is tracked: a new `ns` activates that namespace.
-  watchEffect(() => activate(i, ns()), { flush: "post" });
+  watchEffect(() => x.a(ns()), { flush: "post" });
   return () => render(i, c.attrs.ns, c.attrs, c.slots);
 };
 

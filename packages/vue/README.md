@@ -23,8 +23,10 @@ components, and `<T>` for translations that contain markup.
 ## Install
 
 ```bash
-npm install @comvi/vue # peer: vue ^3.5.0
+npm install @comvi/vue @comvi/core # peer: vue ^3.5.0
 ```
+
+`@comvi/core` is listed because the app imports from it too (`@comvi/core/cdn` below).
 
 ## Setup
 
@@ -64,7 +66,9 @@ const { t, locale } = useI18n();
 ```
 
 `t()` fills `{name}` from its second argument; `{ ns }` and `{ locale }` there switch the
-namespace and the locale for one call. `$t` is the same `t()` in every template. `locale` is
+namespace and the locale for one call. `$t` is the same `t()` in every template; it loads
+nothing itself, so its namespace (`default`) loads when it is in the `namespaces` option (the
+default) or a component calls `useI18n()` (development warns otherwise). `locale` is
 writable: setting it switches, and it keeps the old value until the new locale's catalogs are in;
 when you switch twice quickly the last switch wins. A failed switch keeps the old locale (the
 `<select>` shows it again), reported as `load_failed` through `onError`; `setLocale()` is the
@@ -110,12 +114,14 @@ import TermsLink from "./TermsLink.vue"; // <a href="/terms"><slot /></a>
 ```
 
 Each tag renders through, in this order, a handler attribute of its name
-(`:link="(c) => h('a', c)"`), its entry in `components` (an HTML tag name or a component; the
-content is its default slot, nested tags included), or a slot of its name
-(`<template #link="{ children }">{{ children }}</template>`: `children` is the tag's text when
-it holds text only; a tag that holds markup takes `components`, and development warns). An
-attribute that is `undefined` leaves the tag to the next; a tag with none of them renders as
-text. Every attribute but `i18n-key`, `components` and the per-call options `ns`, `locale` and
+(`:link="(c) => h('a', c)"`), its entry in `components` (an HTML tag name, a component, or
+`{ component, props }` for one that needs props of its own, such as
+`{ component: RouterLink, props: { to: "/terms" } }`; the content is its default slot, nested
+tags included), or a slot of its name (`<template #link="{ children }">{{ children }}</template>`:
+`children` is always the tag's text from the message; markup inside it is flattened to text, and
+development warns — keep it with `components`). An attribute or an entry that is `undefined`
+leaves the tag to the next; a tag with none of them renders as text. In a template, render a
+message with markup through `<T>`: `{{ t("terms", { link }) }}` would print a list of nodes. Every attribute but `i18n-key`, `components` and the per-call options `ns`, `locale` and
 `markers` is a message param, camelized (`:first-name` is `{firstName}`); `:markers="false"`
 keeps the editor from marking the message. `useI18n(ns).T` takes no `ns`. On neither `<T>` do
 `class` or `style` fall through (they are params): wrap `<T>` in your own element to style it.
@@ -123,8 +129,9 @@ keeps the editor from marking the message. `useI18n(ns).T` takes no `ns`. On nei
 ## Server rendering
 
 An instance per request, created with the app. `useI18n(ns)` and `<T ns>` load their namespace
-before they render (`renderToString` waits for them), so the request only waits for the locale's
-first catalogs, then hands everything over:
+before they render (`renderToString` waits for them), and `handover()` carries it even when its
+catalog was inline, so the request only waits for the locale's first catalogs, then hands
+everything over:
 
 ```ts title="server.ts"
 import { createSSRApp } from "vue";
@@ -140,8 +147,9 @@ const payload = JSON.stringify(handover(i18n)).replace(/</g, "\\u003c");
 
 In the browser, `createI18n({ ...options, ...window.__I18N__ })` starts with the server's locale,
 time zone, clock (`serverNow`) and catalogs: the app hydrates without a mismatch and fetches
-nothing the server rendered. Relative time counts from the server's clock during the hydration
-and from the browser's after mount; nothing re-renders by itself as time passes.
+nothing the server rendered. Relative time counts from the server's clock while a component
+hydrates and from the browser's for every other render, a component mounted later included;
+nothing re-renders by itself as time passes.
 
 ### How it works
 
