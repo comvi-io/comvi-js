@@ -11,7 +11,7 @@ import { renderToString } from "react-dom/server";
 import { act, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { createI18n, I18nHandover, I18nProvider, useI18n, type ProviderCatalogs } from "../src";
-import { make, manualLoader, settle } from "./helpers";
+import { make, manualLoader, reactWarnings, settle, shown } from "./helpers";
 
 const Show = () => {
   const { t, locale } = useI18n();
@@ -19,6 +19,26 @@ const Show = () => {
 };
 
 describe("first-paint gate (lot 4b)", () => {
+  it("with no text and no handover the placeholder is all that shows; the hidden mount stays hidden and opens in place", async () => {
+    const l = manualLoader({ "en:default": { hi: "Hello" } });
+    const { i18n } = make({ locale: "en", loader: l.load });
+    let container!: HTMLElement;
+    const warnings = await reactWarnings(() => {
+      ({ container } = render(
+        <I18nProvider i18n={i18n} loading={<i>wait</i>}>
+          <Show />
+        </I18nProvider>,
+      ));
+    });
+    // No key warning for the placeholder beside the hidden copy. React warns once per
+    // component, so this test runs first in the file.
+    expect(warnings).toEqual([]);
+    expect(shown(container).textContent).toBe("wait");
+    expect(container.querySelector("b[hidden]")!.textContent).toBe("en:hi");
+    await l.answer("en:default");
+    expect(container.innerHTML).toBe("<p>en:Hello</p>");
+  });
+
   it("a render React abandons does not open the gate: the next render still waits", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: { hi: "Hello" } }, loader: l.load });
@@ -48,7 +68,7 @@ describe("first-paint gate (lot 4b)", () => {
         </I18nProvider>,
       ),
     );
-    expect(container.textContent).toBe("wait");
+    expect(shown(container).textContent).toBe("wait");
     await l.answer("en:shop");
     expect(container.textContent).toBe("en:Hello");
     act(() => root.unmount());
@@ -67,24 +87,64 @@ describe("first-paint gate (lot 4b)", () => {
     expect(container.textContent).toBe("en:Hello");
   });
 
-  it("a client render (no hydration): a handover under a gated provider waits like any child", async () => {
-    // `<I18nHandover catalogs>` carries a server payload: the page it comes with hydrates
-    // (below). Rendered on a client with no server HTML, it is one more child of the gate.
+  it("a client render (no hydration): a handover at any depth under a shut `loading` gate hands its catalogs over and opens it, with no request for them", async () => {
+    // Beside `loading` the children mount hidden, so an `<I18nHandover catalogs>` anywhere
+    // among them adds its payload at commit: the gate opens on it, before any catalog loads.
+    const catalogs: ProviderCatalogs = { default: { uk: { hi: "Привіт" } } };
+    const Layout = ({ children }: { children: React.ReactNode }) => <main>{children}</main>;
+    const shapes: ((x: React.ReactNode) => React.ReactNode)[] = [
+      (x) => x,
+      (x) => <>{x}</>,
+      (x) => <Suspense fallback="…">{x}</Suspense>,
+      (x) => <Layout>{x}</Layout>,
+      (x) => (
+        <Layout>
+          <section>
+            <Suspense fallback="…">{x}</Suspense>
+          </section>
+        </Layout>
+      ),
+    ];
+    for (const shape of shapes) {
+      const l = manualLoader();
+      const { i18n } = make({ locale: "en", loader: l.load }); // en:default in flight
+      const { container, unmount } = render(
+        <I18nProvider i18n={i18n} loading="wait">
+          {shape(
+            <I18nHandover locale="uk" catalogs={catalogs}>
+              <Show />
+            </I18nHandover>,
+          )}
+        </I18nProvider>,
+      );
+      expect(container.textContent).toBe("uk:Привіт");
+      expect(container.querySelector("[hidden]")).toBeNull();
+      await settle();
+      expect(i18n.locale).toBe("uk");
+      expect(container.textContent).toBe("uk:Привіт");
+      expect(l.requested.filter((r) => r.startsWith("uk"))).toEqual([]);
+      unmount();
+    }
+  });
+
+  it("a client render under `suspense`: nothing mounts while the provider suspends, so a handover below waits like any child", async () => {
+    // Not covered by the hidden mount (it would not commit under a suspended boundary).
     const l = manualLoader();
     const { i18n } = make({ locale: "en", loader: l.load }); // en:default in flight
     const catalogs: ProviderCatalogs = { default: { uk: { hi: "Привіт" } } };
     const { container } = render(
-      <I18nProvider i18n={i18n} loading="wait">
-        <I18nHandover locale="uk" catalogs={catalogs}>
-          <Show />
-        </I18nHandover>
-      </I18nProvider>,
+      <Suspense fallback="wait">
+        <I18nProvider i18n={i18n} suspense>
+          <I18nHandover locale="uk" catalogs={catalogs}>
+            <Show />
+          </I18nHandover>
+        </I18nProvider>
+      </Suspense>,
     );
     expect(container.textContent).toBe("wait");
     await l.answer("en:default");
-    expect(container.textContent).toBe("uk:Привіт");
     await settle();
-    expect(i18n.locale).toBe("uk");
+    expect(container.textContent).toBe("uk:Привіт");
     expect(l.requested.filter((r) => r.startsWith("uk"))).toEqual([]);
   });
 
@@ -184,7 +244,7 @@ describe("first-paint gate (lot 4b)", () => {
         <Show />
       </I18nProvider>,
     );
-    expect(container.textContent).toBe("");
+    expect(shown(container).textContent).toBe("");
     await l.answer("en:default");
     expect(container.textContent).toBe("en:Hello");
   });

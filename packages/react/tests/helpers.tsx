@@ -66,3 +66,13 @@ export const reactWarnings = async (f: () => unknown): Promise<string[]> => {
   }
   return seen;
 };
+
+/**
+ * What the page shows: a copy of `el` without its `hidden` elements. While the first-paint
+ * gate is shut, `<I18nProvider loading>` mounts its children hidden beside the placeholder.
+ */
+export const shown = (el: Element): Element => {
+  const c = el.cloneNode(true) as Element;
+  for (const h of c.querySelectorAll("[hidden]")) h.remove();
+  return c;
+};

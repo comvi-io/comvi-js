@@ -846,7 +846,10 @@ async function observeStates(page: Page, watched: Watched): Promise<void> {
       const html = document.documentElement;
       const texts: Record<string, string | null> = {};
       for (const [field, selector] of Object.entries(selectors)) {
-        texts[field] = document.querySelector(selector)?.textContent ?? null;
+        // An element under a `hidden` ancestor is not rendered: `<I18nProvider loading>`
+        // (React) mounts the app hidden beside its placeholder while the first paint waits.
+        const shown = [...document.querySelectorAll(selector)].find((e) => !e.closest("[hidden]"));
+        texts[field] = shown?.textContent ?? null;
       }
       const frame = { texts, lang: html.getAttribute("lang"), dir: html.getAttribute("dir") };
       const key = JSON.stringify(frame);

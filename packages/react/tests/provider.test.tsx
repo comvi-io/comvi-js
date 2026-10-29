@@ -16,7 +16,7 @@ import {
   type I18n,
   type UntypedParams,
 } from "../src";
-import { make, manualLoader, settle } from "./helpers";
+import { make, manualLoader, settle, shown } from "./helpers";
 
 const Show = ({ k = "hi", p }: { k?: string; p?: UntypedParams }) => {
   const { t, locale } = useI18n();
@@ -147,7 +147,7 @@ describe("<I18nProvider loading>", () => {
     const l = manualLoader({ "en:default": { hi: "Hello" } });
     const { i18n } = make({ locale: "en", loader: l.load });
     const { container } = render(app(i18n, <Show />, { loading: <i>wait</i> }));
-    expect(container.textContent).toBe("wait");
+    expect(shown(container).textContent).toBe("wait");
     await l.answer("en:default");
     expect(container.textContent).toBe("en:Hello");
   });
@@ -179,7 +179,7 @@ describe("<I18nProvider loading>", () => {
     const { container } = render(app(i18n, <Show />, { loading: "wait" }));
     expect(l.requested).toEqual(["pt-BR:default", "pt:default"]);
     await l.fail("pt-BR:default");
-    expect(container.textContent).toBe("wait");
+    expect(shown(container).textContent).toBe("wait");
     await l.answer("pt:default");
     expect(container.textContent).toBe("pt-BR:Olá");
   });
@@ -202,7 +202,8 @@ describe("<I18nProvider loading>", () => {
     expect(container.textContent).toBe("1");
     await l.answer("en:account");
     expect(container.textContent).toBe("1");
-    expect(mounts).toBe(1);
+    // Mounted twice: hidden beside `loading` while the gate was shut, then in place.
+    expect(mounts).toBe(2);
   });
 
   it("a namespace that fails after the first paint is fetched once: no remount loop", async () => {

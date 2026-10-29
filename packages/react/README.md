@@ -115,7 +115,10 @@ cover the first paint only (the first render React commits), and only while a na
 loaded has no catalog of any locale: inline `messages` or a fallback locale's catalog show at
 once. A namespace loaded later keeps the app on screen (show `isLoading`), and a locale switch
 keeps the old locale until the new one is in. A server render and a hydration always render the
-children: the server preloads what it renders.
+children: the server preloads what it renders. While `loading` shows, the app is mounted hidden
+beside it (`<b hidden>`): its effects run, an `<I18nHandover>` in it hands its catalogs over
+(which can end the wait at once), and when the wait ends it mounts again in place. `suspense`
+mounts nothing while it suspends, so a handover below it waits for the loads.
 
 ## Markup in a translation
 

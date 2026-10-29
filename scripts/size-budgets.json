@@ -151,27 +151,27 @@
       "ceilingBytes": 5470,
       "increment": {
         "over": "core-icu-cdn",
-        "maxBytes": 500
+        "maxBytes": 520
       },
       "baseline": {
-        "minBytes": 11080,
-        "gzipBytes": 5425,
+        "minBytes": 11112,
+        "gzipBytes": 5445,
         "measuredAt": "2026-10-29"
       },
-      "note": "core-icu-cdn's graph on React: createI18n + cdn() + <I18nProvider> + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,910 + the R3-10 binding cap 500; the increment over core-icu-cdn is HARD-capped at +500 B (lot 1c: +468; lot 1e: +467, <T markers> is types only). Accounting in size-budgets.md 2026-10-27 lots 1c and 1e. Lot 1d (2026-10-28): 5241 → 5204, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 5204 → 5284, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 5284 → 5358, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 5358 → 5361, size-budgets.md 2026-10-28 lot 2c review fix pass. Lot 4 N-1 fix (2026-10-28): ceiling 5,395 → 5,410 with core-icu-cdn's; 5360 → 5371 (+471 B over core-icu-cdn), size-budgets.md 2026-10-28 lot 4 N-1 fix. Lot 4b (2026-10-29): ceiling 5,410 → 5,470 B (R3-25), increment cap still +500; 5371 → 5420 (+499 B over core-icu-cdn), budget = the ceiling, size-budgets.md 2026-10-29 lot 4b. Lot 4b fix pass (2026-10-29): 5420 → 5425 B, size-budgets.md 2026-10-29 lot 4b fix pass. Lot 4b fix pass 2 (2026-10-29): 5425 → 5425 B, size-budgets.md 2026-10-29 lot 4b fix pass 2."
+      "note": "core-icu-cdn's graph on React: createI18n + cdn() + <I18nProvider> + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,910 + the R3-10 binding cap 500; the increment over core-icu-cdn is HARD-capped at +500 B (lot 1c: +468; lot 1e: +467, <T markers> is types only). Accounting in size-budgets.md 2026-10-27 lots 1c and 1e. Lot 1d (2026-10-28): 5241 → 5204, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 5204 → 5284, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 5284 → 5358, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 5358 → 5361, size-budgets.md 2026-10-28 lot 2c review fix pass. Lot 4 N-1 fix (2026-10-28): ceiling 5,395 → 5,410 with core-icu-cdn's; 5360 → 5371 (+471 B over core-icu-cdn), size-budgets.md 2026-10-28 lot 4 N-1 fix. Lot 4b (2026-10-29): ceiling 5,410 → 5,470 B (R3-25), increment cap still +500; 5371 → 5420 (+499 B over core-icu-cdn), budget = the ceiling, size-budgets.md 2026-10-29 lot 4b. Lot 4b fix pass (2026-10-29): 5420 → 5425 B, size-budgets.md 2026-10-29 lot 4b fix pass. Lot 4b fix pass 2 (2026-10-29): 5425 → 5425 B, size-budgets.md 2026-10-29 lot 4b fix pass 2. Lot 4b fix pass 3 (2026-10-29): 5425 → 5445 B (+520 B over core-icu-cdn), increment cap +500 → +520 by owner decision, ceiling unchanged, size-budgets.md 2026-10-29 lot 4b fix pass 3."
     },
     {
       "name": "fw-react-default",
       "entry": ["@comvi/react"],
       "fixture": "framework/react-default.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 5154,
+      "gzipBudgetBytes": 5177,
       "baseline": {
-        "minBytes": 9928,
-        "gzipBytes": 4908,
+        "minBytes": 9960,
+        "gzipBytes": 4930,
         "measuredAt": "2026-10-29"
       },
-      "note": "Gated React floor: one `@comvi/react` specifier, bundled catalogs, <I18nProvider> + useI18n() + t({name}). Re-baselined in lot 1c on the 0.8 binding (0.7: 7,606 B) and in lot 1e (+58: the core's marking hook, H8 and H3). Lot 1d (2026-10-28): 4778 → 4737, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 4737 → 4807, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 4807 → 4849, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 4849 → 4858, size-budgets.md 2026-10-28 lot 2c review fix pass. Lot 4b (2026-10-29): baseline 4858 → 4912 budget 5101 → 5158 (ceil × 1.05), size-budgets.md 2026-10-29 lot 4b. Lot 4b fix pass (2026-10-29): 4912 → 4909 B, size-budgets.md 2026-10-29 lot 4b fix pass. Lot 4b fix pass 2 (2026-10-29): 4909 → 4908 B, size-budgets.md 2026-10-29 lot 4b fix pass 2."
+      "note": "Gated React floor: one `@comvi/react` specifier, bundled catalogs, <I18nProvider> + useI18n() + t({name}). Re-baselined in lot 1c on the 0.8 binding (0.7: 7,606 B) and in lot 1e (+58: the core's marking hook, H8 and H3). Lot 1d (2026-10-28): 4778 → 4737, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 4737 → 4807, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 4807 → 4849, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 4849 → 4858, size-budgets.md 2026-10-28 lot 2c review fix pass. Lot 4b (2026-10-29): baseline 4858 → 4912 budget 5101 → 5158 (ceil × 1.05), size-budgets.md 2026-10-29 lot 4b. Lot 4b fix pass (2026-10-29): 4912 → 4909 B, size-budgets.md 2026-10-29 lot 4b fix pass. Lot 4b fix pass 2 (2026-10-29): 4909 → 4908 B, size-budgets.md 2026-10-29 lot 4b fix pass 2. Lot 4b fix pass 3 (2026-10-29): 4908 → 4930 B, size-budgets.md 2026-10-29 lot 4b fix pass 3."
     },
     {
       "name": "fw-react-full-composite",
@@ -184,13 +184,13 @@
       ],
       "fixture": "framework/react-full-composite.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 8353,
+      "gzipBudgetBytes": 8376,
       "baseline": {
-        "minBytes": 16898,
-        "gzipBytes": 7955,
+        "minBytes": 16928,
+        "gzipBytes": 7977,
         "measuredAt": "2026-10-29"
       },
-      "note": "Gated React ceiling: every export of @comvi/react and /format (<I18nHandover>, <T>, useLocale, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 1c on the 0.8 binding (0.7: 13,526 B) and in lot 1e (−567: the thin devtools hook). Lot 1d (2026-10-28): 7603 → 7578, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 7578 → 7672, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 7672 → 7740, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 7740 → 7747, size-budgets.md 2026-10-28 lot 2c review fix pass. Lot 4b (2026-10-29): baseline 7747 → 7938 budget 8135 → 8335 (ceil × 1.05), size-budgets.md 2026-10-29 lot 4b. Lot 4b fix pass (2026-10-29): 7938 → 7954 B, size-budgets.md 2026-10-29 lot 4b fix pass. Lot 4b fix pass 2 (2026-10-29): 7954 → 7955 B, size-budgets.md 2026-10-29 lot 4b fix pass 2."
+      "note": "Gated React ceiling: every export of @comvi/react and /format (<I18nHandover>, <T>, useLocale, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 1c on the 0.8 binding (0.7: 13,526 B) and in lot 1e (−567: the thin devtools hook). Lot 1d (2026-10-28): 7603 → 7578, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 7578 → 7672, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 7672 → 7740, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 7740 → 7747, size-budgets.md 2026-10-28 lot 2c review fix pass. Lot 4b (2026-10-29): baseline 7747 → 7938 budget 8135 → 8335 (ceil × 1.05), size-budgets.md 2026-10-29 lot 4b. Lot 4b fix pass (2026-10-29): 7938 → 7954 B, size-budgets.md 2026-10-29 lot 4b fix pass. Lot 4b fix pass 2 (2026-10-29): 7954 → 7955 B, size-budgets.md 2026-10-29 lot 4b fix pass 2. Lot 4b fix pass 3 (2026-10-29): 7955 → 7977 B, size-budgets.md 2026-10-29 lot 4b fix pass 3."
     },
     {
       "name": "vue-icu-cdn",

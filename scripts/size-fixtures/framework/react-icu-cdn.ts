@@ -1,6 +1,7 @@
-// React + core + ICU + cdn() (R3-10 binding cap: +500 B over core-icu-cdn): the product's
-// main path on React — the instance loading CDN v1 catalogs, the provider, useI18n() and
-// t() with a plain {name} and a plural. core-icu-cdn.ts is the same graph without React.
+// React + core + ICU + cdn() (R3-10 binding cap, raised by the owner 29.10.2026: +520 B over
+// core-icu-cdn): the product's main path on React — the instance loading CDN v1 catalogs, the
+// provider, useI18n() and t() with a plain {name} and a plural. core-icu-cdn.ts is the same
+// graph without React.
 import { createElement } from "react";
 import { createI18n, I18nProvider, useI18n } from "@comvi/react";
 import { cdn } from "@comvi/core/cdn";
