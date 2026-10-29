@@ -149,7 +149,7 @@ export const find = (slot: Slot, key: string): Compiled | undefined => {
     slot.p && typeof arg(slot.p, key) == "string"
       ? lookup(slot.pc!, slot.p, key)
       : lookup(slot.c, slot.m, key);
-  return f === "" ? undefined : f;
+  return f == "" ? undefined : f;
 };
 
 /**

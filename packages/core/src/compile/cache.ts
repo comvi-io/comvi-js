@@ -48,7 +48,7 @@ export const compile = (template: string, key?: string): Compiled => {
   try {
     parts = message(P, false, false, false);
   } catch (e) {
-    if (e !== SYNTAX) throw e;
+    if (e != SYNTAX) throw e;
     // Development: the parser's explanation. Production: only the messages that ship
     // (the useFormat() hint for `{x, number|date|time}`), otherwise `undefined`.
     const text = SYNTAX.m;
@@ -102,7 +102,7 @@ export const lookup = (
   key: string,
 ): Compiled | undefined => {
   const hit = record[key];
-  if (hit !== undefined) return hit;
+  if (hit != null) return hit;
   const template = arg(catalog, key);
   return typeof template === "string" ? (record[key] = compile(template, key)) : undefined;
 };

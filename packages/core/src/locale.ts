@@ -55,10 +55,10 @@ export const parents = (tag: string): readonly string[] =>
   once("p" + tag, () => {
     const script = maximize(tag).script;
     const base = new Intl.Locale(tag).baseName;
-    const out: string[] = base !== tag ? [base] : [];
+    const out: string[] = base != tag ? [base] : [];
     for (let t = base, i: number; (i = t.lastIndexOf("-")) > 0;) {
       t = t.slice(0, i);
-      if (maximize(t).script === script) out.push(t);
+      if (maximize(t).script == script) out.push(t);
     }
     return out;
   });
@@ -94,12 +94,12 @@ export const negotiate = (
       if (!c) continue;
       const have = maximize(c);
       const s =
-        c === tag
+        c == tag
           ? 99
           : chain.includes(c)
             ? 98 - chain.indexOf(c)
-            : have.language === want.language && have.script === want.script
-              ? have.region === want.region
+            : have.language == want.language && have.script == want.script
+              ? have.region == want.region
                 ? 2
                 : 1
               : 0;

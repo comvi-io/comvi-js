@@ -93,11 +93,15 @@ describe("destroy()", () => {
   });
 
   it("drops every subscriber: a later publish reaches none", () => {
-    const i18n = createI18n({ locale: "en" });
+    let mark: (f: null) => void = () => {};
+    const i18n = createI18n({
+      locale: "en",
+      plugins: [{ name: "mark", setup: (_, m) => void (mark = m) }],
+    });
     const sub = vi.fn();
     i18n.on(sub);
     i18n.destroy();
-    CORE.get(i18n)!.m(null); // the one publish that is not guarded by destroy()
+    mark(null); // the one publish that is not guarded by destroy()
     expect(sub).not.toHaveBeenCalled();
   });
 });

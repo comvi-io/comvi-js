@@ -48,7 +48,7 @@ export const intl = <T>(
 ): T => {
   const key = kind + " " + locale + " " + variant;
   let f = cache[key];
-  if (f === undefined) {
+  if (f == null) {
     if (++size > INTL_CACHE_LIMIT) {
       cache = Object.create(null);
       ascii = Object.create(null);
@@ -73,9 +73,9 @@ const numberFormat = (locale: string): Intl.NumberFormat => intl("NumberFormat",
 export const formatNumber = (n: number, locale: string): string =>
   n >= 0 &&
   n < 1000 &&
-  n % 1 === 0 &&
+  n % 1 == 0 &&
   1 / n > 0 &&
-  (ascii[locale] ??= numberFormat(locale).format(109) === "109")
+  (ascii[locale] ??= numberFormat(locale).format(109) == "109")
     ? "" + n
     : numberFormat(locale).format(n);
 

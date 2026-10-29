@@ -113,3 +113,27 @@ describe("tag children without a handler", () => {
     expect(fmt("x <b>a{n}b</b> y", { n: node })).toEqual(["x a", node, "b y"]);
   });
 });
+
+describe("a handler's second argument: the text of its tag (lot 4b)", () => {
+  it("is the content's text from the message: nested tags inline, params filled, no handler run", () => {
+    const ran: string[] = [];
+    const texts: unknown[] = [];
+    const out = fmt("Read <link>the <b>{what}</b> terms</link>.", {
+      what: "new",
+      b: (c: readonly unknown[]) => (ran.push("b"), { b: c }),
+      link: (c: readonly unknown[], text: () => unknown) => (texts.push(text()), { a: c }),
+    });
+    expect(texts).toEqual(["the new terms"]);
+    // The nested handler ran once, for the rendered children — never for the text.
+    expect(ran).toEqual(["b"]);
+    expect(out).toEqual(["Read ", { a: ["the ", { b: ["new"] }, " terms"] }, "."]);
+  });
+
+  it("the text pass warns about no tag (it leaves every tag unhandled on purpose)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const before = warn.mock.calls.length;
+    fmt("<x><y>a</y></x>", { x: (_c: unknown, text: () => unknown) => text(), y: () => "Y" });
+    expect(warn.mock.calls.length).toBe(before);
+    warn.mockRestore();
+  });
+});

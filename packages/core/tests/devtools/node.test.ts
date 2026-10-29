@@ -11,6 +11,6 @@ describe("devtools() without a window", () => {
     const plugin = devtools();
     expect(plugin.name).toBe("devtools");
     expect(typeof window).toBe("undefined");
-    expect(plugin.setup(createI18n({ locale: "en" }))).toBeUndefined();
+    expect(plugin.setup(createI18n({ locale: "en" }), () => {})).toBeUndefined();
   });
 });

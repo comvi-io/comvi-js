@@ -151,7 +151,8 @@ export interface RelativeTimeOptions extends Intl.RelativeTimeFormatOptions {
 /**
  * `date` relative to `now` ("in 3 days", "yesterday"), in the largest unit that fits at
  * least once; `now` defaults to the instance's clock (clock.ts: its `now` option; the
- * `serverNow` a server handed over, until the app mounts; on a server the request's one
+ * `serverNow` a server handed over — a binding's `useFormat()` passes the browser's clock
+ * as `now` for every render but a component's hydration; on a server the request's one
  * clock; in a browser the running clock). `numeric` defaults to `"auto"`. Nothing
  * re-renders when time moves on: a later render counts from the clock again.
  */
@@ -164,11 +165,12 @@ export const formatRelativeTime = (
   const ms = +date - (options?.now ?? clock(i18n));
   const [unit, size] = UNITS.find((u) => Math.abs(ms) >= u[1]) || UNITS[6];
   // Only `now` (or nothing): the default formatter, kept on the chain, no allocation. `now`
-  // is not an Intl option: blanked, so its value never splits the formatter cache.
+  // is not an Intl option: left out, so it never splits the formatter cache.
   let o: Intl.RelativeTimeFormatOptions = AUTO;
   for (const k in options)
     if (k != "now") {
-      o = { numeric: AUTO.numeric, ...options, now: undefined } as Intl.RelativeTimeFormatOptions;
+      const { now: _, ...intlOptions } = options!;
+      o = { numeric: AUTO.numeric, ...intlOptions };
       break;
     }
   return get<Intl.RelativeTimeFormat>(

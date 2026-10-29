@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createI18n } from "../../src";
 import { formatRelativeTime } from "../../src/format";
-import { activate, coming, handover, live, state } from "../../src/internal";
+import { activate, clock, coming, handover, state } from "../../src/internal";
 
 describe("handover()", () => {
   it("hands over the chain (parents, fallback locales) of the active namespaces only", async () => {
@@ -189,7 +189,7 @@ describe("handover()", () => {
     expect(handover(i18n).serverNow).toBe(123);
   });
 
-  it("in a browser a handed-over serverNow holds until the app mounts, then the clock runs (lot 4b)", () => {
+  it("in a browser a handed-over serverNow is the clock of a render that is not live; a live one runs (lot 4b)", () => {
     vi.stubGlobal("document", {});
     vi.useFakeTimers({ now: 100_000, toFake: ["Date"] });
     try {
@@ -197,11 +197,16 @@ describe("handover()", () => {
       const client = createI18n({ locale: "en", timeZone: "UTC", serverNow: 40_000 });
       expect(formatRelativeTime(client, 10_000)).toBe("30 seconds ago"); // the server's text
       vi.setSystemTime(160_000);
-      expect(formatRelativeTime(client, 10_000)).toBe("30 seconds ago"); // still hydrating
-      live(client); // a binding's useFormat() after mount
-      expect(formatRelativeTime(client, 10_000)).toBe("2 minutes ago"); // 150 s from the browser clock
+      expect(clock(client)).toBe(40_000); // a hydration render: the server's clock
+      // Every other render (a binding's useFormat() passes `live`): the browser's clock,
+      // for this instance's other components at the same time.
+      expect(clock(client, 1)).toBe(160_000);
+      expect(
+        formatRelativeTime(client, 10_000, { now: clock(client, 1) }), // 150 s from the browser clock
+      ).toBe("2 minutes ago");
+      expect(clock(client)).toBe(40_000); // nothing instance-wide moved
       vi.setSystemTime(10_000 + 3_600_000);
-      expect(formatRelativeTime(client, 10_000)).toBe("1 hour ago");
+      expect(formatRelativeTime(client, 10_000, { now: clock(client, 1) })).toBe("1 hour ago");
     } finally {
       vi.useRealTimers();
       vi.unstubAllGlobals();
@@ -214,9 +219,9 @@ describe("handover()", () => {
     try {
       const fixed = createI18n({ locale: "en", now: 40_000, serverNow: 70_000 });
       expect(formatRelativeTime(fixed, 10_000)).toBe("30 seconds ago");
-      live(fixed);
       vi.setSystemTime(1_000_000);
-      expect(formatRelativeTime(fixed, 10_000)).toBe("30 seconds ago");
+      expect(clock(fixed, 1)).toBe(40_000); // a live render too
+      expect(formatRelativeTime(fixed, 10_000, { now: clock(fixed, 1) })).toBe("30 seconds ago");
     } finally {
       vi.useRealTimers();
       vi.unstubAllGlobals();

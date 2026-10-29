@@ -105,7 +105,7 @@ const VER =
 /** The devtools plugin: makes the instance discoverable by the Comvi browser extension. */
 export const devtools = (): Plugin => ({
   name: "devtools",
-  setup(i18n) {
+  setup(i18n, m) {
     if (typeof window == "undefined") return;
     const c = CORE.get(i18n)!;
     /** Set by destroy(): the handle an editor may still hold marks nothing. */
@@ -121,7 +121,7 @@ export const devtools = (): Plugin => ({
           return { ...s?.m, ...s?.p };
         },
         state: () => ({ ...c.s(), ns: [...c.n] }),
-        mark: (f) => d || c.m(typeof f == "function" ? f : null),
+        mark: (f) => d || m(typeof f == "function" ? f : null),
         load: (v = "latest") =>
           // Everything runs inside the executor: what throws here — a version that is not
           // one, no document, a Trusted Types policy refusing the `src` — rejects.

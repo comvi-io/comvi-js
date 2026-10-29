@@ -132,9 +132,23 @@ type PropsOf<P, S> = [P] extends [never]
         };
 
 /**
+ * The `components` prop and the params of a `<T>`: `S = 1` makes the `Tag` params optional
+ * always (Vue: a slot of the tag's name may render it) and takes any other attribute — so
+ * vue-tsc, which hides an unknown attribute's error, still reports a required param that a
+ * misspelt attribute left out (`nmae="x"` for `{name}`, DX review item 14); `S = 2` makes
+ * them optional only when `components` is passed (React: without it nothing but a handler
+ * prop renders a tag, so a missing handler stays a type error); `S = 0` never.
+ */
+type ComponentProps<P, S, C> = [S] extends [2]
+  ? ({ components: C } & PropsOf<P, 1>) | ({ components?: undefined } & PropsOf<P, 0>)
+  : [S] extends [1]
+    ? { components?: C } & PropsOf<P, S> & Record<string, unknown>
+    : { components?: C } & PropsOf<P, S>;
+
+/**
  * A binding's typed `<T i18nKey ns? locale? markers? components? {...params}>`, rendering
- * `Out`; `C` is the type of its `components` prop (`never`: none), `S` makes tag params
- * optional (a slot or `components` may render the tag). The key
+ * `Out`; `C` is the type of its `components` prop (`never`: none), `S` the optionality of
+ * the tag params ({@link ComponentProps}). The key
  * carries the same typo guard as `t()` (R3-2): without `NotAKey` in K's constraint, a JSX
  * element infers K as the whole key union while it types the attributes, and the props
  * intersect every key's params — minutes of tsc on a 5k catalog, for a typo AND for a valid
@@ -144,21 +158,22 @@ export type TComponentFor<Out, S = 0, C = never> = <
   K extends KeysOf[N] | NotAKey,
   N extends NsOf = "default" & NsOf,
 >(
-  props: { i18nKey: K; ns?: N; locale?: string; markers?: boolean; components?: C } & PropsOf<
+  props: { i18nKey: K; ns?: N; locale?: string; markers?: boolean } & ComponentProps<
     ParamsFor<N, K>,
-    S
+    S,
+    C
   >,
 ) => Out;
 
 /**
  * `<T>` bound to namespace NS (`useI18n(ns).T`): no `ns` prop, the same typo guard. `S` and
- * `C` as in {@link TComponentFor}: `S` makes tag params optional (a slot or `components`
- * may render the tag), `C` is the type of the binding's `components` prop.
+ * `C` as in {@link TComponentFor}.
  */
 export type BoundTFor<NS extends NsOf, Out, S = 0, C = never> = <K extends KeysOf[NS] | NotAKey>(
-  props: { i18nKey: K; ns?: never; locale?: string; markers?: boolean; components?: C } & PropsOf<
+  props: { i18nKey: K; ns?: never; locale?: string; markers?: boolean } & ComponentProps<
     ParamsFor<NS, K>,
-    S
+    S,
+    C
   >,
 ) => Out;
 

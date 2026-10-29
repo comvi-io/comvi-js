@@ -44,7 +44,13 @@ export type Loader = (locale: string, ns: string, signal: AbortSignal) => Promis
 /** A plugin: set up once by `createI18n`; the returned function runs on `destroy()`. */
 export interface Plugin {
   name: string;
-  setup(i18n: I18n): void | (() => void);
+  /**
+   * `mark` sets (or, with `null`, clears) the marking hook of an in-context editor session
+   * and publishes a state carrying it (R3-14 H4) — what the `/devtools` plugin hands an
+   * editor as `x.mark`. Only a plugin the app installs gets it: no seam of `/internal`
+   * reaches it.
+   */
+  setup(i18n: I18n, mark: (fn: Mark | null) => void): void | (() => void);
 }
 
 export interface I18nOptions {
@@ -84,9 +90,10 @@ export interface I18nOptions {
   now?: number;
   /**
    * The server's clock at its render, from `handover()` (`createI18n({ ...options,
-   * ...payload })`): `formatRelativeTime` counts from it while the app hydrates, so the
-   * browser renders what the server rendered, and from the browser's clock once the app
-   * has mounted (`useFormat()` of a binding marks it). `now` wins over it.
+   * ...payload })`): `formatRelativeTime` counts from it, so the browser renders what the
+   * server rendered. A binding's `useFormat()` counts from it for a component's hydration
+   * only, from the browser's clock for every other render (a component mounted after the
+   * hydration too). `now` wins over it.
    */
   serverNow?: number;
   /** Named Intl options for `@comvi/core/format`: `formatNumber(i18n, n, "price")`. */
@@ -123,9 +130,26 @@ export interface I18n {
   t: TFor<"default", RichParts>;
   /** `t()` bound to namespace `name`. */
   ns<N extends string>(name: N): TFor<N, RichParts>;
-  /** Loads what `locale` needs, then switches. Rejects only when no catalog of `locale` itself loaded. */
+  /**
+   * Loads what `locale` needs for the namespaces active NOW (a later one loads after the
+   * switch), keeping the current locale on screen meanwhile, then switches — inside the
+   * call when nothing needs loading. A later call wins: this one then never switches and
+   * resolves once its loads settle or are aborted. The latest call switches when at least
+   * one namespace it waited for has a catalog of `locale`'s own chain in place (`de-AT`, or
+   * its parent `de`); a namespace whose load failed then renders its fallback. It rejects
+   * with the loader's error, keeping the old locale, only when EVERY namespace it waited
+   * for has none; an invalid tag rejects with a `RangeError`. Failures are reported through
+   * `onError` either way.
+   */
   setLocale(locale: string): Promise<void>;
-  /** Activates namespace `ns` and loads it for the current locale's chain. */
+  /**
+   * Activates namespace `ns`, asks its failed loads again (the explicit retry) and loads it
+   * for the current locale's chain. Rejects with the loader's error when, as its loads
+   * settle, the locale's own load of `ns` failed and no catalog of `ns` from the locale's own
+   * chain (`de-AT`, its parent `de`) is in place; else resolves `undefined` — a parent's or
+   * a fallback locale's failure alone does not reject, nor does a load a switch aborted (the
+   * switch loads `ns` for its target). A binding's automatic activation never rejects.
+   */
   load(ns: string): Promise<void>;
   /** Adds messages to (locale, ns) — by reference into an empty pair, else as a patch layer. */
   add(locale: string, messages: Catalog, ns?: string): void;
@@ -170,11 +194,6 @@ export interface Core {
   a(ns: string): Promise<void>;
   /** Namespace `ns` is still coming in `state` (see `coming` in createI18n). */
   w(state: State, ns: string): unknown;
-  /**
-   * Sets (or, with `null`, clears) the marking hook and publishes a new state carrying it
-   * (R3-14 H4). Reached only by the `/devtools` handle `x.mark`; nothing else marks.
-   */
-  m(fn: Mark | null): void;
 }
 
 /** Instance → its internal seam; read by `@comvi/core/internal` only. */
@@ -350,7 +369,7 @@ export const createI18n = (o: I18nOptions): I18n => {
   const look = (s: State, key: string, n: string, ch: Chain): number => {
     const cs = s.c[n];
     for (let i = 0, x; cs && i < ch.length; i++)
-      if ((x = cs[ch[i][0]]) && (hit = find(x, key)!) !== undefined) return i;
+      if ((x = cs[ch[i][0]]) && (hit = find(x, key)!) != null) return i;
     return -1;
   };
 
@@ -586,15 +605,17 @@ export const createI18n = (o: I18nOptions): I18n => {
     n: act,
     a: use,
     w: coming,
-    m(f) {
-      mf = f;
-      pub();
-    },
   });
 
   for (const p of o.plugins || [])
     try {
-      downs.push(p.setup(i18n));
+      // The marking hook's setter goes to the plugins only (R3-14 H4).
+      downs.push(
+        p.setup(i18n, (f) => {
+          mf = f;
+          pub();
+        }),
+      );
     } catch (e) {
       // Transactional: what the earlier plugins set up is torn down before the throw.
       i18n.destroy();

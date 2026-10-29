@@ -47,13 +47,13 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
   let c: string | undefined;
   const type = token(P);
   if (__DEV__ && P.o) P.o(1, name, type);
-  const select = type === "select";
-  const ordinal = type === "selectordinal";
-  if (!select && !ordinal && type !== "plural") {
+  const select = type == "select";
+  const ordinal = type == "selectordinal";
+  if (!select && !ordinal && type != "plural") {
     fail(
       // The useFormat() hint ships in production too: the owner's 1.0 contract reports it
       // through onError({ code: "syntax" }) in every build (R3-8).
-      type === "number" || type === "date" || type === "time"
+      type == "number" || type == "date" || type == "time"
         ? __DEV__
           ? `{${name}, ${type}} is not supported: format it in code with useFormat() and pass a plain {${name}}`
           : "format it in code with useFormat()"
@@ -62,7 +62,7 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
           : undefined,
     );
   }
-  if (s[P.i++] !== ",") {
+  if (s[P.i++] != ",") {
     if (__DEV__) fail(`\`{${name}, ${type}}\` has no choice list`);
     fail();
   }
@@ -79,19 +79,19 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
   for (;;) {
     skipSpace(P);
     c = s[P.i];
-    if (c === "}") break;
+    if (c == "}") break;
     if (!c) {
       if (__DEV__) fail(`\`{${name}, ${type}, …}\` is never closed`);
       fail();
     }
     let key = token(P);
-    if (key[0] === "=" && !select && EXACT.test(key)) key = "=" + Number(key.slice(1));
+    if (key[0] == "=" && !select && EXACT.test(key)) key = "=" + Number(key.slice(1));
     else if (!key || /[=:'#<]/.test(key)) {
       if (__DEV__) fail(`invalid selector \`${key}\` in \`{${name}, ${type}, …}\``);
       fail();
     }
     if (__DEV__ && P.o) P.o(2, key);
-    if (s[P.i++] !== "{") {
+    if (s[P.i++] != "{") {
       if (__DEV__) fail(`selector \`${key}\` in \`{${name}, ${type}, …}\` has no {sub-message}`);
       fail();
     }
@@ -100,7 +100,7 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
     // `under` only feeds a development warning: production passes `false`.
     const sub = message(P, !select, __DEV__ && (under || !select), true);
     branches[key] ??= sub;
-    if (s[P.i++] !== "}") {
+    if (s[P.i++] != "}") {
       if (__DEV__) fail(`a sub-message of \`{${name}, ${type}, …}\` is never closed`);
       fail();
     }
@@ -150,7 +150,7 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
     const c = n - offset;
     return run(
       branches["=" + n] ||
-        branches[(rl === l ? rules! : ((rl = l), (rules = pluralRules(l, ordinal)))).select(c)] ||
+        branches[(rl == l ? rules! : ((rl = l), (rules = pluralRules(l, ordinal)))).select(c)] ||
         other,
       p,
       l,
