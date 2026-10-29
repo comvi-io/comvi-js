@@ -59,7 +59,10 @@ export interface I18nProviderProps {
    * Inline catalogs of the chain, a fallback locale's catalog or a server payload the
    * instance was created from open it.
    * After that the children stay mounted: a lazy namespace shows through
-   * `useI18n(ns).isLoading`, a switch keeps the old locale until the new one lands.
+   * `useI18n(ns).isReady` / `isLoading`, a switch keeps the old locale until the new one
+   * lands. Only a load in flight at the first paint gates it: a lazy namespace that a child's
+   * `useI18n(ns)` holds at its commit loads after that paint, so that component shows its own
+   * placeholder through `isReady` / `isLoading`.
    * The children do not render while it shows, so an `<I18nHandover>` among them waits too on
    * a client render (a hydration is never gated): give the instance its data first
    * (`createI18n({ ...options, ...payload })`).
@@ -179,8 +182,11 @@ export interface UseI18n<NS extends string = "default"> {
   /**
    * A catalog of this namespace is loading, for any locale (a switch in progress too, a
    * background load beside a usable catalog), or will load when this hook holds the
-   * namespace at commit. `false` once a load failed with nothing in flight: no catalog and
-   * not loading is the "unavailable" state, never an endless one.
+   * namespace at commit. On a server nothing commits, so nothing loads there: preload the
+   * route's namespaces with `i18n.load(ns)` before the render (else the server and the
+   * hydration render the loading branch, and the browser loads it at commit). `false` once a
+   * load failed with nothing in flight: no catalog and not loading is the "unavailable"
+   * state, never an endless one.
    */
   isLoading: boolean;
   setLocale: (locale: string) => Promise<void>;

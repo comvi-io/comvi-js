@@ -227,7 +227,7 @@ describe("handover() (R3-21)", () => {
     expect(typeof payload.serverNow).toBe("number");
   });
 
-  it("hands over the fallback chain too, and only the active namespaces of the locale's chain", async () => {
+  it("hands over the fallback chain too, of every namespace with a catalog of the chain in place", async () => {
     const i18n = createI18n({
       locale: "de-AT",
       fallbackLocale: "en",
@@ -235,7 +235,8 @@ describe("handover() (R3-21)", () => {
       now: 42,
       catalogs: {
         default: { "de-AT": { a: "A" }, de: { b: "B" }, en: { c: "C" }, fr: { d: "D" } },
-        // Not active: never rendered, not handed over.
+        // Inline, nothing needed it: handed over all the same — the browser's
+        // `{ ...options, ...payload }` replaces its `catalogs` (Codex review of lot 4c, HIGH).
         unused: { de: { x: "X" } },
       },
     });
@@ -244,9 +245,9 @@ describe("handover() (R3-21)", () => {
     expect(serverNow).toBe(42);
     // App's `useI18n("account")` activated `account` on the server (lot 4b); with no loader
     // nothing can load it, so nothing of it is handed over.
-    expect(Object.keys(catalogs)).toEqual(["default"]);
+    expect(Object.keys(catalogs).sort()).toEqual(["default", "unused"]);
     expect(Object.keys(catalogs.default).sort()).toEqual(["de", "de-AT", "en"]);
-    expect(catalogs.unused).toBeUndefined();
+    expect(catalogs.unused).toEqual({ de: { x: "X" } });
   });
 
   it("hands over a patched catalog as one catalog, the patch on top", () => {

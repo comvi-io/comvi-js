@@ -6,7 +6,7 @@
 import { defineComponent, h } from "vue";
 import { describe, expect, it } from "vitest";
 import { useI18n } from "../src";
-import { make, manualLoader, mountWith, settle, vueWarnings } from "./helpers";
+import { make, manualLoader, mountWith, settle, tick, vueWarnings } from "./helpers";
 
 describe("the writable locale after a failed switch (lot 4b)", () => {
   it("a v-model <select> shows the locale on screen again; the instance keeps it", async () => {
@@ -137,6 +137,7 @@ describe("$t of a namespace nothing loads (lot 4b)", () => {
     const warnings = await vueWarnings(async () => {
       mountWith(i18n, Root);
       await settle();
+      await tick();
     });
     const idle = warnings.filter((w) => w.includes("which nothing loads"));
     expect(idle).toHaveLength(1);
@@ -152,6 +153,7 @@ describe("$t of a namespace nothing loads (lot 4b)", () => {
     const warnings = await vueWarnings(async () => {
       mountWith(i18n, Root);
       await l.answer("en:default");
+      await tick();
     });
     expect(warnings.filter((w) => w.includes("which nothing loads"))).toEqual([]);
   });

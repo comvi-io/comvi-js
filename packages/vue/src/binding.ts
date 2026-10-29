@@ -272,8 +272,9 @@ export interface UseI18n<NS extends string = "default"> {
   /**
    * A catalog of this namespace is loading, for any locale (a switch in progress too, a
    * background load beside a usable catalog), or will load when the component holds the
-   * namespace at mount. `false` once a load failed with nothing in flight: no catalog and not
-   * loading is the "unavailable" state, never an endless one.
+   * namespace at mount (on a server, in setup). `false` once a load failed with nothing in
+   * flight: no catalog and not loading is the "unavailable" state, never an endless one.
+   * Outside a component (nothing holds) it is a load in flight only.
    */
   isLoading: ComputedRef<boolean>;
   setLocale: (locale: string) => Promise<void>;
@@ -333,7 +334,8 @@ export const render = (
   // per-call options. The caller's namespace is set last: a bound `<T>`'s wins over an
   // `ns` attribute (one an untyped project can pass).
   q.ns = ns;
-  return tr(i, "", u)(q.i18nKey, q);
+  // The namespace goes to the core as the call's too: a bound `<T>`'s declared read is of it.
+  return tr(i, ns as string, u)(q.i18nKey, q);
 };
 
 /**
@@ -355,10 +357,12 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
   let r: (() => void) | 0 = 0;
   const on = () => (r ||= x.h(n));
   const off = () => r && (r(), (r = 0));
-  // Outside a component (a store, `app.runWithContext()`) there is no lifecycle to release
-  // in: nothing is held there (`i18n.load(ns)` loads). Production Vue ignores a hook with no
-  // component; development checks first, so Vue does not warn.
-  if (!__DEV__ || getCurrentInstance()) {
+  // Outside a component (a store, a router guard, `app.runWithContext()`) there is no
+  // lifecycle to release in: nothing is held there and no hook is registered (Vue warns about
+  // one with no component); its reads are not a declared need and `isLoading` is a load in
+  // flight only — `i18n.load(ns)` or the `namespaces` option loads it.
+  const g = getCurrentInstance();
+  if (g) {
     // In a server render (its context is provided) the request's instance holds it at once
     // (a server never unmounts: the instance dies with the request), so `handover()` carries
     // it even when its catalog was in place (inline); the render waits only while it loads —
@@ -373,18 +377,22 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
     onUnmounted(off);
   }
   return {
-    t: tr(i, n, 1) as UseI18n<NS>["t"],
+    t: tr(i, n, (__DEV__ && g ? 1 : undefined) as 1) as UseI18n<NS>["t"],
     // Functional, one per instance and namespace (R3-5(b)): with no declared props every
     // attribute is a prop of it, so every one reaches the params and none falls through —
     // the exported `<T>`'s policy (`inheritAttrs: false`). It reads the namespace this
-    // `useI18n(ns)` holds.
-    T: (Ts[n] ||= (p, { slots }) => render(i, n, p, slots, 1)) as unknown as BoundT<NS>,
+    // `useI18n(ns)` holds (development: outside a component, an undeclared read).
+    T: (__DEV__ && !g
+      ? (p: object, { slots }: { slots: object }) => render(i, n, p, slots)
+      : (Ts[n] ||= (p, { slots }) => render(i, n, p, slots, 1))) as unknown as BoundT<NS>,
     locale,
     dir,
     // Until the hold at mount, what the hold will load is loading already: no frame that
     // says "unavailable", no `missing_key` (lot 1d, 4c).
     isReady: computed(() => x.r(s.value, n)),
-    isLoading: computed(() => !!x.w(s.value, n)),
+    isLoading: computed(() =>
+      g ? !!x.w(s.value, n) : s.value.ld.some((k) => k.endsWith("\0" + n)),
+    ),
     setLocale: i.setLocale,
     i18n: i,
   };

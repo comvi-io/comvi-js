@@ -12,7 +12,7 @@ import { act, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createI18n, I18nProvider, T, useI18n, type I18n } from "../src";
 import { handover } from "../../core/src/internal";
-import { make, manualLoader, settle } from "./helpers";
+import { make, manualLoader, settle, tick } from "./helpers";
 
 /** Every render's `isReady/isLoading` of `ns`, and its text. */
 const probe = (ns: string, key = "title") => {
@@ -270,6 +270,7 @@ describe("reading never loads (brief §1)", () => {
       ),
     );
     await settle();
+    await tick();
     expect(l.requested).toEqual([]);
     expect(container.textContent).toBe("titleother");
     expect(warn).toHaveBeenCalledTimes(1);
@@ -290,8 +291,38 @@ describe("reading never loads (brief §1)", () => {
     const { container } = render(app(i18n, <Page />));
     expect(l.requested).toEqual(["en:account"]);
     await l.answer("en:account", { title: "Account" });
+    await tick();
     expect(container.textContent).toBe("Account");
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("the exported <T ns> beside useI18n(ns) of the same component: no idle warning (review of lot 4c)", async () => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const Page = () => {
+      useI18n("account");
+      return <T i18nKey="title" ns="account" />;
+    };
+    const { container } = render(app(i18n, <Page />));
+    await tick();
+    expect(l.requested).toEqual(["en:account"]);
+    await l.answer("en:account", { title: "Account" });
+    expect(container.textContent).toBe("Account");
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("useI18n(ns).t of another namespace (a per-call { ns }) is not declared by it: development warns", async () => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const Page = () => <p>{useI18n().t("title", { ns: "undeclared" }) as string}</p>;
+    render(app(i18n, <Page />));
+    await settle();
+    await tick();
+    expect(l.requested).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain('"undeclared"');
   });
 });
 
@@ -392,6 +423,23 @@ describe("SSR hydration with a branch on isReady (brief §5)", () => {
     expect([h.hydrated, h.errors, h.l.requested]).toEqual(["Account", [], []]);
     act(() => h.root.unmount()); // the consumer is released: the cache stays
     expect(h.i18n.t("title", { ns: "account" })).toBe("Account");
+  });
+
+  it("an inline catalog nothing loaded or held on the server: the same text branch, 0 requests (review of lot 4c)", async () => {
+    const server = createI18n({
+      locale: "en",
+      timeZone: "UTC",
+      messages: { en: {} },
+      catalogs: { account: { en: { title: "Account" } } },
+      loader: async () => ({}),
+    });
+    await server.ready;
+    // A server render holds nothing (no commit): the handover still carries the inline one,
+    // since the browser's `{ ...options, ...payload }` replaces its `catalogs`.
+    const h = await hydrate(server);
+    expect(h.html).toContain("Account");
+    expect([h.hydrated, h.errors, h.l.requested]).toEqual(["Account", [], []]);
+    act(() => h.root.unmount());
   });
 
   it("failed on the server, no usable catalog: the same 'unavailable' branch, 0 requests", async () => {

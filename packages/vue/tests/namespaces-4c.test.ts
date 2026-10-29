@@ -18,7 +18,7 @@ import {
 import { renderToString } from "vue/server-renderer";
 import { describe, expect, it, vi } from "vitest";
 import { createI18n, handover, useI18n, type Catalog, type VueI18n } from "../src";
-import { make, manualLoader, mountWith, settle, vueWarnings } from "./helpers";
+import { make, manualLoader, mountWith, settle, tick, vueWarnings } from "./helpers";
 
 /** A component showing `isReady ? t(key) : isLoading ? "…" : "unavailable"`; its frames. */
 const probe = (ns: string, key = "title") => {
@@ -370,6 +370,78 @@ describe("SSR hydration with v-if on isReady (brief §5)", () => {
   });
 });
 
+describe("development diagnostic: declared needs (review of lot 4c)", () => {
+  it("the exported <T ns> beside useI18n(ns) of the same component: no idle warning", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const { T } = await import("../src");
+    const Page = defineComponent({
+      setup() {
+        useI18n("account");
+        return () => h(T as never, { i18nKey: "title", ns: "account" });
+      },
+    });
+    let w!: ReturnType<typeof mountWith>;
+    const warnings = await vueWarnings(async () => {
+      w = mountWith(i18n, Page);
+      await tick();
+      await l.answer("en:account", { title: "Account" });
+    });
+    expect(l.requested).toEqual(["en:account"]);
+    expect(w.text()).toBe("Account");
+    expect(warnings.filter((x) => x.includes("which nothing loads"))).toEqual([]);
+  });
+
+  it("useI18n(ns).t of another namespace (a per-call { ns }) is checked: development warns", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const Page = defineComponent({
+      setup() {
+        const { t } = useI18n();
+        return () => h("p", t("title", { ns: "undeclared" }));
+      },
+    });
+    const warnings = await vueWarnings(async () => {
+      mountWith(i18n, Page);
+      await settle();
+      await tick();
+    });
+    const idle = warnings.filter((x) => x.includes("which nothing loads"));
+    expect(idle).toHaveLength(1);
+    expect(idle[0]).toContain('"undeclared"');
+  });
+});
+
+describe("SSR handover: an inline catalog a passive read rendered (review of lot 4c)", () => {
+  it("<T ns> of an inline namespace nothing holds: handed over, hydrated with 0 requests", async () => {
+    const { T } = await import("../src");
+    const Page = defineComponent({
+      render: () => h("p", [h(T as never, { i18nKey: "title", ns: "help" })]),
+    });
+    const server = createI18n({
+      locale: "en",
+      timeZone: "UTC",
+      messages: { en: {} },
+      catalogs: { help: { en: { title: "Help" } } },
+      loader: async () => ({}),
+    });
+    const html = await renderToString(createSSRApp(Page).use(server));
+    expect(html).toBe("<p>Help</p>");
+    const payload = JSON.parse(JSON.stringify(handover(server)));
+    expect(payload.catalogs.help).toEqual({ en: { title: "Help" } });
+    const l = manualLoader();
+    const client = createI18n({ locale: "en", loader: l.load, ...payload });
+    const el = document.createElement("div");
+    el.innerHTML = html;
+    const warnings = await vueWarnings(async () => {
+      createSSRApp(Page).use(client).mount(el);
+      await settle();
+      await tick();
+    });
+    expect([el.innerHTML, warnings, l.requested]).toEqual([html, [], []]);
+  });
+});
+
 describe("outside a component (brief §3)", () => {
   it("useI18n() in app.runWithContext() holds nothing: a switch does not load its namespace", async () => {
     const l = manualLoader();
@@ -383,5 +455,38 @@ describe("outside a component (brief §3)", () => {
     expect(l.requested).toEqual(["de:default"]);
     await l.answer("de:default");
     await sw;
+  });
+
+  it("there isLoading is a load in flight only: nothing holds, so no endless loading (review of lot 4c)", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const w = mountWith(i18n, defineComponent({ setup: () => () => h("p") }));
+    const app = w.vm.$.appContext.app;
+    const u = app.runWithContext(() => useI18n("shop"));
+    expect([u.isReady.value, u.isLoading.value]).toEqual([false, false]);
+    await settle();
+    expect([u.isReady.value, u.isLoading.value, l.requested]).toEqual([false, false, []]);
+    // A load in flight is loading there too.
+    const p = i18n.load("shop");
+    expect([u.isReady.value, u.isLoading.value]).toEqual([false, true]);
+    await l.answer("en:shop");
+    await p;
+    expect([u.isReady.value, u.isLoading.value]).toEqual([true, false]);
+  });
+
+  it("its reads are not a declared need: development warns about a namespace nothing loads (review of lot 4c)", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const w = mountWith(i18n, defineComponent({ setup: () => () => h("p") }));
+    const app = w.vm.$.appContext.app;
+    const warnings = await vueWarnings(async () => {
+      const { t } = app.runWithContext(() => useI18n("shop"));
+      expect(t("x")).toBe("x");
+      await tick();
+    });
+    expect(l.requested).toEqual([]);
+    const idle = warnings.filter((x) => x.includes("which nothing loads"));
+    expect(idle).toHaveLength(1);
+    expect(idle[0]).toContain('"shop"');
   });
 });

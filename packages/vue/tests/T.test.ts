@@ -19,7 +19,7 @@ import { renderToString } from "vue/server-renderer";
 import { createSSRApp } from "vue";
 import { describe, expect, it, vi } from "vitest";
 import { createI18n, T, useI18n, type VueI18n } from "../src";
-import { mountWith, vueWarnings } from "./helpers";
+import { mountWith, tick, vueWarnings } from "./helpers";
 
 const en = (m: Record<string, string>) => createI18n({ locale: "en", messages: { en: m } });
 const Tc = T as never;
@@ -116,6 +116,7 @@ describe("<T i18nKey>", () => {
     ns.value = "cart";
     await nextTick();
     await i18n.ready;
+    await tick();
     expect(requested).toEqual([]);
     // Development names the namespace nothing loads, once each.
     expect(warn.mock.calls.map((c) => String(c[0]).match(/namespace "(\w+)"/)![1])).toEqual([

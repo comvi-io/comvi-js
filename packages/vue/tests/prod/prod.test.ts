@@ -24,6 +24,18 @@ describe("production", () => {
     expect(message).not.toContain("[@comvi/vue]");
   });
 
+  it("useI18n() outside a component registers no lifecycle hook: Vue warns nothing (review of lot 4c)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const i18n = createI18n({ locale: "en", messages: { en: {} }, loader: async () => ({}) });
+    const w = mount(defineComponent({ setup: () => () => h("p") }), {
+      global: { plugins: [i18n] },
+    });
+    const u = w.vm.$.appContext.app.runWithContext(() => useI18n("shop"));
+    expect([u.isReady.value, u.isLoading.value]).toEqual([false, false]);
+    expect(warn.mock.calls.flat().join(" ")).not.toMatch(/no active component instance/);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it("handover() without a timeZone does not throw in production", () => {
     const i18n = createI18n({ locale: "en", messages: { en: { a: "A" } } });
     expect(handover(i18n).catalogs).toEqual({ default: { en: { a: "A" } } });
