@@ -11,7 +11,7 @@ import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createI18n, I18nHandover, I18nProvider, T, useI18n, type I18n } from "../src";
 import { handover } from "../../core/src/internal";
-import { manualLoader, settle, shown } from "./helpers";
+import { manualLoader, settle } from "./helpers";
 
 const CATALOGS = {
   "en:default": {
@@ -88,7 +88,7 @@ const start = () => {
 describe("README React app (lot 4b)", () => {
   it("success: the spinner until the first catalogs, then the text; a switch in place", async () => {
     const s = start();
-    expect(shown(s.view.container).innerHTML).toBe('<div class="spinner"></div>');
+    expect(s.view.container.innerHTML).toBe('<div class="spinner"></div>');
     await s.l.answer("en:default");
     expect(s.h1()).toBe("Hello, Alice!");
     expect(s.terms()).toBe(

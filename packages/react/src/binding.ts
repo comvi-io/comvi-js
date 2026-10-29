@@ -52,9 +52,6 @@ export interface I18nProviderProps {
    * Rendered instead of the children for the instance's first paint while a namespace is
    * loading with no catalog of any locale in place yet (no text to show). Inline catalogs,
    * a fallback locale's catalog or a server payload the instance was created from open it.
-   * Meanwhile the children are mounted hidden beside it (`<b hidden>`): they render, their
-   * effects run, and an `<I18nHandover>` among them hands its catalogs over; when the gate
-   * opens they mount again in place (the hidden mount's state is not kept).
    * After that the children stay mounted: a lazy namespace shows through
    * `useI18n(ns).isLoading`, a switch keeps the old locale until the new one lands.
    */
@@ -63,7 +60,6 @@ export interface I18nProviderProps {
    * Suspend instead (throw `i18n.ready` to the nearest `<Suspense>`) where `loading` would
    * render. `ready` is one promise per set of loads, so a re-render while
    * they are in flight does not suspend again; after the first paint nothing suspends.
-   * Nothing mounts while it suspends: an `<I18nHandover>` below waits like any child.
    */
   suspense?: boolean;
   children?: ReactNode;
@@ -123,17 +119,7 @@ export const I18nProvider = ({
   // nothing about the first paint.
   useEffect(() => void (busy || painted.add(i)));
   if (busy && suspense) throw i.ready;
-  // Beside `loading`, the children mount HIDDEN (a client render; a server or a hydration
-  // render is never gated): an `<I18nHandover>` at any depth among them hands its catalogs
-  // over at commit, which can open the gate at once. When it opens, the hidden copy
-  // unmounts and the children mount in place. An inline element: valid inside a `<p>` or a
-  // `<span>`, and seldom given a `display` that would override `hidden`.
-  return provide(
-    v,
-    busy && spinner != children
-      ? node([spinner, createElement("b", { hidden: busy }, children)])
-      : children,
-  );
+  return provide(v, busy ? spinner : children);
 };
 
 /**
