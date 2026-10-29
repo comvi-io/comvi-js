@@ -72,13 +72,16 @@ default) or a component calls `useI18n()` (development warns otherwise). `locale
 writable: setting it switches, and it keeps the old value until the new locale's catalogs are in;
 when you switch twice quickly the last switch wins. A failed switch keeps the old locale (the
 `<select>` shows it again), reported as `load_failed` through `onError`; `setLocale()` is the
-call that rejects, if you want to catch it. `useI18n("admin")` binds `t` and `T` to a namespace
+call that rejects, if you want to catch it: when, for every namespace it waited for, no
+catalog of the new locale or its parent (`de` for `de-AT`) loaded, and for an invalid locale
+tag. A switch that a later one replaced resolves without switching. `useI18n("admin")` binds `t` and `T` to a namespace
 and loads it (`useI18n()` loads `default`): on a server before the component renders, in the
 browser after it mounts. While a catalog of it is on the way `isLoading` is `true` and `t()`
 returns what a missing key returns (the key, or your `missing()`), unreported: show your
 placeholder from `isLoading`. A load that failed ends that state (fallback text or the key) and
 is not fetched again when a component mounts; `i18n.load("admin")` asks again and rejects when
-it fails.
+the current locale's own load of it fails with no catalog of that locale or its parent in place
+(a fallback locale's failure alone, or a load a switch replaced, resolves).
 
 ## Load from Comvi
 

@@ -81,12 +81,15 @@ namespace and the locale for one call. A call with text params returns a string;
 a tag handler or an element returns a React element. `setLocale()` switches once the new
 locale's catalogs are in, and the old locale stays on screen meanwhile; when you switch twice
 quickly, the last call wins and the earlier one resolves without switching. It rejects only
-when no catalog of the new locale loaded (the locale stays). `useI18n("admin")` binds `t` and
+when, for every namespace it waited for, no catalog of the new locale or its parent (`de` for
+`de-AT`) loaded, and for an invalid locale tag; the locale stays. `useI18n("admin")` binds `t` and
 `T` to a namespace and loads it after the component mounts (`useI18n()` loads `default`).
 While a catalog of it is on the way `isLoading` is `true` and `t()` returns what a missing key
 returns (the key, or your `missing()`), unreported: show your placeholder from `isLoading`. A
 load that failed ends that state (fallback text or the key) and is not fetched again when a
-component mounts; `i18n.load("admin")` asks again and rejects when it fails.
+component mounts; `i18n.load("admin")` asks again and rejects when the current locale's own
+load of it fails with no catalog of that locale or its parent in place (a fallback locale's
+failure alone, or a load a switch replaced, resolves).
 
 ## Load from Comvi
 
