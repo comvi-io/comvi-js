@@ -9,8 +9,9 @@
  *     parts, a render function's child); keys, params and options are core's one signature,
  *     and a call with text params only is `string` in both.
  *   - `T`: a component of the framework (a React function component, a Vue functional one).
- *   - `locale`, `dir`, `isLoading`: Vue hands out refs (`locale` writable: setting it
- *     switches), React plain values of the render.
+ *   - `locale`, `dir`, `isReady`, `isLoading`: Vue hands out refs (`locale` writable:
+ *     setting it switches), React plain values of the render. `isReady` / `isLoading` are
+ *     the core's predicates in both (lot 4c, R3-26); Solid and Svelte implement them in lot 5.
  * `pendingLocale` is in NO binding (R3-5: all or none): React would need it in the core's
  * state or a provider state of its own for a value `isLoading` already shows (lot 4).
  * Solid and Svelte join in lot 5.
@@ -29,8 +30,8 @@ type V = Unwrap<VueUseI18n<"shop">>;
 
 export const sameMembers: Equal<keyof R, keyof V> = true;
 export const state: Equal<
-  Pick<R, "locale" | "dir" | "isLoading">,
-  Pick<V, "locale" | "dir" | "isLoading">
+  Pick<R, "locale" | "dir" | "isReady" | "isLoading">,
+  Pick<V, "locale" | "dir" | "isReady" | "isLoading">
 > = true;
 export const verbs: Equal<Pick<R, "setLocale" | "i18n">, Pick<V, "setLocale" | "i18n">> = true;
 // Untyped project (no generated catalogs): a text call is typed `string` in both; a rich

@@ -2,22 +2,11 @@
  * The exported `<T>` (design §3.5, R3-5): its own module and chunk, so an app that never
  * imports it carries none of it — `useI18n(ns).T` is the functional bound one (binding.ts).
  */
-import { inject, onServerPrefetch, ssrContextKey, watchEffect } from "vue";
-import { core } from "@comvi/core/internal";
 import { render, use, type TComponent } from "./binding";
 
 const setup = (_: unknown, c: { attrs: Record<string, unknown>; slots: Record<string, any> }) => {
   const i = use();
-  const x = core(i);
-  const ns = () => (c.attrs.ns as string) || "default";
-  // On a server: active at once (`handover()` carries an inline catalog too), and the
-  // render waits for it (`renderToString` waits for a prefetch) when it is still coming.
-  if (inject(ssrContextKey, null)) {
-    x.a(ns());
-    if (x.w(x.s(), ns())) onServerPrefetch(() => x.a(ns()));
-  }
-  // In a browser after the render; `attrs` is tracked: a new `ns` activates that namespace.
-  watchEffect(() => x.a(ns()), { flush: "post" });
+  // It reads only (lot 4c): no hold, no load — in a browser or on a server.
   return () => render(i, c.attrs.ns, c.attrs, c.slots);
 };
 
@@ -30,9 +19,9 @@ const setup = (_: unknown, c: { attrs: Record<string, unknown>; slots: Record<st
  * that is `undefined` leaves the tag to the next. Every attribute but `i18nKey`,
  * `components` and the per-call options `ns`, `locale` and `markers` is a message param —
  * `class` too (nothing falls through). `ns` is explicit: `<T>` never takes the namespace of
- * a `useI18n(ns)` above it (R3-5); `useI18n(ns).T` is the bound one. `<T ns>` activates
- * that namespace (`default` without one) on a server before it renders, in a browser after
- * it mounts, and again when the attribute changes.
+ * a `useI18n(ns)` above it (R3-5); `useI18n(ns).T` is the bound one. `<T>` reads only: it
+ * loads nothing, `<T ns="account">` neither — `useI18n("account")` in the component (or
+ * `i18n.load`, the `namespaces` option) loads it (lot 4c).
  * `:markers="false"` opts the message out of an in-context editor session (R3-14 H9).
  */
 // No props: every attribute, `i18nKey` (`i18n-key` in a template) too, is read camelized.

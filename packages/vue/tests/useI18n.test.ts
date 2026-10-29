@@ -29,7 +29,7 @@ describe("useI18n()", () => {
     const i18n = createI18n({ locale: "en", messages: { en: { hi: "Hi {name}" } } });
     const u = capture(i18n).get();
     expect(Object.keys(u).sort()).toEqual(
-      ["T", "dir", "i18n", "isLoading", "locale", "setLocale", "t"].sort(),
+      ["T", "dir", "i18n", "isLoading", "isReady", "locale", "setLocale", "t"].sort(),
     );
     expect(u.t("hi", { name: "Ann" })).toBe("Hi Ann");
     expect(u.locale.value).toBe("en");
@@ -182,8 +182,8 @@ describe("reactivity slices (§2.5): counted renders", () => {
     await l.answer("en:shop");
     expect(renders).toBe(1000);
     void i18n.setLocale("de");
+    // `load("shop")` pinned nothing (lot 4c): the switch waits for `default` only.
     await l.answer("de:default");
-    await l.answer("de:shop");
     expect(renders).toBe(2000);
     expect(w.findAll("i").every((x) => x.text() === "de")).toBe(true);
   });

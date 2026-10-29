@@ -8,13 +8,15 @@
  *   instance is. Readers take a SLICE through `computed`: `locale` and `dir` re-render only
  *   when they change, `t()` / `$t()` read the whole state (a new snapshot re-renders what
  *   called them — the accepted compromise of §2.5, as in React).
- * - A namespace is activated after the component mounts, never during setup or render
- *   (React: in an effect), and on a server before the component renders (`onServerPrefetch`:
- *   `renderToString` waits for it, so `handover()` carries it; lot 4b). React cannot wait in
- *   a server render: there the app loads the route's namespaces before it renders.
+ * - `useI18n(ns)` holds its namespace from mount to unmount (lot 4c; `KeepAlive`: released on
+ *   deactivation, held again on activation), never during setup or render (React: in an
+ *   effect); on a server it holds in setup, per request, and the render waits for a load in
+ *   `onServerPrefetch` (`renderToString` waits for it, so `handover()` carries it). React
+ *   cannot wait in a server render: there the app loads the route's namespaces before it
+ *   renders.
  * - `useI18n(ns).T` is a functional component (its namespace is that `useI18n`'s); the
- *   exported `<T>` (T.ts, its own chunk) activates the namespace of its `ns` attribute itself,
- *   and is in an app's bundle only when the app imports it (the R3-10 binding cap: +500 B).
+ *   exported `<T>` (T.ts, its own chunk) reads the namespace of its `ns` attribute and loads
+ *   nothing (lot 4c), and is in an app's bundle only when the app imports it.
  */
 import {
   camelize,
@@ -23,8 +25,11 @@ import {
   getCurrentInstance,
   h,
   inject,
+  onActivated,
+  onDeactivated,
   onMounted,
   onServerPrefetch,
+  onUnmounted,
   shallowRef,
   ssrContextKey,
   type FunctionalComponent,
@@ -96,9 +101,12 @@ const node = (r: any): any => (r.every?.((x: unknown) => typeof x == "string") ?
 /** The cell of an instance this binding made. */
 export const cell = (i: I18n): Cell => (i as unknown as Record<symbol, Cell>)[K];
 
-/** `t()` of `i` for namespace `ns`, against the state its cell holds (a reactive read). */
-const tr = (i: I18n, ns?: string) => (k: string, p?: object) =>
-  node(core(i).tr(cell(i)[0].value, k, p as never, ns, node));
+/**
+ * `t()` of `i` for namespace `ns`, against the state its cell holds (a reactive read); `u`:
+ * the read of a `useI18n(ns)`, whose hold follows (no idle-read warning, lot 4c).
+ */
+const tr = (i: I18n, ns?: string, u?: 1) => (k: string, p?: object) =>
+  node(core(i).tr(cell(i)[0].value, k, p as never, ns, node, u));
 
 /**
  * Creates the instance (core's `createI18n`, same options) and makes it a Vue plugin:
@@ -136,10 +144,11 @@ export const createI18n = (options: I18nOptions): VueI18n => {
       served.add(i);
     }
     app.provide(K, i);
-    // `$t` renders without `use()`: it checks the zone of a server render itself, and
-    // warns about a namespace nobody loads (it activates none: it has no lifecycle).
+    // `$t` renders without `use()`: it checks the zone of a server render itself. It reads
+    // only (no lifecycle to hold in): the core warns in development about a namespace
+    // nothing loads.
     app.config.globalProperties.$t = (
-      __DEV__ ? (k: string, p?: object) => (zone(i), idle(i, p), tr(i)(k, p)) : tr(i)
+      __DEV__ ? (k: string, p?: object) => (zone(i), tr(i)(k, p)) : tr(i)
     ) as never;
   };
   return i;
@@ -157,25 +166,6 @@ const zone = (i: I18n) => {
     throw TypeError(
       "[@comvi/vue] a server render needs the timeZone option: the server and the browser must format dates in one zone",
     );
-};
-
-/** Development: instances whose `$t` warned about an inactive namespace (once each). */
-const warned = new WeakSet<I18n>();
-
-/**
- * Development: `$t` translates in a namespace that is not active (`namespaces` left it out
- * and no `useI18n(ns)` / `<T ns>` activated it), so with a loader its keys stay "still
- * coming" — no text and no `missing_key` — until something loads it. Warned once.
- */
-const idle = (i: I18n, p?: object) => {
-  const x = core(i);
-  const n = ((p as { ns?: string } | undefined)?.ns || "default") as string;
-  if (x.o.loader && !x.n.has(n) && !warned.has(i)) {
-    warned.add(i);
-    console.warn(
-      `[@comvi/vue] $t reads namespace "${n}", which nothing loads: add it to the \`namespaces\` option, call useI18n(${n == "default" ? "" : JSON.stringify(n)}) in a component, or i18n.load(${JSON.stringify(n)})`,
-    );
-  }
 };
 
 /** The instance of the app this component belongs to. */
@@ -272,8 +262,18 @@ export interface UseI18n<NS extends string = "default"> {
   locale: Ref<string>;
   dir: ComputedRef<"ltr" | "rtl">;
   /**
-   * A catalog of this namespace is loading, for any locale (a switch in progress too), or
-   * will load when the component activates the namespace after it mounts.
+   * A catalog of this namespace is usable for the locale on screen: its own, a parent's
+   * (`pt` for `pt-BR`) or an allowed fallback locale's — inline, cached, handed over or
+   * loaded; an empty one too. Keys are not promised: a key a catalog lacks is a plain missing
+   * key. During a switch it is the locale still on screen that counts. Not the same as the
+   * `i18n.ready` promise, which settles when the loads in flight settle, failed ones too.
+   */
+  isReady: ComputedRef<boolean>;
+  /**
+   * A catalog of this namespace is loading, for any locale (a switch in progress too, a
+   * background load beside a usable catalog), or will load when the component holds the
+   * namespace at mount. `false` once a load failed with nothing in flight: no catalog and not
+   * loading is the "unavailable" state, never an endless one.
    */
   isLoading: ComputedRef<boolean>;
   setLocale: (locale: string) => Promise<void>;
@@ -296,6 +296,7 @@ export const render = (
   ns: unknown,
   attrs: Record<string, any>,
   slots: Record<string, any>,
+  u?: 1,
 ) => {
   // Prototype-free: a slot named `constructor` is a handler, no inherited member.
   const q: Record<string, any> = N();
@@ -332,45 +333,57 @@ export const render = (
   // per-call options. The caller's namespace is set last: a bound `<T>`'s wins over an
   // `ns` attribute (one an untyped project can pass).
   q.ns = ns;
-  return tr(i)(q.i18nKey, q);
+  return tr(i, "", u)(q.i18nKey, q);
 };
 
 /**
  * The i18n of the app (`app.use(i18n)`). `ns` (default `default`) is the namespace of `t`
- * and `T`; it is activated on a server before the component renders, in a browser after it
- * mounts, never during setup. A failed load of it is not asked again by a remount —
- * `i18n.load(ns)` retries.
+ * and `T`. The component holds it from mount to unmount (`KeepAlive`: while active; a
+ * component hidden by `v-show` or CSS still holds it): while held it loads for the locale on
+ * screen and for every locale `setLocale()` switches to; with no consumer left it stays
+ * cached but a switch does not load it. On a server it is held for the request and loaded
+ * before the component renders. A failed load of it is not asked again by a remount —
+ * `i18n.load(ns)` retries. Outside a component (a store, a router guard) it holds nothing:
+ * call `i18n.load(ns)` there, or name the namespace in the `namespaces` option.
  */
 export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => {
   const i = use();
   const [s, locale, dir, Ts] = cell(i);
   const n = ns || "default";
   const x = core(i);
-  const a = () => x.a(n);
-  // Outside a component (a store, `app.runWithContext()`) there is no lifecycle to load in:
-  // nothing is activated there (`i18n.load(ns)` loads). Production Vue ignores a hook with
-  // no component; development checks first, so Vue does not warn.
+  /** This component's release while it holds `n` (one hold: mount + first activation). */
+  let r: (() => void) | 0 = 0;
+  const on = () => (r ||= x.h(n));
+  const off = () => r && (r(), (r = 0));
+  // Outside a component (a store, `app.runWithContext()`) there is no lifecycle to release
+  // in: nothing is held there (`i18n.load(ns)` loads). Production Vue ignores a hook with no
+  // component; development checks first, so Vue does not warn.
   if (!__DEV__ || getCurrentInstance()) {
-    // In a server render (its context is provided) the namespace is active at once, so
-    // `handover()` carries it even when its catalog was in place (inline); the render waits
-    // only for what is still coming — a namespace in place costs it no async step.
+    // In a server render (its context is provided) the request's instance holds it at once
+    // (a server never unmounts: the instance dies with the request), so `handover()` carries
+    // it even when its catalog was in place (inline); the render waits only while it loads —
+    // a namespace in place costs it no async step.
     if (inject(ssrContextKey, null)) {
-      a();
-      if (x.w(s.value, n)) onServerPrefetch(a);
+      on();
+      if (x.w(s.value, n)) onServerPrefetch(() => i.ready);
     }
-    onMounted(a);
+    onMounted(on);
+    onActivated(on);
+    onDeactivated(off);
+    onUnmounted(off);
   }
   return {
-    t: tr(i, n) as UseI18n<NS>["t"],
+    t: tr(i, n, 1) as UseI18n<NS>["t"],
     // Functional, one per instance and namespace (R3-5(b)): with no declared props every
     // attribute is a prop of it, so every one reaches the params and none falls through —
-    // the exported `<T>`'s policy (`inheritAttrs: false`). Its namespace is activated by
-    // this `useI18n(ns)`.
-    T: (Ts[n] ||= (p, { slots }) => render(i, n, p, slots)) as unknown as BoundT<NS>,
+    // the exported `<T>`'s policy (`inheritAttrs: false`). It reads the namespace this
+    // `useI18n(ns)` holds.
+    T: (Ts[n] ||= (p, { slots }) => render(i, n, p, slots, 1)) as unknown as BoundT<NS>,
     locale,
     dir,
-    // Until the activation after mount, a namespace the loader will load is loading
-    // already: no frame of its keys that says it is loaded (lot 1d).
+    // Until the hold at mount, what the hold will load is loading already: no frame that
+    // says "unavailable", no `missing_key` (lot 1d, 4c).
+    isReady: computed(() => x.r(s.value, n)),
     isLoading: computed(() => !!x.w(s.value, n)),
     setLocale: i.setLocale,
     i18n: i,

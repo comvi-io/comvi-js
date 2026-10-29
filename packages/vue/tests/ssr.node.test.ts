@@ -87,15 +87,22 @@ describe("server render", () => {
     expect(handover(i18n).catalogs.account).toEqual({ en: CATALOGS["en:account"] });
   });
 
-  it("<T ns> alone loads its namespace before it renders (lot 4b)", async () => {
+  it("<T ns> alone reads only on the server too (lot 4c): the route's load() is what loads it", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const requested: string[] = [];
-    const i18n = createI18n({ locale: "de", loader: loader(requested), timeZone: "UTC" });
     const Page = defineComponent({
       setup: () => () => h(T as never, { i18nKey: "title", ns: "account" }),
     });
-    const html = await renderToString(createSSRApp(Page).use(i18n));
-    expect(html).toBe("Konto");
-    expect(requested.sort()).toEqual(["de:account", "de:default"]);
+    const bare = createI18n({ locale: "de", loader: loader(requested), timeZone: "UTC" });
+    expect(await renderToString(createSSRApp(Page).use(bare))).toBe("title");
+    expect(requested).toEqual(["de:default"]);
+    expect(handover(bare).catalogs.account).toBeUndefined();
+    warn.mockRestore();
+    // The route preloads it before the render: text, and it is handed over.
+    const i18n = createI18n({ locale: "de", loader: loader(requested), timeZone: "UTC" });
+    await i18n.load("account");
+    expect(await renderToString(createSSRApp(Page).use(i18n))).toBe("Konto");
+    expect(handover(i18n).catalogs.account).toEqual({ de: CATALOGS["de:account"] });
   });
 
   it("a namespace whose server load fails renders the key, rejects nothing, and is handed over as null", async () => {

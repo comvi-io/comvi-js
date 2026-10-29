@@ -63,13 +63,12 @@ describe("the writable locale after a failed switch (lot 4b)", () => {
     await settle();
     expect(renders).toBe(1);
     set("fr");
+    // `load("shop")` pinned nothing (lot 4c): the switch waits for `default` only.
     await l.fail("fr:default");
-    await l.fail("fr:shop");
     await settle();
     expect([renders, w.text()]).toEqual([2, "en"]); // re-rendered, still en
     set("de");
     await l.answer("de:default");
-    await l.answer("de:shop");
     await settle();
     expect([renders, w.text()]).toEqual([3, "de"]);
   });

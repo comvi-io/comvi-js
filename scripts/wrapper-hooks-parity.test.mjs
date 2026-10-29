@@ -201,8 +201,11 @@ const ON_08_USE_I18N = {
   "@comvi/react": ["packages/react/src/binding.ts", "UseI18n"],
   "@comvi/vue": ["packages/vue/src/binding.ts", "UseI18n"],
 };
-/** Design §3.4's six members plus the bound `T` of R3-5(b) (sorted: "T" before lowercase). */
-const ON_08_MEMBERS = ["T", "dir", "i18n", "isLoading", "locale", "setLocale", "t"];
+/**
+ * Design §3.4's six members, the bound `T` of R3-5(b) and `isReady` of lot 4c (R3-26), sorted:
+ * "T" before lowercase.
+ */
+const ON_08_MEMBERS = ["T", "dir", "i18n", "isLoading", "isReady", "locale", "setLocale", "t"];
 
 test("every binding on 0.8 returns exactly design §3.4's useI18n() members", () => {
   assert.ok(ON_08.length > 0);
