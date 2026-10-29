@@ -73,10 +73,16 @@ describe("first-paint gate on the core's isReady (owner's review of e5a3788d, HI
 
 describe("isReady / isLoading from the render snapshot (brief §2)", () => {
   it("first load: not ready and loading from the first render (before the commit) to the catalog", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const l = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
     const { P, frames } = probe("shop");
+    const Eager = () => <i>{useI18n("eager").t("title") as string}</i>;
     const { container } = render(app(i18n, <P />));
+    // A t() reading its namespace before the hold is a declared read: no idle warning.
+    render(app(i18n, <Eager />));
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
     expect(frames[0]).toBe("false/true"); // never a "false/false" frame before the hold
     expect(container.textContent).toBe("…");
     await l.answer("en:shop", { title: "Shop" });

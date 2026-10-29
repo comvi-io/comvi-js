@@ -425,8 +425,8 @@ describe("development: reading a namespace nothing loads (brief §6)", () => {
   it("a declared read (useI18n(ns) before its hold) does not warn; no loader, nothing to warn about", () => {
     spy();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: manualLoader().load });
-    // The binding's flag: the read of a useI18n(ns), whose hold follows the render.
-    expect(core(i18n).tr(state(i18n), "x", undefined, "shop", undefined, 1)).toBe("x");
+    // The binding's declared read (development's `d`): a useI18n(ns), whose hold follows.
+    expect(core(i18n).d!(state(i18n), "x", undefined, "shop")).toBe("x");
     expect(warn).not.toHaveBeenCalled();
     // Without it, the same read warns.
     core(i18n).tr(state(i18n), "x", undefined, "shop");

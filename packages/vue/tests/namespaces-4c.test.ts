@@ -37,10 +37,23 @@ const probe = (ns: string, key = "title") => {
 
 describe("isReady / isLoading (brief §2)", () => {
   it("first load: not ready and loading from the first render (before the mount) to the catalog", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const l = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
     const { C, frames } = probe("shop");
     const w = mountWith(i18n, C);
+    // A t() reading its namespace before the hold is a declared read: no idle warning.
+    mountWith(
+      i18n,
+      defineComponent({
+        setup() {
+          const { t } = useI18n("eager");
+          return () => h("i", t("title"));
+        },
+      }),
+    );
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
     expect(frames[0]).toBe("false/true");
     expect(w.text()).toBe("…");
     await l.answer("en:shop", { title: "Shop" });

@@ -106,7 +106,7 @@ export const cell = (i: I18n): Cell => (i as unknown as Record<symbol, Cell>)[K]
  * the read of a `useI18n(ns)`, whose hold follows (no idle-read warning, lot 4c).
  */
 const tr = (i: I18n, ns?: string, u?: 1) => (k: string, p?: object) =>
-  node(core(i).tr(cell(i)[0].value, k, p as never, ns, node, u));
+  node((__DEV__ && u ? core(i).d! : core(i).tr)(cell(i)[0].value, k, p as never, ns, node));
 
 /**
  * Creates the instance (core's `createI18n`, same options) and makes it a Vue plugin:

@@ -182,10 +182,15 @@ export interface Core {
   s(): State;
   /**
    * Translates against any state of this instance (a published one, or a `view()`); `j`
-   * joins a tag's children for its handler (a binding's node maker); `u`: the read of a
-   * `useI18n(ns)`, a declared need whose hold follows the render (no idle-read warning).
+   * joins a tag's children for its handler (a binding's node maker).
    */
-  tr(state: State, key: string, params?: Params, ns?: string, j?: Env["j"], u?: unknown): Rendered;
+  tr(state: State, key: string, params?: Params, ns?: string, j?: Env["j"]): Rendered;
+  /**
+   * Development builds only (absent in production): `tr` for the read of a `useI18n(ns)`, a
+   * declared need whose hold follows the render — it never warns about an idle namespace. A
+   * binding calls `(__DEV__ ? x.d! : x.tr)(…)`.
+   */
+  d?: Core["tr"];
   /** The lookup chain of a locale. */
   ch(locale: string): Chain;
   /** The options the instance was made with (`timeZone`, `now`, `formats` for `/format`). */
@@ -274,6 +279,8 @@ export const createI18n = (o: I18nOptions): I18n => {
   const act = () => Object.keys(cnt).filter((n) => cnt[n]);
   /** Development: namespaces whose idle read was warned about (once each, per instance). */
   const idle = new Set<string>();
+  /** Development: a declared read (`Core.d`) is rendering. */
+  let dec = 0;
   const downs: (void | (() => void))[] = [];
   let chains: Record<string, Chain> = N();
   let nch = 0;
@@ -422,7 +429,7 @@ export const createI18n = (o: I18nOptions): I18n => {
 
   /** The env with a binding's joiner: one per instance, rebuilt only for another joiner. */
   let ej: Env = env;
-  const tr = (s: State, key: string, p?: Params, n = D, j?: Env["j"], u?: unknown): Rendered => {
+  const tr = (s: State, key: string, p?: Params, n = D, j?: Env["j"]): Rendered => {
     let l = s.locale;
     let r: Rendered;
     let x: unknown;
@@ -447,12 +454,12 @@ export const createI18n = (o: I18nOptions): I18n => {
     } else {
       // Development (lot 4c, brief §6): a read of a namespace with no catalog in the chain, no
       // consumer, no load in flight and no failed load (a known result) — nothing will load
-      // it. `u`: the read of a `useI18n(ns)`, whose hold follows its render. Once per
-      // namespace.
+      // it. Not for the read of a `useI18n(ns)` (`dec`), whose hold follows its render.
+      // Once per namespace.
       if (
         __DEV__ &&
         load &&
-        !u &&
+        !dec &&
         !idle.has(n) &&
         !cnt[n] &&
         !s.ld.some((x) => x.endsWith(K + n)) &&
@@ -668,7 +675,7 @@ export const createI18n = (o: I18nOptions): I18n => {
     },
   };
 
-  CORE.set(i18n, {
+  const c: Core = {
     s: () => S,
     tr,
     ch: chain,
@@ -682,7 +689,17 @@ export const createI18n = (o: I18nOptions): I18n => {
     },
     w: coming,
     r: usable,
-  });
+  };
+  if (__DEV__)
+    c.d = (...a) => {
+      dec++;
+      try {
+        return tr(...a);
+      } finally {
+        dec--;
+      }
+    };
+  CORE.set(i18n, c);
 
   // The marking hook's setter, for `devtools()` only (R3-14 H4).
   MS.set(i18n, (f) => {
