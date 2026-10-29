@@ -363,6 +363,9 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
   // flight only — `i18n.load(ns)` or the `namespaces` option loads it.
   const g = getCurrentInstance();
   if (g) {
+    // Development: until the mount (an async sibling in `Suspense` may delay it), reads of
+    // `n` are not idle ones.
+    if (__DEV__) x.p!(n);
     // In a server render (its context is provided) the request's instance holds it at once
     // (a server never unmounts: the instance dies with the request), so `handover()` carries
     // it even when its catalog was in place (inline); the render waits only while it loads —

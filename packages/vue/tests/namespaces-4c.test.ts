@@ -11,6 +11,7 @@ import {
   h,
   KeepAlive,
   ref,
+  Suspense,
   vShow,
   withDirectives,
   type Component,
@@ -392,6 +393,51 @@ describe("development diagnostic: declared needs (review of lot 4c)", () => {
     expect(warnings.filter((x) => x.includes("which nothing loads"))).toEqual([]);
   });
 
+  it("useI18n(ns) and <T ns> in a Suspense branch whose async sibling waits: no idle warning before the mount (Codex re-check F1/C5)", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const { T } = await import("../src");
+    let open!: () => void;
+    const gate = new Promise<void>((y) => (open = y));
+    const Sibling = defineComponent({
+      async setup() {
+        await gate;
+        return () => null;
+      },
+    });
+    const Page = defineComponent({
+      setup() {
+        useI18n("account");
+        return () => h(T as never, { i18nKey: "title", ns: "account" });
+      },
+    });
+    const Root = defineComponent({
+      setup: () => () =>
+        h(Suspense, null, {
+          default: () => h("div", [h(Page), h(Sibling)]),
+          fallback: () => "waiting",
+        }),
+    });
+    let w!: ReturnType<typeof mountWith>;
+    const before = await vueWarnings(async () => {
+      w = mountWith(i18n, Root);
+      await tick();
+      await tick();
+    });
+    expect(w.text()).toBe("waiting");
+    expect(l.requested).toEqual([]);
+    expect(before.filter((x) => x.includes("which nothing loads"))).toEqual([]);
+    const after = await vueWarnings(async () => {
+      open();
+      await settle();
+      await tick();
+      await l.answer("en:account", { title: "Account" });
+    });
+    expect(l.requested).toEqual(["en:account"]);
+    expect(w.text()).toBe("Account");
+    expect(after.filter((x) => x.includes("which nothing loads"))).toEqual([]);
+  });
+
   it("useI18n(ns).t of another namespace (a per-call { ns }) is checked: development warns", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
@@ -485,6 +531,23 @@ describe("outside a component (brief §3)", () => {
       await tick();
     });
     expect(l.requested).toEqual([]);
+    const idle = warnings.filter((x) => x.includes("which nothing loads"));
+    expect(idle).toHaveLength(1);
+    expect(idle[0]).toContain('"shop"');
+  });
+
+  it("its T reads the namespace undeclared too: development warns, nothing loads (Codex re-check F2)", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const w = mountWith(i18n, defineComponent({ setup: () => () => h("p") }));
+    const { T } = w.vm.$.appContext.app.runWithContext(() => useI18n("shop"));
+    let v!: ReturnType<typeof mountWith>;
+    const warnings = await vueWarnings(async () => {
+      v = mountWith(i18n, defineComponent({ setup: () => () => h(T as never, { i18nKey: "x" }) }));
+      await settle();
+      await tick();
+    });
+    expect([v.text(), l.requested]).toEqual(["x", []]);
     const idle = warnings.filter((x) => x.includes("which nothing loads"));
     expect(idle).toHaveLength(1);
     expect(idle[0]).toContain('"shop"');

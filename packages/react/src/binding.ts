@@ -216,6 +216,8 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
   // holds nothing. `default` too: an app whose `namespaces` option leaves it out loads it on
   // first use (a hold never rejects; `i18n.load(ns)` is the call that reports).
   useEffect(() => x.h(n), [x, n]);
+  // Development: until that commit (Suspense may delay it), reads of `n` are not idle ones.
+  if (__DEV__) x.p!(n);
   return useMemo(
     () => ({
       locale: s.locale,

@@ -312,6 +312,65 @@ describe("reading never loads (brief §1)", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
+  it("useI18n(ns) and <T ns> in a Suspense branch whose sibling suspends: no idle warning while the commit waits (Codex re-check F1/C5)", async () => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    let open!: () => void;
+    const gate = new Promise<void>((y) => (open = y));
+    let done = false;
+    void gate.then(() => (done = true));
+    const Sibling = () => {
+      if (!done) throw gate;
+      return null;
+    };
+    const Page = () => {
+      useI18n("account");
+      return <T i18nKey="title" ns="account" />;
+    };
+    const { container } = render(
+      app(
+        i18n,
+        <Suspense fallback="waiting">
+          <Page />
+          <Sibling />
+        </Suspense>,
+      ),
+    );
+    await tick();
+    await tick();
+    expect(container.textContent).toBe("waiting");
+    expect(l.requested).toEqual([]);
+    expect(warn).not.toHaveBeenCalled();
+    await act(async () => open());
+    await tick();
+    expect(l.requested).toEqual(["en:account"]);
+    await l.answer("en:account", { title: "Account" });
+    expect(container.textContent).toBe("Account");
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("a render's declaration does not outlive its hold: after the unmount an idle read of the namespace warns (Codex re-check F1)", async () => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {}, de: {} }, loader: l.load });
+    const Page = () => <p>{useI18n("account").t("title") as string}</p>;
+    let go!: (p: boolean) => void;
+    const Router = () => {
+      const [on, set] = useState(true);
+      go = set;
+      return on ? <Page /> : <T i18nKey="title" ns="account" />;
+    };
+    render(app(i18n, <Router />));
+    await l.answer("en:account", { title: "Account" });
+    act(() => go(false));
+    await act(() => i18n.setLocale("de"));
+    await tick();
+    expect(l.requested).toEqual(["en:account"]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain('"account"');
+  });
+
   it("useI18n(ns).t of another namespace (a per-call { ns }) is not declared by it: development warns", async () => {
     warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const l = manualLoader();
