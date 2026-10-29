@@ -230,6 +230,8 @@ describe("no session, no devtools", () => {
       "h",
       "k",
       "o",
+      // Development only: a render's declaration before its hold (diagnostic marker only).
+      "p",
       "r",
       "s",
       "tr",

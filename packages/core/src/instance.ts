@@ -192,6 +192,14 @@ export interface Core {
    * checked as any read. A binding calls `(__DEV__ ? x.d! : x.tr)(…)`.
    */
   d?: Core["tr"];
+  /**
+   * Development builds only: a render declared namespace `ns` (a `useI18n(ns)` in a render or
+   * a setup) while nothing holds it — its hold comes at the commit or mount, which Suspense
+   * may delay past the idle-read check. Until that hold, a read of `ns` is not reported as
+   * idle. Not a hold: nothing loads for it, and a render that never commits keeps only this
+   * development marker (Codex re-check of lot 4c, F1).
+   */
+  p?(ns: string): void;
   /** The lookup chain of a locale. */
   ch(locale: string): Chain;
   /** The options the instance was made with (`timeZone`, `now`, `formats` for `/format`). */
@@ -282,7 +290,10 @@ export const createI18n = (o: I18nOptions): I18n => {
   const cnt = N<number>();
   for (const n of o.namespaces || [D]) cnt[n] = 1;
   const act = () => Object.keys(cnt).filter((n) => cnt[n]);
-  /** Development: namespaces whose idle read was warned about (once each, per instance). */
+  /**
+   * Development: namespaces whose idle read was warned about (once each, per instance); and,
+   * as `K + ns`, namespaces a render declared (`Core.p`) that no hold has followed yet.
+   */
   const idle = new Set<string>();
   /** Development: the namespace of the declared read (`Core.d`) rendering now. */
   let dec: string | 0 = 0;
@@ -466,6 +477,7 @@ export const createI18n = (o: I18nOptions): I18n => {
       if (__DEV__ && load && dec !== n && !idle.has(n)) {
         const q = (s: State) =>
           !cnt[n] &&
+          !idle.has(K + n) &&
           !s.ld.some((x) => x.endsWith(K + n)) &&
           !chain(l).some((x) => s.c[n]?.[x[0]] || bad.has(x[0] + K + n));
         if (q(s)) {
@@ -697,6 +709,7 @@ export const createI18n = (o: I18nOptions): I18n => {
     k: cnt,
     b: bad,
     h: (n, a = 1) => {
+      if (__DEV__) idle.delete(K + n);
       void use(n, 0, 1);
       // Once: a second call of the same release changes nothing.
       return () => void (a && ((a = 0), cnt[n]--));
@@ -704,6 +717,7 @@ export const createI18n = (o: I18nOptions): I18n => {
     w: coming,
     r: usable,
   };
+  if (__DEV__) c.p = (n) => void (cnt[n] || idle.add(K + n));
   if (__DEV__)
     c.d = (s, k, p, n, j) => {
       const o = dec;
