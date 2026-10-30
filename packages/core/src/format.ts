@@ -29,11 +29,13 @@ const chains = new WeakMap<object, Tags>();
 const NONE: Tags = ["", [], Object.create(null)];
 const tags = (i18n: I18n, locale?: string): Tags => {
   const core = CORE.get(i18n);
-  if (!core) return NONE;
+  const c = locale && canonicalize(locale);
+  // Not an instance: an override that is a tag formats in it alone, else the host default.
+  if (!core) return c ? [c, [c], Object.create(null)] : NONE;
   // An override formats in ITS chain, like `t()`'s `{ locale }`: a binding passes the locale
   // its render shows, which may differ from the instance's during a handover or hydration.
   // An override that is not a tag formats in the instance chain, never the host default.
-  const ch = core.ch(locale && canonicalize(locale) ? locale : i18n.locale);
+  const ch = core.ch(c ? locale : i18n.locale);
   let t = chains.get(ch);
   if (!t) {
     const ls = ch.map((x) => x[1]);

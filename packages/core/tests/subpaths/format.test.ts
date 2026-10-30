@@ -65,8 +65,12 @@ describe("formatters", () => {
   it("an explicit locale the runtime lacks walks ITS chain, like t({ locale }) — not the host default (lot 4d)", () => {
     const i18n = createI18n({ locale: "fr", fallbackLocale: "de" });
     // fr's chain would give "1 234,5"; the host default "1,234.5"; xx's chain is xx → de.
-    expect(formatNumber(i18n, 1234.5, undefined, "xx")).toBe("1.234,5");
-    expect(sp(formatCurrency(i18n, 3, "EUR", undefined, "xx"))).toBe("3,00 €");
+    expect(formatNumber(i18n, 1234.5, undefined, "xx")).toBe(
+      new Intl.NumberFormat("de").format(1234.5),
+    );
+    expect(formatCurrency(i18n, 3, "EUR", undefined, "xx")).toBe(
+      new Intl.NumberFormat("de", { style: "currency", currency: "EUR" }).format(3),
+    );
   });
 
   it("caches one formatter per (kind, locales, option values), whatever the object identity", () => {
@@ -201,6 +205,16 @@ describe("an object that is not an instance", () => {
     );
     expect(formatRelativeTime(fake, D - 86_400_000, { now: D })).toBe(
       new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(-1, "day"),
+    );
+  });
+  it("still formats in an explicit locale, alone (lot 4d, Codex review)", () => {
+    const fake = {} as I18n;
+    expect(formatNumber(fake, 1234.5, undefined, "de")).toBe(
+      new Intl.NumberFormat("de").format(1234.5),
+    );
+    // A tag that does not canonicalize: the runtime's default.
+    expect(formatNumber(fake, 1234.5, undefined, "!!")).toBe(
+      new Intl.NumberFormat().format(1234.5),
     );
   });
 });

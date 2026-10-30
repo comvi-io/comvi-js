@@ -214,7 +214,7 @@ describe("useFormat()", () => {
 
   it("walks the configured fallback chain when the runtime lacks the locale, like the core (lot 4d)", () => {
     const i18n = createI18n({ locale: "xx", fallbackLocale: "de", messages: { xx: {} } });
-    expect(capture(i18n)().number(1234.5)).toBe("1.234,5");
+    expect(capture(i18n)().number(1234.5)).toBe(new Intl.NumberFormat("de").format(1234.5));
   });
 
   it("a handover target the runtime lacks formats in ITS chain, not the instance's (lot 4d)", () => {
@@ -228,7 +228,7 @@ describe("useFormat()", () => {
     });
     const f = capture(i18n, (x) => <I18nHandover locale="xx">{x}</I18nHandover>);
     expect(i18n.locale).toBe("fr");
-    expect(f().number(1234.5)).toBe("1.234,5");
+    expect(f().number(1234.5)).toBe(new Intl.NumberFormat("de").format(1234.5));
   });
 
   it("formats in the target locale of an <I18nHandover> before the instance switches", () => {
