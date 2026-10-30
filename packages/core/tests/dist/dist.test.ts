@@ -60,22 +60,31 @@ describe.each([
     );
   });
 
-  it("missing_key once the loads settle: a key absent from a loaded catalog is reported; a namespace typo is not (owner 30.10)", async () => {
+  it("missing_key once every pair of the chain is settled: an incomplete inline fallback with the main locale not requested is silent, reported after the load; without a loader at once; a namespace with no catalog only warns in development (owner 30.10)", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
     const errors: unknown[] = [];
+    let answer!: (c: Record<string, string>) => void;
     const i18n = createI18n({
-      locale: "en",
-      loader: async () => ({ hi: "Hi" }),
+      locale: "de",
+      fallbackLocale: "en",
+      catalogs: { shop: { en: { other: "x" } } },
+      messages: { de: {}, en: {} },
+      loader: () => new Promise((y) => (answer = y)),
       onError: (e) => errors.push(e),
     });
-    expect(i18n.t("nope")).toBe("nope"); // en:default in flight: not yet
+    expect(i18n.t("title", { ns: "shop" })).toBe("title"); // de:shop never requested
     expect(errors).toEqual([]);
-    await i18n.ready;
-    expect(i18n.t("nope")).toBe("nope");
-    expect(errors).toEqual([{ code: "missing_key", key: "nope", locale: "en", ns: "default" }]);
-    expect(i18n.t("title", { ns: "acount" })).toBe("title");
-    expect(errors).toHaveLength(1);
+    const p = i18n.load("shop");
+    answer({ more: "y" });
+    await p;
+    expect(i18n.t("title", { ns: "shop" })).toBe("title");
+    expect(errors).toEqual([{ code: "missing_key", key: "title", locale: "de", ns: "shop" }]);
+    const bare: unknown[] = [];
+    const plain = createI18n({ locale: "en", messages: { en: {} }, onError: (e) => bare.push(e) });
+    plain.t("nope");
+    plain.t("title", { ns: "acount" });
+    expect(bare).toEqual([{ code: "missing_key", key: "nope", locale: "en", ns: "default" }]);
     await new Promise((r) => setTimeout(r, 0));
     expect(warn.mock.calls.map((c) => String(c[0]).includes('"acount"'))).toEqual(
       label === "dev" ? [true] : [],

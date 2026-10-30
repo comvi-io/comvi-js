@@ -103,11 +103,12 @@ export interface I18nOptions {
   };
   /**
    * Every problem, as a coded {@link I18nError}. Default: development console, production
-   * silent. `missing_key`: a catalog of the namespace is in place for the read's chain (its
-   * locale, parents, fallback locales), no load of the namespace is in flight for that chain,
-   * and the key is absent — reported at the read. `load_failed`: a load failed. A namespace
-   * with no catalog of the read's chain (a typo) is no report; development warns when a loader
-   * could load it.
+   * silent. `missing_key`: the key is absent, a catalog of the namespace is in place for the
+   * read's chain (its locale, parents, fallback locales), and every pair of that chain is
+   * settled — in place or failed; with a loader a pair never requested or still loading keeps
+   * it unknown (no report), without one the catalogs in place are complete. Reported at the
+   * read. `load_failed`: a load failed. A namespace with no catalog of the read's chain (a
+   * typo) is no report; development warns.
    */
   onError?: OnError;
   /**
@@ -193,14 +194,9 @@ export interface Core {
   s(): State;
   /**
    * Translates against any state of this instance (a published one, or a `view()`); `j`
-   * joins a tag's children for its handler (a binding's node maker). `w`: the read of a
-   * `useI18n(ns)` translator whose hold is coming or in place (a declared need of `ns`): a key
-   * of `ns` itself, in the locale on screen, is not missing while that hold's load is due (a
-   * fallback catalog may be in place before it), and development does not warn about an idle
-   * namespace; a per-call `{ ns }` of another namespace or a `{ locale }` outside the locale on
-   * screen is checked as any read.
+   * joins a tag's children for its handler (a binding's node maker).
    */
-  tr(state: State, key: string, params?: Params, ns?: string, j?: Env["j"], w?: unknown): Rendered;
+  tr(state: State, key: string, params?: Params, ns?: string, j?: Env["j"]): Rendered;
   /**
    * Development builds only: a render declared namespace `ns` (a `useI18n(ns)` in a render or
    * a setup) while nothing holds it — its hold comes at the commit or mount, which Suspense
@@ -452,10 +448,8 @@ export const createI18n = (o: I18nOptions): I18n => {
 
   /** The env with a binding's joiner: one per instance, rebuilt only for another joiner. */
   let ej: Env = env;
-  const tr = (s: State, key: string, p?: Params, n = D, j?: Env["j"], w?: unknown): Rendered => {
+  const tr = (s: State, key: string, p?: Params, n = D, j?: Env["j"]): Rendered => {
     let l = s.locale;
-    // The declared namespace (`w`), before a per-call `{ ns }` replaces `n`.
-    const d = w && (n || D);
     let r: Rendered;
     let x: unknown;
     // Per-call options are read from the params object's OWN properties (R4-17). An invalid
@@ -477,17 +471,15 @@ export const createI18n = (o: I18nOptions): I18n => {
       if (i >= ch.o) err("fallback_used", l, n, key);
       r = render(m, p, ch[i][1], j ? (ej.j == j ? ej : (ej = { ...env, j })) : env);
     } else {
-      // Development (lot 4c, brief §6): a read of a namespace with no catalog in the chain, no
-      // consumer, no load in flight and no failed load (a known result) — nothing will load
-      // it. Not for the read of a `useI18n(ns)` of its own namespace (`d`), whose hold
-      // follows its render. Checked again after the render's task (a timer): a component's
-      // hold lands at its commit or mount, after the render that read — a `<T ns>` beside
-      // `useI18n(ns)` is not idle. Once per instance and namespace.
-      if (__DEV__ && load && d !== n && !idle.has(n)) {
+      // Development (lot 4c, brief §6): a read of a namespace with no catalog in the chain —
+      // with a loader: no consumer, no load in flight and no failed load (a known result), so
+      // nothing will load it; without one: nothing ever will. A render's `useI18n(ns)` marks
+      // `ns` declared until its hold (`Core.p`). Checked again after the render's task (a
+      // timer): a component's hold lands at its commit or mount, after the render that read —
+      // a `<T ns>` beside `useI18n(ns)` is not idle. Once per instance and namespace.
+      if (__DEV__ && !idle.has(n)) {
         const q = (s: State) =>
-          !cnt[n] &&
-          !idle.has(K + n) &&
-          !s.ld.some((x) => x.endsWith(K + n)) &&
+          (!load || (!cnt[n] && !idle.has(K + n) && !s.ld.some((x) => x.endsWith(K + n)))) &&
           !chain(l).some((x) => s.c[n]?.[x[0]] || bad.has(x[0] + K + n));
         if (q(s)) {
           idle.add(n);
@@ -495,30 +487,27 @@ export const createI18n = (o: I18nOptions): I18n => {
             dead || !q(S)
               ? idle.delete(n)
               : console.warn(
-                  `[@comvi/core] "${key}" reads namespace "${n}", which has no catalog for "${l}" and which nothing loads: hold it with useI18n(${JSON.stringify(n)}) in a component, call i18n.load(${JSON.stringify(n)}), or add it to the \`namespaces\` option`,
+                  `[@comvi/core] "${key}" reads namespace "${n}", which has no catalog for "${l}" and which nothing loads: ` +
+                    (load
+                      ? `hold it with useI18n(${JSON.stringify(n)}) in a component, call i18n.load(${JSON.stringify(n)}), or add it to the \`namespaces\` option`
+                      : `no loader is configured — add its catalog to the \`messages\` or \`catalogs\` option`),
                 ),
           );
         }
       }
-      // Missing (lot 4c, owner 30.10) needs BOTH: a catalog of the namespace in place for a
-      // locale of the read's chain, and no load of the namespace in flight for a locale of that
-      // chain (another locale's load is no reason to wait). No catalog of the chain at all is
-      // never a missing key, whatever is requested (development's idle-read warning above
-      // covers a namespace nothing loads; a failed load is `load_failed`).
-      // A declared read (`d`: a `useI18n(ns)` translator, its own namespace, the locale on
-      // screen) also waits for the load its hold makes — its first render comes before the
-      // hold, while a fallback catalog may already be in place; not past a failed pair.
-      // Reported at the read, never replayed. With no reporter to call (production without
-      // `onError`: `defaultOnError` is silent there) nothing is checked or built: a missing
-      // key costs the lookup only.
+      // Missing (lot 4c, owner 30.10): no message, a catalog of the namespace in place for the
+      // read's chain, and every pair of that chain SETTLED — in place, or failed (the negative
+      // cache). With a loader, a pair never requested or still loading is unknown: no report
+      // (an unconfirmed error is not reported; one nobody ever requests never is). Without a
+      // loader the catalogs in place are the complete set. No catalog of the chain at all is
+      // the development warning above (a failed load is `load_failed`). Reported at the read,
+      // never replayed. With no reporter to call (production without `onError`:
+      // `defaultOnError` is silent there) nothing is checked or built: a missing key costs the
+      // lookup only.
       if (
         h != noop &&
         ch.some(([x]) => s.c[n]?.[x]) &&
-        !ch.some(
-          ([x]) =>
-            s.ld.includes(x + K + n) ||
-            (d == n && l == s.locale && load && !s.c[n]?.[x] && !bad.has(x + K + n)),
-        )
+        (!load || ch.every(([x]) => s.c[n]?.[x] || bad.has(x + K + n)))
       )
         err("missing_key", l, n, key);
       // A missing key is marked too: the translator clicks keys no catalog has (H4).

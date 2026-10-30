@@ -297,6 +297,63 @@ describe("missing_key: silent only while a load that could bring the key is comi
     expect(new Set(mk(errors))).toEqual(new Set(["a shop en", "b shop en", "c shop en"]));
   });
 
+  it("an incomplete inline fallback, the main locale not requested yet: t, i18n.t, the bound and the exported <T> are silent; loaded without the key, all report (owner 30.10)", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({
+      locale: "de",
+      fallbackLocale: "en",
+      catalogs: { shop: { en: { other: "x" } } },
+      messages: { de: {}, en: {} },
+      loader: l.load,
+    });
+    const P = () => {
+      const { t, T: B } = useI18n("shop");
+      return (
+        <p>
+          {t("a") as string}
+          <B i18nKey="b" />
+          <T i18nKey="c" ns="shop" />
+          {i18n.t("d", { ns: "shop" }) as string}
+        </p>
+      );
+    };
+    render(app(i18n, <P />));
+    expect(l.requested).toEqual(["de:shop"]); // held at commit: loading
+    expect(mk(errors)).toEqual([]);
+    await l.answer("de:shop", { more: "y" });
+    await settle();
+    expect(new Set(mk(errors))).toEqual(
+      new Set(["a shop de", "b shop de", "c shop de", "d shop de"]),
+    );
+  });
+
+  it("a failed main-locale load with a fallback catalog lacking the key: every surface reports (the chain is settled)", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({
+      locale: "de",
+      fallbackLocale: "en",
+      catalogs: { shop: { en: { other: "x" } } },
+      messages: { de: {}, en: {} },
+      loader: l.load,
+    });
+    const P = () => {
+      const { t, T: B } = useI18n("shop");
+      return (
+        <p>
+          {t("a") as string}
+          <B i18nKey="b" />
+          <T i18nKey="c" ns="shop" />
+        </p>
+      );
+    };
+    render(app(i18n, <P />));
+    expect(mk(errors)).toEqual([]);
+    await l.fail("de:shop");
+    await settle();
+    expect(errors[0].code).toBe("load_failed");
+    expect(new Set(mk(errors))).toEqual(new Set(["a shop de", "b shop de", "c shop de"]));
+  });
+
   it("exported <T ns> beside useI18n(ns) in a Suspense branch whose sibling delays the commit: no report", async () => {
     const l = manualLoader();
     const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });

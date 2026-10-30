@@ -231,10 +231,9 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
       // `node` joins rich parts into one node and, through the core, gives every tag
       // handler (`defaultParams` ones too) its children as ONE node: `<a>{chunks}</a>`
       // renders nested tags and element params without React's missing-key warning.
-      // A declared read (the core's `w`): this hook holds `n` at commit.
       t: ((k: string, p?: Record<string, unknown>) =>
-        node(x.tr(s, k, p, n, node, 1))) as UseI18n<NS>["t"],
-      T: (Ts[n] ||= (q) => read({ ...q, ns: n } as never, 1)) as BoundT<NS>,
+        node(x.tr(s, k, p, n, node))) as UseI18n<NS>["t"],
+      T: (Ts[n] ||= (q) => read({ ...q, ns: n } as never)) as BoundT<NS>,
     }),
     [c, n],
   );
@@ -272,18 +271,15 @@ export type TComponent = [NsOf] extends [never]
   : // The typo guard of `t()` (R3-2) is in the shared core type: see TComponentFor.
     TComponentFor<ReactNode, 2, Readonly<Record<string, TagComponent>>>;
 
-/** `<T>`'s render: reads the message, never loads (lot 4c); `u`: a bound `<T>`'s declared read. */
-const read = (
-  {
-    components: m,
-    ...p
-  }: {
-    i18nKey: string;
-    ns?: string;
-    components?: Record<string, TagComponent>;
-  } & Record<string, unknown>,
-  u?: 1,
-) => {
+/** `<T>`'s render: reads the message, never loads (lot 4c). */
+const read = ({
+  components: m,
+  ...p
+}: {
+  i18nKey: string;
+  ns?: string;
+  components?: Record<string, TagComponent>;
+} & Record<string, unknown>) => {
   for (const k in m) {
     // A tag name, a component, or `{ component, props }` (R3-24); a component (a function,
     // a class, a memo/forwardRef/lazy object) has no `props` of its own to misread. An
@@ -296,7 +292,7 @@ const read = (
   const x = core(i);
   // The props are the params: `ns`, `locale` and `markers` are per-call options the core
   // reads off them, and `i18nKey` is a param no message uses.
-  return node(x.tr(s, p.i18nKey, p as never, p.ns, node, u));
+  return node(x.tr(s, p.i18nKey, p as never, p.ns, node));
 };
 
 /**

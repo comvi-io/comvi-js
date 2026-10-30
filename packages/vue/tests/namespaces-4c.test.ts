@@ -422,7 +422,39 @@ describe("missing_key: silent only while a load that could bring the key is comi
     expect(mk(errors)).toEqual([]);
   });
 
-  it("a released namespace read after a switch, a fallback catalog in place: a kept translator and $t report an absent key", async () => {
+  it("an incomplete inline fallback, the main locale not requested yet: t, $t, the bound and the exported <T> are silent; loaded without the key, all report (owner 30.10)", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({
+      locale: "de",
+      fallbackLocale: "en",
+      catalogs: { shop: { en: { other: "x" } } },
+      messages: { de: {}, en: {} },
+      loader: l.load,
+    });
+    const { T } = await import("../src");
+    const C = defineComponent({
+      setup() {
+        const u = useI18n("shop");
+        return () =>
+          h("p", [
+            u.t("a") as string,
+            h(u.T, { i18nKey: "b" }),
+            h(T as never, { i18nKey: "c", ns: "shop" }),
+          ]);
+      },
+    });
+    const w = mountWith(i18n, C);
+    w.vm.$t("d", { ns: "shop" });
+    expect(l.requested).toEqual(["de:shop"]); // held at mount: loading
+    expect(mk(errors)).toEqual([]);
+    await l.answer("de:shop", { more: "y" });
+    w.vm.$t("d", { ns: "shop" });
+    expect(new Set(mk(errors))).toEqual(
+      new Set(["a shop de", "b shop de", "c shop de", "d shop de"]),
+    );
+  });
+
+  it("a released namespace after a switch, a fallback catalog in place: its main pair never requested keeps it unknown — no report (accepted)", async () => {
     const l = manualLoader();
     const { i18n, errors } = make({
       locale: "en",
@@ -442,7 +474,7 @@ describe("missing_key: silent only while a load that could bring the key is comi
     expect(r.out.u!.t("title")).toBe("Shop"); // the fallback's
     expect(r.out.u!.t("nope")).toBe("nope");
     w.vm.$t("nope", { ns: "shop" });
-    expect(mk(errors)).toEqual(["nope shop de", "nope shop de"]);
+    expect(mk(errors)).toEqual([]);
   });
 
   it("a failed load is load_failed; no catalog of the chain: nothing more; a fallback catalog in place: an absent key is missing_key", async () => {

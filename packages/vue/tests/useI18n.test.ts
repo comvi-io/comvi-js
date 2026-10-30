@@ -269,12 +269,19 @@ describe("useI18n(ns)", () => {
     expect(errors).toEqual([]);
   });
 
-  it("without a loader a namespace with no catalog is never stuck loading, and not a missing key (no catalog of the chain)", () => {
+  it("without a loader: a namespace with no catalog is never stuck loading and no missing key (development warns); an absent key of a catalog in place is reported at once", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { i18n, errors } = make({ locale: "en", messages: { en: {} } });
     const u = capture(i18n, "shop").get();
     expect(u.isLoading.value).toBe(false);
     expect(u.t("title")).toBe("title");
     expect(errors).toEqual([]);
+    expect(i18n.t("nope")).toBe("nope");
+    expect(errors.map((e) => [e.code, e.ns])).toEqual([["missing_key", "default"]]);
+    await new Promise((y) => setTimeout(y));
+    expect(warn.mock.calls.map((c) => String(c[0]).includes("no loader is configured"))).toEqual([
+      true,
+    ]);
   });
 
   it("isLoading is per namespace and covers a switch in flight", async () => {

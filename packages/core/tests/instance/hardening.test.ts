@@ -311,14 +311,19 @@ describe("missing_key waits for every load of the namespace", () => {
     await expect(p).rejects.toThrow("404 en:shop");
     expect(i18n.ns("shop")("title")).toBe("title");
     expect(errors.map((e) => e.code)).toEqual(["load_failed"]);
+    await new Promise((y) => setTimeout(y)); // development's idle-read warning for cart
     warn.mockRestore();
   });
 
-  it("missing_key needs a catalog of the chain in place: without one (no loader either) a read reports nothing; with one and nothing in flight an absent key is reported (owner 30.10)", () => {
+  it("without a loader: a namespace with no catalog is no missing_key (development warns); an absent key of a catalog in place is reported at once (owner 30.10)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { i18n, errors } = make({ locale: "en", messages: { en: {} } });
     expect(i18n.ns("shop")("title")).toBe("title");
     expect(errors).toEqual([]);
     expect(i18n.t("title")).toBe("title");
     expect(errors).toEqual([expect.objectContaining({ code: "missing_key", ns: "default" })]);
+    await new Promise((y) => setTimeout(y));
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain('"shop"');
   });
 });

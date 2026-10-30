@@ -1276,34 +1276,30 @@ the owner.
 ## 2026-10-30: lot 4c — released consumer (Vue) and missing_key (owner decision): red, for the owner
 
 Two contract fixes (owner, 30.10): a Vue `useI18n(ns)` whose component released `ns` (unmount,
-`KeepAlive` deactivation) no longer reads `isLoading` true with no load coming; and `missing_key`
-needs both a catalog of the namespace in place for the read's chain and no load of it in flight
-for that chain (no catalog → no production report, development warns), a `useI18n(ns)`
-translator before its hold waiting for that hold's load (`Core.tr`'s sixth argument replaces the
-development-only `Core.d`). Behaviour kept; nothing golfed; no budget, ceiling or cap changed —
-the red rows are for the owner. One sweep after `TURBO_FORCE=true pnpm build`, `node --version`
-v24.22.1.
+`KeepAlive` deactivation) no longer reads `isLoading` true with no load coming; and one
+`missing_key` rule for every read — a catalog of the namespace in place for the read's chain and
+every pair of that chain settled (in place or failed; without a loader the catalogs in place are
+complete), no catalog of the chain a development warning only (now also without a loader). The
+development-only `Core.d` seam is gone; `Core.tr` takes no declaration. Behaviour kept; nothing
+golfed; no budget, ceiling or cap changed — the red row is for the owner. One sweep after
+`TURBO_FORCE=true pnpm build`, `node --version` v24.22.1.
 
-| row                      | measured      | baseline      | Δ         | budget / ceiling / cap | gate          |
-| ------------------------ | ------------- | ------------- | --------- | ---------------------- | ------------- |
-| core-icu                 | 4,594         | 4,532         | +62       | 4,623 / 4,623          | ok            |
-| core-icu-cdn             | 5,077         | 5,018         | +59       | 5,119 / 5,119          | ok            |
-| core-icu-devtools        | 5,045         | 4,985         | +60       | 5,017 / 5,017          | **red (+28)** |
-| react-icu-cdn            | 5,618         | 5,554         | +64       | 5,666 / 5,666          | ok            |
-| react-icu-cdn (incr.)    | +541          | +536          | +5        | +547                   | ok            |
-| vue-icu-cdn              | 5,805         | 5,718         | +87       | 5,833 / 5,833          | ok            |
-| vue-icu-cdn (incr.)      | +728          | +700          | +28       | +714                   | **red (+14)** |
-| fw-react-default         | 5,094         | 5,034         | +60       | 5,286                  | ok            |
-| fw-react-full-composite  | 8,088         | 8,033         | +55       | 8,435                  | ok            |
-| fw-vue-default           | 5,290         | 5,202         | +88       | 5,463                  | ok            |
-| fw-vue-full-composite    | 7,992         | 7,907         | +85       | 8,303                  | ok            |
-| core-icu-cdn-store / api | 5,248 / 5,597 | 5,185 / 5,536 | +63 / +61 | 5,445 / 5,813          | ok            |
-| core-format / plugins    | 5,251 / 5,172 | 5,187 / 5,113 | +64 / +59 | 5,447 / 5,369          | ok            |
+| row                      | measured      | baseline      | Δ         | budget / ceiling / cap | gate         |
+| ------------------------ | ------------- | ------------- | --------- | ---------------------- | ------------ |
+| core-icu                 | 4,562         | 4,532         | +30       | 4,623 / 4,623          | ok           |
+| core-icu-cdn             | 5,045         | 5,018         | +27       | 5,119 / 5,119          | ok           |
+| core-icu-devtools        | 5,018         | 4,985         | +33       | 5,017 / 5,017          | **red (+1)** |
+| react-icu-cdn            | 5,580         | 5,554         | +26       | 5,666 / 5,666          | ok           |
+| react-icu-cdn (incr.)    | +535          | +536          | −1        | +547                   | ok           |
+| vue-icu-cdn              | 5,749         | 5,718         | +31       | 5,833 / 5,833          | ok           |
+| vue-icu-cdn (incr.)      | +704          | +700          | +4        | +714                   | ok           |
+| fw-react-default         | 5,060         | 5,034         | +26       | 5,286                  | ok           |
+| fw-react-full-composite  | 8,061         | 8,033         | +28       | 8,435                  | ok           |
+| fw-vue-default           | 5,240         | 5,202         | +38       | 5,463                  | ok           |
+| fw-vue-full-composite    | 7,945         | 7,907         | +38       | 8,303                  | ok           |
+| core-icu-cdn-store / api | 5,214 / 5,566 | 5,185 / 5,536 | +29 / +30 | 5,445 / 5,813          | ok           |
+| core-format / plugins    | 5,218 / 5,143 | 5,187 / 5,113 | +31 / +30 | 5,447 / 5,369          | ok           |
 
-The Vue release fix alone (measured before the missing_key change) was `vue-icu-cdn` 5,728
-(+710, under the +714 cap), `fw-vue-default` 5,213, `fw-vue-full-composite` 7,917; the rest of
-the growth is the missing_key rule (core +59…+64, the catalog-in-place and in-flight checks and
-the declared read) and the Vue binding passing the declaration. Sharing the per-pair predicate
-between `isLoading` and the missing check was tried on the previous rule and measured larger, so
-the checks stay inline. `core-compile` (1,862), `core-locale` (584), `core-negotiate` (496) and
+The Vue release fix alone was `vue-icu-cdn` 5,728 (+710); the core growth is the settled-chain
+check (+27…+33). `core-compile` (1,862), `core-locale` (584), `core-negotiate` (496) and
 `core-devtools` (639) did not move.

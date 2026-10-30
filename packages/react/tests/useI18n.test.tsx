@@ -7,7 +7,7 @@
  */
 import { Children, StrictMode, useEffect, useState, type ReactNode } from "react";
 import { act, render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createI18n, I18nProvider, useI18n, type I18n, type UseI18n } from "../src";
 import { make, manualLoader, reactWarnings, settle } from "./helpers";
 
@@ -154,12 +154,19 @@ describe("useI18n(ns)", () => {
     expect(errors).toEqual([]);
   });
 
-  it("without a loader a namespace with no catalog is never stuck loading, and not a missing key (no catalog of the chain)", () => {
+  it("without a loader: a namespace with no catalog is never stuck loading and no missing key (development warns); an absent key of a catalog in place is reported at once", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { i18n, errors } = make({ locale: "en", messages: { en: {} } });
     const { last } = capture(i18n, "shop");
     expect(last().isLoading).toBe(false);
     expect(last().t("title")).toBe("title");
     expect(errors).toEqual([]);
+    expect(i18n.t("nope")).toBe("nope");
+    expect(errors.map((e) => [e.code, e.ns])).toEqual([["missing_key", "default"]]);
+    await new Promise((y) => setTimeout(y));
+    expect(warn.mock.calls.map((c) => String(c[0]).includes("no loader is configured"))).toEqual([
+      true,
+    ]);
   });
 
   it("isLoading is per namespace and covers a switch in flight", async () => {

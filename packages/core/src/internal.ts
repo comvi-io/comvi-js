@@ -97,7 +97,7 @@ export const view = (
     }
   // The chain gives the locale's direction and canonical tag (an invalid one renders
   // through its fallbacks, as a published state does). In another locale than the published
-  // one, what its chain lacks is loading (`isLoading`; a declared read reports no
+  // one, what its chain lacks is loading (`isLoading`; never requested, it is no
   // `missing_key`) by the core's own rule: the switch at commit loads it.
   const h = core(i18n).ch(locale);
   if (c === state.c && locale == state.locale) return state;

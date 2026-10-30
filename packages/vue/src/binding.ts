@@ -101,13 +101,9 @@ const node = (r: any): any => (r.every?.((x: unknown) => typeof x == "string") ?
 /** The cell of an instance this binding made. */
 export const cell = (i: I18n): Cell => (i as unknown as Record<symbol, Cell>)[K];
 
-/**
- * `t()` of `i` for namespace `ns`, against the state its cell holds (a reactive read); `u`:
- * the read of a `useI18n(ns)` whose hold is coming or in place (the core's declared read: no
- * `missing_key` while that hold's load is due, no idle-read warning; lot 4c).
- */
-const tr = (i: I18n, ns?: string, u?: unknown) => (k: string, p?: object) =>
-  node(core(i).tr(cell(i)[0].value, k, p as never, ns, node, u));
+/** `t()` of `i` for namespace `ns`, against the state its cell holds (a reactive read). */
+const tr = (i: I18n, ns?: string) => (k: string, p?: object) =>
+  node(core(i).tr(cell(i)[0].value, k, p as never, ns, node));
 
 /**
  * Creates the instance (core's `createI18n`, same options) and makes it a Vue plugin:
@@ -299,7 +295,6 @@ export const render = (
   ns: unknown,
   attrs: Record<string, any>,
   slots: Record<string, any>,
-  u?: 1,
 ) => {
   // Prototype-free: a slot named `constructor` is a handler, no inherited member.
   const q: Record<string, any> = N();
@@ -336,8 +331,7 @@ export const render = (
   // per-call options. The caller's namespace is set last: a bound `<T>`'s wins over an
   // `ns` attribute (one an untyped project can pass).
   q.ns = ns;
-  // The namespace goes to the core as the call's too: a bound `<T>`'s declared read is of it.
-  return tr(i, ns as string, u)(q.i18nKey, q);
+  return tr(i, ns as string)(q.i18nKey, q);
 };
 
 /**
@@ -359,10 +353,10 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
   let r: (() => void) | 0 = 0;
   /**
    * 0 once released (unmount, `KeepAlive` deactivation): `isLoading` is then a load in flight
-   * only, as outside a component, and `t` an undeclared read (a missing key is reported) — no
-   * hold of this one will load `n`, so it is not loading forever (a result kept after the
-   * unmount, a deactivated component's watcher). Before the first hold they count what the
-   * hold will load; an activation's hold loads what is missing, so its flight is the loading.
+   * only, as outside a component — no hold of this one will load `n`, so it is not loading
+   * forever (a result kept after the unmount, a deactivated component's watcher). Before the
+   * first hold it is what the hold will load; an activation's hold loads what is missing, so
+   * its flight is the loading.
    */
   let u = 1;
   const on = () => (r ||= x.h(n));
@@ -390,14 +384,12 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
     onUnmounted(off);
   }
   return {
-    t: (g ? (k: string, p?: object) => tr(i, n, u)(k, p) : tr(i, n)) as UseI18n<NS>["t"],
+    t: tr(i, n) as UseI18n<NS>["t"],
     // Functional, one per instance and namespace (R3-5(b)): with no declared props every
     // attribute is a prop of it, so every one reaches the params and none falls through —
     // the exported `<T>`'s policy (`inheritAttrs: false`). It reads the namespace this
-    // `useI18n(ns)` holds (outside a component, an undeclared read).
-    T: (!g
-      ? (p: object, { slots }: { slots: object }) => render(i, n, p, slots)
-      : (Ts[n] ||= (p, { slots }) => render(i, n, p, slots, 1))) as unknown as BoundT<NS>,
+    // `useI18n(ns)` holds.
+    T: (Ts[n] ||= (p, { slots }) => render(i, n, p, slots)) as unknown as BoundT<NS>,
     locale,
     dir,
     // Until the hold at mount, what the hold will load is loading already: no frame that
