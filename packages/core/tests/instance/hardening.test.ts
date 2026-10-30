@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { I18nError } from "../../src/errors";
 import { createI18n } from "../../src/instance";
-import { acquire, core, loading, state, translate, view } from "../../src/internal";
+import { acquire, loading, state, translate, view } from "../../src/internal";
 import { flush, make, manualLoader, tableLoader } from "./helpers";
 
 describe("add() of the catalog a slot already holds is a no-op (H5 livelock class)", () => {
@@ -294,7 +294,7 @@ describe("missing_key waits for every load of the namespace", () => {
     expect(i18n.t("a")).toBe("A-de");
     await flush();
   });
-  it("a namespace nobody activated yet: a useI18n(ns) translator's declared read is not missing yet; a plain read is (owner 30.10)", async () => {
+  it("a namespace with no catalog of the chain (another locale's only) is not missing while a loader could bring one; failed, it is load_failed only (owner 30.10)", async () => {
     const l = manualLoader({ "en:shop": { title: "Shop" } });
     const { i18n, errors } = make({
       locale: "en",
@@ -302,29 +302,23 @@ describe("missing_key waits for every load of the namespace", () => {
       catalogs: { cart: { de: { n: "Korb" } } },
       loader: l.load,
     });
-    // `useI18n(ns)` renders before it activates `ns` after commit: not missing yet.
-    const declared = (n: string, k: string) =>
-      core(i18n).tr(state(i18n), k, undefined, n, undefined, 1);
-    expect(declared("shop", "title")).toBe("title");
-    expect(declared("cart", "n")).toBe("n"); // a catalog of another locale only
-    expect(errors.filter((e) => e.code === "missing_key")).toEqual([]);
-    // A plain read: nothing is coming for it (lot 1d's prediction for every read is gone).
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(i18n.ns("shop")("title")).toBe("title");
-    expect(errors.filter((e) => e.code === "missing_key").map((e) => e.ns)).toEqual(["shop"]);
-    errors.length = 0;
-    // Activated and failed: missing from now on.
+    expect(i18n.ns("cart")("n")).toBe("n"); // a catalog of another locale only
+    expect(errors.filter((e) => e.code === "missing_key")).toEqual([]);
     const p = i18n.load("shop");
     await l.fail("en:shop");
     await expect(p).rejects.toThrow("404 en:shop");
     expect(i18n.ns("shop")("title")).toBe("title");
-    expect(errors.filter((e) => e.code === "missing_key")).toEqual([
-      expect.objectContaining({ key: "title", ns: "shop" }),
-    ]);
+    expect(errors.map((e) => e.code)).toEqual(["load_failed"]);
+    warn.mockRestore();
   });
 
-  it("without a loader a namespace with no catalog is missing at once", () => {
+  it("missing_key needs a catalog of the chain in place: without one (no loader either) a read reports nothing; with one and nothing in flight an absent key is reported (owner 30.10)", () => {
     const { i18n, errors } = make({ locale: "en", messages: { en: {} } });
     expect(i18n.ns("shop")("title")).toBe("title");
-    expect(errors).toEqual([expect.objectContaining({ code: "missing_key", ns: "shop" })]);
+    expect(errors).toEqual([]);
+    expect(i18n.t("title")).toBe("title");
+    expect(errors).toEqual([expect.objectContaining({ code: "missing_key", ns: "default" })]);
   });
 });

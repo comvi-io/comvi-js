@@ -269,12 +269,12 @@ describe("useI18n(ns)", () => {
     expect(errors).toEqual([]);
   });
 
-  it("without a loader a namespace with no catalog is missing at once, never stuck loading", () => {
+  it("without a loader a namespace with no catalog is never stuck loading, and not a missing key (no catalog of the chain)", () => {
     const { i18n, errors } = make({ locale: "en", messages: { en: {} } });
     const u = capture(i18n, "shop").get();
     expect(u.isLoading.value).toBe(false);
     expect(u.t("title")).toBe("title");
-    expect(errors.map((e) => [e.code, e.ns])).toEqual([["missing_key", "shop"]]);
+    expect(errors).toEqual([]);
   });
 
   it("isLoading is per namespace and covers a switch in flight", async () => {

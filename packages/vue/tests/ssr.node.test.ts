@@ -122,10 +122,8 @@ describe("server render", () => {
     });
     const html = await renderToString(createSSRApp(Page).use(i18n));
     expect(html).toBe("<h2>title</h2>");
-    expect(errors.map((e) => [e.code, e.ns])).toEqual([
-      ["load_failed", "account"],
-      ["missing_key", "account"],
-    ]);
+    // The failure is the load's; with no catalog of the chain a read is not a missing key.
+    expect(errors.map((e) => [e.code, e.ns])).toEqual([["load_failed", "account"]]);
     expect(handover(i18n).catalogs.account).toEqual({ fr: null });
   });
 

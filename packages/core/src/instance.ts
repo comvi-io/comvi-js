@@ -101,9 +101,19 @@ export interface I18nOptions {
     number?: Readonly<Record<string, Intl.NumberFormatOptions>>;
     date?: Readonly<Record<string, Intl.DateTimeFormatOptions>>;
   };
-  /** Every problem, as a coded {@link I18nError}. Default: development console, production silent. */
+  /**
+   * Every problem, as a coded {@link I18nError}. Default: development console, production
+   * silent. `missing_key`: a catalog of the namespace is in place for the read's chain (its
+   * locale, parents, fallback locales), no load of the namespace is in flight for that chain,
+   * and the key is absent — reported at the read. `load_failed`: a load failed. A namespace
+   * with no catalog of the read's chain (a typo) is no report; development warns when a loader
+   * could load it.
+   */
   onError?: OnError;
-  /** What a missing key renders. Default: the key. */
+  /**
+   * What a read with no message for the key renders — a missing key, and a namespace still
+   * loading or with no catalog. Default: the key.
+   */
   missing?: (key: string, locale: string, ns: string) => string;
 }
 
@@ -125,9 +135,10 @@ export interface I18n {
    * `locale` and `markers` are reserved names: a message cannot have params called so.
    *
    * With no message for the key in the locale's chain it returns what `missing(key, locale,
-   * ns)` returns (default: the key) — also while the key's namespace is still loading, when
-   * no `missing_key` is reported. `t()` never returns a placeholder: a UI that should not
-   * show that text while loading checks `isLoading` (bindings) and renders its own.
+   * ns)` returns (default: the key) — also while the key's namespace is still loading or has
+   * no catalog of the chain, when no `missing_key` is reported (see `onError`). `t()` never
+   * returns a placeholder: a UI that should not show that text while loading checks
+   * `isLoading` (bindings) and renders its own.
    */
   t: TFor<"default", RichParts>;
   /** `t()` bound to namespace `name`. */
@@ -184,9 +195,10 @@ export interface Core {
    * Translates against any state of this instance (a published one, or a `view()`); `j`
    * joins a tag's children for its handler (a binding's node maker). `w`: the read of a
    * `useI18n(ns)` translator whose hold is coming or in place (a declared need of `ns`): a key
-   * of `ns` itself, in the locale on screen, is not missing while that hold's load is due, and
-   * development does not warn about an idle namespace; a per-call `{ ns }` of another
-   * namespace or a `{ locale }` outside the locale on screen is checked as any read.
+   * of `ns` itself, in the locale on screen, is not missing while that hold's load is due (a
+   * fallback catalog may be in place before it), and development does not warn about an idle
+   * namespace; a per-call `{ ns }` of another namespace or a `{ locale }` outside the locale on
+   * screen is checked as any read.
    */
   tr(state: State, key: string, params?: Params, ns?: string, j?: Env["j"], w?: unknown): Rendered;
   /**
@@ -488,14 +500,20 @@ export const createI18n = (o: I18nOptions): I18n => {
           );
         }
       }
-      // Not missing yet while a load that could bring it is coming: one in flight for a locale
-      // of the read's chain (another locale's is no reason), or, for a declared read of its own
-      // namespace in the locale on screen (`d`), the load its hold makes — not past a failed
-      // pair. Reported at the read, never replayed. With no reporter to call (production
-      // without `onError`: `defaultOnError` is silent there) nothing is checked or built: a
-      // missing key costs the lookup only.
+      // Missing (lot 4c, owner 30.10) needs BOTH: a catalog of the namespace in place for a
+      // locale of the read's chain, and no load of the namespace in flight for a locale of that
+      // chain (another locale's load is no reason to wait). No catalog of the chain at all is
+      // never a missing key, whatever is requested (development's idle-read warning above
+      // covers a namespace nothing loads; a failed load is `load_failed`).
+      // A declared read (`d`: a `useI18n(ns)` translator, its own namespace, the locale on
+      // screen) also waits for the load its hold makes — its first render comes before the
+      // hold, while a fallback catalog may already be in place; not past a failed pair.
+      // Reported at the read, never replayed. With no reporter to call (production without
+      // `onError`: `defaultOnError` is silent there) nothing is checked or built: a missing
+      // key costs the lookup only.
       if (
         h != noop &&
+        ch.some(([x]) => s.c[n]?.[x]) &&
         !ch.some(
           ([x]) =>
             s.ld.includes(x + K + n) ||

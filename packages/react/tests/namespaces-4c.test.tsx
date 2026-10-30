@@ -277,35 +277,82 @@ describe("missing_key: silent only while a load that could bring the key is comi
     expect(new Set(mk(errors))).toEqual(new Set(["title shop en"]));
   });
 
-  it("a per-call { ns } or a { locale } outside the locale on screen is not the declared need: reported", () => {
-    const { i18n, errors } = make({
-      locale: "en",
-      messages: { en: {} },
-      loader: manualLoader().load,
-    });
+  it("exported <T ns> beside useI18n(ns), bound t and T: one rule — silent before the catalog, reported for a key the loaded catalog lacks", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const P = () => {
+      const { t, T: B } = useI18n("shop");
+      return (
+        <p>
+          {t("a") as string}
+          <B i18nKey="b" />
+          <T i18nKey="c" ns="shop" />
+        </p>
+      );
+    };
+    render(app(i18n, <P />));
+    expect(mk(errors)).toEqual([]);
+    await l.answer("en:shop", {});
+    await settle();
+    expect(new Set(mk(errors))).toEqual(new Set(["a shop en", "b shop en", "c shop en"]));
+  });
+
+  it("exported <T ns> beside useI18n(ns) in a Suspense branch whose sibling delays the commit: no report", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    let open!: () => void;
+    const gate = new Promise<void>((y) => (open = y));
+    let done = false;
+    void gate.then(() => (done = true));
+    const Sibling = () => {
+      if (!done) throw gate;
+      return null;
+    };
+    const P = () => {
+      useI18n("account");
+      return <T i18nKey="title" ns="account" />;
+    };
+    const { container } = render(
+      app(
+        i18n,
+        <Suspense fallback="waiting">
+          <P />
+          <Sibling />
+        </Suspense>,
+      ),
+    );
+    await tick();
+    await tick();
+    expect(container.textContent).toBe("waiting");
+    expect(l.requested).toEqual([]);
+    expect(mk(errors)).toEqual([]);
+    await act(async () => open());
+    await settle();
+    await l.answer("en:account", { title: "Account" });
+    await settle();
+    expect(container.textContent).toBe("Account");
+    expect(mk(errors)).toEqual([]);
+  });
+
+  it("a namespace with no catalog of the read's chain (a typo, a per-call { locale } or { ns }): no missing_key, plain or bound", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const P = () => {
       const { t } = useI18n("shop");
       return (
         <p>
           {t("title", { ns: "other" } as never) as string}
           {t("title", { locale: "fr" } as never) as string}
+          <T i18nKey="title" ns="acount" />
         </p>
       );
     };
     render(app(i18n, <P />));
-    // Each render reports at its read (the commit's publish renders again).
-    expect(new Set(mk(errors))).toEqual(new Set(["title other en", "title shop fr"]));
-  });
-
-  it("the exported <T ns> and a plain i18n.t() of a namespace nothing loads are reported", async () => {
-    const l = manualLoader();
-    const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    render(app(i18n, <T i18nKey="title" ns="acount" />));
     i18n.t("title", { ns: "acount" });
-    await tick(); // development's idle-read warning (its own test) runs here
+    await tick(); // development's idle-read warnings (their own tests) run here
     warn.mockRestore();
-    expect(mk(errors)).toEqual(["title acount en", "title acount en"]);
+    expect(mk(errors)).toEqual([]);
   });
 });
 

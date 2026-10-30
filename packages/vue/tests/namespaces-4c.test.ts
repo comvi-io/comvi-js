@@ -344,19 +344,35 @@ describe("missing_key: silent only while a load that could bring the key is comi
     return { C, out };
   };
 
-  it("a first render of useI18n(ns) (before its hold) reports nothing; a key the loaded catalog lacks is reported then, once", async () => {
+  it("exported <T ns> and $t beside useI18n(ns), bound t and T: one rule — silent before the catalog, reported for a key the loaded catalog lacks", async () => {
     const l = manualLoader();
     const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
-    const r = reader("shop", "title");
-    mountWith(i18n, r.C);
+    const { T } = await import("../src");
+    const C = defineComponent({
+      setup() {
+        const u = useI18n("shop");
+        return () =>
+          h("p", [
+            u.t("a") as string,
+            h(u.T, { i18nKey: "b" }),
+            h(T as never, { i18nKey: "c", ns: "shop" }),
+          ]);
+      },
+    });
+    const w = mountWith(i18n, C);
+    w.vm.$t("d", { ns: "shop" });
     expect(mk(errors)).toEqual([]);
     await l.answer("en:shop", {});
-    expect(mk(errors)).toEqual(["title shop en"]);
+    w.vm.$t("d", { ns: "shop" });
+    expect(new Set(mk(errors))).toEqual(
+      new Set(["a shop en", "b shop en", "c shop en", "d shop en"]),
+    );
   });
 
-  it("a first render in a Suspense branch whose async sibling waits reports nothing", async () => {
+  it("useI18n(ns) with its bound T and the exported <T ns> in a Suspense branch whose async sibling waits: no report", async () => {
     const l = manualLoader();
     const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const { T } = await import("../src");
     let open!: () => void;
     const gate = new Promise<void>((y) => (open = y));
     const Sibling = defineComponent({
@@ -367,8 +383,13 @@ describe("missing_key: silent only while a load that could bring the key is comi
     });
     const Page = defineComponent({
       setup() {
-        const { t, T } = useI18n("account");
-        return () => h("div", [t("title") as string, h(T, { i18nKey: "title" })]);
+        const { t, T: B } = useI18n("account");
+        return () =>
+          h("div", [
+            t("title") as string,
+            h(B, { i18nKey: "title" }),
+            h(T as never, { i18nKey: "title", ns: "account" }),
+          ]);
       },
     });
     const Root = defineComponent({
@@ -380,15 +401,17 @@ describe("missing_key: silent only while a load that could bring the key is comi
     });
     const w = mountWith(i18n, Root);
     await tick();
+    await tick();
     expect(w.text()).toBe("waiting");
+    expect(mk(errors)).toEqual([]);
     open();
     await settle();
     await l.answer("en:account", { title: "Account" });
-    expect(w.text()).toBe("AccountAccount");
+    expect(w.text()).toBe("AccountAccountAccount");
     expect(mk(errors)).toEqual([]);
   });
 
-  it("a per-call { ns } or a { locale } outside the locale on screen is not the declared need: reported", () => {
+  it("a namespace with no catalog of the read's chain (a per-call { ns } or { locale }): no missing_key", () => {
     const { i18n, errors } = make({
       locale: "en",
       messages: { en: {} },
@@ -396,12 +419,17 @@ describe("missing_key: silent only while a load that could bring the key is comi
     });
     mountWith(i18n, reader("shop", "title", { ns: "other" }).C);
     mountWith(i18n, reader("shop", "title", { locale: "fr" }).C);
-    expect(mk(errors)).toEqual(["title other en", "title shop fr"]);
+    expect(mk(errors)).toEqual([]);
   });
 
-  it("a released namespace read after a switch (a kept translator) is reported; so is $t of it", async () => {
+  it("a released namespace read after a switch, a fallback catalog in place: a kept translator and $t report an absent key", async () => {
     const l = manualLoader();
-    const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const { i18n, errors } = make({
+      locale: "en",
+      fallbackLocale: "en",
+      messages: { en: {} },
+      loader: l.load,
+    });
     const r = reader("shop", "title");
     const { Root, n } = list(r.C);
     const w = mountWith(i18n, Root);
@@ -411,18 +439,33 @@ describe("missing_key: silent only while a load that could bring the key is comi
     const sw = i18n.setLocale("de");
     await l.answer("de:default");
     await sw;
-    expect(r.out.u!.t("title")).toBe("title");
-    w.vm.$t("title", { ns: "shop" });
-    expect(mk(errors)).toEqual(["title shop de", "title shop de"]);
+    expect(r.out.u!.t("title")).toBe("Shop"); // the fallback's
+    expect(r.out.u!.t("nope")).toBe("nope");
+    w.vm.$t("nope", { ns: "shop" });
+    expect(mk(errors)).toEqual(["nope shop de", "nope shop de"]);
   });
 
-  it("after a failed load the next read is reported: the prediction does not silence it", async () => {
+  it("a failed load is load_failed; no catalog of the chain: nothing more; a fallback catalog in place: an absent key is missing_key", async () => {
     const l = manualLoader();
     const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
-    const r = reader("shop", "title");
-    mountWith(i18n, r.C);
+    mountWith(i18n, reader("shop", "title").C);
     await l.fail("en:shop");
-    expect(mk(errors)).toEqual(["title shop en"]); // the render after the failure
+    await settle();
+    expect(errors.map((e) => e.code)).toEqual(["load_failed"]);
+    const l2 = manualLoader();
+    const b = make({
+      locale: "de",
+      fallbackLocale: "en",
+      catalogs: { shop: { en: { other: "x" } } },
+      messages: { de: {} },
+      loader: l2.load,
+    });
+    mountWith(b.i18n, reader("shop", "title").C);
+    expect(mk(b.errors)).toEqual([]); // before the hold: the declared read waits for its load
+    await l2.fail("de:shop");
+    await settle();
+    expect(b.errors.map((e) => e.code)).toEqual(["load_failed", "missing_key"]);
+    expect(mk(b.errors)).toEqual(["title shop de"]);
   });
 });
 

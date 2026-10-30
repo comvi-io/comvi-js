@@ -559,17 +559,76 @@ describe("development: reading a namespace nothing loads (brief §6)", () => {
 const mk = (errors: { code: string; key?: string; ns?: string; locale?: string }[]) =>
   errors.filter((e) => e.code == "missing_key").map((e) => `${e.key} ${e.ns} ${e.locale}`);
 
-describe("missing_key: silent only while a load that could bring the key is coming (owner 30.10)", () => {
-  it("a namespace typo through a plain read is reported (nothing loads it)", async () => {
+describe("missing_key: absent from the catalogs in place once no relevant load is in flight (owner 30.10)", () => {
+  /** `useI18n(ns).t` before its hold: a declared read (the core's `w`). */
+  const declared = (i18n: I18n, k: string, n: string, p?: object) =>
+    core(i18n).tr(state(i18n), k, p as never, n, undefined, 1);
+
+  it("the rule's three rows: no catalog and no request → nothing; a catalog and no request → reported; a catalog and a relevant request → silent", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "de", fallbackLocale: "en", loader: l.load });
+    await l.answer("de:default");
+    await l.answer("en:default");
+    i18n.t("k", { ns: "shop" }); // no catalog of shop in de → en, nothing requested
+    expect(mk(errors)).toEqual([]);
+    i18n.add("en", { other: "x" }, "shop"); // a catalog of the chain (the fallback's)
+    i18n.t("k", { ns: "shop" });
+    expect(mk(errors)).toEqual(["k shop de"]);
+    const p = i18n.load("shop"); // de:shop in flight: it could bring the key
+    i18n.t("k", { ns: "shop" });
+    expect(mk(errors)).toEqual(["k shop de"]);
+    await l.answer("de:shop", { k: "K" });
+    await p;
+    expect(i18n.t("k", { ns: "shop" })).toBe("K");
+    expect(mk(errors)).toEqual(["k shop de"]);
+  });
+
+  it("a key absent from a catalog in place: a plain and a declared read both report it, at the read", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", loader: l.load });
+    const p = i18n.load("shop");
+    await l.answer("en:default");
+    await l.answer("en:shop", { other: "x" });
+    await p;
+    i18n.t("title", { ns: "shop" });
+    declared(i18n, "title", "shop");
+    expect(mk(errors)).toEqual(["title shop en", "title shop en"]);
+  });
+
+  it("a load in flight in the read's chain silences it; one of another locale does not; no replay after the load", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const p = i18n.load("shop");
+    i18n.t("nope", { ns: "shop" }); // en:shop in flight, the en catalog of default in place
+    i18n.t("nope"); // default: in place, nothing in flight for it
+    expect(mk(errors)).toEqual(["nope default en"]);
+    await l.answer("en:shop", {});
+    await p;
+    expect(mk(errors)).toEqual(["nope default en"]); // the earlier read is not replayed
+    i18n.t("nope", { ns: "shop" });
+    expect(mk(errors)).toEqual(["nope default en", "nope shop en"]);
+    const sw = i18n.setLocale("de"); // de:default in flight: another locale's
+    i18n.t("nope");
+    expect(mk(errors)).toEqual(["nope default en", "nope shop en", "nope default en"]);
+    await l.answer("de:default");
+    await sw;
+  });
+
+  it("a namespace never loaded, with no catalog of the chain (a typo): no missing_key; development warns", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { i18n, errors } = make({ locale: "en", loader: tableLoader({ "en:default": {} }).load });
     await i18n.ready;
     expect(i18n.t("title", { ns: "acount" })).toBe("title");
-    expect(mk(errors)).toEqual(["title acount en"]);
+    declared(i18n, "title", "acount");
+    expect(mk(errors)).toEqual([]);
+    await tick();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain('"acount"');
   });
 
-  it("a released namespace read after a switch is reported for the locale on screen", async () => {
+  it("a released namespace read after a switch: reported when a catalog of the chain is in place (a fallback's), silent when none is", async () => {
     const l = manualLoader();
-    const { i18n, errors } = make({ locale: "en", loader: l.load });
+    const { i18n, errors } = make({ locale: "en", fallbackLocale: "en", loader: l.load });
     await l.answer("en:default");
     const p = i18n.load("account");
     await l.answer("en:account", { title: "Account" });
@@ -577,49 +636,69 @@ describe("missing_key: silent only while a load that could bring the key is comi
     const sw = i18n.setLocale("de");
     await l.answer("de:default");
     await sw;
-    i18n.t("title", { ns: "account" });
-    expect(mk(errors)).toEqual(["title account de"]);
+    expect(i18n.t("title", { ns: "account" })).toBe("Account"); // the fallback's
+    i18n.t("nope", { ns: "account" });
+    expect(mk(errors)).toEqual(["nope account de"]);
   });
 
-  it("a load in flight in the read's chain silences it; one of another locale does not; no replay after the load", async () => {
-    const l = manualLoader();
-    const { i18n, errors } = make({ locale: "en", loader: l.load });
-    i18n.t("nope"); // en:default is coming
-    expect(mk(errors)).toEqual([]);
-    await l.answer("en:default", {});
-    expect(mk(errors)).toEqual([]); // the earlier read is not replayed
-    const sw = i18n.setLocale("de"); // de:default in flight: another locale's
-    i18n.t("nope");
-    expect(mk(errors)).toEqual(["nope default en"]);
-    await l.answer("de:default");
-    await sw;
-  });
-
-  it("a declared read (a useI18n(ns) translator before its hold) counts the predicted load of its namespace and the locale on screen only", () => {
+  it("a per-call { ns } or { locale } with no catalog of its chain: no missing_key, declared or not", () => {
     const { i18n, errors } = make({
       locale: "en",
       messages: { en: {} },
       loader: manualLoader().load,
     });
-    const tr = (k: string, p?: object) =>
-      core(i18n).tr(state(i18n), k, p as never, "shop", undefined, 1);
-    tr("title");
-    tr("title", { locale: "en" });
+    declared(i18n, "title", "default", { ns: "other" });
+    declared(i18n, "title", "default", { locale: "fr" });
+    i18n.t("title", { locale: "fr" });
     expect(mk(errors)).toEqual([]);
-    tr("title", { ns: "other" });
-    tr("title", { locale: "fr" });
-    // The same read without the declaration: nothing is coming for it.
-    core(i18n).tr(state(i18n), "title", undefined, "shop");
-    expect(mk(errors)).toEqual(["title other en", "title shop fr", "title shop en"]);
   });
 
-  it("after a failed load a declared read is reported: the prediction does not silence it", async () => {
+  it("why the declaration stays: before its hold a fallback catalog is in place and the locale's own is not asked yet — a plain read reports, a declared read waits for the hold's load", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({
+      locale: "de",
+      fallbackLocale: "en",
+      catalogs: { shop: { en: { other: "x" } } },
+      messages: { de: {} },
+      loader: l.load,
+    });
+    declared(i18n, "title", "shop");
+    expect(mk(errors)).toEqual([]);
+    i18n.t("title", { ns: "shop" });
+    expect(mk(errors)).toEqual(["title shop de"]);
+    // A per-call { ns } of another namespace or a { locale } outside the locale on screen is
+    // not the declared need: checked as a plain read.
+    declared(i18n, "title", "default", { ns: "shop" });
+    declared(i18n, "other2", "shop", { locale: "en" });
+    expect(mk(errors)).toEqual(["title shop de", "title shop de", "other2 shop en"]);
+  });
+
+  it("a failed load is load_failed; with a fallback catalog in place a later read of an absent key is missing_key, declared too", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({
+      locale: "de",
+      fallbackLocale: "en",
+      catalogs: { shop: { en: { other: "x" } } },
+      messages: { de: {} },
+      loader: l.load,
+    });
+    const release = acquire(i18n, "shop");
+    await l.fail("de:shop");
+    expect(errors.map((e) => e.code)).toEqual(["load_failed"]);
+    declared(i18n, "title", "shop");
+    i18n.t("title", { ns: "shop" });
+    expect(mk(errors)).toEqual(["title shop de", "title shop de"]);
+    release();
+  });
+
+  it("a failed load with no catalog of the chain: load_failed only", async () => {
     const l = manualLoader();
     const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
     const release = acquire(i18n, "shop");
     await l.fail("en:shop");
-    core(i18n).tr(state(i18n), "title", undefined, "shop", undefined, 1);
-    expect(mk(errors)).toEqual(["title shop en"]);
+    declared(i18n, "title", "shop");
+    i18n.t("title", { ns: "shop" });
+    expect(errors.map((e) => e.code)).toEqual(["load_failed"]);
     release();
   });
 });

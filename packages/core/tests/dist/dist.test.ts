@@ -60,19 +60,26 @@ describe.each([
     );
   });
 
-  it("a namespace typo through a plain read reaches onError as missing_key (owner 30.10)", async () => {
+  it("missing_key once the loads settle: a key absent from a loaded catalog is reported; a namespace typo is not (owner 30.10)", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
     const errors: unknown[] = [];
     const i18n = createI18n({
       locale: "en",
-      loader: async () => ({}),
+      loader: async () => ({ hi: "Hi" }),
       onError: (e) => errors.push(e),
     });
+    expect(i18n.t("nope")).toBe("nope"); // en:default in flight: not yet
+    expect(errors).toEqual([]);
     await i18n.ready;
+    expect(i18n.t("nope")).toBe("nope");
+    expect(errors).toEqual([{ code: "missing_key", key: "nope", locale: "en", ns: "default" }]);
     expect(i18n.t("title", { ns: "acount" })).toBe("title");
-    expect(errors).toEqual([{ code: "missing_key", key: "title", locale: "en", ns: "acount" }]);
+    expect(errors).toHaveLength(1);
     await new Promise((r) => setTimeout(r, 0));
+    expect(warn.mock.calls.map((c) => String(c[0]).includes('"acount"'))).toEqual(
+      label === "dev" ? [true] : [],
+    );
     warn.mockRestore();
   });
 

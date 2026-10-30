@@ -123,10 +123,10 @@ describe("README React app (lot 4b)", () => {
   it("error on the first load: the gate opens with the keys, no spinner forever", async () => {
     const s = start();
     await s.l.fail("en:default");
-    // The contract's "missing" text: the key, reported (the catalog will not come).
+    // The contract's "missing" text: the key. The failure is the load's (load_failed); with no
+    // catalog of the chain in place a read is not a missing key (owner 30.10).
     expect(s.h1()).toBe("greeting");
-    expect(s.errors[0]).toBe("load_failed en");
-    expect(new Set(s.errors.slice(1))).toEqual(new Set(["missing_key en"]));
+    expect(s.errors).toEqual(["load_failed en"]);
   });
 
   it("fast double switch: the last one wins, the earlier never shows", async () => {
