@@ -813,3 +813,50 @@ describe("the last setLocale() wins across a synchronous notification (lot 4d)",
     expect(i18n.t("hi")).toBe("Salut");
   });
 });
+
+describe("a stale setLocale() changes nothing after its own publish or prune (lot 4d, Codex review)", () => {
+  it("a subscriber of de's publish switches to fr and holds account: the stale de call starts no de:account", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {}, fr: {} }, loader: l.load });
+    let fr: Promise<void> | undefined;
+    i18n.on(() => {
+      if (!fr && i18n.locale == "de") {
+        fr = i18n.setLocale("fr");
+        acquire(i18n, "account");
+      }
+    });
+    const de = i18n.setLocale("de");
+    await l.answer("de:default");
+    await de;
+    await fr;
+    expect(i18n.locale).toBe("fr");
+    expect(l.requested).toEqual(["de:default", "fr:account"]);
+    await l.answer("fr:account", { title: "Compte" });
+    expect(rl(i18n, "account")).toEqual([true, false]);
+    expect(i18n.t("title", { ns: "account" })).toBe("Compte");
+  });
+
+  it("a subscriber of de's prune switches to fr: the stale de call keeps de's known failure, fr's fallback", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({
+      locale: "en",
+      fallbackLocale: { fr: ["de"] },
+      catalogs: { default: { en: { hi: "Hi" }, fr: { hi: "Salut" }, de: null } },
+      loader: l.load,
+    });
+    void i18n.load("account").catch(() => {});
+    let fr: Promise<void> | undefined;
+    i18n.on(() => {
+      if (!fr && l.signals.get("en:account")?.aborted) fr = i18n.setLocale("fr");
+    });
+    const de = i18n.setLocale("de");
+    await flush();
+    await fr;
+    await de?.catch(() => {});
+    expect(i18n.locale).toBe("fr");
+    // de's failure stays known: fr's chain is settled, not loading for ever.
+    expect(rl(i18n)).toEqual([true, false]);
+    expect(i18n.t("gone")).toBe("gone");
+    expect(errors.filter((e) => e.code == "missing_key").map((e) => e.key)).toEqual(["gone"]);
+  });
+});

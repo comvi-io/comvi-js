@@ -656,8 +656,9 @@ export const createI18n = (o: I18nOptions): I18n => {
           (f, k) => my != seq || ch.some((x) => x[0] == k.split(K)[0]) || (f[1].abort(), drop(k)),
         );
       prune();
-      // The target's own failures are asked for again.
-      retry(0, l);
+      // The target's own failures are asked for again — unless a subscriber of the prune
+      // switched meanwhile: a stale call leaves the failure cache to the newer one.
+      if (my == seq) retry(0, l);
       const go = (): unknown => {
         if (my == seq && !dead) {
           // Also what a load(ns) started while this switch was pending needs (re-checked
@@ -671,13 +672,12 @@ export const createI18n = (o: I18nOptions): I18n => {
             throw (ensure(S.locale, act()), bad.get(l + K + ns[0]));
           // Loads of the old locale a load(ns) started meanwhile are obsolete now.
           prune();
-          // A subscriber told of that cleanup may have switched again: the newer call wins.
-          if (my == seq) {
-            if (l != S.locale) pub(l);
-            // The active set NOW reacts to the new locale: a consumer that appeared while
-            // this switch was pending (it loaded for the locale on screen) gets `l`'s catalog.
-            ensure(l, act());
-          }
+          // A subscriber told of that cleanup, or of this publish, may have switched again:
+          // the newer call wins, and a stale call starts nothing.
+          if (my == seq && l != S.locale) pub(l);
+          // The active set NOW reacts to the new locale: a consumer that appeared while this
+          // switch was pending (it loaded for the locale on screen) gets `l`'s catalog.
+          if (my == seq) ensure(l, act());
         }
       };
       // Nothing to load: the switch happens inside this call.
