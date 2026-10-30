@@ -26,6 +26,7 @@ import {
   h,
   inject,
   onActivated,
+  onBeforeUpdate,
   onDeactivated,
   onMounted,
   onServerPrefetch,
@@ -382,6 +383,12 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
     onActivated(on);
     onDeactivated(off);
     onUnmounted(off);
+    // A render its parent drives (new props: `g.vnode` is replaced before `beforeUpdate`) of a
+    // released component comes only with its activation, before `onActivated`: it holds there,
+    // so that render already reads the hold's load — no "unavailable" render on the way back
+    // (Codex review of 3e9a2a80). A deactivated component's own re-render keeps its vnode.
+    let v = g.vnode;
+    onBeforeUpdate(() => void (v != g.vnode && ((v = g.vnode), on())));
   }
   return {
     t: tr(i, n) as UseI18n<NS>["t"],

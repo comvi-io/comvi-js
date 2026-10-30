@@ -280,6 +280,59 @@ describe("a released consumer is not loading forever (brief §2, owner probe of 
     expect(shop.seen.at(-1)).toBe(false);
   });
 
+  it("KeepAlive: a prop changed with the reactivation renders before the hold — still loading; the 'unavailable' branch never sets up (Codex review of 3e9a2a80)", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const log: string[] = [];
+    const Unavailable = defineComponent({
+      setup() {
+        log.push("unavailable setup");
+        return () => h("b", "unavailable");
+      },
+    });
+    const Shop = defineComponent({
+      props: { v: Number },
+      setup() {
+        const u = useI18n("shop");
+        return () => {
+          log.push(`render ${u.isReady.value}/${u.isLoading.value}`);
+          return u.isReady.value
+            ? h("p", u.t("title") as string)
+            : u.isLoading.value
+              ? h("i", "…")
+              : h(Unavailable);
+        };
+      },
+    });
+    const Other = defineComponent({ setup: () => () => h("p", "other") });
+    const page = ref<"shop" | "other">("shop");
+    const v = ref(1);
+    const Root = defineComponent({
+      setup: () => () =>
+        h(KeepAlive, null, [page.value == "shop" ? h(Shop, { v: v.value }) : h(Other)]),
+    });
+    const w = mountWith(i18n, Root);
+    await l.answer("en:shop", { title: "Shop" });
+    page.value = "other"; // deactivated: released
+    await settle();
+    const sw = i18n.setLocale("de");
+    await l.answer("de:default");
+    await sw;
+    await settle();
+    const from = log.length;
+    page.value = "shop"; // activated, with a new prop
+    v.value = 2;
+    await nextTick();
+    expect(log.slice(from).filter((x) => x.includes("unavailable"))).toEqual([]);
+    expect(log.slice(from).filter((x) => x.startsWith("render"))).not.toContain(
+      "render false/false",
+    );
+    expect(w.text()).toBe("…");
+    expect(l.requested).toEqual(["en:shop", "de:default", "de:shop"]);
+    await l.answer("de:shop", { title: "Laden" });
+    expect(w.text()).toBe("Laden");
+  });
+
   it("a useI18n result kept after its component unmounts, and one outside a component: false/false after a switch", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
