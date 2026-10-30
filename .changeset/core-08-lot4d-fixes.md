@@ -1,0 +1,5 @@
+---
+"@comvi/core": minor
+---
+
+Lot 4d fixes. With generated catalogs, `t()` of a key with a tag (`"terms": "Read <link>terms</link>."`) is typed `string | Rich` (core: `string | RichParts`), not the rich type alone: a tag handler may return a string, and the parts then join into one string, and a missing key renders its key text. Keys without tags stay `string`; params inference and the handler's argument type are unchanged. The `@comvi/core/format` formatters given an explicit `locale` format in that locale's chain (it, its parents, the fallback locales — as `t()` resolves `{ locale }`), so a locale the runtime's Intl lacks falls back to the configured fallback locale, not to the environment's default; an override Intl has formats in it as before. The last `setLocale()` call wins also when a subscriber switches again from inside the publish of an older switch's cleanup: the older call then applies nothing more and aborts no request the newer one started or waits for.
