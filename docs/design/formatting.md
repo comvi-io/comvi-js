@@ -33,7 +33,9 @@ Solid and Svelte read the reactive locale inside each formatter.
   per-binding exception to document.
 - **`Intl` gets the fallback-locale chain.** Without an explicit `locale` argument the formatters
   pass `[locale, ...fallbackLocales]`, so a locale the runtime has no data for formats in the first
-  fallback it does have; an explicit `locale` argument is passed alone.
+  fallback it does have. For an instance, an explicit `locale` argument formats in its own chain
+  (the locale, its parents, the fallback locales — as `t()` resolves `{ locale }`, lot 4d); an
+  object that is not an instance keeps the single locale.
 - **Core behaves identically under all of them.** `setLocale` and the synchronous `locale`
   setter both move what the formatters read.
 
