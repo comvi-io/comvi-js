@@ -198,3 +198,74 @@ describe("hydration from handover()", () => {
     expect(load.mock.calls.length).toBeGreaterThan(0);
   });
 });
+
+describe("hydration of a per-call { locale } outside the locale on screen (owner 30.10)", () => {
+  const PerCall = defineComponent({
+    setup() {
+      const { t } = useI18n();
+      return () =>
+        h("main", [
+          h("p", t("hi", { locale: "uk" }) as string),
+          h("p", t("a", { locale: "de-CH" }) as string),
+          h("p", t("b", { locale: "de-CH" }) as string),
+        ]);
+    },
+  });
+  const options = {
+    timeZone: "UTC",
+    fallbackLocale: { "de-CH": ["fr"], default: ["en"] },
+  };
+
+  it.each(["inline", "loaded"] as const)(
+    "%s catalogs: the same text, no mismatch, 0 requests; a later switch loads only the active namespace",
+    async (how) => {
+      const server = createI18n({
+        ...options,
+        locale: "en",
+        ...(how == "inline"
+          ? {
+              catalogs: {
+                default: { en: {}, uk: { hi: "Привіт" }, de: { a: "A-de" }, fr: { b: "B-fr" } },
+              },
+              loader: async () => ({}),
+            }
+          : {
+              loader: async (l: string) =>
+                (
+                  ({
+                    en: {},
+                    uk: { hi: "Привіт" },
+                    de: { a: "A-de" },
+                    fr: { b: "B-fr" },
+                  }) as Record<string, Catalog>
+                )[l] || {},
+            }),
+      });
+      await server.ready;
+      if (how == "loaded") for (const l of ["uk", "de", "fr", "en"]) await server.setLocale(l); // cached
+      const html = await renderToString(createSSRApp(PerCall).use(server));
+      expect(html).toBe("<main><p>Привіт</p><p>A-de</p><p>B-fr</p></main>");
+      const payload = JSON.parse(JSON.stringify(handover(server))) as Handover;
+      const el = document.createElement("div");
+      el.innerHTML = html;
+      const load = vi.fn<(l: string, n: string) => Promise<Record<string, string>>>(
+        async () => ({}),
+      );
+      const i18n = createI18n({ ...options, ...payload, loader: load });
+      const app = createSSRApp(PerCall).use(i18n);
+      mounted.push([app, i18n]);
+      const warnings = await vueWarnings(async () => {
+        app.mount(el);
+        await settle();
+      });
+      expect([el.innerHTML, warnings, load.mock.calls.length, i18n.locale]).toEqual([
+        html,
+        [],
+        0,
+        "en",
+      ]);
+      await i18n.setLocale("it");
+      expect(load.mock.calls.map(([l, n]) => `${l}:${n}`)).toEqual(["it:default"]);
+    },
+  );
+});

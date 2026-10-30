@@ -83,7 +83,9 @@ const { t, isReady, isLoading } = useI18n("account");
 `<KeepAlive>` while active; `v-show` keeps it): it loads for the locale on screen and every
 switch; with no component holding it, it stays cached and a switch skips it. `isReady`: a catalog
 of the locale on screen, its parent or a `fallbackLocale` is in; `isLoading`: one is on the way.
-A failed load is `false`/`false`; a remount does not retry, `i18n.load("account")` does. `t()`,
+A failed load is `false`/`false` only with no usable catalog — with a fallback locale's catalog
+in, it is `true`/`false` once the requests finish; a remount does not retry, `i18n.load("account")`
+does. `t()`,
 `$t` and `<T>` only read (development warns about a namespace nothing loads). Outside a component
 use `i18n.load()`, which holds nothing (`beforeEnter: () => i18n.load("account").catch(() => {})`
 preloads a page), or the `namespaces` option.

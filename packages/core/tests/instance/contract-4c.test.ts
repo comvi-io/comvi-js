@@ -52,6 +52,19 @@ describe("isReady / isLoading — the four rows of the table (brief §2)", () =>
     expect(rl(i18n)).toEqual([false, false]);
   });
 
+  it("the load failed but a fallback locale's catalog is in: ready, not loading", async () => {
+    const l = manualLoader();
+    const { i18n } = make({
+      locale: "de",
+      fallbackLocale: "en",
+      messages: { en: { title: "Account" } },
+      loader: l.load,
+    });
+    expect(rl(i18n)).toEqual([true, true]);
+    await l.fail("de:default");
+    expect(rl(i18n)).toEqual([true, false]);
+  });
+
   it("no catalog, no load planned (no loader): neither", () => {
     const { i18n } = make({ locale: "uk", messages: { en: { title: "Account" } } });
     expect(rl(i18n)).toEqual([false, false]);
@@ -346,7 +359,7 @@ describe("handover accounting (brief §5)", () => {
     expect(p.catalogs.shop).toEqual({ en: { s: "S" } });
   });
 
-  it("a failed pair is null; a pair never loaded is left out (not failed)", async () => {
+  it("a failed pair is null, also after the locale moved on (a known failure); a pair never loaded is left out (owner 30.10)", async () => {
     const t = tableLoader({ "en:default": {}, "de:default": {} });
     const i18n = createI18n({ locale: "en", timeZone: "UTC", loader: t.load, onError: () => {} });
     await i18n.load("help").catch(() => {});
@@ -355,7 +368,8 @@ describe("handover accounting (brief §5)", () => {
     const r = acquire(i18n, "help");
     r();
     await i18n.setLocale("de");
-    expect(handover(i18n).catalogs.help).toBeUndefined();
+    // en: still the known failure (handed over as failed); de: never asked for, left out.
+    expect(handover(i18n).catalogs.help).toEqual({ en: null });
   });
 
   it("the browser keeps the handed-over catalogs whatever its consumers do", async () => {
@@ -439,7 +453,8 @@ describe("handover: inline catalogs a passive read rendered (review of lot 4c)",
     // A React server render: useI18n("account") holds nothing there; it reads the inline one.
     expect(server.t("title", { ns: "account" })).toBe("Account");
     const payload = JSON.parse(JSON.stringify(handover(server)));
-    expect(payload.catalogs.account).toEqual({ en: { title: "Account" } });
+    // Every catalog in place, de too (owner 30.10: a per-call { locale } may read it).
+    expect(payload.catalogs.account).toEqual({ en: { title: "Account" }, de: { title: "Konto" } });
     const l = manualLoader();
     // The client's options are replaced by the payload's catalogs.
     const client = createI18n({ locale: "en", catalogs: {}, loader: l.load, ...payload });

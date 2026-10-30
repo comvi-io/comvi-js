@@ -712,3 +712,64 @@ describe("SSR hydration with a branch on isReady (brief §5)", () => {
     act(() => h.root.unmount());
   });
 });
+
+describe("SSR hydration of a per-call { locale } outside the locale on screen (owner 30.10)", () => {
+  const PerCall = () => {
+    const { t } = useI18n();
+    return (
+      <main>
+        <p>{t("hi", { locale: "uk" } as never) as string}</p>
+        <p>{t("a", { locale: "de-CH" } as never) as string}</p>
+        <T i18nKey="b" locale="de-CH" />
+      </main>
+    );
+  };
+  const options = { timeZone: "UTC", fallbackLocale: { "de-CH": ["fr"], default: ["en"] } };
+  const CATS: Record<string, Record<string, string>> = {
+    en: {},
+    uk: { hi: "Привіт" },
+    de: { a: "A-de" },
+    fr: { b: "B-fr" },
+  };
+
+  it.each(["inline", "loaded"] as const)(
+    "%s catalogs: the same text, no hydration error, 0 requests; a later switch loads only the active namespace",
+    async (how) => {
+      const server = createI18n({
+        ...options,
+        locale: "en",
+        ...(how == "inline"
+          ? { catalogs: { default: CATS }, loader: async () => ({}) }
+          : { loader: async (l: string) => CATS[l] || {} }),
+      });
+      await server.ready;
+      if (how == "loaded") for (const l of ["uk", "de", "fr", "en"]) await server.setLocale(l);
+      const html = renderToString(app(server, <PerCall />));
+      expect(html).toContain("Привіт");
+      expect(html).toContain("A-de");
+      expect(html).toContain("B-fr");
+      const payload = JSON.parse(JSON.stringify(handover(server)));
+      const container = document.createElement("div");
+      container.innerHTML = html;
+      const l = manualLoader();
+      const { i18n } = make({ ...options, locale: "en", loader: l.load, ...payload });
+      const recoverable: unknown[] = [];
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      let root!: ReturnType<typeof hydrateRoot>;
+      await act(async () => {
+        root = hydrateRoot(container, app(i18n, <PerCall />), {
+          onRecoverableError: (e) => recoverable.push(e),
+        });
+      });
+      await settle();
+      const errors = [...recoverable, ...err.mock.calls];
+      err.mockRestore();
+      expect([container.innerHTML, errors, l.requested, i18n.locale]).toEqual([html, [], [], "en"]);
+      const sw = i18n.setLocale("it");
+      expect(l.requested).toEqual(["it:default"]);
+      await l.answer("it:default");
+      await sw;
+      act(() => root.unmount());
+    },
+  );
+});

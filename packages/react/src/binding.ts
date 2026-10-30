@@ -175,8 +175,9 @@ export interface UseI18n<NS extends string = "default"> {
    * A catalog of this namespace is usable for the locale on screen: its own, a parent's
    * (`pt` for `pt-BR`) or an allowed fallback locale's — inline, cached, handed over or
    * loaded; an empty one too. Keys are not promised: a key a catalog lacks is a plain missing
-   * key. During a switch it is the locale still on screen that counts. Not the same as the
-   * `i18n.ready` promise, which settles when the loads in flight settle, failed ones too.
+   * key. During a switch it is the locale still on screen that counts; after a failed load it
+   * is true when a fallback locale's catalog is in. Not the same as the `i18n.ready` promise,
+   * which settles when the loads in flight settle, failed ones too.
    */
   isReady: boolean;
   /**
@@ -185,8 +186,9 @@ export interface UseI18n<NS extends string = "default"> {
    * namespace at commit. On a server nothing commits, so nothing loads there: preload the
    * route's namespaces with `i18n.load(ns)` before the render (else the server and the
    * hydration render the loading branch, and the browser loads it at commit). `false` once a
-   * load failed with nothing in flight: no catalog and not loading is the "unavailable"
-   * state, never an endless one.
+   * load failed with nothing in flight: with no usable catalog that is the "unavailable" state
+   * (`isReady` false too), never an endless one; with a fallback locale's catalog in,
+   * `isReady` is true.
    */
   isLoading: boolean;
   setLocale: (locale: string) => Promise<void>;

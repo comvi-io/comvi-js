@@ -225,7 +225,7 @@ describe("handover() (R3-21)", () => {
     expect(typeof payload.serverNow).toBe("number");
   });
 
-  it("hands over the fallback chain too, of every namespace with a catalog of the chain in place", async () => {
+  it("hands over every catalog in place: the fallback chain, a locale outside it, an inline namespace nothing needed (owner 30.10)", async () => {
     const i18n = createI18n({
       locale: "de-AT",
       fallbackLocale: "en",
@@ -244,7 +244,7 @@ describe("handover() (R3-21)", () => {
     // App's `useI18n("account")` activated `account` on the server (lot 4b); with no loader
     // nothing can load it, so nothing of it is handed over.
     expect(Object.keys(catalogs).sort()).toEqual(["default", "unused"]);
-    expect(Object.keys(catalogs.default).sort()).toEqual(["de", "de-AT", "en"]);
+    expect(Object.keys(catalogs.default).sort()).toEqual(["de", "de-AT", "en", "fr"]);
     expect(catalogs.unused).toEqual({ de: { x: "X" } });
   });
 
