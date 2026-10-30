@@ -9,8 +9,12 @@
  *   memoized on (instance, state): a provider re-rendered by its parent re-renders no
  *   consumer.
  * - `loading` / `suspense` gate the FIRST paint of an instance only, and only while a
- *   namespace has no text at all: once its subtree has rendered, a lazy namespace, a retry
- *   or a switch never unmounts it.
+ *   namespace with a load in flight is not ready (the core's `isReady`: no catalog of the
+ *   locale on screen, a parent or a fallback locale): once its subtree has rendered, a lazy
+ *   namespace, a retry or a switch never unmounts it.
+ * - `useI18n(ns)` holds `ns` from its commit to its cleanup (an effect: a render React
+ *   abandons holds nothing, Strict Mode's second setup is counted right); `t()` and `<T>`
+ *   read only (lot 4c).
  * - `<I18nHandover>` (handover.ts) renders its subtree from a render-local `view()` and
  *   publishes at commit (S9).
  * - Fixed hook order in every component; nothing publishes during render (R4-17).
@@ -50,10 +54,15 @@ export interface I18nProviderProps {
   i18n: I18n;
   /**
    * Rendered instead of the children for the instance's first paint while a namespace is
-   * loading with no catalog of any locale in place yet (no text to show). Inline catalogs,
-   * a fallback locale's catalog or a server payload the instance was created from open it.
+   * loading with no catalog usable for the locale on screen — its own, a parent's or an
+   * allowed fallback locale's (`isReady`); a catalog of another locale does not count.
+   * Inline catalogs of the chain, a fallback locale's catalog or a server payload the
+   * instance was created from open it.
    * After that the children stay mounted: a lazy namespace shows through
-   * `useI18n(ns).isLoading`, a switch keeps the old locale until the new one lands.
+   * `useI18n(ns).isReady` / `isLoading`, a switch keeps the old locale until the new one
+   * lands. Only a load in flight at the first paint gates it: a lazy namespace that a child's
+   * `useI18n(ns)` holds at its commit loads after that paint, so that component shows its own
+   * placeholder through `isReady` / `isLoading`.
    * The children do not render while it shows, so an `<I18nHandover>` among them waits too on
    * a client render (a hydration is never gated): give the instance its data first
    * (`createI18n({ ...options, ...payload })`).
@@ -107,17 +116,19 @@ export const I18nProvider = ({
   loading: spinner = children,
   suspense,
 }: I18nProviderProps): ReactElement => {
-  const get = () => core(i).s();
+  const x = core(i);
+  const get = () => x.s();
   // Not gated: painted already, or a server or hydration render — React reads the server
   // snapshot there, which marks `open` (with the state itself: any truthy value does).
   let open: unknown = painted.has(i);
   const s = useSyncExternalStore(i.on, get, () => (open = get()));
   const v = useMemo((): Ctx => [i, s], [i, s]);
-  // The first paint waits while a load is in flight for a namespace that has no catalog
-  // at all yet (no text to show: not even a fallback locale's) — but never on a server or
-  // in a hydration: the hydration renders what the server rendered (the children), and an
+  // The first paint waits while a load is in flight for a namespace that is not ready —
+  // the core's `isReady`: no catalog of the locale on screen, a parent or a fallback locale
+  // (one of another locale shows no text of this one) — but never on a server or in a
+  // hydration: the hydration renders what the server rendered (the children), and an
   // `<I18nHandover>` anywhere among them brings its catalogs at commit.
-  const busy = !open && s.ld.some((k) => !s.c[k.split("\0")[1]]);
+  const busy = !open && s.ld.some((k) => !x.r(s, k.split("\0")[1]));
   // Painted when a render without the gate COMMITS: a render React abandons changes
   // nothing about the first paint.
   useEffect(() => void (busy || painted.add(i)));
@@ -161,8 +172,23 @@ export interface UseI18n<NS extends string = "default"> {
   locale: string;
   dir: "ltr" | "rtl";
   /**
-   * A catalog of this namespace is loading, for any locale (a switch in progress too), or
-   * will load when this hook activates the namespace after commit.
+   * A catalog of this namespace is usable for the locale on screen: its own, a parent's
+   * (`pt` for `pt-BR`) or an allowed fallback locale's — inline, cached, handed over or
+   * loaded; an empty one too. Keys are not promised: a key a catalog lacks is a plain missing
+   * key. During a switch it is the locale still on screen that counts; after a failed load it
+   * is true when a fallback locale's catalog is in. Not the same as the `i18n.ready` promise,
+   * which settles when the loads in flight settle, failed ones too.
+   */
+  isReady: boolean;
+  /**
+   * A catalog of this namespace is loading, for any locale (a switch in progress too, a
+   * background load beside a usable catalog), or will load when this hook holds the
+   * namespace at commit. On a server nothing commits, so nothing loads there: preload the
+   * route's namespaces with `i18n.load(ns)` before the render (else the server and the
+   * hydration render the loading branch, and the browser loads it at commit). `false` once a
+   * load failed with nothing in flight: with no usable catalog that is the "unavailable" state
+   * (`isReady` false too), never an endless one; with a fallback locale's catalog in,
+   * `isReady` is true.
    */
   isLoading: boolean;
   setLocale: (locale: string) => Promise<void>;
@@ -176,9 +202,11 @@ export interface UseI18n<NS extends string = "default"> {
 const Ts = N<(props: object) => ReactNode>();
 
 /**
- * The i18n of the nearest `<I18nProvider>`. `ns` is the namespace of `t` and `T`; it is
- * activated (loaded for the locale) after commit, never during render. A failed load of it
- * is not asked again by a remount — `i18n.load(ns)` retries.
+ * The i18n of the nearest `<I18nProvider>`. `ns` is the namespace of `t` and `T`. The
+ * component holds it from its commit to its unmount (or a change of `ns`): while held it
+ * loads for the locale on screen and for every locale `setLocale()` switches to; with no
+ * consumer left it stays cached but a switch does not load it. A failed load of it is not
+ * asked again by a remount — `i18n.load(ns)` retries.
  */
 export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => {
   const c = useContext(C);
@@ -186,15 +214,19 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
   const [i, s] = c!;
   const x = core(i);
   const n = ns || "default";
-  // `default` too: an app whose `namespaces` option leaves it out loads it on first use
-  // (activation never rejects; `i18n.load(ns)` is the call that reports).
-  useEffect(() => void x.a(n), [x, n]);
+  // Held at commit, released by the cleanup (unmount, a new `ns`): a render React abandons
+  // holds nothing. `default` too: an app whose `namespaces` option leaves it out loads it on
+  // first use (a hold never rejects; `i18n.load(ns)` is the call that reports).
+  useEffect(() => x.h(n), [x, n]);
+  // Development: until that commit (Suspense may delay it), reads of `n` are not idle ones.
+  if (__DEV__) x.p!(n);
   return useMemo(
     () => ({
       locale: s.locale,
       dir: s.dir,
-      // Until the activation after commit, a namespace the loader will load is loading
-      // already: no frame of its keys that says it is loaded, no `missing_key` (lot 1d).
+      // From this render's snapshot. Until the hold at commit, what the hold will load is
+      // loading already: no frame that says "unavailable", no `missing_key` (lot 1d, 4c).
+      isReady: x.r(s, n),
       isLoading: !!x.w(s, n),
       setLocale: i.setLocale,
       i18n: i,
@@ -203,7 +235,7 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
       // renders nested tags and element params without React's missing-key warning.
       t: ((k: string, p?: Record<string, unknown>) =>
         node(x.tr(s, k, p, n, node))) as UseI18n<NS>["t"],
-      T: (Ts[n] ||= (q) => T({ ...q, ns: n } as never)) as BoundT<NS>,
+      T: (Ts[n] ||= (q) => read({ ...q, ns: n } as never)) as BoundT<NS>,
     }),
     [c, n],
   );
@@ -241,18 +273,8 @@ export type TComponent = [NsOf] extends [never]
   : // The typo guard of `t()` (R3-2) is in the shared core type: see TComponentFor.
     TComponentFor<ReactNode, 2, Readonly<Record<string, TagComponent>>>;
 
-/**
- * Renders one message; params are props. A tag renders through, in this order: a prop of
- * the tag's name (`link={(c) => <a href="/terms">{c}</a>}`), then its entry in `components`
- * (`components={{ b: "strong", link: { component: "a", props: { href: "/terms" } } }}`) — a
- * prop or an entry that is `undefined` leaves the tag to the next; with neither, the tag's
- * content renders as text. Every prop but `i18nKey`, `components` and the per-call options
- * `ns`, `locale` and `markers` is a message param — `children` and `className` too, so a tag
- * named like a DOM prop is still a handler. `ns` is explicit: `<T>` never takes the namespace
- * of a `useI18n(ns)` above it (R3-5); `useI18n(ns).T` is the bound one. `markers={false}`
- * opts the message out of an in-context editor session (R3-14 H9).
- */
-export const T = (({
+/** `<T>`'s render: reads the message, never loads (lot 4c). */
+const read = ({
   components: m,
   ...p
 }: {
@@ -268,7 +290,24 @@ export const T = (({
     if (p[k] === undefined && e)
       p[k] = (c: ReactNode) => createElement(e.component || e, e.props, c);
   }
+  const [i, s] = useCtx();
+  const x = core(i);
   // The props are the params: `ns`, `locale` and `markers` are per-call options the core
   // reads off them, and `i18nKey` is a param no message uses.
-  return (useI18n(p.ns).t as (k: string, p: object) => ReactNode)(p.i18nKey, p);
-}) as TComponent;
+  return node(x.tr(s, p.i18nKey, p as never, p.ns, node));
+};
+
+/**
+ * Renders one message; params are props. A tag renders through, in this order: a prop of
+ * the tag's name (`link={(c) => <a href="/terms">{c}</a>}`), then its entry in `components`
+ * (`components={{ b: "strong", link: { component: "a", props: { href: "/terms" } } }}`) — a
+ * prop or an entry that is `undefined` leaves the tag to the next; with neither, the tag's
+ * content renders as text. Every prop but `i18nKey`, `components` and the per-call options
+ * `ns`, `locale` and `markers` is a message param — `children` and `className` too, so a tag
+ * named like a DOM prop is still a handler. `ns` is explicit: `<T>` never takes the namespace
+ * of a `useI18n(ns)` above it (R3-5); `useI18n(ns).T` is the bound one. `<T>` reads only: it
+ * loads nothing, `<T ns="account">` neither — `useI18n("account")` in the component (or
+ * `i18n.load`, the `namespaces` option) loads it (lot 4c). `markers={false}` opts the message
+ * out of an in-context editor session (R3-14 H9).
+ */
+export const T = ((p) => read(p as never)) as TComponent;

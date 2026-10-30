@@ -87,15 +87,22 @@ describe("server render", () => {
     expect(handover(i18n).catalogs.account).toEqual({ en: CATALOGS["en:account"] });
   });
 
-  it("<T ns> alone loads its namespace before it renders (lot 4b)", async () => {
+  it("<T ns> alone reads only on the server too (lot 4c): the route's load() is what loads it", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const requested: string[] = [];
-    const i18n = createI18n({ locale: "de", loader: loader(requested), timeZone: "UTC" });
     const Page = defineComponent({
       setup: () => () => h(T as never, { i18nKey: "title", ns: "account" }),
     });
-    const html = await renderToString(createSSRApp(Page).use(i18n));
-    expect(html).toBe("Konto");
-    expect(requested.sort()).toEqual(["de:account", "de:default"]);
+    const bare = createI18n({ locale: "de", loader: loader(requested), timeZone: "UTC" });
+    expect(await renderToString(createSSRApp(Page).use(bare))).toBe("title");
+    expect(requested).toEqual(["de:default"]);
+    expect(handover(bare).catalogs.account).toBeUndefined();
+    warn.mockRestore();
+    // The route preloads it before the render: text, and it is handed over.
+    const i18n = createI18n({ locale: "de", loader: loader(requested), timeZone: "UTC" });
+    await i18n.load("account");
+    expect(await renderToString(createSSRApp(Page).use(i18n))).toBe("Konto");
+    expect(handover(i18n).catalogs.account).toEqual({ de: CATALOGS["de:account"] });
   });
 
   it("a namespace whose server load fails renders the key, rejects nothing, and is handed over as null", async () => {
@@ -115,10 +122,8 @@ describe("server render", () => {
     });
     const html = await renderToString(createSSRApp(Page).use(i18n));
     expect(html).toBe("<h2>title</h2>");
-    expect(errors.map((e) => [e.code, e.ns])).toEqual([
-      ["load_failed", "account"],
-      ["missing_key", "account"],
-    ]);
+    // The failure is the load's; with no catalog of the chain a read is not a missing key.
+    expect(errors.map((e) => [e.code, e.ns])).toEqual([["load_failed", "account"]]);
     expect(handover(i18n).catalogs.account).toEqual({ fr: null });
   });
 
@@ -220,7 +225,7 @@ describe("handover() (R3-21)", () => {
     expect(typeof payload.serverNow).toBe("number");
   });
 
-  it("hands over the fallback chain too, and only the active namespaces of the locale's chain", async () => {
+  it("hands over every catalog in place: the fallback chain, a locale outside it, an inline namespace nothing needed (owner 30.10)", async () => {
     const i18n = createI18n({
       locale: "de-AT",
       fallbackLocale: "en",
@@ -228,7 +233,8 @@ describe("handover() (R3-21)", () => {
       now: 42,
       catalogs: {
         default: { "de-AT": { a: "A" }, de: { b: "B" }, en: { c: "C" }, fr: { d: "D" } },
-        // Not active: never rendered, not handed over.
+        // Inline, nothing needed it: handed over all the same — the browser's
+        // `{ ...options, ...payload }` replaces its `catalogs` (Codex review of lot 4c, HIGH).
         unused: { de: { x: "X" } },
       },
     });
@@ -237,9 +243,9 @@ describe("handover() (R3-21)", () => {
     expect(serverNow).toBe(42);
     // App's `useI18n("account")` activated `account` on the server (lot 4b); with no loader
     // nothing can load it, so nothing of it is handed over.
-    expect(Object.keys(catalogs)).toEqual(["default"]);
-    expect(Object.keys(catalogs.default).sort()).toEqual(["de", "de-AT", "en"]);
-    expect(catalogs.unused).toBeUndefined();
+    expect(Object.keys(catalogs).sort()).toEqual(["default", "unused"]);
+    expect(Object.keys(catalogs.default).sort()).toEqual(["de", "de-AT", "en", "fr"]);
+    expect(catalogs.unused).toEqual({ de: { x: "X" } });
   });
 
   it("hands over a patched catalog as one catalog, the patch on top", () => {

@@ -1,16 +1,16 @@
 /**
  * `handover(i18n)` of @comvi/core/internal (design §2.6, R3-21): what a server render gives
- * the browser — the locale, timeZone, the clock, and the catalogs of every active namespace
- * in the locale's chain, in the shape `createI18n({ catalogs })` takes. A browser instance
+ * the browser — the locale, timeZone, the clock, and every catalog in place (of every locale)
+ * with every known failure as `null`, in the shape `createI18n({ catalogs })` takes. A browser instance
  * made from it holds those catalogs and asks its loader for none of them.
  */
 import { describe, expect, it, vi } from "vitest";
 import { createI18n } from "../../src";
 import { formatRelativeTime } from "../../src/format";
-import { activate, clock, coming, handover, state } from "../../src/internal";
+import { acquire, clock, coming, handover, state } from "../../src/internal";
 
 describe("handover()", () => {
-  it("hands over the chain (parents, fallback locales) of the active namespaces only", async () => {
+  it("hands over every catalog in place — the chain, a locale outside it, an inline namespace nothing needed (owner 30.10)", async () => {
     const i18n = createI18n({
       locale: "de-AT",
       fallbackLocale: "en",
@@ -28,8 +28,12 @@ describe("handover()", () => {
       timeZone: "Europe/Vienna",
       serverNow: 7,
       catalogs: {
-        default: { "de-AT": { a: "A" }, de: { b: "B" }, en: { c: "C" } },
+        // fr is outside de-AT's chain: a per-call { locale: "fr" } read it on the server.
+        default: { "de-AT": { a: "A" }, de: { b: "B" }, en: { c: "C" }, fr: { d: "D" } },
         shop: { en: { s: "S" } },
+        // The client's `{ ...options, ...payload }` replaces its `catalogs`: an inline one a
+        // server render read without a hold would be lost (Codex review of lot 4c, HIGH).
+        inactive: { de: { x: "X" } },
       },
     });
   });
@@ -106,7 +110,7 @@ describe("handover()", () => {
     return JSON.parse(JSON.stringify(handover(server)));
   };
 
-  it("hydration does not ask for a slot that failed on the server, even when a binding activates its namespace", async () => {
+  it("hydration does not ask for a slot that failed on the server, even when a binding holds its namespace", async () => {
     const payload = await failedOnServer();
     expect(payload.catalogs.account).toEqual({ uk: null, en: { profile: "Profile" } });
     const loader = vi.fn(async () => ({ profile: "Профіль" }));
@@ -115,7 +119,7 @@ describe("handover()", () => {
     expect(coming(client, state(client), "account")).toBe(false);
     expect(client.t("profile", { ns: "account" })).toBe("Profile");
     // What a binding's useI18n("account") does after commit.
-    await activate(client, "account");
+    acquire(client, "account");
     await client.ready;
     expect(loader).not.toHaveBeenCalled();
     expect(client.t("profile", { ns: "account" })).toBe("Profile");
@@ -293,5 +297,104 @@ describe("`messages` with `catalogs` (Codex re-check HIGH B): merged per locale,
     });
     expect([server.t("hi"), client.t("hi")]).toEqual(["Привіт", "Привіт"]);
     expect(loader).not.toHaveBeenCalled();
+  });
+});
+
+describe("handover(): every catalog in place and every known failure, whatever the locale on screen (owner 30.10)", () => {
+  /** The browser's instance: the app's options (no inline catalogs) + the payload. */
+  const browser = (server: ReturnType<typeof createI18n>, options: object = {}) => {
+    const payload = JSON.parse(JSON.stringify(handover(server)));
+    const load = vi.fn<(l: string, n: string) => Promise<Record<string, string>>>(async () => ({}));
+    const i18n = createI18n({
+      locale: "en",
+      timeZone: "UTC",
+      ...options,
+      loader: load,
+      ...payload,
+    });
+    return { i18n, load, payload };
+  };
+
+  it("displayed en, one message read in uk: the browser renders the same text, asks for nothing", async () => {
+    const server = createI18n({
+      locale: "en",
+      timeZone: "UTC",
+      catalogs: { default: { en: { hi: "Hi" }, uk: { hi: "Привіт" } } },
+      loader: async () => ({}),
+    });
+    expect(server.t("hi", { locale: "uk" })).toBe("Привіт");
+    const { i18n, load, payload } = browser(server);
+    expect(payload.locale).toBe("en");
+    expect([i18n.t("hi"), i18n.t("hi", { locale: "uk" })]).toEqual(["Hi", "Привіт"]);
+    expect(i18n.locale).toBe("en");
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it("a per-call regional locale through its parent and a configured fallback locale", async () => {
+    const options = { fallbackLocale: { "de-CH": ["fr"], default: ["en"] } };
+    const server = createI18n({
+      locale: "en",
+      timeZone: "UTC",
+      ...options,
+      catalogs: { default: { en: {}, de: { a: "A-de" }, fr: { b: "B-fr" } } },
+      loader: async () => ({}),
+    });
+    const read = (i: ReturnType<typeof createI18n>) => [
+      i.t("a", { locale: "de-CH" }),
+      i.t("b", { locale: "de-CH" }),
+    ];
+    expect(read(server)).toEqual(["A-de", "B-fr"]);
+    const { i18n, load } = browser(server, options);
+    expect(read(i18n)).toEqual(["A-de", "B-fr"]);
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it("catalogs loaded before the render (a switch there and back, an add()) are handed over too", async () => {
+    const server = createI18n({
+      locale: "en",
+      timeZone: "UTC",
+      loader: async (l: string) => (l == "uk" ? { hi: "Привіт" } : { hi: "Hi" }),
+    });
+    await server.setLocale("uk");
+    await server.setLocale("en");
+    server.add("uk", { s: "Кошик" }, "shop");
+    const { i18n, load } = browser(server);
+    expect([i18n.t("hi", { locale: "uk" }), i18n.t("s", { ns: "shop", locale: "uk" })]).toEqual([
+      "Привіт",
+      "Кошик",
+    ]);
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it("a known failure outside the chain is handed over as failed: not asked at hydration; an explicit switch asks again", async () => {
+    const server = createI18n({
+      locale: "en",
+      timeZone: "UTC",
+      onError: () => {},
+      loader: async (l: string) => {
+        if (l == "uk") throw new Error("404 uk");
+        return { hi: "Hi" };
+      },
+    });
+    await server.ready;
+    await expect(server.setLocale("uk")).rejects.toThrow("404 uk");
+    const { i18n, load, payload } = browser(server, { onError: () => {} });
+    expect(payload.catalogs.default.uk).toBeNull();
+    expect(i18n.t("hi", { locale: "uk" })).toBe("hi");
+    expect(load).not.toHaveBeenCalled();
+    await i18n.setLocale("uk").catch(() => {});
+    expect(load.mock.calls.map(([l, n]) => `${l}:${n}`)).toEqual(["uk:default"]);
+  });
+
+  it("a catalog handed over does not make its namespace active: a later switch does not load it", async () => {
+    const server = createI18n({
+      locale: "en",
+      timeZone: "UTC",
+      catalogs: { default: { en: {} }, shop: { en: { s: "Shop" }, uk: { s: "Кошик" } } },
+      loader: async () => ({}),
+    });
+    const { i18n, load } = browser(server);
+    await i18n.setLocale("de");
+    expect(load.mock.calls.map(([l, n]) => `${l}:${n}`)).toEqual(["de:default"]);
   });
 });

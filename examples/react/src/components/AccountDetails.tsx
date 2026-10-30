@@ -1,6 +1,9 @@
 import { useI18n } from "@comvi/react";
 
-/** Rows from the `account` namespace, which the `/about` route loads (App.tsx). */
+/**
+ * Rows from the `account` namespace, which the `/about` route loads (App.tsx);
+ * useI18n("account") holds it while the page shows.
+ */
 export function AccountDetails({ name }: { name: string }) {
   const { t } = useI18n("account");
 

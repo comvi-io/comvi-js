@@ -1,4 +1,4 @@
-// React + core + ICU + cdn() (R3-10 binding cap: +527 B over core-icu-cdn): the product's
+// React + core + ICU + cdn() (binding cap +547 B over core-icu-cdn: lot 4c owner decision, ×1.02): the product's
 // main path on React — the instance loading CDN v1 catalogs, the provider, useI18n() and
 // t() with a plain {name} and a plural. core-icu-cdn.ts is the same graph without React.
 import { createElement } from "react";

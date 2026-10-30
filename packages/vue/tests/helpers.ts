@@ -26,6 +26,9 @@ export const probe = (render: () => unknown) => {
   return { C, counter };
 };
 
+/** Lets the core's development idle-read diagnostic run: it re-checks after the render's task. */
+export const tick = () => new Promise((y) => setTimeout(y));
+
 /** Lets every settled promise chain run, then Vue's scheduler. */
 export const settle = async () => {
   await flushPromises();

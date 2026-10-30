@@ -29,7 +29,7 @@ describe("useI18n()", () => {
     const i18n = createI18n({ locale: "en", messages: { en: { hi: "Hi {name}" } } });
     const u = capture(i18n).get();
     expect(Object.keys(u).sort()).toEqual(
-      ["T", "dir", "i18n", "isLoading", "locale", "setLocale", "t"].sort(),
+      ["T", "dir", "i18n", "isLoading", "isReady", "locale", "setLocale", "t"].sort(),
     );
     expect(u.t("hi", { name: "Ann" })).toBe("Hi Ann");
     expect(u.locale.value).toBe("en");
@@ -182,8 +182,8 @@ describe("reactivity slices (§2.5): counted renders", () => {
     await l.answer("en:shop");
     expect(renders).toBe(1000);
     void i18n.setLocale("de");
+    // `load("shop")` pinned nothing (lot 4c): the switch waits for `default` only.
     await l.answer("de:default");
-    await l.answer("de:shop");
     expect(renders).toBe(2000);
     expect(w.findAll("i").every((x) => x.text() === "de")).toBe(true);
   });
@@ -269,12 +269,19 @@ describe("useI18n(ns)", () => {
     expect(errors).toEqual([]);
   });
 
-  it("without a loader a namespace with no catalog is missing at once, never stuck loading", () => {
+  it("without a loader: a namespace with no catalog is never stuck loading and no missing key (development warns); an absent key of a catalog in place is reported at once", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { i18n, errors } = make({ locale: "en", messages: { en: {} } });
     const u = capture(i18n, "shop").get();
     expect(u.isLoading.value).toBe(false);
     expect(u.t("title")).toBe("title");
-    expect(errors.map((e) => [e.code, e.ns])).toEqual([["missing_key", "shop"]]);
+    expect(errors).toEqual([]);
+    expect(i18n.t("nope")).toBe("nope");
+    expect(errors.map((e) => [e.code, e.ns])).toEqual([["missing_key", "default"]]);
+    await new Promise((y) => setTimeout(y));
+    expect(warn.mock.calls.map((c) => String(c[0]).includes("no loader is configured"))).toEqual([
+      true,
+    ]);
   });
 
   it("isLoading is per namespace and covers a switch in flight", async () => {

@@ -173,10 +173,9 @@ describe("useFormat()", () => {
     await l.answer("en:shop");
     expect(F.counter.count).toBe(1);
     void i18n.setLocale("de");
-    await l.answer("de:default");
-    // `shop` is active: the switch waits for its catalog too.
     expect(F.counter.count).toBe(1);
-    await l.answer("de:shop");
+    // `load("shop")` pins nothing (lot 4c): the switch waits for `default` only.
+    await l.answer("de:default");
     expect(F.counter.count).toBe(2);
     expect(w.text()).toBe("1.234,5");
   });

@@ -15,7 +15,9 @@ const router = createRouter({
       path: "/about",
       component: AboutPage,
       // The page's own namespace loads with the route, before the page renders:
-      // no frame shows its keys. Once loaded, it follows every language switch.
+      // no frame shows its keys. While the page shows, its useI18n("account")
+      // holds the namespace, so a language switch loads it too; once the page
+      // closes it stays cached and a switch skips it (the route loads it again).
       // A failed load rejects (and is reported through onError): the page still
       // opens, with the fallback language's text.
       beforeEnter: () => i18n.load("account").catch(() => {}),

@@ -18,7 +18,7 @@ import {
 } from "vue";
 import { renderToString } from "vue/server-renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createI18n, handover, T, useI18n, type Catalog, type Handover } from "../src";
+import { createI18n, handover, useI18n, type Catalog, type Handover } from "../src";
 import { settle, vueWarnings } from "./helpers";
 
 const CATALOGS: Record<string, Catalog> = {
@@ -156,17 +156,15 @@ describe("hydration from handover()", () => {
     expect(el.innerHTML).toBe(html);
   });
 
-  it.each(["useI18n", "<T ns>"])(
+  it.each(["useI18n", "useI18n(ns).T"])(
     "a namespace whose catalog was inline on the server (%s) is handed over: 0 requests, no mismatch",
     async (api) => {
-      // Nobody preloads `shop`: its catalog is inline; only the server's render activates it.
+      // Nobody preloads `shop`: its catalog is inline; only the server's render holds it.
       const Shop = defineComponent({
         setup() {
-          if (api == "useI18n") {
-            const { t } = useI18n("shop");
-            return () => h("p", t("cart"));
-          }
-          return () => h(T as Component, { i18nKey: "cart", ns: "shop" });
+          const { t, T: B } = useI18n("shop");
+          if (api == "useI18n") return () => h("p", t("cart"));
+          return () => h(B as Component, { i18nKey: "cart" });
         },
       });
       const inline = { shop: { uk: { cart: "Кошик" }, en: { cart: "Cart" } } };
@@ -199,4 +197,75 @@ describe("hydration from handover()", () => {
     expect(warnings.join("\n")).toMatch(/[Hh]ydration/);
     expect(load.mock.calls.length).toBeGreaterThan(0);
   });
+});
+
+describe("hydration of a per-call { locale } outside the locale on screen (owner 30.10)", () => {
+  const PerCall = defineComponent({
+    setup() {
+      const { t } = useI18n();
+      return () =>
+        h("main", [
+          h("p", t("hi", { locale: "uk" }) as string),
+          h("p", t("a", { locale: "de-CH" }) as string),
+          h("p", t("b", { locale: "de-CH" }) as string),
+        ]);
+    },
+  });
+  const options = {
+    timeZone: "UTC",
+    fallbackLocale: { "de-CH": ["fr"], default: ["en"] },
+  };
+
+  it.each(["inline", "loaded"] as const)(
+    "%s catalogs: the same text, no mismatch, 0 requests; a later switch loads only the active namespace",
+    async (how) => {
+      const server = createI18n({
+        ...options,
+        locale: "en",
+        ...(how == "inline"
+          ? {
+              catalogs: {
+                default: { en: {}, uk: { hi: "Привіт" }, de: { a: "A-de" }, fr: { b: "B-fr" } },
+              },
+              loader: async () => ({}),
+            }
+          : {
+              loader: async (l: string) =>
+                (
+                  ({
+                    en: {},
+                    uk: { hi: "Привіт" },
+                    de: { a: "A-de" },
+                    fr: { b: "B-fr" },
+                  }) as Record<string, Catalog>
+                )[l] || {},
+            }),
+      });
+      await server.ready;
+      if (how == "loaded") for (const l of ["uk", "de", "fr", "en"]) await server.setLocale(l); // cached
+      const html = await renderToString(createSSRApp(PerCall).use(server));
+      expect(html).toBe("<main><p>Привіт</p><p>A-de</p><p>B-fr</p></main>");
+      const payload = JSON.parse(JSON.stringify(handover(server))) as Handover;
+      const el = document.createElement("div");
+      el.innerHTML = html;
+      const load = vi.fn<(l: string, n: string) => Promise<Record<string, string>>>(
+        async () => ({}),
+      );
+      const i18n = createI18n({ ...options, ...payload, loader: load });
+      const app = createSSRApp(PerCall).use(i18n);
+      mounted.push([app, i18n]);
+      const warnings = await vueWarnings(async () => {
+        app.mount(el);
+        await settle();
+      });
+      expect([el.innerHTML, warnings, load.mock.calls.length, i18n.locale]).toEqual([
+        html,
+        [],
+        0,
+        "en",
+      ]);
+      await i18n.setLocale("it");
+      expect(load.mock.calls.map(([l, n]) => `${l}:${n}`)).toEqual(["it:default"]);
+    },
+  );
 });

@@ -71,6 +71,12 @@ measurement cost, and `size-check.mjs` throws on a row without a `gzipBudgetByte
 
 > `gzipBudgetBytes = ceil(baseline.gzipBytes * 1.05)`
 
+> **Owner-accepted growth (policy clarification, 2026-10-30).** When the owner accepts a size
+> increase for functionality, the affected `ceilingBytes` (and the binding `increment.maxBytes`
+> cap) is set to `ceil(measured × 1.02)`. Budgets keep the existing rule
+> `min(ceiling, ceil(measured × 1.05))`. No byte golfing is done to fit under an older number, and
+> ceilings are raised only by the owner, never by the executor.
+
 Every row, no exceptions. `baseline` records the sweep the budget came from (`minBytes`,
 `gzipBytes`, `measuredAt`) and is **evidence, not a gate**.
 
@@ -1135,3 +1141,174 @@ variable: +4 B; `messages` merged per locale under `catalogs` (`N(o.messages, ca
 the `if` (with neither option `default` is an empty record, which the ingest loop skips): +2 B
 in all. Tried and dropped: the setter keyed by the instance's `Core` record in the `CORE` map
 (no gain on `core-icu`, +2 B on `core-icu-cdn`).
+
+## 2026-10-29: lot 4c — namespace holds, `isReady`, `<T>` reads only (R3-26)
+
+The owner's brief `lot4c-brief-owner-2026-10-29.md` (R3-26): per-instance consumer counts and the
+active set, `isReady` / `isLoading` as core predicates, `useI18n(ns)` holding its namespace (React
+effect with cleanup; Vue mount/unmount and `KeepAlive`), `<T>` and `$t` read only, the React gate on
+`isReady` (the owner's review of e5a3788d, HIGH), a rejected switch reloading what its start
+aborted, the dev-only idle-read diagnostic (0 B in production: its strings are absent from the
+production dists, and the declared-read flag is the development-only seam `Core.d`). Measured on
+the finished implementation; one sweep after `TURBO_FORCE=true pnpm build`, `node --version`
+v24.22.1. Per the lot's rule (correctness first, no ceiling raised by the executor) **four rows
+fail and are left failing for the owner**:
+
+| row           | gzip B | was (4b) | Δ    | budget | ceiling | increment over core-icu-cdn |
+| ------------- | ------ | -------- | ---- | ------ | ------- | --------------------------- |
+| core-icu      | 4,507  | 4,445    | +62  | 4,449  | 4,449   | —                           |
+| core-icu-cdn  | 4,995  | 4,927    | +68  | 4,960  | 4,960   | —                           |
+| react-icu-cdn | 5,529  | 5,428    | +101 | 5,700  | 5,700   | +534, cap +527              |
+| vue-icu-cdn   | 5,669  | 5,520    | +149 | 5,560  | 5,560   | +674, cap +600              |
+
+Itemized (a relative probe from `src`, esbuild minify + gzip -9, one piece removed at a time;
+gzip is not additive): core — the `isReady` predicate and its seam +13…15 B, the reloading of a
+rejected switch +4…5 B, the rest (hold counts with the pin of `namespaces`, the active set as
+`Object.keys(counts)`, `load()` without a pin, the first-need publish, `handover()` over every
+needed namespace with failed pairs from the negative cache, the `isLoading` rule over the chain
+and the negative cache) ≈ +45 B; `view()` lost its invented loading entries (−, `/internal`).
+React — `isReady` +9 B, the hold's cleanup and `<T>` reading through the context instead of
+`useI18n()` ≈ +20 B, the gate on the core's `isReady` 0 B (gate sweep). Vue — `isReady` +10 B,
+`KeepAlive` (`onActivated`/`onDeactivated`) +22 B, the release machinery in all (the hold's
+release, `onUnmounted`, the two closures, `KeepAlive`) +43 B. Tried and dropped (no gain on the
+gate): the hold as one arrow expression, the `isLoading` rule as `!(a || b)`, the active set as
+`> 0`; a Vue `tr` with `core(i)` as a default parameter (+5 B).
+
+Rows that fit, re-baselined from the same sweep (budget = ceil(measured × 1.05), never above a
+ceiling):
+
+| row                     | gzip B | was   | budget | ceiling |
+| ----------------------- | ------ | ----- | ------ | ------- |
+| core-compile            | 1,862  | 1,861 | 1,956  | 2,000   |
+| core-locale             | 584    | 583   | 614    | —       |
+| core-icu-cdn-store      | 5,160  | 5,093 | 5,418  | —       |
+| core-icu-api            | 5,513  | 5,439 | 5,789  | —       |
+| core-icu-devtools       | 4,964  | 4,895 | 5,017  | 5,017   |
+| core-devtools           | 639    | 631   | 644    | 644     |
+| core-format             | 5,167  | 5,091 | 5,426  | —       |
+| core-plugins            | 5,089  | 5,020 | 5,344  | —       |
+| fw-react-default        | 5,014  | 4,912 | 5,265  | —       |
+| fw-react-full-composite | 8,008  | 7,956 | 8,409  | —       |
+| fw-vue-default          | 5,151  | 5,006 | 5,409  | —       |
+| fw-vue-full-composite   | 7,866  | 7,796 | 8,260  | —       |
+
+`fw-vue-default` (+145 B) and `fw-react-default` (+102 B) carry the core's and the binding's
+growth together (no loader in their graphs, so no `cdn()` to dilute it). `core-icu-devtools` is
++457 B over `core-icu` (cap +500).
+
+## 2026-10-30: lot 4c fix pass (Fable review, Codex review, gate report on 1f58ee08)
+
+Fixes of the reviews of 1f58ee08 (R3-26): a consumer counted before its hold publishes (a
+subscriber switching in that publish waited for nothing), an idempotent release, `handover()`
+over every namespace with a catalog of the chain in place (inline catalogs a React server render
+read without a hold were lost: the browser's `{ ...options, ...payload }` replaces `catalogs`),
+Vue's `useI18n()` outside a component (no hook in any build, `isLoading` a load in flight only,
+its reads not a declared need), and the development diagnostic (a declared read covers its own
+namespace only; the idle check runs again after the render's task — development only, 0 B in
+production: its strings stay absent from the production dists, `contracts.test.ts`). One sweep
+after `TURBO_FORCE=true pnpm build`, `node --version` v24.22.1. The four rows over since lot 4c
+stay over, ceilings untouched, **left failing for the owner**:
+
+| row           | gzip B | 1f58ee08 | Δ   | budget | ceiling | increment over core-icu-cdn |
+| ------------- | ------ | -------- | --- | ------ | ------- | --------------------------- |
+| core-icu      | 4,532  | 4,507    | +25 | 4,449  | 4,449   | —                           |
+| core-icu-cdn  | 5,018  | 4,995    | +23 | 4,960  | 4,960   | —                           |
+| react-icu-cdn | 5,554  | 5,529    | +25 | 5,700  | 5,700   | +536, cap +527              |
+| vue-icu-cdn   | 5,718  | 5,669    | +49 | 5,560  | 5,560   | +700, cap +600              |
+
+Itemized (one piece reverted at a time on the finished build; gzip is not additive): the
+release's once-guard +8…9 B; the hold counted before `ensure()` publishes +4…5 B; `handover()`
+over `N(state.c, counts)` 0 B on these rows (`/internal`, a server path); Vue's flight-only
+`isLoading` outside a component through the core's predicate (`w(state, ns, flightsOnly)`) +6 B
+on vue-icu-cdn (an earlier Vue-side `ld.some()` arm cost +19 B and was dropped); the rest of
+Vue's +26 B over the core's growth is `getCurrentInstance()` kept in production (hooks were
+registered outside a component there) and the bound `<T>` passing its namespace as the call's.
+The React binding's source changed in JSDoc only: its +25 B is the core's.
+
+Rows that fit, re-baselined from the same sweep (budget = ceil(measured × 1.05), never above a
+ceiling):
+
+| row                     | gzip B | was   | budget | ceiling |
+| ----------------------- | ------ | ----- | ------ | ------- |
+| core-icu-cdn-store      | 5,185  | 5,160 | 5,445  | —       |
+| core-icu-api            | 5,536  | 5,513 | 5,813  | —       |
+| core-icu-devtools       | 4,985  | 4,964 | 5,017  | 5,017   |
+| core-format             | 5,187  | 5,167 | 5,447  | —       |
+| core-plugins            | 5,113  | 5,089 | 5,369  | —       |
+| fw-react-default        | 5,034  | 5,014 | 5,286  | —       |
+| fw-react-full-composite | 8,033  | 8,008 | 8,435  | —       |
+| fw-vue-default          | 5,202  | 5,151 | 5,463  | —       |
+| fw-vue-full-composite   | 7,907  | 7,866 | 8,303  | —       |
+
+`core-compile` (1,862), `core-locale` (584), `core-negotiate` (496) and `core-devtools` (639) did
+not move. `core-icu-devtools` is +453 B over `core-icu` (cap +500).
+
+## 2026-10-30: lot 4c — owner accepts the growth (×1.02 ceilings)
+
+Owner decision, 30.10.2026: the growth of lot 4c's functionality is accepted, the affected budgets
+are updated by the ×1.02 rule rounded up, the clarification is stated in this documentation, and
+no further optimisation is done for a few bytes. No code changed. One sweep after
+`TURBO_FORCE=true pnpm build`, `node --version` v24.22.1; the other rows (`core-compile` 1,862,
+`core-locale` 584, `core-negotiate` 496, `core-icu-cdn-store`, `core-icu-api`,
+`core-icu-devtools`, `core-devtools`, `core-format`, `core-plugins`, the fw rows) measured
+unchanged from the lot 4c fix pass and keep their baselines, budgets and ceilings.
+
+| row                       | measured | old ceiling / cap | new ceiling / cap | budget |
+| ------------------------- | -------- | ----------------- | ----------------- | ------ |
+| core-icu                  | 4,532    | 4,449             | 4,623             | 4,623  |
+| core-icu-cdn              | 5,018    | 4,960             | 5,119             | 5,119  |
+| react-icu-cdn (row)       | 5,554    | 5,700             | 5,666             | 5,666  |
+| react-icu-cdn (increment) | +536     | +527              | +547              | —      |
+| vue-icu-cdn (row)         | 5,718    | 5,560             | 5,833             | 5,833  |
+| vue-icu-cdn (increment)   | +700     | +600              | +714              | —      |
+
+`react-icu-cdn`'s row was already under its 5,700 B ceiling (5,554, a lot 4b ×1.05 ceiling);
+only its increment cap was over. On the owner's follow-up (2026-10-30) the row ceiling was
+lowered to ceil(5,554 × 1.02) = 5,666 B as well, so every ceiling changed in lot 4c follows the
+×1.02 rule (112 B headroom). Minified sizes: core-icu 9,202, core-icu-cdn 10,293,
+react-icu-cdn 11,391, vue-icu-cdn 11,730.
+
+**POLICY CLARIFICATION.** When the owner accepts growth for functionality, the affected ceiling
+(and binding increment cap) is set to `ceil(measured × 1.02)`. Budgets keep the existing rule
+`min(ceiling, ceil(measured × 1.05))`. No byte golfing is done to fit; ceilings are raised only by
+the owner.
+
+## 2026-10-30: lot 4c — released consumer (Vue) and missing_key; owner-approved ceilings
+
+Two contract fixes (owner, 30.10): a Vue `useI18n(ns)` whose component released `ns` (unmount,
+`KeepAlive` deactivation) no longer reads `isLoading` true with no load coming (the need is
+restored in `onActivated` only: an update of the detached subtree holds nothing); and one
+`missing_key` rule
+for every read — a catalog of the namespace in place for the read's chain and every pair of
+that chain settled (in place or failed, no load of it in flight; without a loader the catalogs
+in place are complete), no catalog of the chain a development warning only (also without a
+loader). The development-only `Core.d` seam is gone; `Core.tr` takes no declaration.
+
+Owner decision (30.10, ×1.02 policy): `core-icu-devtools` ceiling 5,017 → **5,132 B**, the
+`vue-icu-cdn` increment cap +714 → **+753 B**; both rows re-baselined, budgets
+`min(ceiling, ceil(measured × 1.05))`. The other rows keep their baselines, budgets and
+ceilings. One sweep after `TURBO_FORCE=true pnpm build`, `node --version` v24.22.1; `pnpm size`
+green.
+
+| row                      | measured      | previous baseline | Δ         | budget / ceiling / cap  | gate |
+| ------------------------ | ------------- | ----------------- | --------- | ----------------------- | ---- |
+| core-icu                 | 4,574         | 4,532             | +42       | 4,623 / 4,623           | ok   |
+| core-icu-cdn             | 5,058         | 5,018             | +40       | 5,119 / 5,119           | ok   |
+| core-icu-devtools        | 5,031         | 4,985             | +46       | **5,132 / 5,132** (new) | ok   |
+| react-icu-cdn            | 5,592         | 5,554             | +38       | 5,666 / 5,666           | ok   |
+| react-icu-cdn (incr.)    | +534          | +536              | −2        | +547                    | ok   |
+| vue-icu-cdn              | 5,761         | 5,718             | +43       | 5,833 / 5,833           | ok   |
+| vue-icu-cdn (incr.)      | +703          | +700              | +3        | **+753** (new)          | ok   |
+| fw-react-default         | 5,069         | 5,034             | +35       | 5,286                   | ok   |
+| fw-react-full-composite  | 8,071         | 8,033             | +38       | 8,435                   | ok   |
+| fw-vue-default           | 5,251         | 5,202             | +49       | 5,463                   | ok   |
+| fw-vue-full-composite    | 7,954         | 7,907             | +47       | 8,303                   | ok   |
+| core-icu-cdn-store / api | 5,226 / 5,582 | 5,185 / 5,536     | +41 / +46 | 5,445 / 5,813           | ok   |
+| core-format / plugins    | 5,232 / 5,152 | 5,187 / 5,113     | +45 / +39 | 5,447 / 5,369           | ok   |
+
+The Vue growth is the release fix (`vue-icu-cdn` 5,718 → 5,728 alone) and the core's; two
+earlier variants that held in `onBeforeUpdate` during a KeepAlive activation (5,796 by vnode
+identity, 5,800 by DOM connectivity) were dropped on the owner's call — public lifecycle hooks
+only. The core growth is the settled-chain check (+39…+46). Minified: core-icu-devtools 10,263, vue-icu-cdn 11,824.
+`core-compile` (1,862), `core-locale` (584), `core-negotiate` (496) and `core-devtools` (639) did
+not move.

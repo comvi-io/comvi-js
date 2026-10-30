@@ -1426,11 +1426,21 @@ for (const [step, fault] of [
   });
 }
 
-// ── the `account` namespace (w, x, y, z) ──────────────────────────────────
+// ── the `account` namespace (w, w2, x, y, z) ──────────────────────────────
 //
 // Every example's second page renders a second namespace, `account`, that no
 // `ns` list names: it loads when that page is first shown. The texts are
 // literals above (`SIGNED_IN`, `DEVICES`, `ACCOUNT_ONLY_EN`).
+//
+// On the 0.8 core (lot 4c) a namespace is active while a component holds it
+// (`useI18n("account")` in react and vue): a switch on the second page loads
+// it with the default namespace. Vanilla has no component to hold it: its page
+// calls `i18n.load("account")`, which keeps nothing active, so a switch loads
+// the default namespace, and the page then loads `account` for the new locale
+// and shows its loading row meanwhile (never the old language's rows).
+const LOADS_AFTER_SWITCH = env("E2E_FRAMEWORK") === "vanilla";
+/** The 0.8 examples: a namespace with no consumer left is not loaded by a switch (lot 4c). */
+const RELEASES_NAMESPACES = ["react", "vanilla", "vue"].includes(env("E2E_FRAMEWORK"));
 
 /** What the second page watches: its default-namespace body and the three `account` rows. */
 const ABOUT_WATCHED: Watched = {
@@ -1579,6 +1589,36 @@ test("w: the account namespace loads on the second page only, once", async ({ pa
   }
 });
 
+test("w2: a namespace no page holds is not loaded by a switch; its page loads it on return", async ({
+  page,
+}) => {
+  test.skip(!RELEASES_NAMESPACES, "a 0.7 binding keeps an activated namespace for good");
+  // The key scenario of lot 4c: the second page (account) → the first page →
+  // a switch there loads the default namespace only; back on the second page,
+  // `account` loads for the new locale and renders it.
+  const watching = watchRequests(page, accountRequest("uk"));
+  // Bundled Vite names uk's default chunk like its account chunk (step w).
+  const shared = KIND === "vite" && !CDN_URL ? 1 : 0;
+  await open(page);
+  await ready(page);
+  await page.getByTestId("nav-about").click();
+  await expectAccount(page, "en");
+  await page.getByTestId("nav-home").click();
+  await expect(page.getByTestId("greeting")).toHaveText(greeting("en"));
+  await switchTo(page, "uk");
+  await expect(page.getByTestId("greeting")).toHaveText(greeting("uk"));
+  expect(
+    (await watching.seen()).loads,
+    "uk:account loaded by a switch nobody needed it for",
+  ).toHaveLength(shared);
+  await page.getByTestId("nav-about").click();
+  await expectAccount(page, "uk");
+  expect(accountKeysIn(await pageText(page)), "raw account keys").toEqual([]);
+  expect((await watching.seen()).loads, "uk:account loaded once, on return").toHaveLength(
+    shared + 1,
+  );
+});
+
 test("x: every DOM state of the second page during en → uk → de is one whole language", async ({
   page,
 }) => {
@@ -1599,7 +1639,20 @@ test("x: every DOM state of the second page during en → uk → de is one whole
   let previous: Shown = "en";
   for (const target of ["uk", "de"] as const) {
     const button = page.getByTestId(`locale-${target}`);
-    if (steered) {
+    if (steered && LOADS_AFTER_SWITCH) {
+      // The switch waits for the default namespace only; then the page asks for
+      // `account` in the new locale, its rows not rendered until it lands.
+      await cdn.mode({ hold: [target, `${target}:account`] });
+      await button.click();
+      await cdn.inFlight("held", [target]);
+      await expect(page.getByTestId("about-body")).toHaveText(message(previous, "about.body"));
+      await expectAccount(page, previous);
+      await cdn.release(target);
+      await cdn.inFlight("held", [`${target}:account`]);
+      await expect(page.getByTestId("about-body")).toHaveText(message(target, "about.body"));
+      await expect(page.getByTestId("account-signed-in")).toHaveCount(0);
+      await cdn.release(`${target}:account`);
+    } else if (steered) {
       await cdn.mode({ hold: [target, `${target}:account`] });
       const defaultCatalog = page.waitForEvent("requestfinished", (finished) =>
         catalogRequest(target).test(finished.url()),

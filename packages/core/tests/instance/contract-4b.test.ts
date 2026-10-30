@@ -4,7 +4,7 @@
  * `packages/vue/tests/scenario.test.ts`) run the same cases through a README component.
  */
 import { describe, expect, it } from "vitest";
-import { activate, coming, loading, state } from "../../src/internal";
+import { acquire, coming, loading, state } from "../../src/internal";
 import { make, manualLoader, tableLoader } from "./helpers";
 
 describe("setLocale() contract (lot 4b)", () => {
@@ -157,10 +157,11 @@ describe("load(ns) contract (lot 4b)", () => {
     expect(i18n.t("s", { ns: "shop" })).toBe("S-de");
   });
 
-  it("a binding's activation never rejects, even when the load fails", async () => {
+  it("a binding's hold never rejects, even when the load fails (lot 4c: it returns the release)", async () => {
     const t = tableLoader({});
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: t.load });
-    await expect(activate(i18n, "shop")).resolves.toBeUndefined();
+    expect(acquire(i18n, "shop")).toBeTypeOf("function");
+    await expect(i18n.ready).resolves.toBeUndefined();
     // load() is the explicit retry: it asks again and reports the outcome.
     await expect(i18n.load("shop")).rejects.toThrow("no catalog for en:shop");
     expect(t.loaded()).toEqual(["en:shop", "en:shop"]);

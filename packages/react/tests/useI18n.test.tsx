@@ -7,7 +7,7 @@
  */
 import { Children, StrictMode, useEffect, useState, type ReactNode } from "react";
 import { act, render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createI18n, I18nProvider, useI18n, type I18n, type UseI18n } from "../src";
 import { make, manualLoader, reactWarnings, settle } from "./helpers";
 
@@ -26,16 +26,17 @@ const capture = (i18n: I18n, ns?: string) => {
 };
 
 describe("useI18n()", () => {
-  it("returns t, locale, dir, isLoading, setLocale and the instance", () => {
+  it("returns t, locale, dir, isReady, isLoading, setLocale and the instance", () => {
     const i18n = createI18n({ locale: "en", messages: { en: { hi: "Hi {name}" } } });
     const { last } = capture(i18n);
     expect(Object.keys(last()).sort()).toEqual(
-      ["T", "dir", "i18n", "isLoading", "locale", "setLocale", "t"].sort(),
+      ["T", "dir", "i18n", "isLoading", "isReady", "locale", "setLocale", "t"].sort(),
     );
     expect(last().t("hi", { name: "Ann" })).toBe("Hi Ann");
     expect(last().locale).toBe("en");
     expect(last().dir).toBe("ltr");
     expect(last().isLoading).toBe(false);
+    expect(last().isReady).toBe(true);
     expect(last().i18n).toBe(i18n);
     expect(last().setLocale).toBe(i18n.setLocale);
   });
@@ -153,12 +154,19 @@ describe("useI18n(ns)", () => {
     expect(errors).toEqual([]);
   });
 
-  it("without a loader a namespace with no catalog is missing at once, never stuck loading", () => {
+  it("without a loader: a namespace with no catalog is never stuck loading and no missing key (development warns); an absent key of a catalog in place is reported at once", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { i18n, errors } = make({ locale: "en", messages: { en: {} } });
     const { last } = capture(i18n, "shop");
     expect(last().isLoading).toBe(false);
     expect(last().t("title")).toBe("title");
-    expect(errors.map((e) => [e.code, e.ns])).toEqual([["missing_key", "shop"]]);
+    expect(errors).toEqual([]);
+    expect(i18n.t("nope")).toBe("nope");
+    expect(errors.map((e) => [e.code, e.ns])).toEqual([["missing_key", "default"]]);
+    await new Promise((y) => setTimeout(y));
+    expect(warn.mock.calls.map((c) => String(c[0]).includes("no loader is configured"))).toEqual([
+      true,
+    ]);
   });
 
   it("isLoading is per namespace and covers a switch in flight", async () => {

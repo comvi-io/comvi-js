@@ -101,9 +101,22 @@ export interface I18nOptions {
     number?: Readonly<Record<string, Intl.NumberFormatOptions>>;
     date?: Readonly<Record<string, Intl.DateTimeFormatOptions>>;
   };
-  /** Every problem, as a coded {@link I18nError}. Default: development console, production silent. */
+  /**
+   * Every problem, as a coded {@link I18nError}. Default: development console, production
+   * silent. `missing_key`: the key is absent, a catalog of the namespace is in place for the
+   * read's chain (its locale, parents, fallback locales; a per-call `{ locale }` / `{ ns }`
+   * counts), and every pair of that chain is settled — in place or failed, with no load of it
+   * in flight (a request has priority over a catalog `add()`ed meanwhile; a retry makes the
+   * pair unknown again); with a loader a pair never requested or still loading keeps it
+   * unknown (no report), without one the catalogs in place are complete. Reported at the
+   * read. `load_failed`: a load failed. A namespace with no catalog of the read's chain (a
+   * typo) is no report; development warns.
+   */
   onError?: OnError;
-  /** What a missing key renders. Default: the key. */
+  /**
+   * What a read with no message for the key renders — a missing key, and a namespace still
+   * loading or with no catalog. Default: the key.
+   */
   missing?: (key: string, locale: string, ns: string) => string;
 }
 
@@ -112,9 +125,11 @@ export interface I18n {
   readonly locale: string;
   readonly dir: "ltr" | "rtl";
   /**
-   * Settles when the catalog loads in flight now have settled (never rejects). The same
-   * promise object for as long as the set of loads in flight does not change (a binding
-   * may throw it for Suspense); one shared resolved promise when nothing loads.
+   * Settles when the catalog loads in flight now have settled — loaded, failed or aborted
+   * (never rejects). It says nothing about a namespace's catalog: a binding's `isReady`
+   * tells whether one is in place for the locale on screen. The same promise object for as
+   * long as the set of loads in flight does not change (a binding may throw it for
+   * Suspense); one shared resolved promise when nothing loads.
    */
   readonly ready: Promise<void>;
   /**
@@ -123,16 +138,18 @@ export interface I18n {
    * `locale` and `markers` are reserved names: a message cannot have params called so.
    *
    * With no message for the key in the locale's chain it returns what `missing(key, locale,
-   * ns)` returns (default: the key) — also while the key's namespace is still loading, when
-   * no `missing_key` is reported. `t()` never returns a placeholder: a UI that should not
-   * show that text while loading checks `isLoading` (bindings) and renders its own.
+   * ns)` returns (default: the key) — also while the key's namespace is still loading or has
+   * no catalog of the chain, when no `missing_key` is reported (see `onError`). `t()` never
+   * returns a placeholder: a UI that should not show that text while loading checks
+   * `isLoading` (bindings) and renders its own.
    */
   t: TFor<"default", RichParts>;
   /** `t()` bound to namespace `name`. */
   ns<N extends string>(name: N): TFor<N, RichParts>;
   /**
-   * Loads what `locale` needs for the namespaces active NOW (a later one loads after the
-   * switch), keeping the current locale on screen meanwhile, then switches — inside the
+   * Loads what `locale` needs for the namespaces active NOW — those of the `namespaces`
+   * option and those a component's `useI18n(ns)` holds; one held later loads after the
+   * switch — keeping the current locale on screen meanwhile, then switches — inside the
    * call when nothing needs loading. A later call wins: this one then never switches and
    * resolves once its loads settle or are aborted. The latest call switches when at least
    * one namespace it waited for has a catalog of `locale`'s own chain in place (`de-AT`, or
@@ -143,12 +160,14 @@ export interface I18n {
    */
   setLocale(locale: string): Promise<void>;
   /**
-   * Activates namespace `ns`, asks its failed loads again (the explicit retry) and loads it
-   * for the current locale's chain. Rejects with the loader's error when, as its loads
-   * settle, the locale's own load of `ns` failed and no catalog of `ns` from the locale's own
-   * chain (`de-AT`, its parent `de`) is in place; else resolves `undefined` — a parent's or
-   * a fallback locale's failure alone does not reject, nor does a load a switch aborted (the
-   * switch loads `ns` for its target). A binding's automatic activation never rejects.
+   * Loads namespace `ns` for the current locale's chain, asking its failed loads again (the
+   * explicit retry): a route's preload, a server's before it renders. It does not keep `ns`
+   * active — a later `setLocale()` loads it only while a component's `useI18n(ns)` holds it
+   * (or the `namespaces` option names it); the loaded catalogs stay cached. Rejects with the
+   * loader's error when, as its loads settle, the locale's own load of `ns` failed and no
+   * catalog of `ns` from the locale's own chain (`de-AT`, its parent `de`) is in place; else
+   * resolves `undefined` — a parent's or a fallback locale's failure alone does not reject,
+   * nor does a load a switch aborted. A binding's hold never rejects.
    */
   load(ns: string): Promise<void>;
   /** Adds messages to (locale, ns) — by reference into an empty pair, else as a patch layer. */
@@ -180,20 +199,42 @@ export interface Core {
    * joins a tag's children for its handler (a binding's node maker).
    */
   tr(state: State, key: string, params?: Params, ns?: string, j?: Env["j"]): Rendered;
+  /**
+   * Development builds only: a render declared namespace `ns` (a `useI18n(ns)` in a render or
+   * a setup) while nothing holds it — its hold comes at the commit or mount, which Suspense
+   * may delay past the idle-read check. Until that hold, a read of `ns` is not reported as
+   * idle. Not a hold: nothing loads for it, and a render that never commits keeps only this
+   * development marker (Codex re-check of lot 4c, F1).
+   */
+  p?(ns: string): void;
   /** The lookup chain of a locale. */
   ch(locale: string): Chain;
   /** The options the instance was made with (`timeZone`, `now`, `formats` for `/format`). */
   o: I18nOptions;
-  /** The active namespaces. */
-  n: ReadonlySet<string>;
   /**
-   * Activates namespace `ns` and loads what the current locale's chain lacks of it, like
-   * `load()` but WITHOUT asking its failed loads again: a binding activating on every mount
-   * must not turn one failure into a refetch per mount (`load()` is the explicit retry).
+   * Hold counts by namespace (lot 4c); the active set is the keys above 0. Its keys are every
+   * namespace the instance ever needed (pinned, held or `load()`ed) — what `handover()` hands
+   * over and the editor's `state().ns`, whatever the counts are now.
    */
-  a(ns: string): Promise<void>;
-  /** Namespace `ns` is still coming in `state` (see `coming` in createI18n). */
-  w(state: State, ns: string): unknown;
+  k: Record<string, number>;
+  /** Pairs whose load failed (the negative cache), by `locale + "\0" + ns`. */
+  b: ReadonlyMap<string, unknown>;
+  /**
+   * A consumer holds namespace `ns` (lot 4c): it joins the active set and what the displayed
+   * locale's chain lacks of it loads, WITHOUT asking its failed loads again — a binding holding
+   * on every mount must not turn one failure into a refetch per mount (`load()` is the explicit
+   * retry). Counted before anything publishes. Returns the release (a second call of it does
+   * nothing): at no consumer left the namespace leaves the active set (the next `setLocale()`
+   * does not load it); nothing is aborted or evicted.
+   */
+  h(ns: string): () => void;
+  /**
+   * `isLoading` of namespace `ns` in `state` (see `coming` in createI18n); `f`: a load in flight
+   * only — for a reader that holds nothing (Vue's `useI18n()` outside a component).
+   */
+  w(state: State, ns: string, f?: unknown): unknown;
+  /** `isReady` of namespace `ns` in `state` (see `usable` in createI18n). */
+  r(state: State, ns: string): boolean;
 }
 
 /** Instance → its internal seam; read by `@comvi/core/internal` only. */
@@ -248,7 +289,19 @@ export const createI18n = (o: I18nOptions): I18n => {
   const fl = new Map<string, Flight>();
   /** Loads that failed — the negative cache — with their errors. */
   const bad = new Map<string, unknown>();
-  const act = new Set(o.namespaces || [D]);
+  /**
+   * Hold counts by namespace (lot 4c). A namespace of the `namespaces` option starts at 1,
+   * a pin never released; a key at 0 is a namespace needed once (held, `load()`ed, handed
+   * over), no longer active. The active set is the keys above 0.
+   */
+  const cnt = N<number>();
+  for (const n of o.namespaces || [D]) cnt[n] = 1;
+  const act = () => Object.keys(cnt).filter((n) => cnt[n]);
+  /**
+   * Development: namespaces whose idle read was warned about (once each, per instance); and,
+   * as `K + ns`, namespaces a render declared (`Core.p`) that no hold has followed yet.
+   */
+  const idle = new Set<string>();
   const downs: (void | (() => void))[] = [];
   let chains: Record<string, Chain> = N();
   let nch = 0;
@@ -354,26 +407,35 @@ export const createI18n = (o: I18nOptions): I18n => {
   cats[D] = N(o.messages, cats[D]);
   // A `null` slot failed to load on the server (`handover()`): it starts in the negative
   // cache, so the browser asks for it only on an explicit retry (`load(ns)`, a switch to
-  // its locale), and its namespace starts active (not "still coming" at hydration). The
-  // cached value (the active set) is never read: a switch clears its target's failures
-  // before it could throw one.
+  // its locale), and a consumer of it is not loading at hydration (a known result, as on
+  // the server). The cached value is never read: a switch clears its target's failures
+  // before it could throw one, `load(ns)` its namespace's.
   for (const n in cats)
     for (const l in cats[n])
       if (cats[n][l]) c0 = ing(c0, l, cats[n][l]!, n);
-      else bad.set(l + K + n, act.add(n));
+      else bad.set(l + K + n, (cnt[n] |= 0));
   // An invalid start locale is reported (by its chain); it renders through its fallback
   // locales only.
   S = st(0, 0, o.locale, c0, own(o.defaultParams));
 
   /**
-   * Namespace `n` is still coming in state `s`, so a key of it is not missing yet: a load
-   * of it is in flight (for any locale: a parent, a fallback, the target of a pending
-   * switch), or the instance has a loader and nobody activated `n` yet while it holds no
-   * catalog of the state's locale — the activation will load it. `useI18n(n)` renders
-   * before it activates `n` after commit (lot 1d).
+   * `isReady` (lot 4c): a catalog of namespace `n` from the chain of the state's locale (the
+   * locale on screen, its parents, the fallback locales) is in place — an empty one too. A
+   * catalog of a locale outside the chain does not count.
    */
-  const coming = (s: State, n: string): unknown =>
-    s.ld.some((x) => x.endsWith(K + n)) || (load && !act.has(n) && !s.c[n]?.[s.locale]);
+  const usable = (s: State, n: string) => chain(s.locale).some((x) => s.c[n]?.[x[0]]);
+
+  /**
+   * `isLoading` (lot 4c): a load of `n` is in flight in `s` (for any locale: a parent, a
+   * fallback, the target of a pending switch), or the
+   * instance has a loader and a pair of the chain of the state's locale is neither in place
+   * nor failed — the load a consumer's hold makes (React holds at commit, Vue at mount, after
+   * the render). A failed pair is a known result, so no catalog and nothing in flight is never
+   * an endless loading state.
+   */
+  const coming = (s: State, n: string, f?: unknown): unknown =>
+    s.ld.some((x) => x.endsWith(K + n)) ||
+    (!f && load && chain(s.locale).some((x) => !s.c[n]?.[x[0]] && !bad.has(x[0] + K + n)));
 
   /** The message `look()` found last; copied by the caller before anything can call back. */
   let hit: Compiled;
@@ -411,10 +473,48 @@ export const createI18n = (o: I18nOptions): I18n => {
       if (i >= ch.o) err("fallback_used", l, n, key);
       r = render(m, p, ch[i][1], j ? (ej.j == j ? ej : (ej = { ...env, j })) : env);
     } else {
-      // A key of a namespace still coming is not missing yet. With no reporter to call
-      // (production without `onError`: `defaultOnError` is silent there) nothing is checked
-      // or built: a missing key costs the lookup only.
-      if (h != noop && !coming(s, n)) err("missing_key", l, n, key);
+      // Development (lot 4c, brief §6): a read of a namespace with no catalog in the chain —
+      // with a loader: no consumer, no load in flight and no failed load (a known result), so
+      // nothing will load it; without one: nothing ever will. A render's `useI18n(ns)` marks
+      // `ns` declared until its hold (`Core.p`). Checked again after the render's task (a
+      // timer): a component's hold lands at its commit or mount, after the render that read —
+      // a `<T ns>` beside `useI18n(ns)` is not idle. Once per instance and namespace.
+      if (__DEV__ && !idle.has(n)) {
+        const q = (s: State) =>
+          (!load || (!cnt[n] && !idle.has(K + n) && !s.ld.some((x) => x.endsWith(K + n)))) &&
+          !chain(l).some((x) => s.c[n]?.[x[0]] || bad.has(x[0] + K + n));
+        if (q(s)) {
+          idle.add(n);
+          setTimeout(() =>
+            dead || !q(S)
+              ? idle.delete(n)
+              : console.warn(
+                  `[@comvi/core] "${key}" reads namespace "${n}", which has no catalog for "${l}" and which nothing loads: ` +
+                    (load
+                      ? `hold it with useI18n(${JSON.stringify(n)}) in a component, call i18n.load(${JSON.stringify(n)}), or add it to the \`namespaces\` option`
+                      : `no loader is configured — add its catalog to the \`messages\` or \`catalogs\` option`),
+                ),
+          );
+        }
+      }
+      // Missing (lot 4c, owner 30.10): no message, a catalog of the namespace in place for the
+      // read's chain (a per-call `{ locale }`/`{ ns }` included), and every pair of that chain
+      // SETTLED — in place or failed (the negative cache), and no load of it in flight: a
+      // request has priority (a catalog `add()`ed meanwhile, a retry of a failure). With a
+      // loader, a pair never requested or still loading is unknown: no report
+      // (an unconfirmed error is not reported; one nobody ever requests never is). Without a
+      // loader the catalogs in place are the complete set. No catalog of the chain at all is
+      // the development warning above (a failed load is `load_failed`). Reported at the read,
+      // never replayed. With no reporter to call (production without `onError`:
+      // `defaultOnError` is silent there) nothing is checked or built: a missing key costs the
+      // lookup only.
+      if (
+        h != noop &&
+        ch.some(([x]) => s.c[n]?.[x]) &&
+        (!load ||
+          ch.every(([x]) => (s.c[n]?.[x] || bad.has(x + K + n)) && !s.ld.includes(x + K + n)))
+      )
+        err("missing_key", l, n, key);
       // A missing key is marked too: the translator clicks keys no catalog has (H4).
       r = o.missing ? o.missing(key, l, n) : key;
     }
@@ -480,13 +580,14 @@ export const createI18n = (o: I18nOptions): I18n => {
    * Starts what `l`'s chain needs for `nss`, publishing ONE "loading" state for all the
    * flights it started; the flights to wait for.
    */
-  const ensure = (l: string, nss: Iterable<string>, g?: boolean) => {
+  const ensure = (l: string, nss: Iterable<string>, g?: unknown) => {
     const n = fl.size;
     const ch = chain(l);
     const ps = ch
       .flatMap(([k], i) => [...nss].map((x) => get(k, x, i && i < ch.o && l)))
       .filter(Boolean);
-    // `g`: the active set grew — a published change even when nothing starts loading.
+    // `g`: a namespace needed for the first time — a published change even when nothing
+    // starts loading (protocol 2: `state().ns` lists it).
     if (g || fl.size > n) {
       rd = 0;
       pub();
@@ -499,16 +600,21 @@ export const createI18n = (o: I18nOptions): I18n => {
     bad.forEach((_, k) => k.split(K)[i] == v && bad.delete(k));
 
   /**
-   * Activates `n` and loads what the current chain lacks of it (failed pairs stay failed).
-   * A namespace joining the active set publishes (protocol 2: `ns` is part of the state),
-   * in the one publish of `ensure()`.
+   * Loads what the current chain lacks of `n` (failed pairs stay failed); with `x` (`load()`)
+   * rejects by the rule of `load()`. `n` is needed from now on (`handover()` hands it over);
+   * the first time, in the one publish of `ensure()`. `y`: a consumer's hold, counted BEFORE
+   * anything publishes — a subscriber that switches the locale in that publish sees `n` in
+   * the active set (Codex review of lot 4c, HIGH).
    */
-  const use = (n: string, x?: 1): Promise<void> =>
-    dead
+  const use = (n: string, x?: unknown, y = 0): Promise<void> => {
+    const g = !(n in cnt);
+    cnt[n] = (cnt[n] | 0) + y;
+    return dead
       ? R
-      : Promise.all(ensure(S.locale, [n], act.size < act.add(n).size)).then(() => {
+      : Promise.all(ensure(S.locale, [n], g)).then(() => {
           if (x && lost(n)) throw bad.get(S.locale + K + n);
         });
+  };
 
   const lost = (n: string, l = S.locale, ch = chain(l)) =>
     bad.has(l + K + n) && !ch.slice(0, ch.o).some((x) => S.c[n]?.[x[0]]);
@@ -538,7 +644,8 @@ export const createI18n = (o: I18nOptions): I18n => {
         return Promise.reject(RangeError(__DEV__ ? `[@comvi/core] invalid locale "${l}"` : l));
       const my = ++seq;
       const ch = chain(l);
-      const ns = [...act];
+      // The active set at the call: what this switch waits for (never rebuilt meanwhile).
+      const ns = act();
       /** Aborts the loads of locales outside `l`'s chain. */
       const prune = () =>
         fl.forEach((f, k) => ch.some((x) => x[0] == k.split(K)[0]) || (f[1].abort(), drop(k)));
@@ -552,12 +659,16 @@ export const createI18n = (o: I18nOptions): I18n => {
           const ps = ensure(l, ns);
           if (ps.length) return Promise.all(ps).then(go);
           // Partial failure switches (R4-11): a namespace is missing only when the target
-          // itself failed AND no catalog of its own chain (`de-AT` → `de`) is in place.
-          if (ns.length && ns.every((n) => lost(n, l, ch))) throw bad.get(l + K + ns[0]);
+          // itself failed AND no catalog of its own chain (`de-AT` → `de`) is in place. The
+          // locale kept on screen gets back what this switch's start aborted.
+          if (ns.length && ns.every((n) => lost(n, l, ch)))
+            throw (ensure(S.locale, act()), bad.get(l + K + ns[0]));
           // Loads of the old locale a load(ns) started meanwhile are obsolete now.
           prune();
           if (l != S.locale) pub(l);
-          ensure(l, act);
+          // The active set NOW reacts to the new locale: a consumer that appeared while this
+          // switch was pending (it loaded for the locale on screen) gets `l`'s catalog.
+          ensure(l, act());
         }
       };
       // Nothing to load: the switch happens inside this call.
@@ -610,15 +721,24 @@ export const createI18n = (o: I18nOptions): I18n => {
     },
   };
 
-  CORE.set(i18n, {
+  const c: Core = {
     s: () => S,
     tr,
     ch: chain,
     o,
-    n: act,
-    a: use,
+    k: cnt,
+    b: bad,
+    h: (n, a = 1) => {
+      if (__DEV__) idle.delete(K + n);
+      void use(n, 0, 1);
+      // Once: a second call of the same release changes nothing.
+      return () => void (a && ((a = 0), cnt[n]--));
+    },
     w: coming,
-  });
+    r: usable,
+  };
+  if (__DEV__) c.p = (n) => void (cnt[n] || idle.add(K + n));
+  CORE.set(i18n, c);
 
   // The marking hook's setter, for `devtools()` only (R3-14 H4).
   MS.set(i18n, (f) => {
@@ -635,6 +755,6 @@ export const createI18n = (o: I18nOptions): I18n => {
     }
   // A plugin may have switched the locale already, which loaded what that needs; without a
   // loader nothing can start.
-  if (!seq && load) ensure(S.locale, act);
+  if (!seq && load) ensure(S.locale, act());
   return i18n;
 };

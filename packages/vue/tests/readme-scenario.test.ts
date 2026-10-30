@@ -11,6 +11,7 @@ import {
   defineComponent,
   h,
   nextTick,
+  ref,
   vModelSelect,
   withDirectives,
 } from "vue";
@@ -173,5 +174,138 @@ describe("README Vue app (lot 4b)", () => {
     expect(el.innerHTML).toBe(html);
     expect(el.querySelector("h1")!.textContent).toBe("Привіт, Alice!");
     expect(l.requested).toEqual([]);
+  });
+});
+
+/** The README's `src/Account.vue` (lot 4c), as its template compiles: a branch on isReady. */
+const Account = defineComponent({
+  setup() {
+    const { t, isReady, isLoading } = useI18n("account");
+    return () =>
+      isReady.value
+        ? h("h2", t("title"))
+        : isLoading.value
+          ? h("p", { class: "spinner" })
+          : h("p", "Not available");
+  },
+});
+
+const ACCOUNT = {
+  ...CATALOGS,
+  "en:account": { title: "Account" },
+  "uk:account": { title: "Обліковий запис" },
+  "de:account": { title: "Konto" },
+};
+
+describe("README Account (lot 4c)", () => {
+  const mount = async () => {
+    const l = manualLoader(ACCOUNT);
+    const errors: string[] = [];
+    const i18n = createI18n({
+      locale: "en",
+      loader: l.load,
+      onError: (e) => errors.push(`${e.code} ${e.locale}`),
+    });
+    const shown = ref(true);
+    const el = document.createElement("div");
+    const app = createApp(
+      defineComponent({ setup: () => () => [h(App), shown.value ? h(Account) : null] }),
+    ).use(i18n);
+    const mounted = i18n.ready.then(() => app.mount(el));
+    await l.answer("en:default");
+    await mounted;
+    await settle();
+    const account = () => el.querySelector("h2, p.spinner, p:not(:has(*))")?.outerHTML;
+    const pick = async (v: string) => {
+      const select = el.querySelector("select")!;
+      select.value = v;
+      select.dispatchEvent(new Event("change"));
+      await settle();
+    };
+    const show = async (b: boolean) => {
+      shown.value = b;
+      await settle();
+    };
+    return { l, i18n, account, pick, show, errors, app };
+  };
+
+  it("success: the spinner while it loads, then the title; a switch while mounted loads it too", async () => {
+    const s = await mount();
+    expect(s.account()).toBe('<p class="spinner"></p>');
+    await s.l.answer("en:account");
+    expect(s.account()).toBe("<h2>Account</h2>");
+    await s.pick("uk");
+    expect(s.l.requested).toEqual(["en:default", "en:account", "uk:default", "uk:account"]);
+    await s.l.answer("uk:default");
+    expect(s.account()).toBe("<h2>Account</h2>"); // the switch waits for account
+    await s.l.answer("uk:account");
+    expect(s.account()).toBe("<h2>Обліковий запис</h2>");
+    expect(s.errors).toEqual([]);
+    s.app.unmount();
+  });
+
+  it("error: 'Not available', never a spinner forever; i18n.load() retries", async () => {
+    const s = await mount();
+    await s.l.fail("en:account");
+    expect(s.account()).toBe("<p>Not available</p>");
+    expect(s.errors).toEqual(["load_failed en"]);
+    void s.i18n.load("account").catch(() => {});
+    await settle();
+    expect(s.account()).toBe('<p class="spinner"></p>');
+    await s.l.answer("en:account");
+    expect(s.account()).toBe("<h2>Account</h2>");
+    s.app.unmount();
+  });
+
+  it("fast double switch: the last wins, account included", async () => {
+    const s = await mount();
+    await s.l.answer("en:account");
+    await s.pick("uk");
+    await s.pick("de");
+    expect(s.l.signals.get("uk:account")!.aborted).toBe(true);
+    await s.l.answer("de:default");
+    await s.l.answer("de:account");
+    expect(s.account()).toBe("<h2>Konto</h2>");
+    s.app.unmount();
+  });
+
+  it("unmounted, then a switch: only default loads; mounted again it loads for the new locale", async () => {
+    const s = await mount();
+    await s.l.answer("en:account");
+    await s.show(false);
+    await s.pick("de");
+    await s.l.answer("de:default");
+    expect(s.l.requested).toEqual(["en:default", "en:account", "de:default"]);
+    await s.show(true);
+    expect(s.account()).toBe('<p class="spinner"></p>');
+    await s.l.answer("de:account");
+    expect(s.account()).toBe("<h2>Konto</h2>");
+    s.app.unmount();
+  });
+
+  it("hydration: the server's useI18n loads it before the render; the same branch, 0 requests", async () => {
+    const server = createI18n({
+      locale: "uk",
+      timeZone: "UTC",
+      loader: async (l, n) => ACCOUNT[`${l}:${n}` as keyof typeof ACCOUNT],
+    });
+    await server.ready;
+    const html = await renderToString(createSSRApp(Account).use(server));
+    expect(html).toBe("<h2>Обліковий запис</h2>");
+    const l = manualLoader(ACCOUNT);
+    const client = createI18n({
+      locale: "en",
+      loader: l.load,
+      ...JSON.parse(JSON.stringify(handover(server))),
+    });
+    const el = document.createElement("div");
+    el.innerHTML = html;
+    const app = createSSRApp(Account).use(client);
+    const warnings = await vueWarnings(async () => {
+      app.mount(el);
+      await settle();
+    });
+    expect([warnings, el.innerHTML, l.requested]).toEqual([[], html, []]);
+    app.unmount();
   });
 });

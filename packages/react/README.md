@@ -19,13 +19,13 @@
 ---
 
 `@comvi/react` binds the Comvi i18n instance to React: one provider at the root, `useI18n()` in
-components, and `<T>` for translations that contain markup.
+components (`useLocale()` for the locale alone, `useFormat()` from `@comvi/react/format` for
+numbers and dates), and `<T>` for translations that contain markup.
 
 ## Install
 
 ```bash
-npm install @comvi/react @comvi/core # the app imports @comvi/core/cdn too
-# Peer: react ^18.0.0 || ^19.0.0
+npm install @comvi/react @comvi/core # peer: react 18 or 19; the app imports @comvi/core/cdn
 ```
 
 ## Setup
@@ -37,10 +37,7 @@ import App from "./App";
 
 const i18n = createI18n({
   locale: "en",
-  messages: {
-    en: { greeting: "Hello, {name}!" },
-    uk: { greeting: "Привіт, {name}!" },
-  },
+  messages: { en: { greeting: "Hello, {name}!" }, uk: { greeting: "Привіт, {name}!" } },
 });
 
 createRoot(document.getElementById("root")!).render(
@@ -71,11 +68,28 @@ export default function App() {
 
 `t()` fills `{name}` from its second argument (`{ ns }`, `{ locale }` there apply to one call);
 text params give a string, a tag handler or an element a React element. `setLocale()` switches
-once the new catalogs are in (the old locale stays on screen; of two quick calls the last wins);
-it rejects for an invalid tag or when no catalog of the locale or its parent (`de` for `de-AT`)
-loaded, and `onError` reports it. `useI18n("admin")` binds `t` and `T` to a namespace and loads
-it after mount (`useI18n()` loads `default`); meanwhile `isLoading` is `true` and `t()` returns
-what a missing key returns, unreported. A failed load is retried by `i18n.load("admin")` only.
+once the new catalogs are in (the old locale stays on screen; the last of quick calls wins); it
+rejects for an invalid tag or when no catalog of the locale or its parent (`de` for `de-AT`) loaded.
+
+## Namespaces
+
+```tsx title="src/Account.tsx"
+import { useI18n } from "@comvi/react";
+
+export function Account() {
+  const { t, isReady, isLoading } = useI18n("account");
+  if (!isReady) return isLoading ? <p className="spinner" /> : <p>Not available</p>;
+  return <h2>{t("title")}</h2>;
+}
+```
+
+`useI18n("account")` binds `t` and `T` and holds the namespace while mounted: it loads for the
+locale on screen and every switch; with no component holding it, it stays cached and a switch
+skips it. `isReady`: a catalog of the locale on screen, its parent or a `fallbackLocale` is in;
+`isLoading`: one is on the way. A failed load is `false`/`false` only with no usable catalog —
+with a fallback locale's catalog in, it is `true`/`false` once the requests finish; a remount
+does not retry, but
+`i18n.load("account")` does (it preloads a route too, holding nothing). `t()` and `<T>` only read.
 
 ## Load from Comvi
 
@@ -93,7 +107,7 @@ const i18n = createI18n({
   ...(window as { __I18N__?: object }).__I18N__,
 });
 
-// 2. Gate: `loading` shows while the first catalogs have no text. 3. Content.
+// 2. Gate: `loading` shows while the first catalogs are not ready. 3. Content.
 createRoot(document.getElementById("root")!).render(
   <I18nProvider i18n={i18n} loading={<div className="spinner" />}>
     <App />
@@ -101,10 +115,10 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-With `suspense` instead of `loading`, the provider suspends to the nearest `<Suspense>`. Both
-gate the first paint only, while a namespace being loaded has no catalog of any locale. The gate
-is decided before the children render, so an `<I18nHandover>` under a shut gate renders only
-when it opens: pass the data first, as above. Server renders and hydrations are never gated.
+With `suspense`, the provider suspends to the nearest `<Suspense>` instead. Both gate the first
+paint only, while a namespace being loaded is not `isReady` (another locale's catalog does not
+count), before the children render: an `<I18nHandover>` under a shut gate waits, so pass the data
+first. Server renders and hydrations are never gated; a server preloads with `i18n.load()`.
 
 ## Markup in a translation
 
@@ -120,30 +134,18 @@ import { T } from "@comvi/react";
 ```
 
 A tag renders through a prop of its name (a handler gets the content as one node), else its
-`components` entry (a tag name, a component, or `{ component, props }` with the content as
-`children`), else as text; an `undefined` one is skipped. Every prop but `i18nKey`, `components`,
-`ns`, `locale` and `markers` is a param; `markers={false}` opts out of in-context editor marks.
-
-### How it works
-
-`<I18nProvider>` subscribes once (`useSyncExternalStore`) and re-renders `useI18n()` consumers on
-a locale or catalog change; `useLocale()` on the locale only. `<I18nHandover catalogs locale>`
-renders with a server's catalogs at once and hands them over at commit (any depth in a
-hydration). `useFormat()` from `@comvi/react/format` formats numbers, dates, currency and
-relative time in the locale on screen, from a handed-over `serverNow` during hydration.
+`components` entry (a tag name, a component, or `{ component, props }`, content as `children`),
+else as text. Every prop but `i18nKey`, `components`, `ns`, `locale` and `markers` is a param.
 
 ## Read next
 
 - [React guide](https://comvi.io/docs/i18n/react): markup inside a translation, first paint, SSR.
 - [Loading translations](https://comvi.io/docs/i18n/loading-translations): loaders, namespaces, fallbacks.
-- [Type safety](https://comvi.io/docs/i18n/type-safety): generated catalogs so `t()` and `<T>` check keys and params.
 - [React API reference](https://comvi.io/docs/i18n/api/react): every export, hook and provider prop.
 
 ## Contributing
 
-Bug reports, docs fixes and pull requests are welcome.
-[CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md) explains the setup
-and what CI checks.
+Bug reports, docs fixes and pull requests are welcome: [CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md).
 
 ## License
 

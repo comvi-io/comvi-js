@@ -6,7 +6,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { createI18n, type I18n } from "../../src/instance";
-import { activate, loading, state, translate, view } from "../../src/internal";
+import { acquire, coming, loading, state, translate, view } from "../../src/internal";
 import { flush, make, manualLoader } from "./helpers";
 
 describe("on() / rev()", () => {
@@ -164,21 +164,25 @@ describe("view() — render-local catalogs (R4-15; 0.7 withMessages)", () => {
     expect(() => state({} as I18n)).toThrow(/not an instance/);
   });
 
-  it("another locale: what its chain lacks of an active namespace counts as loading", () => {
+  it("another locale: what its chain lacks counts as loading", () => {
     const { i18n, errors } = make({
       locale: "en",
       messages: { en: { a: "A" } },
       loader: () => new Promise(() => {}),
     });
     const v = view(i18n, state(i18n), {}, "de");
-    // Loads at commit (setLocale), so the view reports it loading and no key missing.
-    expect(v.ld).toEqual(["de\0default"]);
-    expect(loading(v, "default")).toBe(true);
+    // Loads at commit (setLocale), so the view reports it loading (the core's `isLoading`
+    // rule, lot 4c: no flight is invented) and no key missing (no catalog of its chain).
+    expect(v.ld).toEqual([]);
+    expect(coming(i18n, v, "default")).toBe(true);
     expect(translate(i18n, v, "a")).toBe("a");
     expect(errors.map((e) => e.code)).toEqual([]);
     // Handed-over catalogs of the target are not loading; the published locale adds nothing.
-    expect(view(i18n, state(i18n), { default: { de: { a: "DE" } } }, "de").ld).toEqual([]);
-    expect(view(i18n, state(i18n), { default: { en: { a: "V" } } }).ld).toEqual([]);
+    const de = view(i18n, state(i18n), { default: { de: { a: "DE" } } }, "de");
+    expect(coming(i18n, de, "default")).toBe(false);
+    expect(coming(i18n, view(i18n, state(i18n), { default: { en: { a: "V" } } }), "default")).toBe(
+      false,
+    );
     expect(state(i18n).ld).toEqual([]);
   });
 });
@@ -206,16 +210,17 @@ describe("translate(…, join) — a binding's joiner (R4-20)", () => {
   });
 });
 
-describe("activate(i18n, ns) — a binding's namespace activation", () => {
+describe("acquire(i18n, ns) — a consumer's hold (lot 4c)", () => {
   it("loads like load(ns) but never asks a failed pair again (load() is the retry)", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", namespaces: [], loader: l.load });
-    const first = activate(i18n, "shop");
+    const release = acquire(i18n, "shop");
     await l.fail("en:shop");
-    await first;
-    // A remount activating again: no refetch of the failed pair.
-    await activate(i18n, "shop");
-    await activate(i18n, "shop");
+    release();
+    // A remount holding again: no refetch of the failed pair.
+    acquire(i18n, "shop")();
+    acquire(i18n, "shop");
+    await i18n.ready;
     expect(l.requested).toEqual(["en:shop"]);
     // The explicit retry.
     const retry = i18n.load("shop");
@@ -225,17 +230,18 @@ describe("activate(i18n, ns) — a binding's namespace activation", () => {
     expect(i18n.t("t", { ns: "shop" })).toBe("Cart");
   });
 
-  it("activates for later switches and does nothing after destroy()", async () => {
+  it("keeps it active for later switches while held; does nothing after destroy()", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", namespaces: [], loader: l.load });
-    void activate(i18n, "shop");
+    acquire(i18n, "shop");
     await l.answer("en:shop", { t: "Cart" });
     const s = i18n.setLocale("de");
     expect(l.requested).toEqual(["en:shop", "de:shop"]);
     await l.answer("de:shop", { t: "Korb" });
     await s;
     i18n.destroy();
-    await activate(i18n, "other");
+    acquire(i18n, "other");
+    await i18n.ready;
     expect(l.requested).toEqual(["en:shop", "de:shop"]);
   });
 });

@@ -130,7 +130,7 @@ describe("missing keys", () => {
 
   it("are printed once per key in development by the default reporter, with the package name", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    const i18n = createI18n({ locale: "en" });
+    const i18n = createI18n({ locale: "en", messages: { en: {} } });
     i18n.t("gone");
     i18n.t("gone");
     expect(error.mock.calls).toEqual([['[@comvi/core] missing_key "gone" (en)']]);

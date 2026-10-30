@@ -540,6 +540,7 @@ test("STEPS: a column per scenario, k2/k3 beside k, g2 beside g", () => {
     ...CDN_CONTROL_STEPS,
     // The `account` namespace, after every step that predates it.
     "w",
+    "w2",
     "x",
     "y",
     "z",

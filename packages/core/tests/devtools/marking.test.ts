@@ -189,7 +189,10 @@ describe("no session, no devtools", () => {
       [
         // A prototype-free object (bindings' params and per-namespace tables); sets nothing.
         "N",
-        "activate",
+        // A consumer's hold of a namespace (lot 4c); sets nothing.
+        "acquire",
+        // `isReady` of a namespace in a state; sets nothing.
+        "available",
         "canonicalize",
         // Reads the instance's clock (a handed-over serverNow, a live render); sets nothing.
         "clock",
@@ -219,7 +222,19 @@ describe("no session, no devtools", () => {
       ].sort(),
     );
     // The seam a binding reads holds no setter of the hook (lot 4b: `core` is exported).
-    expect(Object.keys(internal.core(i18n)).sort()).toEqual(["a", "ch", "n", "o", "s", "tr", "w"]);
+    expect(Object.keys(internal.core(i18n)).sort()).toEqual([
+      "b",
+      "ch",
+      "h",
+      "k",
+      "o",
+      // Development only: a render's declaration before its hold (diagnostic marker only).
+      "p",
+      "r",
+      "s",
+      "tr",
+      "w",
+    ]);
     expect(win.__COMVI__).toBeUndefined();
   });
 

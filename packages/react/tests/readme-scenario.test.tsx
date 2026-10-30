@@ -5,6 +5,7 @@
  * loader stands for `cdn()`. No case may leave an unhandled rejection or a raw key the
  * contract does not name.
  */
+import { useState } from "react";
 import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import { act, fireEvent, render } from "@testing-library/react";
@@ -122,10 +123,10 @@ describe("README React app (lot 4b)", () => {
   it("error on the first load: the gate opens with the keys, no spinner forever", async () => {
     const s = start();
     await s.l.fail("en:default");
-    // The contract's "missing" text: the key, reported (the catalog will not come).
+    // The contract's "missing" text: the key. The failure is the load's (load_failed); with no
+    // catalog of the chain in place a read is not a missing key (owner 30.10).
     expect(s.h1()).toBe("greeting");
-    expect(s.errors[0]).toBe("load_failed en");
-    expect(new Set(s.errors.slice(1))).toEqual(new Set(["missing_key en"]));
+    expect(s.errors).toEqual(["load_failed en"]);
   });
 
   it("fast double switch: the last one wins, the earlier never shows", async () => {
@@ -221,6 +222,139 @@ describe("README React app (lot 4b)", () => {
     expect(client.locale).toBe("uk");
     expect(container.innerHTML).toBe(html);
     expect(l.requested).toEqual(["en:default"]); // nothing after the hydration
+    act(() => root.unmount());
+  });
+});
+
+/** The README's `src/Account.tsx` (lot 4c): a namespace held while mounted, shown on isReady. */
+function Account() {
+  const { t, isReady, isLoading } = useI18n("account");
+  if (!isReady) return isLoading ? <p className="spinner" /> : <p>Not available</p>;
+  return <h2>{t("title")}</h2>;
+}
+
+const ACCOUNT = {
+  ...CATALOGS,
+  "en:account": { title: "Account" },
+  "uk:account": { title: "Обліковий запис" },
+  "de:account": { title: "Konto" },
+};
+
+describe("README Account (lot 4c)", () => {
+  const mount = () => {
+    const l = manualLoader(ACCOUNT);
+    const errors: string[] = [];
+    const i18n = createI18n({
+      locale: "en",
+      loader: l.load,
+      onError: (e) => errors.push(`${e.code} ${e.locale}`),
+    });
+    let show!: (b: boolean) => void;
+    const Page = () => {
+      const [on, set] = useState(true);
+      show = set;
+      return (
+        <>
+          <App />
+          {on && <Account />}
+        </>
+      );
+    };
+    const view = render(
+      <I18nProvider i18n={i18n} loading={<div className="loading" />}>
+        <Page />
+      </I18nProvider>,
+    );
+    const account = () => view.container.querySelector("h2, p.spinner, p:not(:has(*))")?.outerHTML;
+    const pick = (v: string) =>
+      act(
+        () =>
+          void fireEvent.change(view.container.querySelector("select")!, { target: { value: v } }),
+      );
+    return { l, i18n, view, account, pick, errors, show: (b: boolean) => act(() => show(b)) };
+  };
+
+  it("success: the spinner while it loads, then the title; a switch while mounted loads it too", async () => {
+    const s = mount();
+    await s.l.answer("en:default");
+    expect(s.account()).toBe('<p class="spinner"></p>');
+    await s.l.answer("en:account");
+    expect(s.account()).toBe("<h2>Account</h2>");
+    await s.pick("uk");
+    expect(s.l.requested).toEqual(["en:default", "en:account", "uk:default", "uk:account"]);
+    await s.l.answer("uk:default");
+    expect(s.account()).toBe("<h2>Account</h2>"); // the switch waits for account
+    await s.l.answer("uk:account");
+    expect(s.account()).toBe("<h2>Обліковий запис</h2>");
+    expect(s.errors).toEqual([]);
+  });
+
+  it("error: 'Not available', never a spinner forever; i18n.load() retries", async () => {
+    const s = mount();
+    await s.l.answer("en:default");
+    await s.l.fail("en:account");
+    expect(s.account()).toBe("<p>Not available</p>");
+    expect(s.errors).toEqual(["load_failed en"]);
+    act(() => void s.i18n.load("account").catch(() => {}));
+    expect(s.account()).toBe('<p class="spinner"></p>');
+    await s.l.answer("en:account");
+    expect(s.account()).toBe("<h2>Account</h2>");
+  });
+
+  it("fast double switch: the last wins, account included", async () => {
+    const s = mount();
+    await s.l.answer("en:default");
+    await s.l.answer("en:account");
+    await s.pick("uk");
+    await s.pick("de");
+    expect(s.l.signals.get("uk:account")!.aborted).toBe(true);
+    await s.l.answer("de:default");
+    await s.l.answer("de:account");
+    expect(s.account()).toBe("<h2>Konto</h2>");
+  });
+
+  it("unmounted, then a switch: only default loads; mounted again it loads for the new locale", async () => {
+    const s = mount();
+    await s.l.answer("en:default");
+    await s.l.answer("en:account");
+    await s.show(false);
+    await s.pick("de");
+    await s.l.answer("de:default");
+    expect(s.l.requested).toEqual(["en:default", "en:account", "de:default"]);
+    await s.show(true);
+    expect(s.account()).toBe('<p class="spinner"></p>');
+    await s.l.answer("de:account");
+    expect(s.account()).toBe("<h2>Konto</h2>");
+  });
+
+  it("hydration: the server preloads with load(); the same branch, 0 requests", async () => {
+    const server = createI18n({
+      locale: "uk",
+      timeZone: "UTC",
+      loader: async (l, n) => ACCOUNT[`${l}:${n}` as keyof typeof ACCOUNT],
+    });
+    await Promise.all([server.ready, server.load("account")]);
+    const ui2 = (i: I18n) => (
+      <I18nProvider i18n={i}>
+        <Account />
+      </I18nProvider>
+    );
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(ui2(server));
+    expect(container.innerHTML).toBe("<h2>Обліковий запис</h2>");
+    const l = manualLoader(ACCOUNT);
+    const client = createI18n({
+      locale: "en",
+      loader: l.load,
+      ...JSON.parse(JSON.stringify(handover(server))),
+    });
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    let root!: ReturnType<typeof hydrateRoot>;
+    await act(async () => void (root = hydrateRoot(container, ui2(client))));
+    await settle();
+    expect(err).not.toHaveBeenCalled();
+    err.mockRestore();
+    expect([container.innerHTML, l.requested]).toEqual(["<h2>Обліковий запис</h2>", []]);
     act(() => root.unmount());
   });
 });

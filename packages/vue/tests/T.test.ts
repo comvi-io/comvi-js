@@ -19,7 +19,7 @@ import { renderToString } from "vue/server-renderer";
 import { createSSRApp } from "vue";
 import { describe, expect, it, vi } from "vitest";
 import { createI18n, T, useI18n, type VueI18n } from "../src";
-import { mountWith, vueWarnings } from "./helpers";
+import { mountWith, tick, vueWarnings } from "./helpers";
 
 const en = (m: Record<string, string>) => createI18n({ locale: "en", messages: { en: m } });
 const Tc = T as never;
@@ -96,11 +96,13 @@ describe("<T i18nKey>", () => {
     expect(mountWith(i18n, Parent).text()).toBe("D");
   });
 
-  it("activates the namespace of its ns prop after mount, and again when the prop changes", async () => {
+  it("reads only (lot 4c): <T ns> requests nothing, before or after mount, nor when the prop changes", async () => {
     const requested: string[] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const i18n = createI18n({
       locale: "en",
       messages: { en: {} },
+      onError: () => {},
       loader: async (l, n) => (requested.push(`${l}:${n}`), { k: n }),
     });
     const ns = ref("shop");
@@ -108,31 +110,25 @@ describe("<T i18nKey>", () => {
       i18n,
       defineComponent({ render: () => h(Tc, { i18nKey: "k", ns: ns.value }) }),
     );
-    expect(requested).toEqual(["en:shop"]);
     await i18n.ready;
     await nextTick();
-    expect(w.text()).toBe("shop");
+    expect(w.text()).toBe("k");
     ns.value = "cart";
     await nextTick();
-    expect(requested).toEqual(["en:shop", "en:cart"]);
     await i18n.ready;
+    await tick();
+    expect(requested).toEqual([]);
+    // Development names the namespace nothing loads, once each.
+    expect(warn.mock.calls.map((c) => String(c[0]).match(/namespace "(\w+)"/)![1])).toEqual([
+      "shop",
+      "cart",
+    ]);
+    // What loads it: i18n.load() (or a useI18n(ns) holding it); <T> then renders the text.
+    await i18n.load("cart");
     await nextTick();
     expect(w.text()).toBe("cart");
-  });
-
-  it("activates the namespace of its ns prop after its render, never during setup", () => {
-    const requested: string[] = [];
-    const atRender: string[][] = [];
-    const i18n = createI18n({
-      locale: "en",
-      messages: { en: {} },
-      loader: async (l, n) => (requested.push(`${l}:${n}`), {}),
-      // Called while <T> renders a key its namespace does not hold yet.
-      missing: (key) => (atRender.push([...requested]), key),
-    });
-    mountWith(i18n, defineComponent({ render: () => h(Tc, { i18nKey: "k", ns: "shop" }) }));
-    expect(atRender[0]).toEqual([]);
-    expect(requested).toEqual(["en:shop"]);
+    expect(requested).toEqual(["en:cart"]);
+    warn.mockRestore();
   });
 
   it("re-renders on a locale switch and on new params", async () => {

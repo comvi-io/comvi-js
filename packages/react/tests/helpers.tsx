@@ -50,6 +50,9 @@ export const flush = async () => {
   for (let i = 0; i < 10; i++) await Promise.resolve();
 };
 
+/** Lets the core's development idle-read diagnostic run: it re-checks after the render's task. */
+export const tick = () => new Promise((y) => setTimeout(y));
+
 /** flush() inside act(), so what the settled work published commits. */
 export const settle = () => act(flush);
 

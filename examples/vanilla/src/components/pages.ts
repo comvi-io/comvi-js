@@ -55,23 +55,33 @@ export function featuresPage(): Node[] {
   ];
 }
 
-// The `account` namespace is loaded the first time this page opens. `load()`
-// also keeps it active, so a later `setLocale` loads it together with the
-// default namespace before the new locale applies.
-let account: "idle" | "loading" | "ready" = "idle";
+// The `account` namespace loads when this page opens, for the locale on screen.
+// Without a component there is nothing to hold it: `load()` loads it now and
+// keeps nothing active, so a switch loads only the `default` namespace. When
+// the page renders in a locale it has not loaded `account` for (a switch, or a
+// visit after one), it loads it again and shows the loading row meanwhile —
+// never the previous language's rows.
+let account: string | null = null;
+let loading: string | null = null;
 function loadAccount(): void {
-  if (account !== "idle") return;
-  account = "loading";
-  // `load()` never rejects: a failed catalog is reported to `onError`, and the
-  // page still renders with the account keys shown as any missing translation.
-  void i18n.load("account").then(() => {
-    account = "ready";
-    update({});
-  });
+  const locale = i18n.locale;
+  if (account === locale || loading === locale) return;
+  loading = locale;
+  // A failed catalog is reported to `onError`; the page still renders, with the
+  // fallback language's rows (or the keys).
+  void i18n
+    .load("account")
+    .catch(() => {})
+    .then(() => {
+      if (loading !== locale) return;
+      loading = null;
+      account = locale;
+      update({});
+    });
 }
 
 function accountRows(): HTMLElement[] {
-  if (account !== "ready") return [h("p", { class: "body" }, i18n.t("app.loading"))];
+  if (account !== i18n.locale) return [h("p", { class: "body" }, i18n.t("app.loading"))];
   // Without a framework there is no `useI18n("account")`: each call names its namespace.
   return [
     h(

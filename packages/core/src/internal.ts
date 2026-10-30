@@ -6,8 +6,9 @@
  * `state(i18n)` (the published snapshot), `view(i18n, state, extra)` (a render-local
  * snapshot with extra catalogs layered in, never published, `rev` unchanged) and
  * `translate(i18n, state, key, params, ns)`, plus `loading(state, ns)`,
- * `coming(i18n, state, ns)` and `activate(i18n, ns)` — or, in a binding, `core(i18n)`, the
- * seam those read. A state carries the marking hook of an editor session (`mk`,
+ * `coming(i18n, state, ns)` (`isLoading`), `available(i18n, state, ns)` (`isReady`) and
+ * `acquire(i18n, ns)` (a consumer's hold) — or, in a binding, `core(i18n)`, the seam those
+ * read. A state carries the marking hook of an editor session (`mk`,
  * R3-14 H4), which only the `/devtools` handle sets; nothing here sets it. `handover(i18n)`
  * is what a server render gives the browser (design §2.6, R3-21).
  */
@@ -52,11 +53,12 @@ export const core = (i18n: I18n): Core => {
 export const state = (i18n: I18n): State => core(i18n).s();
 
 /**
- * Activates namespace `ns` of `i18n` (a binding's `useI18n(ns)` after commit): loads what
- * the current locale lacks of it, but never asks a failed load again — a remount after a
- * failure does not refetch; `i18n.load(ns)` is the explicit retry.
+ * A consumer of `i18n` holds namespace `ns` (a binding's `useI18n(ns)` at commit or mount):
+ * `ns` is active while held, and what the current locale lacks of it loads — but a failed
+ * load is never asked again: a remount after a failure does not refetch; `i18n.load(ns)` is
+ * the explicit retry. Returns the release (call it once).
  */
-export const activate = (i18n: I18n, ns: string): Promise<void> => core(i18n).a(ns);
+export const acquire = (i18n: I18n, ns: string): (() => void) => core(i18n).h(ns);
 
 /**
  * Layered slots per (existing slot, extra catalog): a view rebuilt for the same slot and
@@ -94,25 +96,18 @@ export const view = (
       (c as Record<string, Store[string]>)[n] = N(c[n], { [l]: next });
     }
   // The chain gives the locale's direction and canonical tag (an invalid one renders
-  // through its fallbacks, as a published state does).
-  const x = core(i18n);
-  const h = x.ch(locale);
+  // through its fallbacks, as a published state does). In another locale than the published
+  // one, what its chain lacks is loading (`isLoading`; never requested, it is no
+  // `missing_key`) by the core's own rule: the switch at commit loads it.
+  const h = core(i18n).ch(locale);
   if (c === state.c && locale == state.locale) return state;
-  // Another locale than the published one: what its chain lacks of an active namespace
-  // will load when the switch lands at commit, so it counts as loading in the view (its
-  // keys are not reported missing, `isLoading` is true) — the view of a handover to a
-  // locale nobody handed catalogs for.
-  let ld = state.ld;
-  if (locale != state.locale)
-    for (const n of x.n)
-      for (const [k] of h) if (!c[n]?.[k] && !ld.includes(k + "\0" + n)) ld = [...ld, k + "\0" + n];
   return mk(
     state.rev,
     state.lrev,
     locale,
     h.o ? dir(h[0][1]) : "ltr",
     c,
-    ld,
+    state.ld,
     state.dp,
     h.o ? h[0][1] : locale,
     // An editor session's marking hook carries over: render-local output is marked too (H4).
@@ -134,12 +129,18 @@ export const translate = (
 ): Rendered => core(i18n).tr(state, key, params, ns, join);
 
 /**
- * Whether namespace `ns` of `i18n` is still coming in `state`: a load of it is in flight,
- * or the instance has a loader and nobody activated `ns` yet while it holds no catalog of
- * the state's locale (a binding's `useI18n(ns)` before its activation after commit). Its
- * keys are not reported missing meanwhile; a binding's `isLoading` (lot 1d).
+ * `isLoading` of namespace `ns` of `i18n` in `state` (lot 4c): a load of it is in flight, or
+ * the instance has a loader and a pair of the chain of the state's locale is neither in
+ * place nor failed (what a consumer's hold loads; its render comes first).
  */
 export const coming = (i18n: I18n, state: State, ns: string): boolean => !!core(i18n).w(state, ns);
+
+/**
+ * `isReady` of namespace `ns` of `i18n` in `state` (lot 4c): a catalog of it from the chain
+ * of the state's locale (that locale, its parents, the fallback locales) is in place — an
+ * empty one too; a catalog of a locale outside the chain does not count.
+ */
+export const available = (i18n: I18n, state: State, ns: string): boolean => core(i18n).r(state, ns);
 
 /** Whether a catalog load is in flight in `state` (for namespace `ns`, or any). */
 export const loading = (state: State, ns?: string): boolean =>
@@ -147,9 +148,11 @@ export const loading = (state: State, ns?: string): boolean =>
 
 /**
  * What a server render hands the browser (design §2.6, R3-21): the locale, the time zone and
- * the clock the render used, and the catalogs it rendered with — every active namespace in
- * the locale's chain (its parents and fallback locales), in the shape of
- * `createI18n({ catalogs })`, a slot whose load failed as `null`. The browser's
+ * the clock the render used, and every catalog the instance has in place — inline, loaded or
+ * `add()`ed, of every locale (a per-call `{ locale }` read outside the locale's chain, its
+ * parents and fallback locales too; owner 30.10) — in the shape of `createI18n({ catalogs })`,
+ * every slot whose load failed as `null`. Nothing is tracked during the render, and handing a
+ * catalog over makes no namespace active and changes no locale. The browser's
  * `createI18n({ ...options, ...handover })` then renders what the server rendered and asks
  * the loader for none of it; a `null` slot is asked for again only on an explicit retry
  * (`i18n.load(ns)`, a switch to its locale).
@@ -181,16 +184,20 @@ export const handover = (i18n: I18n): Handover => {
       "[@comvi/core] a server render needs the timeZone option: the server and the browser must format dates in one zone",
     );
   const catalogs = N<Record<string, Catalog | null>>();
-  for (const n of x.n)
-    for (const [l] of x.ch(s.locale)) {
-      const y = s.c[n]?.[l];
-      // A patched slot is handed over as one catalog: the base with the patch on top. A
-      // slot of an active namespace that is neither in place nor loading failed to load
-      // (the loader asks for every slot of the chain): handed over as `null`, so the browser
-      // renders the fallback the server rendered and does not ask for it at hydration
-      // (R3-21); `createI18n` keeps it failed until an explicit `load(ns)` retries it.
-      if (y || (x.o.loader && !s.ld.includes(l + "\0" + n)))
-        (catalogs[n] ||= N())[l] = !y ? null : y.p ? N(y.m, y.p) : y.m;
+  // Every catalog in place, whatever its locale: an inline one a passive read rendered (no
+  // consumer holds anything in a React server render), one a per-call `{ locale }` read. A
+  // patched slot is handed over as one catalog: the base with the patch on top.
+  for (const n in s.c)
+    for (const l in s.c[n]) {
+      const y = s.c[n][l]!;
+      (catalogs[n] ||= N())[l] = y.p ? N(y.m, y.p) : y.m;
     }
+  // A slot whose load failed (the negative cache) is handed over as `null`, so the browser
+  // renders the fallback the server rendered and does not ask for it at hydration (R3-21);
+  // `createI18n` keeps it failed until an explicit retry (`load(ns)`, a switch to its locale).
+  x.b.forEach((_, k) => {
+    const [l, n] = k.split("\0");
+    (catalogs[n] ||= N())[l] ??= null;
+  });
   return { locale: s.locale, timeZone: x.o.timeZone, serverNow: clock(i18n), catalogs };
 };
