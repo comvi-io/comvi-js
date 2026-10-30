@@ -92,6 +92,26 @@ describe.each([
     warn.mockRestore();
   });
 
+  it("a request in flight has priority over a catalog add()ed to its pair: silent until it settles (owner 30.10)", async () => {
+    const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
+    const errors: unknown[] = [];
+    let answer!: (c: Record<string, string>) => void;
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: {} },
+      loader: () => new Promise((y) => (answer = y)),
+      onError: (e) => errors.push(e),
+    });
+    const p = i18n.load("shop");
+    i18n.add("en", { other: "x" }, "shop");
+    i18n.t("title", { ns: "shop" });
+    expect(errors).toEqual([]);
+    answer({});
+    await p;
+    i18n.t("title", { ns: "shop" });
+    expect(errors).toEqual([{ code: "missing_key", key: "title", locale: "en", ns: "shop" }]);
+  });
+
   it("the CDN subpath and the instance work across chunks", async () => {
     const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
     const { cdn } = await load<typeof Cdn>(`comvi-core-cdn${suffix}.js`);

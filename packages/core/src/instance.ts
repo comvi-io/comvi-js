@@ -104,9 +104,11 @@ export interface I18nOptions {
   /**
    * Every problem, as a coded {@link I18nError}. Default: development console, production
    * silent. `missing_key`: the key is absent, a catalog of the namespace is in place for the
-   * read's chain (its locale, parents, fallback locales), and every pair of that chain is
-   * settled — in place or failed; with a loader a pair never requested or still loading keeps
-   * it unknown (no report), without one the catalogs in place are complete. Reported at the
+   * read's chain (its locale, parents, fallback locales; a per-call `{ locale }` / `{ ns }`
+   * counts), and every pair of that chain is settled — in place or failed, with no load of it
+   * in flight (a request has priority over a catalog `add()`ed meanwhile; a retry makes the
+   * pair unknown again); with a loader a pair never requested or still loading keeps it
+   * unknown (no report), without one the catalogs in place are complete. Reported at the
    * read. `load_failed`: a load failed. A namespace with no catalog of the read's chain (a
    * typo) is no report; development warns.
    */
@@ -496,8 +498,10 @@ export const createI18n = (o: I18nOptions): I18n => {
         }
       }
       // Missing (lot 4c, owner 30.10): no message, a catalog of the namespace in place for the
-      // read's chain, and every pair of that chain SETTLED — in place, or failed (the negative
-      // cache). With a loader, a pair never requested or still loading is unknown: no report
+      // read's chain (a per-call `{ locale }`/`{ ns }` included), and every pair of that chain
+      // SETTLED — in place or failed (the negative cache), and no load of it in flight: a
+      // request has priority (a catalog `add()`ed meanwhile, a retry of a failure). With a
+      // loader, a pair never requested or still loading is unknown: no report
       // (an unconfirmed error is not reported; one nobody ever requests never is). Without a
       // loader the catalogs in place are the complete set. No catalog of the chain at all is
       // the development warning above (a failed load is `load_failed`). Reported at the read,
@@ -507,7 +511,8 @@ export const createI18n = (o: I18nOptions): I18n => {
       if (
         h != noop &&
         ch.some(([x]) => s.c[n]?.[x]) &&
-        (!load || ch.every(([x]) => s.c[n]?.[x] || bad.has(x + K + n)))
+        (!load ||
+          ch.every(([x]) => (s.c[n]?.[x] || bad.has(x + K + n)) && !s.ld.includes(x + K + n)))
       )
         err("missing_key", l, n, key);
       // A missing key is marked too: the translator clicks keys no catalog has (H4).

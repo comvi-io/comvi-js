@@ -639,6 +639,71 @@ describe("missing_key: a catalog of the chain in place and every pair of the cha
     await sw;
   });
 
+  it("a request in flight has priority: a catalog add()ed to that pair meanwhile does not settle it; reported only after the request finishes without the key", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const p = i18n.load("shop"); // en:shop in flight
+    i18n.add("en", { other: "x" }, "shop");
+    i18n.t("title", { ns: "shop" });
+    expect(mk(errors)).toEqual([]);
+    await l.answer("en:shop", { more: "y" });
+    await p;
+    i18n.t("title", { ns: "shop" });
+    expect(mk(errors)).toEqual(["title shop en"]);
+  });
+
+  it("a retry makes the result unknown again: failed → reported; load(ns) in flight → silent; settled without the key → reported again", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({
+      locale: "de",
+      fallbackLocale: "en",
+      catalogs: { shop: { en: { other: "x" } } },
+      messages: { de: {}, en: {} },
+      loader: l.load,
+    });
+    const first = i18n.load("shop");
+    await l.fail("de:shop");
+    await first.catch(() => {});
+    i18n.t("title", { ns: "shop" });
+    expect(mk(errors)).toEqual(["title shop de"]);
+    const again = i18n.load("shop"); // the explicit retry: de:shop in flight again
+    i18n.t("title", { ns: "shop" });
+    expect(mk(errors)).toEqual(["title shop de"]);
+    await l.answer("de:shop", { more: "y" });
+    await again;
+    i18n.t("title", { ns: "shop" });
+    expect(mk(errors)).toEqual(["title shop de", "title shop de"]);
+  });
+
+  it("a per-call { locale } or { ns } is checked against its own chain: a pair in flight there → silent; settled → reported", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({
+      locale: "en",
+      messages: { en: {} },
+      catalogs: { shop: { en: {} } },
+      loader: l.load,
+    });
+    const sw = i18n.setLocale("fr"); // fr:default in flight
+    i18n.add("fr", {}); // a catalog in place for that pair meanwhile
+    i18n.t("k", { locale: "fr" }); // its chain has the pair in flight: silent
+    i18n.t("k"); // en, settled: reported
+    expect(mk(errors)).toEqual(["k default en"]);
+    await l.answer("fr:default", {});
+    await sw;
+    i18n.t("k", { locale: "fr" }); // settled now
+    expect(mk(errors)).toEqual(["k default en", "k default fr"]);
+    await i18n.setLocale("en");
+    const p = i18n.load("cart"); // en:cart in flight
+    i18n.add("en", {}, "cart");
+    i18n.t("k", { ns: "cart" }); // its chain has the pair in flight: silent
+    i18n.t("k", { ns: "shop" }); // shop: in place, settled
+    expect(mk(errors)).toEqual(["k default en", "k default fr", "k shop en"]);
+    await l.answer("en:cart", {});
+    await p;
+    i18n.t("k", { ns: "cart" });
+    expect(mk(errors)).toEqual(["k default en", "k default fr", "k shop en", "k cart en"]);
+  });
+
   it("without a loader the catalogs in place are the complete set: an absent key is reported at once; a namespace with no catalog warns in development only", async () => {
     spyWarn();
     const { i18n, errors } = make({
