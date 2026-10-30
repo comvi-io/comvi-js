@@ -182,16 +182,13 @@ export interface Core {
   s(): State;
   /**
    * Translates against any state of this instance (a published one, or a `view()`); `j`
-   * joins a tag's children for its handler (a binding's node maker).
+   * joins a tag's children for its handler (a binding's node maker). `w`: the read of a
+   * `useI18n(ns)` translator whose hold is coming or in place (a declared need of `ns`): a key
+   * of `ns` itself, in the locale on screen, is not missing while that hold's load is due, and
+   * development does not warn about an idle namespace; a per-call `{ ns }` of another
+   * namespace or a `{ locale }` outside the locale on screen is checked as any read.
    */
-  tr(state: State, key: string, params?: Params, ns?: string, j?: Env["j"]): Rendered;
-  /**
-   * Development builds only (absent in production): `tr` for the read of a `useI18n(ns)`, a
-   * declared need of namespace `ns` whose hold follows the render — a read of `ns` itself
-   * never warns about an idle namespace; one of another namespace (a per-call `{ ns }`) is
-   * checked as any read. A binding calls `(__DEV__ ? x.d! : x.tr)(…)`.
-   */
-  d?: Core["tr"];
+  tr(state: State, key: string, params?: Params, ns?: string, j?: Env["j"], w?: unknown): Rendered;
   /**
    * Development builds only: a render declared namespace `ns` (a `useI18n(ns)` in a render or
    * a setup) while nothing holds it — its hold comes at the commit or mount, which Suspense
@@ -295,8 +292,6 @@ export const createI18n = (o: I18nOptions): I18n => {
    * as `K + ns`, namespaces a render declared (`Core.p`) that no hold has followed yet.
    */
   const idle = new Set<string>();
-  /** Development: the namespace of the declared read (`Core.d`) rendering now. */
-  let dec: string | 0 = 0;
   const downs: (void | (() => void))[] = [];
   let chains: Record<string, Chain> = N();
   let nch = 0;
@@ -421,8 +416,8 @@ export const createI18n = (o: I18nOptions): I18n => {
   const usable = (s: State, n: string) => chain(s.locale).some((x) => s.c[n]?.[x[0]]);
 
   /**
-   * `isLoading` (lot 4c), and "a key of `n` is not missing yet": a load of `n` is in flight in
-   * `s` (for any locale: a parent, a fallback, the target of a pending switch), or the
+   * `isLoading` (lot 4c): a load of `n` is in flight in `s` (for any locale: a parent, a
+   * fallback, the target of a pending switch), or the
    * instance has a loader and a pair of the chain of the state's locale is neither in place
    * nor failed — the load a consumer's hold makes (React holds at commit, Vue at mount, after
    * the render). A failed pair is a known result, so no catalog and nothing in flight is never
@@ -445,8 +440,10 @@ export const createI18n = (o: I18nOptions): I18n => {
 
   /** The env with a binding's joiner: one per instance, rebuilt only for another joiner. */
   let ej: Env = env;
-  const tr = (s: State, key: string, p?: Params, n = D, j?: Env["j"]): Rendered => {
+  const tr = (s: State, key: string, p?: Params, n = D, j?: Env["j"], w?: unknown): Rendered => {
     let l = s.locale;
+    // The declared namespace (`w`), before a per-call `{ ns }` replaces `n`.
+    const d = w && (n || D);
     let r: Rendered;
     let x: unknown;
     // Per-call options are read from the params object's OWN properties (R4-17). An invalid
@@ -470,11 +467,11 @@ export const createI18n = (o: I18nOptions): I18n => {
     } else {
       // Development (lot 4c, brief §6): a read of a namespace with no catalog in the chain, no
       // consumer, no load in flight and no failed load (a known result) — nothing will load
-      // it. Not for the read of a `useI18n(ns)` of its own namespace (`dec`), whose hold
+      // it. Not for the read of a `useI18n(ns)` of its own namespace (`d`), whose hold
       // follows its render. Checked again after the render's task (a timer): a component's
       // hold lands at its commit or mount, after the render that read — a `<T ns>` beside
       // `useI18n(ns)` is not idle. Once per instance and namespace.
-      if (__DEV__ && load && dec !== n && !idle.has(n)) {
+      if (__DEV__ && load && d !== n && !idle.has(n)) {
         const q = (s: State) =>
           !cnt[n] &&
           !idle.has(K + n) &&
@@ -491,10 +488,21 @@ export const createI18n = (o: I18nOptions): I18n => {
           );
         }
       }
-      // A key of a namespace still coming is not missing yet. With no reporter to call
-      // (production without `onError`: `defaultOnError` is silent there) nothing is checked
-      // or built: a missing key costs the lookup only.
-      if (h != noop && !coming(s, n)) err("missing_key", l, n, key);
+      // Not missing yet while a load that could bring it is coming: one in flight for a locale
+      // of the read's chain (another locale's is no reason), or, for a declared read of its own
+      // namespace in the locale on screen (`d`), the load its hold makes — not past a failed
+      // pair. Reported at the read, never replayed. With no reporter to call (production
+      // without `onError`: `defaultOnError` is silent there) nothing is checked or built: a
+      // missing key costs the lookup only.
+      if (
+        h != noop &&
+        !ch.some(
+          ([x]) =>
+            s.ld.includes(x + K + n) ||
+            (d == n && l == s.locale && load && !s.c[n]?.[x] && !bad.has(x + K + n)),
+        )
+      )
+        err("missing_key", l, n, key);
       // A missing key is marked too: the translator clicks keys no catalog has (H4).
       r = o.missing ? o.missing(key, l, n) : key;
     }
@@ -718,16 +726,6 @@ export const createI18n = (o: I18nOptions): I18n => {
     r: usable,
   };
   if (__DEV__) c.p = (n) => void (cnt[n] || idle.add(K + n));
-  if (__DEV__)
-    c.d = (s, k, p, n, j) => {
-      const o = dec;
-      dec = n || D;
-      try {
-        return tr(s, k, p, n, j);
-      } finally {
-        dec = o;
-      }
-    };
   CORE.set(i18n, c);
 
   // The marking hook's setter, for `devtools()` only (R3-14 H4).

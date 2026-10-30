@@ -1272,3 +1272,37 @@ react-icu-cdn 11,391, vue-icu-cdn 11,730.
 (and binding increment cap) is set to `ceil(measured × 1.02)`. Budgets keep the existing rule
 `min(ceiling, ceil(measured × 1.05))`. No byte golfing is done to fit; ceilings are raised only by
 the owner.
+
+## 2026-10-30: lot 4c — released consumer (Vue) and missing_key (owner decision): red, for the owner
+
+Two contract fixes (owner, 30.10): a Vue `useI18n(ns)` whose component released `ns` (unmount,
+`KeepAlive` deactivation) no longer reads `isLoading` true with no load coming, and `missing_key`
+is silent only while a load that could bring the key is coming (a flight in the read's chain, or
+a `useI18n(ns)` translator's own pending hold: `Core.tr`'s sixth argument replaces the
+development-only `Core.d`). Behaviour kept; nothing golfed; no budget, ceiling or cap changed —
+the rows below are for the owner. One sweep after `TURBO_FORCE=true pnpm build`,
+`node --version` v24.22.1.
+
+| row                      | measured      | baseline      | Δ         | budget / ceiling / cap | gate          |
+| ------------------------ | ------------- | ------------- | --------- | ---------------------- | ------------- |
+| core-icu                 | 4,586         | 4,532         | +54       | 4,623 / 4,623          | ok            |
+| core-icu-cdn             | 5,069         | 5,018         | +51       | 5,119 / 5,119          | ok            |
+| core-icu-devtools        | 5,036         | 4,985         | +51       | 5,017 / 5,017          | **red (+19)** |
+| react-icu-cdn            | 5,609         | 5,554         | +55       | 5,666 / 5,666          | ok            |
+| react-icu-cdn (incr.)    | +540          | +536          | +4        | +547                   | ok            |
+| vue-icu-cdn              | 5,799         | 5,718         | +81       | 5,833 / 5,833          | ok            |
+| vue-icu-cdn (incr.)      | +730          | +700          | +30       | +714                   | **red (+16)** |
+| fw-react-default         | 5,088         | 5,034         | +54       | 5,286                  | ok            |
+| fw-react-full-composite  | 8,079         | 8,033         | +46       | 8,435                  | ok            |
+| fw-vue-default           | 5,279         | 5,202         | +77       | 5,463                  | ok            |
+| fw-vue-full-composite    | 7,984         | 7,907         | +77       | 8,303                  | ok            |
+| core-icu-cdn-store / api | 5,240 / 5,590 | 5,185 / 5,536 | +55 / +54 | 5,445 / 5,813          | ok            |
+| core-format / plugins    | 5,244 / 5,167 | 5,187 / 5,113 | +57 / +54 | 5,447 / 5,369          | ok            |
+
+The Vue release fix alone (measured before the missing_key change) was `vue-icu-cdn` 5,728
+(+710, under the +714 cap), `fw-vue-default` 5,213, `fw-vue-full-composite` 7,917; the rest of
+the growth is the missing_key rule (core +51…+57) and the Vue binding passing the declaration
+(`t` and the bound `T` outside a component now undeclared in production too). Sharing the
+per-pair predicate between `isLoading` and the missing check was tried and measured larger
+(core-icu 4,592), so the check stays inline. `core-compile` (1,862), `core-locale` (584),
+`core-negotiate` (496) and `core-devtools` (639) did not move.

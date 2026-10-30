@@ -97,8 +97,8 @@ export const view = (
     }
   // The chain gives the locale's direction and canonical tag (an invalid one renders
   // through its fallbacks, as a published state does). In another locale than the published
-  // one, what its chain lacks is loading (`isLoading`, no `missing_key`) by the core's own
-  // rule: the switch at commit loads it.
+  // one, what its chain lacks is loading (`isLoading`; a declared read reports no
+  // `missing_key`) by the core's own rule: the switch at commit loads it.
   const h = core(i18n).ch(locale);
   if (c === state.c && locale == state.locale) return state;
   return mk(
@@ -131,8 +131,7 @@ export const translate = (
 /**
  * `isLoading` of namespace `ns` of `i18n` in `state` (lot 4c): a load of it is in flight, or
  * the instance has a loader and a pair of the chain of the state's locale is neither in
- * place nor failed (what a consumer's hold loads; its render comes first). Its keys are not
- * reported missing meanwhile.
+ * place nor failed (what a consumer's hold loads; its render comes first).
  */
 export const coming = (i18n: I18n, state: State, ns: string): boolean => !!core(i18n).w(state, ns);
 

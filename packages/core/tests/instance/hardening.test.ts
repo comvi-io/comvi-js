@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { I18nError } from "../../src/errors";
 import { createI18n } from "../../src/instance";
-import { acquire, loading, state, translate, view } from "../../src/internal";
+import { acquire, core, loading, state, translate, view } from "../../src/internal";
 import { flush, make, manualLoader, tableLoader } from "./helpers";
 
 describe("add() of the catalog a slot already holds is a no-op (H5 livelock class)", () => {
@@ -294,7 +294,7 @@ describe("missing_key waits for every load of the namespace", () => {
     expect(i18n.t("a")).toBe("A-de");
     await flush();
   });
-  it("a namespace nobody activated yet, with a loader to load it, is still coming (lot 1d)", async () => {
+  it("a namespace nobody activated yet: a useI18n(ns) translator's declared read is not missing yet; a plain read is (owner 30.10)", async () => {
     const l = manualLoader({ "en:shop": { title: "Shop" } });
     const { i18n, errors } = make({
       locale: "en",
@@ -303,9 +303,15 @@ describe("missing_key waits for every load of the namespace", () => {
       loader: l.load,
     });
     // `useI18n(ns)` renders before it activates `ns` after commit: not missing yet.
-    expect(i18n.ns("shop")("title")).toBe("title");
-    expect(i18n.ns("cart")("n")).toBe("n"); // a catalog of another locale only
+    const declared = (n: string, k: string) =>
+      core(i18n).tr(state(i18n), k, undefined, n, undefined, 1);
+    expect(declared("shop", "title")).toBe("title");
+    expect(declared("cart", "n")).toBe("n"); // a catalog of another locale only
     expect(errors.filter((e) => e.code === "missing_key")).toEqual([]);
+    // A plain read: nothing is coming for it (lot 1d's prediction for every read is gone).
+    expect(i18n.ns("shop")("title")).toBe("title");
+    expect(errors.filter((e) => e.code === "missing_key").map((e) => e.ns)).toEqual(["shop"]);
+    errors.length = 0;
     // Activated and failed: missing from now on.
     const p = i18n.load("shop");
     await l.fail("en:shop");

@@ -225,8 +225,6 @@ describe("no session, no devtools", () => {
     expect(Object.keys(internal.core(i18n)).sort()).toEqual([
       "b",
       "ch",
-      // Development only: a binding's declared read (no idle-namespace warning); it sets nothing.
-      "d",
       "h",
       "k",
       "o",

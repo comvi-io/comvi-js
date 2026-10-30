@@ -103,10 +103,11 @@ export const cell = (i: I18n): Cell => (i as unknown as Record<symbol, Cell>)[K]
 
 /**
  * `t()` of `i` for namespace `ns`, against the state its cell holds (a reactive read); `u`:
- * the read of a `useI18n(ns)`, whose hold follows (no idle-read warning, lot 4c).
+ * the read of a `useI18n(ns)` whose hold is coming or in place (the core's declared read: no
+ * `missing_key` while that hold's load is due, no idle-read warning; lot 4c).
  */
-const tr = (i: I18n, ns?: string, u?: 1) => (k: string, p?: object) =>
-  node((__DEV__ && u ? core(i).d! : core(i).tr)(cell(i)[0].value, k, p as never, ns, node));
+const tr = (i: I18n, ns?: string, u?: unknown) => (k: string, p?: object) =>
+  node(core(i).tr(cell(i)[0].value, k, p as never, ns, node, u));
 
 /**
  * Creates the instance (core's `createI18n`, same options) and makes it a Vue plugin:
@@ -274,7 +275,8 @@ export interface UseI18n<NS extends string = "default"> {
    * background load beside a usable catalog), or will load when the component holds the
    * namespace at mount (on a server, in setup). `false` once a load failed with nothing in
    * flight: no catalog and not loading is the "unavailable" state, never an endless one.
-   * Outside a component (nothing holds) it is a load in flight only.
+   * Outside a component (nothing holds), and once the component released it (unmount,
+   * `KeepAlive` deactivation), it is a load in flight only.
    */
   isLoading: ComputedRef<boolean>;
   setLocale: (locale: string) => Promise<void>;
@@ -355,8 +357,16 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
   const x = core(i);
   /** This component's release while it holds `n` (one hold: mount + first activation). */
   let r: (() => void) | 0 = 0;
+  /**
+   * 0 once released (unmount, `KeepAlive` deactivation): `isLoading` is then a load in flight
+   * only, as outside a component, and `t` an undeclared read (a missing key is reported) — no
+   * hold of this one will load `n`, so it is not loading forever (a result kept after the
+   * unmount, a deactivated component's watcher). Before the first hold they count what the
+   * hold will load; an activation's hold loads what is missing, so its flight is the loading.
+   */
+  let u = 1;
   const on = () => (r ||= x.h(n));
-  const off = () => r && (r(), (r = 0));
+  const off = () => ((u = 0), r && (r(), (r = 0)));
   // Outside a component (a store, a router guard, `app.runWithContext()`) there is no
   // lifecycle to release in: nothing is held there and no hook is registered (Vue warns about
   // one with no component); its reads are not a declared need and `isLoading` is a load in
@@ -380,12 +390,12 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
     onUnmounted(off);
   }
   return {
-    t: (__DEV__ && !g ? tr(i, n) : tr(i, n, 1)) as UseI18n<NS>["t"],
+    t: (g ? (k: string, p?: object) => tr(i, n, u)(k, p) : tr(i, n)) as UseI18n<NS>["t"],
     // Functional, one per instance and namespace (R3-5(b)): with no declared props every
     // attribute is a prop of it, so every one reaches the params and none falls through —
     // the exported `<T>`'s policy (`inheritAttrs: false`). It reads the namespace this
-    // `useI18n(ns)` holds (development: outside a component, an undeclared read).
-    T: (__DEV__ && !g
+    // `useI18n(ns)` holds (outside a component, an undeclared read).
+    T: (!g
       ? (p: object, { slots }: { slots: object }) => render(i, n, p, slots)
       : (Ts[n] ||= (p, { slots }) => render(i, n, p, slots, 1))) as unknown as BoundT<NS>,
     locale,
@@ -393,7 +403,7 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
     // Until the hold at mount, what the hold will load is loading already: no frame that
     // says "unavailable", no `missing_key` (lot 1d, 4c).
     isReady: computed(() => x.r(s.value, n)),
-    isLoading: computed(() => !!x.w(s.value, n, !g)),
+    isLoading: computed(() => !!x.w(s.value, n, !g || !u)),
     setLocale: i.setLocale,
     i18n: i,
   };

@@ -11,8 +11,10 @@ import {
   h,
   KeepAlive,
   ref,
+  nextTick,
   Suspense,
   vShow,
+  watch,
   withDirectives,
   type Component,
 } from "vue";
@@ -222,6 +224,208 @@ describe("consumers (brief §3)", () => {
   });
 });
 
+describe("a released consumer is not loading forever (brief §2, owner probe of lot 4c)", () => {
+  /** `probe(ns)` that also keeps its `useI18n` result and every `isLoading` its watcher sees. */
+  const kept = (ns: string) => {
+    const seen: boolean[] = [];
+    const frames: string[] = [];
+    const out: { u?: ReturnType<typeof useI18n> } = {};
+    const C = defineComponent({
+      setup() {
+        const u = (out.u = useI18n(ns));
+        watch(u.isLoading, (v) => seen.push(v));
+        return () => {
+          frames.push(`${u.isReady.value}/${u.isLoading.value}`);
+          return h(
+            "p",
+            u.isReady.value ? (u.t("title") as string) : u.isLoading.value ? "…" : "unavailable",
+          );
+        };
+      },
+    });
+    return { C, seen, frames, out };
+  };
+
+  it("KeepAlive: deactivated, a switch leaves it not loading (nothing comes); activated, it loads with no 'unavailable' on screen", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const shop = kept("shop");
+    const Other = defineComponent({ setup: () => () => h("p", "other") });
+    const page = ref<"shop" | "other">("shop");
+    const Root = defineComponent({
+      setup: () => () => h(KeepAlive, null, [page.value == "shop" ? h(shop.C) : h(Other)]),
+    });
+    const w = mountWith(i18n, Root);
+    await l.answer("en:shop", { title: "Shop" });
+    page.value = "other"; // deactivated: released
+    await settle();
+    const sw = i18n.setLocale("de");
+    await l.answer("de:default");
+    await sw;
+    for (let k = 0; k < 3; k++) await tick();
+    // Its watcher still runs while deactivated: it ends at "not loading", and nothing loads.
+    expect(shop.seen.at(-1)).toBe(false);
+    expect([shop.out.u!.isReady.value, shop.out.u!.isLoading.value]).toEqual([false, false]);
+    expect(l.requested).toEqual(["en:shop", "de:default"]);
+    // Activated: the hold loads de:shop in the same flush, so the screen shows "…", never
+    // "unavailable" (a frame rendered while deactivated stays in KeepAlive's detached box).
+    const from = shop.frames.length;
+    page.value = "shop";
+    await nextTick();
+    expect(l.requested).toEqual(["en:shop", "de:default", "de:shop"]);
+    expect(w.text()).toBe("…");
+    expect(shop.frames.slice(from).every((f) => f == "false/true")).toBe(true);
+    await l.answer("de:shop", { title: "Laden" });
+    expect(w.text()).toBe("Laden");
+    expect(shop.seen.at(-1)).toBe(false);
+  });
+
+  it("a useI18n result kept after its component unmounts, and one outside a component: false/false after a switch", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const shop = kept("shop");
+    const { Root, n } = list(shop.C);
+    const w = mountWith(i18n, Root);
+    const outside = w.vm.$.appContext.app.runWithContext(() => useI18n("shop"));
+    await l.answer("en:shop", { title: "Shop" });
+    n.value = 0; // unmounted: released
+    await settle();
+    const sw = i18n.setLocale("de");
+    await l.answer("de:default");
+    await sw;
+    for (let k = 0; k < 3; k++) await tick();
+    const u = shop.out.u!;
+    expect([u.isReady.value, u.isLoading.value]).toEqual([false, false]);
+    expect([outside.isReady.value, outside.isLoading.value]).toEqual([false, false]);
+    expect(shop.seen.at(-1)).toBe(false);
+    expect(l.requested).toEqual(["en:shop", "de:default"]);
+  });
+
+  it("the release does not reset isReady: a kept result with a usable catalog (a fallback locale's) is ready, not loading", async () => {
+    const l = manualLoader();
+    const { i18n } = make({
+      locale: "en",
+      fallbackLocale: "en",
+      messages: { en: {} },
+      loader: l.load,
+    });
+    const shop = kept("shop");
+    const { Root, n } = list(shop.C);
+    mountWith(i18n, Root);
+    await l.answer("en:shop", { title: "Shop" });
+    n.value = 0; // unmounted: released
+    await settle();
+    const sw = i18n.setLocale("de");
+    await l.answer("de:default");
+    await sw;
+    await settle();
+    const u = shop.out.u!;
+    // de:shop is neither in place nor loading; en:shop (the fallback) is usable.
+    expect([u.isReady.value, u.isLoading.value]).toEqual([true, false]);
+    expect(u.t("title")).toBe("Shop");
+    expect(l.requested).toEqual(["en:shop", "de:default"]);
+  });
+});
+
+/** The missing_key reports of `errors`, as `key ns locale`. */
+const mk = (errors: { code: string; key?: string; ns?: string; locale?: string }[]) =>
+  errors.filter((e) => e.code == "missing_key").map((e) => `${e.key} ${e.ns} ${e.locale}`);
+
+describe("missing_key: silent only while a load that could bring the key is coming (owner 30.10)", () => {
+  /** A component reading `t(key, p)` of its `useI18n(ns)` in every render. */
+  const reader = (ns: string, key: string, p?: object) => {
+    const out: { u?: ReturnType<typeof useI18n> } = {};
+    const C = defineComponent({
+      setup() {
+        const u = (out.u = useI18n(ns));
+        return () => h("p", u.t(key, p as never) as string);
+      },
+    });
+    return { C, out };
+  };
+
+  it("a first render of useI18n(ns) (before its hold) reports nothing; a key the loaded catalog lacks is reported then, once", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const r = reader("shop", "title");
+    mountWith(i18n, r.C);
+    expect(mk(errors)).toEqual([]);
+    await l.answer("en:shop", {});
+    expect(mk(errors)).toEqual(["title shop en"]);
+  });
+
+  it("a first render in a Suspense branch whose async sibling waits reports nothing", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    let open!: () => void;
+    const gate = new Promise<void>((y) => (open = y));
+    const Sibling = defineComponent({
+      async setup() {
+        await gate;
+        return () => null;
+      },
+    });
+    const Page = defineComponent({
+      setup() {
+        const { t, T } = useI18n("account");
+        return () => h("div", [t("title") as string, h(T, { i18nKey: "title" })]);
+      },
+    });
+    const Root = defineComponent({
+      setup: () => () =>
+        h(Suspense, null, {
+          default: () => h("div", [h(Page), h(Sibling)]),
+          fallback: () => "waiting",
+        }),
+    });
+    const w = mountWith(i18n, Root);
+    await tick();
+    expect(w.text()).toBe("waiting");
+    open();
+    await settle();
+    await l.answer("en:account", { title: "Account" });
+    expect(w.text()).toBe("AccountAccount");
+    expect(mk(errors)).toEqual([]);
+  });
+
+  it("a per-call { ns } or a { locale } outside the locale on screen is not the declared need: reported", () => {
+    const { i18n, errors } = make({
+      locale: "en",
+      messages: { en: {} },
+      loader: manualLoader().load,
+    });
+    mountWith(i18n, reader("shop", "title", { ns: "other" }).C);
+    mountWith(i18n, reader("shop", "title", { locale: "fr" }).C);
+    expect(mk(errors)).toEqual(["title other en", "title shop fr"]);
+  });
+
+  it("a released namespace read after a switch (a kept translator) is reported; so is $t of it", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const r = reader("shop", "title");
+    const { Root, n } = list(r.C);
+    const w = mountWith(i18n, Root);
+    await l.answer("en:shop", { title: "Shop" });
+    n.value = 0; // released
+    await settle();
+    const sw = i18n.setLocale("de");
+    await l.answer("de:default");
+    await sw;
+    expect(r.out.u!.t("title")).toBe("title");
+    w.vm.$t("title", { ns: "shop" });
+    expect(mk(errors)).toEqual(["title shop de", "title shop de"]);
+  });
+
+  it("after a failed load the next read is reported: the prediction does not silence it", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const r = reader("shop", "title");
+    mountWith(i18n, r.C);
+    await l.fail("en:shop");
+    expect(mk(errors)).toEqual(["title shop en"]); // the render after the failure
+  });
+});
+
 describe("reading never loads (brief §1)", () => {
   it("$t and useI18n(ns).T: $t requests nothing; the bound T reads what its useI18n holds, no warning", async () => {
     const l = manualLoader();
@@ -242,6 +446,9 @@ describe("reading never loads (brief §1)", () => {
       w = mountWith(i18n, defineComponent({ setup: () => () => [h(Page), h(Global)] }));
       await settle();
       await l.answer("en:account", { title: "Account" });
+      // The idle-read diagnostic runs after the render's task (a timer): wait for it here
+      // (without this the warning raced the capture — flaky on dd83404e, 4 of 20 runs).
+      await tick();
     });
     expect(l.requested).toEqual(["en:account"]);
     expect(w.text()).toBe("Accountx");

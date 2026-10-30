@@ -529,8 +529,8 @@ describe("development: reading a namespace nothing loads (brief §6)", () => {
   it("a declared read (useI18n(ns) before its hold) does not warn; no loader, nothing to warn about", async () => {
     spy();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: manualLoader().load });
-    // The binding's declared read (development's `d`): a useI18n(ns), whose hold follows.
-    expect(core(i18n).d!(state(i18n), "x", undefined, "shop")).toBe("x");
+    // The binding's declared read (the core's `w`): a useI18n(ns), whose hold follows.
+    expect(core(i18n).tr(state(i18n), "x", undefined, "shop", undefined, 1)).toBe("x");
     await tick();
     expect(warn).not.toHaveBeenCalled();
     // Without it, the same read warns.
@@ -548,9 +548,78 @@ describe("development: reading a namespace nothing loads (brief §6)", () => {
     spy();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: manualLoader().load });
     // useI18n("default").t("title", { ns: "undeclared" })
-    core(i18n).d!(state(i18n), "title", { ns: "undeclared" }, "default");
+    core(i18n).tr(state(i18n), "title", { ns: "undeclared" }, "default", undefined, 1);
     await tick();
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0][0])).toContain('"undeclared"');
+  });
+});
+
+/** The missing_key reports of `errors`, as `key ns locale`. */
+const mk = (errors: { code: string; key?: string; ns?: string; locale?: string }[]) =>
+  errors.filter((e) => e.code == "missing_key").map((e) => `${e.key} ${e.ns} ${e.locale}`);
+
+describe("missing_key: silent only while a load that could bring the key is coming (owner 30.10)", () => {
+  it("a namespace typo through a plain read is reported (nothing loads it)", async () => {
+    const { i18n, errors } = make({ locale: "en", loader: tableLoader({ "en:default": {} }).load });
+    await i18n.ready;
+    expect(i18n.t("title", { ns: "acount" })).toBe("title");
+    expect(mk(errors)).toEqual(["title acount en"]);
+  });
+
+  it("a released namespace read after a switch is reported for the locale on screen", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", loader: l.load });
+    await l.answer("en:default");
+    const p = i18n.load("account");
+    await l.answer("en:account", { title: "Account" });
+    await p;
+    const sw = i18n.setLocale("de");
+    await l.answer("de:default");
+    await sw;
+    i18n.t("title", { ns: "account" });
+    expect(mk(errors)).toEqual(["title account de"]);
+  });
+
+  it("a load in flight in the read's chain silences it; one of another locale does not; no replay after the load", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", loader: l.load });
+    i18n.t("nope"); // en:default is coming
+    expect(mk(errors)).toEqual([]);
+    await l.answer("en:default", {});
+    expect(mk(errors)).toEqual([]); // the earlier read is not replayed
+    const sw = i18n.setLocale("de"); // de:default in flight: another locale's
+    i18n.t("nope");
+    expect(mk(errors)).toEqual(["nope default en"]);
+    await l.answer("de:default");
+    await sw;
+  });
+
+  it("a declared read (a useI18n(ns) translator before its hold) counts the predicted load of its namespace and the locale on screen only", () => {
+    const { i18n, errors } = make({
+      locale: "en",
+      messages: { en: {} },
+      loader: manualLoader().load,
+    });
+    const tr = (k: string, p?: object) =>
+      core(i18n).tr(state(i18n), k, p as never, "shop", undefined, 1);
+    tr("title");
+    tr("title", { locale: "en" });
+    expect(mk(errors)).toEqual([]);
+    tr("title", { ns: "other" });
+    tr("title", { locale: "fr" });
+    // The same read without the declaration: nothing is coming for it.
+    core(i18n).tr(state(i18n), "title", undefined, "shop");
+    expect(mk(errors)).toEqual(["title other en", "title shop fr", "title shop en"]);
+  });
+
+  it("after a failed load a declared read is reported: the prediction does not silence it", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const release = acquire(i18n, "shop");
+    await l.fail("en:shop");
+    core(i18n).tr(state(i18n), "title", undefined, "shop", undefined, 1);
+    expect(mk(errors)).toEqual(["title shop en"]);
+    release();
   });
 });

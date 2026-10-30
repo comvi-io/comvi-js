@@ -252,6 +252,63 @@ describe("consumers (brief §3)", () => {
   });
 });
 
+/** The missing_key reports of `errors`, as `key ns locale`. */
+const mk = (errors: { code: string; key?: string; ns?: string; locale?: string }[]) =>
+  errors.filter((e) => e.code == "missing_key").map((e) => `${e.key} ${e.ns} ${e.locale}`);
+
+describe("missing_key: silent only while a load that could bring the key is coming (owner 30.10)", () => {
+  it("a first render of useI18n(ns) (before its commit), its bound T, in StrictMode and Suspense: no report; a key the loaded catalog lacks is reported then", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const P = () => {
+      const { t, T: B } = useI18n("shop");
+      return (
+        <p>
+          {t("title") as string}
+          <B i18nKey="title" />
+        </p>
+      );
+    };
+    render(<StrictMode>{app(i18n, <P />)}</StrictMode>);
+    expect(mk(errors)).toEqual([]);
+    await l.answer("en:shop", {});
+    await settle();
+    expect(mk(errors).length).toBeGreaterThan(0);
+    expect(new Set(mk(errors))).toEqual(new Set(["title shop en"]));
+  });
+
+  it("a per-call { ns } or a { locale } outside the locale on screen is not the declared need: reported", () => {
+    const { i18n, errors } = make({
+      locale: "en",
+      messages: { en: {} },
+      loader: manualLoader().load,
+    });
+    const P = () => {
+      const { t } = useI18n("shop");
+      return (
+        <p>
+          {t("title", { ns: "other" } as never) as string}
+          {t("title", { locale: "fr" } as never) as string}
+        </p>
+      );
+    };
+    render(app(i18n, <P />));
+    // Each render reports at its read (the commit's publish renders again).
+    expect(new Set(mk(errors))).toEqual(new Set(["title other en", "title shop fr"]));
+  });
+
+  it("the exported <T ns> and a plain i18n.t() of a namespace nothing loads are reported", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    render(app(i18n, <T i18nKey="title" ns="acount" />));
+    i18n.t("title", { ns: "acount" });
+    await tick(); // development's idle-read warning (its own test) runs here
+    warn.mockRestore();
+    expect(mk(errors)).toEqual(["title acount en", "title acount en"]);
+  });
+});
+
 describe("reading never loads (brief §1)", () => {
   let warn: ReturnType<typeof vi.spyOn>;
   afterEach(() => warn?.mockRestore());

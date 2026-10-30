@@ -6,7 +6,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { createI18n, type I18n } from "../../src/instance";
-import { acquire, coming, loading, state, translate, view } from "../../src/internal";
+import { acquire, coming, core, loading, state, translate, view } from "../../src/internal";
 import { flush, make, manualLoader } from "./helpers";
 
 describe("on() / rev()", () => {
@@ -172,11 +172,15 @@ describe("view() — render-local catalogs (R4-15; 0.7 withMessages)", () => {
     });
     const v = view(i18n, state(i18n), {}, "de");
     // Loads at commit (setLocale), so the view reports it loading (the core's `isLoading`
-    // rule, lot 4c: no flight is invented) and no key missing.
+    // rule, lot 4c: no flight is invented); a declared read reports no key missing, a plain
+    // one does (owner 30.10: nothing is in flight for it).
     expect(v.ld).toEqual([]);
     expect(coming(i18n, v, "default")).toBe(true);
-    expect(translate(i18n, v, "a")).toBe("a");
+    expect(core(i18n).tr(v, "a", undefined, undefined, undefined, 1)).toBe("a");
     expect(errors.map((e) => e.code)).toEqual([]);
+    expect(translate(i18n, v, "a")).toBe("a");
+    expect(errors.map((e) => e.code)).toEqual(["missing_key"]);
+    errors.length = 0;
     // Handed-over catalogs of the target are not loading; the published locale adds nothing.
     const de = view(i18n, state(i18n), { default: { de: { a: "DE" } } }, "de");
     expect(coming(i18n, de, "default")).toBe(false);
