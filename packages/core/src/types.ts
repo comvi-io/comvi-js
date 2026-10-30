@@ -99,8 +99,16 @@ export type Args<N, P> = [P] extends [never] // no params; tested FIRST: never e
       ? [params?: P & { ns?: N; locale?: string; markers?: boolean }]
       : [params: P & { ns?: N; locale?: string; markers?: boolean }];
 
-/** A key with a Tag-typed param renders rich parts; every other key renders a string. */
-export type OutOf<P, Rich> = [P] extends [never] ? string : Tag extends P[keyof P] ? Rich : string;
+/**
+ * A key with a Tag-typed param MAY render rich parts: `string | Rich`, because a handler
+ * may return a string (the parts then join into one) and a missing key renders its key
+ * text. Every other key renders a string.
+ */
+export type OutOf<P, Rich> = [P] extends [never]
+  ? string
+  : Tag extends P[keyof P]
+    ? string | Rich
+    : string;
 
 /**
  * `t()` for namespace NS. Per call, `{ ns }` switches the namespace (and the key set),

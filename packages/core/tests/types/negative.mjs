@@ -39,6 +39,13 @@ const CASES = [
   ["s('s0.k0', { ns: 'default', count: 'x' }); // E6 wrong type", "TS2322"],
   ["const e7: string = s('s0.k7', { link: tag }); // E7 rich key into string", "TS2322"],
   ["s('s0.k7'); // E8 rich key without its handler", "TS2554"],
+  // Lot 4d: a handler may return a string (the parts join into one) and a missing key
+  // renders its key text, so a rich key is `string | RichParts`, never parts only.
+  ["const r7: string | RichParts = s('s0.k7', { link: tag });", ""],
+  [
+    "const e24: RichParts = s('s0.k7', { link: () => 'terms' }); // E24 a rich key may render a string",
+    "TS2322",
+  ],
   ["s(cond ? 's0.k0' : 's0.k1', { count: 1 }); // E9 union key, incomplete params", "TS2345"],
   ["s('s0.k12', { brand: 'B' }); // E10 defaulted param given, required one missing", "TS2345"],
   ["t('s0.k3', { g: 1 }); // E11 select param of the wrong type", "TS2322"],
@@ -211,6 +218,8 @@ const REDS = {
       "export type Args<N, P> = [P] extends [NotAKey]\n  ? [params?: { ns?: NsOf; locale?: string; markers?: boolean } & Record<string, unknown>]\n  : [P] extends [never]",
     ],
   ]),
+  // (5) Lot 4d: a rich key typed as parts only, though a handler may return a string.
+  "rich key always Rich": plant("rich always Rich", [["? string | Rich\n", "? Rich\n"]]),
   // (3) The untyped t() of lot 1, typed `string` for any params (review A6).
   "untyped t() always a string": plant("untyped string", [
     [

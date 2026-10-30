@@ -58,7 +58,12 @@ export const app: ReactElement = (
 export function Component() {
   const { t, locale, dir, isLoading, setLocale } = useI18n();
   const s: string = t("greeting", { name: "Ann" });
-  const r: ReactElement = t("terms", { link: (c) => <a>{c}</a> });
+  // A rich key may still render a string: a handler can return one, and a missing key
+  // renders its key text (lot 4d) — the type says so.
+  const r: string | ReactElement = t("terms", { link: (c) => <a>{c}</a> });
+  // @ts-expect-error a rich key is not always an element: this handler returns a string
+  const r2: ReactElement = t("terms", { link: () => "terms" });
+  void r2;
   // The registered TagChildren types an inline handler's argument: one React node.
   t("terms", {
     link: (c) => {
