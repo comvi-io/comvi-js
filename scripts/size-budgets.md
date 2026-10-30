@@ -1257,13 +1257,15 @@ unchanged from the lot 4c fix pass and keep their baselines, budgets and ceiling
 | ------------------------- | -------- | ----------------- | ----------------- | ------ |
 | core-icu                  | 4,532    | 4,449             | 4,623             | 4,623  |
 | core-icu-cdn              | 5,018    | 4,960             | 5,119             | 5,119  |
-| react-icu-cdn (row)       | 5,554    | 5,700             | 5,700 (unchanged) | 5,700  |
+| react-icu-cdn (row)       | 5,554    | 5,700             | 5,666             | 5,666  |
 | react-icu-cdn (increment) | +536     | +527              | +547              | —      |
 | vue-icu-cdn (row)         | 5,718    | 5,560             | 5,833             | 5,833  |
 | vue-icu-cdn (increment)   | +700     | +600              | +714              | —      |
 
-`react-icu-cdn`'s row was already under its 5,700 B ceiling (5,554); only its increment cap was
-over, so the row ceiling stays. Minified sizes: core-icu 9,202, core-icu-cdn 10,293,
+`react-icu-cdn`'s row was already under its 5,700 B ceiling (5,554, a lot 4b ×1.05 ceiling);
+only its increment cap was over. On the owner's follow-up (2026-10-30) the row ceiling was
+lowered to ceil(5,554 × 1.02) = 5,666 B as well, so every ceiling changed in lot 4c follows the
+×1.02 rule (112 B headroom). Minified sizes: core-icu 9,202, core-icu-cdn 10,293,
 react-icu-cdn 11,391, vue-icu-cdn 11,730.
 
 **POLICY CLARIFICATION.** When the owner accepts growth for functionality, the affected ceiling
