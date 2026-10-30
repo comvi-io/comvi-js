@@ -1,4 +1,4 @@
-// Vue + core + ICU + cdn() (R3-25 binding cap: +714 B over core-icu-cdn): the product's main
+// Vue + core + ICU + cdn() (binding cap +714 B over core-icu-cdn: lot 4c owner decision, ×1.02): the product's main
 // path on Vue — the instance loading CDN v1 catalogs, app.use(i18n), useI18n() and t() with a
 // plain {name} and a plural. core-icu-cdn.ts is the same graph without Vue.
 import { createApp, h } from "vue";
