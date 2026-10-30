@@ -646,9 +646,15 @@ export const createI18n = (o: I18nOptions): I18n => {
       const ch = chain(l);
       // The active set at the call: what this switch waits for (never rebuilt meanwhile).
       const ns = act();
-      /** Aborts the loads of locales outside `l`'s chain. */
+      /**
+       * Aborts the loads of locales outside `l`'s chain. Each drop publishes, and a subscriber
+       * may switch again: from then on this call is stale and touches nothing — the flights
+       * still listed (a newer switch may wait on them) or added since are the newer call's.
+       */
       const prune = () =>
-        fl.forEach((f, k) => ch.some((x) => x[0] == k.split(K)[0]) || (f[1].abort(), drop(k)));
+        fl.forEach(
+          (f, k) => my != seq || ch.some((x) => x[0] == k.split(K)[0]) || (f[1].abort(), drop(k)),
+        );
       prune();
       // The target's own failures are asked for again.
       retry(0, l);
@@ -665,10 +671,13 @@ export const createI18n = (o: I18nOptions): I18n => {
             throw (ensure(S.locale, act()), bad.get(l + K + ns[0]));
           // Loads of the old locale a load(ns) started meanwhile are obsolete now.
           prune();
-          if (l != S.locale) pub(l);
-          // The active set NOW reacts to the new locale: a consumer that appeared while this
-          // switch was pending (it loaded for the locale on screen) gets `l`'s catalog.
-          ensure(l, act());
+          // A subscriber told of that cleanup may have switched again: the newer call wins.
+          if (my == seq) {
+            if (l != S.locale) pub(l);
+            // The active set NOW reacts to the new locale: a consumer that appeared while
+            // this switch was pending (it loaded for the locale on screen) gets `l`'s catalog.
+            ensure(l, act());
+          }
         }
       };
       // Nothing to load: the switch happens inside this call.
