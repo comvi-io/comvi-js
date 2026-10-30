@@ -6,7 +6,8 @@
  * never `JSON.stringify` on the hot path.
  *
  * Each takes the instance and formats in its locale chain (canonical; the app may spell
- * the locale `pt_BR`), or in `locale` alone when passed. Dates use the instance `timeZone` unless
+ * the locale `pt_BR`), or in the chain of `locale` when passed (it, its parents, the
+ * fallback locales — as `t()` resolves `{ locale }`). Dates use the instance `timeZone` unless
  * the options name one. `formatNumber` and `formatDate` also take the NAME of an entry of the
  * instance's `formats` option; `formatRelativeTime` counts from the instance's clock (see
  * clock.ts; a server's is serialised by `handover()` as `serverNow`, so the hydration
@@ -18,23 +19,21 @@ import { CORE, type I18n, type I18nOptions } from "./instance";
 import { canonicalize } from "./locale";
 
 /**
- * The Intl locales: `locale` alone when passed, else the instance's lookup chain (its
- * locale, the parents, the fallback locales), canonical — Intl takes the first it has
- * data for. A tag that does not canonicalize is left out. Memoized per chain array (the
- * instance memoizes chains per locale), so a call with no `locale` allocates nothing.
+ * The Intl locales: the lookup chain (the locale, its parents, the fallback locales) of
+ * `locale` when passed, else of the instance's locale, canonical — Intl takes the first it
+ * has data for. A tag that does not canonicalize is left out. Memoized per chain array (the
+ * instance memoizes chains per locale), so a call allocates nothing once its chain is seen.
  */
 type Tags = [key: string, locales: readonly string[], fmts: Record<string, unknown>];
 const chains = new WeakMap<object, Tags>();
 const NONE: Tags = ["", [], Object.create(null)];
 const tags = (i18n: I18n, locale?: string): Tags => {
-  if (locale) {
-    const c = canonicalize(locale);
-    // An override that is not a tag formats in the instance chain, never the host default.
-    return c ? [c, [c], Object.create(null)] : tags(i18n);
-  }
   const core = CORE.get(i18n);
   if (!core) return NONE;
-  const ch = core.ch(i18n.locale);
+  // An override formats in ITS chain, like `t()`'s `{ locale }`: a binding passes the locale
+  // its render shows, which may differ from the instance's during a handover or hydration.
+  // An override that is not a tag formats in the instance chain, never the host default.
+  const ch = core.ch(locale && canonicalize(locale) ? locale : i18n.locale);
   let t = chains.get(ch);
   if (!t) {
     const ls = ch.map((x) => x[1]);

@@ -58,8 +58,15 @@ describe("formatters", () => {
   it("walks the instance chain when the runtime lacks the locale (Intl takes the first it has)", () => {
     const i18n = createI18n({ locale: "xx", fallbackLocale: "de" });
     expect(formatNumber(i18n, 1234.5)).toBe("1.234,5");
-    // An explicit locale stays one locale, without the chain.
+    // An explicit locale formats in ITS chain: first itself, when Intl has it.
     expect(formatNumber(i18n, 1234.5, undefined, "en")).toBe("1,234.5");
+  });
+
+  it("an explicit locale the runtime lacks walks ITS chain, like t({ locale }) — not the host default (lot 4d)", () => {
+    const i18n = createI18n({ locale: "fr", fallbackLocale: "de" });
+    // fr's chain would give "1 234,5"; the host default "1,234.5"; xx's chain is xx → de.
+    expect(formatNumber(i18n, 1234.5, undefined, "xx")).toBe("1.234,5");
+    expect(sp(formatCurrency(i18n, 3, "EUR", undefined, "xx"))).toBe("3,00 €");
   });
 
   it("caches one formatter per (kind, locales, option values), whatever the object identity", () => {
