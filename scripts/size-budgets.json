@@ -92,18 +92,18 @@
       "name": "core-icu-devtools",
       "entry": ["@comvi/core", "@comvi/core/devtools"],
       "fixture": "core-icu-devtools.ts",
-      "gzipBudgetBytes": 5017,
-      "ceilingBytes": 5017,
+      "gzipBudgetBytes": 5132,
+      "ceilingBytes": 5132,
       "increment": {
         "over": "core-icu",
         "maxBytes": 500
       },
       "baseline": {
-        "minBytes": 10169,
-        "gzipBytes": 4985,
+        "minBytes": 10263,
+        "gzipBytes": 5031,
         "measuredAt": "2026-10-30"
       },
-      "note": "Gated: core-icu plus plugins: [devtools()], what an app that opts into the browser extension ships. Lot 1e (R3-15 thin hook): budget = ceiling = ceil(4,778 × 1.05) after the 1e fix pass; the devtools increment over core-icu is capped at +500 B (measured +436). size-budgets.md 2026-10-27 lot 1e. Lot 1d (2026-10-28): 4778 → 4730, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 4730 → 4815, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 4815 → 4858, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 4858 → 4866, size-budgets.md 2026-10-28 lot 2c review fix pass. Lot 4b (2026-10-29): baseline 4866 → 4890 (budget unchanged), size-budgets.md 2026-10-29 lot 4b. Lot 4b fix pass (2026-10-29): 4890 → 4891 B, size-budgets.md 2026-10-29 lot 4b fix pass. Lot 4b fix pass 2 (2026-10-29): 4891 → 4891 B, size-budgets.md 2026-10-29 lot 4b fix pass 2. Lot 4b Codex re-check fix (2026-10-29): 4891 → 4895 B, size-budgets.md 2026-10-29 lot 4b Codex re-check fix. Lot 4c (2026-10-29): 4895 → 4964 B, budget 5017 → 5017, size-budgets.md 2026-10-29 lot 4c. Lot 4c fix pass (2026-10-30): 4964 → 4985 B, budget 5017 → 5017, size-budgets.md 2026-10-30 lot 4c fix pass."
+      "note": "Gated: core-icu plus plugins: [devtools()], what an app that opts into the browser extension ships. Lot 1e (R3-15 thin hook): budget = ceiling = ceil(4,778 × 1.05) after the 1e fix pass; the devtools increment over core-icu is capped at +500 B (measured +436). size-budgets.md 2026-10-27 lot 1e. Lot 1d (2026-10-28): 4778 → 4730, per piece in size-budgets.md 2026-10-28. Lot 1d review fix pass (2026-10-28): 4730 → 4815, size-budgets.md 2026-10-28 review fix pass. Lot 2c (2026-10-28): 4815 → 4858, size-budgets.md 2026-10-28 lot 2c. Lot 2c review fix pass (2026-10-28): 4858 → 4866, size-budgets.md 2026-10-28 lot 2c review fix pass. Lot 4b (2026-10-29): baseline 4866 → 4890 (budget unchanged), size-budgets.md 2026-10-29 lot 4b. Lot 4b fix pass (2026-10-29): 4890 → 4891 B, size-budgets.md 2026-10-29 lot 4b fix pass. Lot 4b fix pass 2 (2026-10-29): 4891 → 4891 B, size-budgets.md 2026-10-29 lot 4b fix pass 2. Lot 4b Codex re-check fix (2026-10-29): 4891 → 4895 B, size-budgets.md 2026-10-29 lot 4b Codex re-check fix. Lot 4c (2026-10-29): 4895 → 4964 B, budget 5017 → 5017, size-budgets.md 2026-10-29 lot 4c. Lot 4c fix pass (2026-10-30): 4964 → 4985 B, budget 5017 → 5017, size-budgets.md 2026-10-30 lot 4c fix pass. Lot 4c owner decision (2026-10-30, ×1.02 policy): ceiling 5,017 → 5,132 B for the settled-chain missing_key rule and the no-loader development warning; baseline 4985 → 5031 B; budget = min(ceiling, ceil(5031 × 1.05) = 5283) = 5,132; size-budgets.md 2026-10-30 lot 4c owner-approved ceilings."
     },
     {
       "name": "core-devtools",
@@ -201,14 +201,14 @@
       "ceilingBytes": 5833,
       "increment": {
         "over": "core-icu-cdn",
-        "maxBytes": 714
+        "maxBytes": 753
       },
       "baseline": {
-        "minBytes": 11730,
-        "gzipBytes": 5718,
+        "minBytes": 11824,
+        "gzipBytes": 5761,
         "measuredAt": "2026-10-30"
       },
-      "note": "core-icu-cdn's graph on Vue: createI18n + cdn() + app.use(i18n) + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,910 + the R3-10 binding cap 500 (budget = the ceiling, below measured ×1.05); the increment over core-icu-cdn is HARD-capped at +500 B (lot 4: +490). Itemized accounting in size-budgets.md 2026-10-28 lot 4 and its final pass. Lot 4 N-1 fix (2026-10-28): ceiling 5,395 → 5,410 with core-icu-cdn's; 5380 → 5390 (+490 B), size-budgets.md 2026-10-28 lot 4 N-1 fix. Lot 4b (2026-10-29): ceiling 5,410 → 5,560 B and the increment cap +500 → +600 B (R3-25); 5390 → 5494 (+573 B over core-icu-cdn), budget = the ceiling, size-budgets.md 2026-10-29 lot 4b. Lot 4b fix pass (2026-10-29): 5494 → 5520 B, size-budgets.md 2026-10-29 lot 4b fix pass. Lot 4b fix pass 2 (2026-10-29): 5520 → 5516 B, size-budgets.md 2026-10-29 lot 4b fix pass 2. Lot 4b Codex re-check fix (2026-10-29): 5516 → 5520 B, size-budgets.md 2026-10-29 lot 4b Codex re-check fix. Lot 4c owner decision (2026-10-30): the owner accepts the growth for 4c functionality; increment cap 600 → +714 B (ceil(700 × 1.02)), ceiling 5,560 → 5,833 B (ceil(5718 × 1.02)), baseline → 5718 B, budget 5833; no byte golfing, size-budgets.md 2026-10-30 lot 4c owner-accepted growth."
+      "note": "core-icu-cdn's graph on Vue: createI18n + cdn() + app.use(i18n) + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,910 + the R3-10 binding cap 500 (budget = the ceiling, below measured ×1.05); the increment over core-icu-cdn is HARD-capped at +500 B (lot 4: +490). Itemized accounting in size-budgets.md 2026-10-28 lot 4 and its final pass. Lot 4 N-1 fix (2026-10-28): ceiling 5,395 → 5,410 with core-icu-cdn's; 5380 → 5390 (+490 B), size-budgets.md 2026-10-28 lot 4 N-1 fix. Lot 4b (2026-10-29): ceiling 5,410 → 5,560 B and the increment cap +500 → +600 B (R3-25); 5390 → 5494 (+573 B over core-icu-cdn), budget = the ceiling, size-budgets.md 2026-10-29 lot 4b. Lot 4b fix pass (2026-10-29): 5494 → 5520 B, size-budgets.md 2026-10-29 lot 4b fix pass. Lot 4b fix pass 2 (2026-10-29): 5520 → 5516 B, size-budgets.md 2026-10-29 lot 4b fix pass 2. Lot 4b Codex re-check fix (2026-10-29): 5516 → 5520 B, size-budgets.md 2026-10-29 lot 4b Codex re-check fix. Lot 4c owner decision (2026-10-30): the owner accepts the growth for 4c functionality; increment cap 600 → +714 B (ceil(700 × 1.02)), ceiling 5,560 → 5,833 B (ceil(5718 × 1.02)), baseline → 5718 B, budget 5833; no byte golfing, size-budgets.md 2026-10-30 lot 4c owner-accepted growth. Lot 4c owner decision (2026-10-30, ×1.02 policy): increment cap +714 → +753 B for the released-consumer fix and the settled-chain missing_key rule; baseline 5718 → 5761 B (+703 over core-icu-cdn); budget = min(ceiling 5,833, ceil(5761 × 1.05) = 6050) = 5,833; size-budgets.md 2026-10-30 lot 4c owner-approved ceilings."
     },
     {
       "name": "fw-solid-default",

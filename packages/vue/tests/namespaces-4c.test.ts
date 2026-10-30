@@ -21,6 +21,8 @@ import {
 import { renderToString } from "vue/server-renderer";
 import { describe, expect, it, vi } from "vitest";
 import { createI18n, handover, useI18n, type Catalog, type VueI18n } from "../src";
+import { core } from "../../core/src/internal";
+import { mount } from "@vue/test-utils";
 import { make, manualLoader, mountWith, settle, tick, vueWarnings } from "./helpers";
 
 /** A component showing `isReady ? t(key) : isLoading ? "…" : "unavailable"`; its frames. */
@@ -280,27 +282,20 @@ describe("a released consumer is not loading forever (brief §2, owner probe of 
     expect(shop.seen.at(-1)).toBe(false);
   });
 
-  it("KeepAlive: a prop changed with the reactivation renders before the hold — still loading; the 'unavailable' branch never sets up (Codex review of 3e9a2a80)", async () => {
+  it("KeepAlive: a prop changed with the reactivation renders before onActivated holds — the 'unavailable' render is replaced in the same flush, the load starts, nothing is reported (owner 30.10; paint order checked in Chromium)", async () => {
     const l = manualLoader();
-    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const { i18n, errors } = make({ locale: "en", messages: { en: {} }, loader: l.load });
     const log: string[] = [];
-    const Unavailable = defineComponent({
-      setup() {
-        log.push("unavailable setup");
-        return () => h("b", "unavailable");
-      },
-    });
     const Shop = defineComponent({
       props: { v: Number },
       setup() {
         const u = useI18n("shop");
         return () => {
           log.push(`render ${u.isReady.value}/${u.isLoading.value}`);
-          return u.isReady.value
-            ? h("p", u.t("title") as string)
-            : u.isLoading.value
-              ? h("i", "…")
-              : h(Unavailable);
+          return h(
+            "p",
+            u.isReady.value ? (u.t("title") as string) : u.isLoading.value ? "…" : "unavailable",
+          );
         };
       },
     });
@@ -322,16 +317,112 @@ describe("a released consumer is not loading forever (brief §2, owner probe of 
     const from = log.length;
     page.value = "shop"; // activated, with a new prop
     v.value = 2;
-    await nextTick();
-    expect(log.slice(from).filter((x) => x.includes("unavailable"))).toEqual([]);
-    expect(log.slice(from).filter((x) => x.startsWith("render"))).not.toContain(
-      "render false/false",
-    );
+    await nextTick(); // one flush: the activation render, onActivated's hold, its re-render
+    // The render before the hold reads the released state; the hold's publish renders again in
+    // the same flush, before the browser can paint (Chromium: never in a frame).
+    expect(log.slice(from)).toEqual(["render false/false", "render false/true"]);
     expect(w.text()).toBe("…");
     expect(l.requested).toEqual(["en:shop", "de:default", "de:shop"]);
+    expect(errors).toEqual([]);
     await l.answer("de:shop", { title: "Laden" });
     expect(w.text()).toBe("Laden");
   });
+
+  it("KeepAlive: the reactivation's renders before the hold report no missing_key; a key the main locale's load lacks is reported after it settles", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({
+      locale: "en",
+      fallbackLocale: "en",
+      catalogs: { shop: { en: { other: "x" } } },
+      messages: { en: {}, de: {} },
+      loader: l.load,
+    });
+    const Shop = defineComponent({
+      props: { v: Number },
+      setup() {
+        const u = useI18n("shop");
+        return () => h("p", u.t("title") as string);
+      },
+    });
+    const Other = defineComponent({ setup: () => () => h("p", "other") });
+    const page = ref<"shop" | "other">("shop");
+    const v = ref(1);
+    const Root = defineComponent({
+      setup: () => () =>
+        h(KeepAlive, null, [page.value == "shop" ? h(Shop, { v: v.value }) : h(Other)]),
+    });
+    mountWith(i18n, Root);
+    // In en the chain is settled (the inline catalog, no loader request): reported at mount.
+    expect(errors.map((e) => `${e.code} ${e.key} ${e.ns} ${e.locale}`)).toEqual([
+      "missing_key title shop en",
+    ]);
+    page.value = "other";
+    await settle();
+    await i18n.setLocale("de");
+    await settle();
+    errors.length = 0;
+    page.value = "shop";
+    v.value = 2;
+    await nextTick();
+    expect(l.requested).toEqual(["de:shop"]);
+    expect(errors).toEqual([]); // de:shop unknown, then in flight
+    await l.answer("de:shop", { more: "y" });
+    expect(errors.map((e) => `${e.code} ${e.key} ${e.ns} ${e.locale}`)).toEqual([
+      "missing_key title shop de",
+    ]);
+  });
+
+  /** KeepAlive caching `Parent`, which passes `x` to `Child` (`useI18n("shop")`); `nested`: Parent holds an inner KeepAlive too. */
+  const detached = (i18n: VueI18n, nested = false) => {
+    const x = ref(1);
+    const page = ref<"shop" | "other">("shop");
+    const Child = defineComponent({
+      props: { x: Number },
+      setup(p) {
+        const u = useI18n("shop");
+        return () => h("p", `${p.x} ${u.isReady.value}/${u.isLoading.value}`);
+      },
+    });
+    const Parent = defineComponent({
+      setup: () => () =>
+        nested ? h(KeepAlive, null, [h(Child, { x: x.value })]) : h(Child, { x: x.value }),
+    });
+    const Other = defineComponent({ setup: () => () => h("p", "other") });
+    const Root = defineComponent({
+      setup: () => () => h(KeepAlive, null, [page.value == "shop" ? h(Parent) : h(Other)]),
+    });
+    const w = mount(Root, { global: { plugins: [i18n] }, attachTo: document.body });
+    return { w, x, page };
+  };
+
+  it.each([false, true])(
+    "KeepAlive: a prop changed while the subtree is detached re-acquires no hold; the next switch does not wait for it (nested KeepAlive: %s; Codex re-check of 89c74155)",
+    async (nested) => {
+      const l = manualLoader();
+      const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+      const { w, x, page } = detached(i18n, nested);
+      await l.answer("en:shop", { title: "Shop" });
+      page.value = "other"; // deactivated: released
+      await settle();
+      let sw = i18n.setLocale("de");
+      await l.answer("de:default");
+      await sw;
+      x.value = 2; // a background update of the detached subtree
+      await settle();
+      expect(core(i18n).k.shop).toBe(0);
+      expect(l.requested).toEqual(["en:shop", "de:default"]);
+      sw = i18n.setLocale("fr");
+      expect(l.requested).toEqual(["en:shop", "de:default", "fr:default"]);
+      await l.answer("fr:default");
+      await sw; // settled without fr:shop
+      expect(i18n.locale).toBe("fr");
+      page.value = "shop"; // activated: holds and loads for the locale on screen
+      await settle();
+      expect(core(i18n).k.shop).toBe(1);
+      expect(l.requested.at(-1)).toBe("fr:shop");
+      w.unmount();
+    },
+  );
 
   it("a useI18n result kept after its component unmounts, and one outside a component: false/false after a switch", async () => {
     const l = manualLoader();

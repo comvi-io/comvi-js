@@ -33,7 +33,7 @@ describe("production dist", () => {
     w.unmount();
   });
 
-  it("KeepAlive: a prop changed with the reactivation renders 'loading', never 'unavailable' (Codex review of 3e9a2a80)", async () => {
+  it("KeepAlive: a prop changed with the reactivation ends its flush on 'loading' with the load started (owner 30.10; paint order checked in Chromium)", async () => {
     const { createI18n, useI18n } = (await import(
       /* @vite-ignore */ pathToFileURL(DIST).href
     )) as typeof import("../../src");
@@ -80,10 +80,59 @@ describe("production dist", () => {
     const from = frames.length;
     page.value = "shop";
     v.value = 2;
-    await nextTick();
-    expect(frames.slice(from)).not.toContain("false/false");
+    await nextTick(); // one flush: the activation render, onActivated's hold, its re-render
+    expect(frames.slice(from)).toEqual(["false/false", "false/true"]);
     expect(w.text()).toBe("…");
     expect(requested).toEqual(["en:shop", "de:default", "de:shop"]);
+    w.unmount();
+  });
+
+  it("KeepAlive: a prop changed while the subtree is detached holds nothing; the next switch does not wait for it (Codex re-check of 89c74155)", async () => {
+    const { createI18n, useI18n } = (await import(
+      /* @vite-ignore */ pathToFileURL(DIST).href
+    )) as typeof import("../../src");
+    const answers = new Map<string, (c: Record<string, string>) => void>();
+    const requested: string[] = [];
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: {} },
+      loader: (l, n) =>
+        new Promise((y) => {
+          requested.push(`${l}:${n}`);
+          answers.set(`${l}:${n}`, y);
+        }),
+    });
+    const x = ref(1);
+    const page = ref("shop");
+    const Child = defineComponent({
+      props: { x: Number },
+      setup(p) {
+        const u = useI18n("shop");
+        return () => h("p", `${p.x} ${u.isLoading.value}`);
+      },
+    });
+    const Parent = defineComponent({ setup: () => () => h(Child, { x: x.value }) });
+    const w = mount(
+      defineComponent({
+        setup: () => () => h(KeepAlive, null, [page.value == "shop" ? h(Parent) : h("p", "other")]),
+      }),
+      { global: { plugins: [i18n] }, attachTo: document.body },
+    );
+    const flush = () => new Promise((y) => setTimeout(y));
+    answers.get("en:shop")!({});
+    await flush();
+    page.value = "other";
+    await flush();
+    let sw = i18n.setLocale("de");
+    answers.get("de:default")!({});
+    await sw;
+    x.value = 2;
+    await flush();
+    expect(requested).toEqual(["en:shop", "de:default"]);
+    sw = i18n.setLocale("fr");
+    answers.get("fr:default")!({});
+    await sw;
+    expect([i18n.locale, requested]).toEqual(["fr", ["en:shop", "de:default", "fr:default"]]);
     w.unmount();
   });
 });
