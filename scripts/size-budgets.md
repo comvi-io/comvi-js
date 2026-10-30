@@ -1282,7 +1282,7 @@ every pair of that chain settled (in place or failed, and no load of it in fligh
 priority; without a loader the catalogs in place are complete), no catalog of the chain a
 development warning only (now also without a loader). The development-only `Core.d` seam is
 gone; `Core.tr` takes no declaration. Behaviour kept; nothing golfed; no budget, ceiling or cap
-changed — the red row is for the owner. One sweep after `TURBO_FORCE=true pnpm build`,
+changed — the red rows are for the owner. One sweep after `TURBO_FORCE=true pnpm build`,
 `node --version` v24.22.1.
 
 | row                      | measured      | baseline      | Δ         | budget / ceiling / cap | gate          |
@@ -1292,16 +1292,18 @@ changed — the red row is for the owner. One sweep after `TURBO_FORCE=true pnpm
 | core-icu-devtools        | 5,031         | 4,985         | +46       | 5,017 / 5,017          | **red (+14)** |
 | react-icu-cdn            | 5,592         | 5,554         | +38       | 5,666 / 5,666          | ok            |
 | react-icu-cdn (incr.)    | +534          | +536          | −2        | +547                   | ok            |
-| vue-icu-cdn              | 5,761         | 5,718         | +43       | 5,833 / 5,833          | ok            |
-| vue-icu-cdn (incr.)      | +703          | +700          | +3        | +714                   | ok            |
+| vue-icu-cdn              | 5,796         | 5,718         | +78       | 5,833 / 5,833          | ok            |
+| vue-icu-cdn (incr.)      | +738          | +700          | +38       | +714                   | **red (+24)** |
 | fw-react-default         | 5,069         | 5,034         | +35       | 5,286                  | ok            |
 | fw-react-full-composite  | 8,071         | 8,033         | +38       | 8,435                  | ok            |
-| fw-vue-default           | 5,251         | 5,202         | +49       | 5,463                  | ok            |
-| fw-vue-full-composite    | 7,954         | 7,907         | +47       | 8,303                  | ok            |
+| fw-vue-default           | 5,287         | 5,202         | +85       | 5,463                  | ok            |
+| fw-vue-full-composite    | 7,995         | 7,907         | +88       | 8,303                  | ok            |
 | core-icu-cdn-store / api | 5,226 / 5,582 | 5,185 / 5,536 | +41 / +46 | 5,445 / 5,813          | ok            |
 | core-format / plugins    | 5,232 / 5,152 | 5,187 / 5,113 | +45 / +39 | 5,447 / 5,369          | ok            |
 
-The Vue release fix alone was `vue-icu-cdn` 5,728 (+710); the core growth is the settled-chain
+The Vue release fix alone was `vue-icu-cdn` 5,728 (+710); the KeepAlive reactivation fix (a
+hold in `onBeforeUpdate` when the parent drives the render, Codex review of 3e9a2a80) adds +35
+(5,761 → 5,796; a reactive release flag measured 5,808 and was dropped); the core growth is the settled-chain
 check (+39…+46; the in-flight condition added +12…+13 over the previous sweep, where
 `core-icu-devtools` measured 5,018). `core-compile` (1,862), `core-locale` (584),
 `core-negotiate` (496) and `core-devtools` (639) did not move.
