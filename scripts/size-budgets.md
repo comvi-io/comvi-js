@@ -71,6 +71,12 @@ measurement cost, and `size-check.mjs` throws on a row without a `gzipBudgetByte
 
 > `gzipBudgetBytes = ceil(baseline.gzipBytes * 1.05)`
 
+> **Owner-accepted growth (policy clarification, 2026-10-30).** When the owner accepts a size
+> increase for functionality, the affected `ceilingBytes` (and the binding `increment.maxBytes`
+> cap) is set to `ceil(measured × 1.02)`. Budgets keep the existing rule
+> `min(ceiling, ceil(measured × 1.05))`. No byte golfing is done to fit under an older number, and
+> ceilings are raised only by the owner, never by the executor.
+
 Every row, no exceptions. `baseline` records the sweep the budget came from (`minBytes`,
 `gzipBytes`, `measuredAt`) and is **evidence, not a gate**.
 
@@ -1236,3 +1242,31 @@ ceiling):
 
 `core-compile` (1,862), `core-locale` (584), `core-negotiate` (496) and `core-devtools` (639) did
 not move. `core-icu-devtools` is +453 B over `core-icu` (cap +500).
+
+## 2026-10-30: lot 4c — owner accepts the growth (×1.02 ceilings)
+
+Owner decision, 30.10.2026: the growth of lot 4c's functionality is accepted, the affected budgets
+are updated by the ×1.02 rule rounded up, the clarification is stated in this documentation, and
+no further optimisation is done for a few bytes. No code changed. One sweep after
+`TURBO_FORCE=true pnpm build`, `node --version` v24.22.1; the other rows (`core-compile` 1,862,
+`core-locale` 584, `core-negotiate` 496, `core-icu-cdn-store`, `core-icu-api`,
+`core-icu-devtools`, `core-devtools`, `core-format`, `core-plugins`, the fw rows) measured
+unchanged from the lot 4c fix pass and keep their baselines, budgets and ceilings.
+
+| row                       | measured | old ceiling / cap | new ceiling / cap | budget |
+| ------------------------- | -------- | ----------------- | ----------------- | ------ |
+| core-icu                  | 4,532    | 4,449             | 4,623             | 4,623  |
+| core-icu-cdn              | 5,018    | 4,960             | 5,119             | 5,119  |
+| react-icu-cdn (row)       | 5,554    | 5,700             | 5,700 (unchanged) | 5,700  |
+| react-icu-cdn (increment) | +536     | +527              | +547              | —      |
+| vue-icu-cdn (row)         | 5,718    | 5,560             | 5,833             | 5,833  |
+| vue-icu-cdn (increment)   | +700     | +600              | +714              | —      |
+
+`react-icu-cdn`'s row was already under its 5,700 B ceiling (5,554); only its increment cap was
+over, so the row ceiling stays. Minified sizes: core-icu 9,202, core-icu-cdn 10,293,
+react-icu-cdn 11,391, vue-icu-cdn 11,730.
+
+**POLICY CLARIFICATION.** When the owner accepts growth for functionality, the affected ceiling
+(and binding increment cap) is set to `ceil(measured × 1.02)`. Budgets keep the existing rule
+`min(ceiling, ceil(measured × 1.05))`. No byte golfing is done to fit; ceilings are raised only by
+the owner.
