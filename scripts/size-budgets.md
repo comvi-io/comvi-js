@@ -1398,12 +1398,12 @@ proposals: only the owner accepts them.** No React, Vue or core row moved.
 
 | row                      | 0.7 baseline | now   | budget | ceiling (proposed) | over core-icu-cdn (proposed cap) |
 | ------------------------ | ------------ | ----- | ------ | ------------------ | -------------------------------- |
-| solid-icu-cdn            | —            | 5,927 | 6,031  | **6,031**          | +813 (**+814**)                  |
-| svelte-icu-cdn           | —            | 6,448 | 6,559  | **6,559**          | +1,334 (**+1,343**)              |
-| fw-solid-default         | 7,036        | 5,391 | 5,661  | —                  | —                                |
-| fw-solid-full-composite  | 12,914       | 8,025 | 8,427  | —                  | —                                |
-| fw-svelte-default        | 7,235        | 5,928 | 6,225  | —                  | —                                |
-| fw-svelte-full-composite | 13,609       | 8,492 | 8,917  | —                  | —                                |
+| solid-icu-cdn            | —            | 5,927 | 6,046  | **6,046**          | +813 (**+830**)                  |
+| svelte-icu-cdn           | —            | 6,448 | 6,577  | **6,577**          | +1,334 (**+1,361**)              |
+| fw-solid-default         | 7,036        | 5,404 | 5,661  | —                  | —                                |
+| fw-solid-full-composite  | 12,914       | 8,044 | 8,427  | —                  | —                                |
+| fw-svelte-default        | 7,235        | 5,949 | 6,225  | —                  | —                                |
+| fw-svelte-full-composite | 13,609       | 8,510 | 8,917  | —                  | —                                |
 | fw-svelte-format         | 462          | 5,686 | 5,971  | —                  | —                                |
 
 For comparison, the increment is +533 on React and +716 on Vue. `fw-svelte-format` measures a real
