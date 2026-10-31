@@ -151,8 +151,8 @@ the bytes first, then decide whether they ship.
 
 `core-compile`, `core-locale`, `core-negotiate`, `core-icu`, `core-icu-cdn`, `core-icu-devtools`,
 `core-devtools`, `core-format`, `core-plugins` (the 0.8 core; the 0.7 `core-base*` rows are gone);
-`react-icu-cdn` and `vue-icu-cdn` (the main path on React and on Vue, each with the binding
-increment cap over `core-icu-cdn`);
+`react-icu-cdn`, `vue-icu-cdn`, `solid-icu-cdn` and `svelte-icu-cdn` (the main path on each binding,
+each with the binding increment cap over `core-icu-cdn`);
 per framework
 `fw-{react,solid,svelte,vue}-{default,full-composite}`, `fw-svelte-format`; `fw-next-client-default`,
 `fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-root-devtools`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
@@ -1388,3 +1388,29 @@ re-baselined from that sweep; every ceiling and cap ends at or below its old val
 
 `core-compile` (1,862), `core-locale` (584), `core-negotiate` (496) and `core-devtools` (639) did not
 move. Pending rows are unmeasured here; `fw-svelte-format` is re-baselined in lot 5.
+
+## 2026-10-31: lot 5, Solid and Svelte on 0.8
+
+`@comvi/solid` and `@comvi/svelte` left MIGRATION_PENDING; their rows were unmeasured since lot 1a.
+One sweep after `TURBO_FORCE=1 pnpm build`, `node --version` v24.22.1. Budgets follow the policy at the top
+of this file. **The ceilings and increment caps of the two new rows are `ceil(measured × 1.02)` and are
+proposals: only the owner accepts them.** No React, Vue or core row moved.
+
+| row                      | 0.7 baseline | now   | budget | ceiling (proposed) | over core-icu-cdn (proposed cap) |
+| ------------------------ | ------------ | ----- | ------ | ------------------ | -------------------------------- |
+| solid-icu-cdn            | —            | 5,912 | 6,031  | **6,031**          | +798 (**+814**)                  |
+| svelte-icu-cdn           | —            | 6,430 | 6,559  | **6,559**          | +1,316 (**+1,343**)              |
+| fw-solid-default         | 7,036        | 5,391 | 5,661  | —                  | —                                |
+| fw-solid-full-composite  | 12,914       | 8,025 | 8,427  | —                  | —                                |
+| fw-svelte-default        | 7,235        | 5,928 | 6,225  | —                  | —                                |
+| fw-svelte-full-composite | 13,609       | 8,492 | 8,917  | —                  | —                                |
+| fw-svelte-format         | 462          | 5,686 | 5,971  | —                  | —                                |
+
+For comparison, the increment is +533 on React and +716 on Vue. `fw-svelte-format` measures a real
+instance, the context and `useFormat()`: the 462 B was one formatter over a plain object, which 0.8
+refuses with a `TypeError`.
+
+`scripts/size-check.mjs` compiles `*.svelte.js` as well as `.svelte` (`compileModule`; the binding's
+reactive cell uses runes) and resolves with the `production` and `browser` conditions at the esbuild
+level, as a production bundler does for `esm-env` (`DEV` and `BROWSER` of `@comvi/svelte`). That leaves the
+figures of every other row as they were.

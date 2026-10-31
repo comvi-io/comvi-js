@@ -932,22 +932,18 @@ export const RECIPE_VARIANTS = {
       edits: [
         {
           file: "src/routes/+layout.server.ts",
-          from: "  await i18n.init();\n",
-          to: "  await i18n.init();\n  await new Promise((resolve) => setTimeout(resolve, 10));\n",
+          from: "  await i18n.ready;\n",
+          to: "  await i18n.ready;\n  await new Promise((resolve) => setTimeout(resolve, 10));\n",
         },
       ],
     },
     shared: {
       files: {
         "src/lib/shared.ts": [
-          'import { createI18n, icuCompiler } from "@comvi/svelte";',
-          'import { catalogLoader, fallbackLocale } from "./i18n";',
+          'import { createI18n } from "@comvi/svelte";',
+          'import { fallbackLocale, options } from "./i18n";',
           "",
-          "export const shared = createI18n({",
-          "  locale: fallbackLocale,",
-          "  fallbackLocale,",
-          "  compiler: icuCompiler,",
-          "}).use(catalogLoader());",
+          "export const shared = createI18n({ ...options, locale: fallbackLocale });",
           "",
         ].join("\n"),
       },
@@ -959,7 +955,7 @@ export const RECIPE_VARIANTS = {
         },
         {
           file: "src/routes/+layout.server.ts",
-          from: "  const i18n = createI18n({ locale, fallbackLocale, compiler: icuCompiler }).use(catalogLoader());\n  await i18n.init();\n",
+          from: "  const i18n = createI18n({ ...options, locale });\n  await i18n.ready;\n",
           to: "  const i18n = shared;\n  await i18n.setLocale(locale);\n",
         },
         {
@@ -969,8 +965,8 @@ export const RECIPE_VARIANTS = {
         },
         {
           file: "src/routes/+layout.svelte",
-          from: "  setI18nContext(i18n);",
-          to: "  setI18nContext(shared);",
+          from: "  setI18n(i18n);",
+          to: "  setI18n(shared);",
         },
       ],
     },
@@ -980,8 +976,8 @@ export const RECIPE_VARIANTS = {
       edits: [
         {
           file: "src/lib/i18n.ts",
-          from: "  await i18n.init();\n",
-          to: "  await i18n.init();\n  await new Promise((resolve) => setTimeout(resolve, 10));\n",
+          from: "  return (await load()).default;\n",
+          to: "  await new Promise((resolve) => setTimeout(resolve, 10));\n  return (await load()).default;\n",
         },
         {
           file: "src/routes/[[locale]]/index.tsx",
@@ -1011,38 +1007,31 @@ export const RECIPE_VARIANTS = {
       ],
     },
     shared: {
-      files: {
-        "src/lib/shared.ts": [
-          'import { createI18n, icuCompiler } from "@comvi/solid";',
-          'import { catalogLoader, fallbackLocale } from "./i18n";',
-          "",
-          "export const shared = createI18n({",
-          "  locale: fallbackLocale,",
-          "  fallbackLocale,",
-          "  compiler: icuCompiler,",
-          "}).use(catalogLoader());",
-          "",
-        ].join("\n"),
-      },
       edits: [
         {
-          file: "src/routes/[[locale]].tsx",
-          from: 'import { catalogLoader, fallbackLocale, loadI18n, localePath, locales } from "~/lib/i18n";',
-          to:
-            'import { catalogLoader, fallbackLocale, loadI18n, localePath, locales } from "~/lib/i18n";\n' +
-            'import { shared } from "~/lib/shared";',
+          file: "src/lib/i18n.ts",
+          from: "let browser: I18n | undefined;",
+          to: "let browser: I18n | undefined;\nlet shared: I18n | undefined;",
+        },
+        {
+          file: "src/lib/i18n.ts",
+          from: "  return (locals.i18n ||= createI18n({ ...options, locale }));",
+          to: "  return (locals.i18n = shared ||= createI18n({ ...options, locale }));",
         },
         {
           file: "src/routes/[[locale]].tsx",
-          from: [
-            "        const i18n = createI18n({",
-            "          locale: ready.locale,",
-            "          fallbackLocale,",
-            "          compiler: icuCompiler,",
-            "          messages: ready.messages,",
-            "        }).use(catalogLoader());",
-          ].join("\n"),
-          to: "        const i18n = shared;\n        i18n.addMessages(ready.messages);",
+          from: 'import { createEffect, For, type ParentProps } from "solid-js";',
+          to: 'import { createEffect, createResource, For, type ParentProps } from "solid-js";',
+        },
+        {
+          file: "src/routes/[[locale]].tsx",
+          from: "  const i18n = i18nFor(params.locale ?? fallbackLocale);\n",
+          to:
+            "  const i18n = i18nFor(params.locale ?? fallbackLocale);\n" +
+            "  const [switched] = createResource(() => i18n.setLocale(params.locale ?? fallbackLocale), {\n" +
+            "    deferStream: true,\n" +
+            "  });\n" +
+            "  switched();\n",
         },
       ],
     },

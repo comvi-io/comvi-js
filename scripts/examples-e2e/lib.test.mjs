@@ -869,9 +869,12 @@ test("RECIPE_VARIANTS match the committed sveltekit and solidstart examples, in 
       });
       applyVariant(dir, RECIPE_VARIANTS[kind].pressure);
       applyVariant(dir, RECIPE_VARIANTS[kind].shared);
+      // The `shared` variant really is one module-level instance.
       assert.match(
-        fs.readFileSync(path.join(dir, "src", "lib", "shared.ts"), "utf8"),
-        /export const shared = createI18n/,
+        kind === "sveltekit"
+          ? fs.readFileSync(path.join(dir, "src", "lib", "shared.ts"), "utf8")
+          : fs.readFileSync(path.join(dir, "src", "lib", "i18n.ts"), "utf8"),
+        kind === "sveltekit" ? /export const shared = createI18n/ : /shared \|\|= createI18n/,
       );
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });

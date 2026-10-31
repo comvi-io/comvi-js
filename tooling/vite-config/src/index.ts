@@ -133,16 +133,12 @@ export const treeshakeOptions = {
  */
 export const COMVI_CORE_EXTERNALS = [
   "@comvi/core",
-  "@comvi/core/icu",
-  "@comvi/core/loader",
+  "@comvi/core/cdn",
+  "@comvi/core/format",
+  // The binding seam every wrapper reads the instance through.
+  "@comvi/core/internal",
   "@comvi/core/plugins",
   "@comvi/core/devtools",
-  // The PURE rich-text seam every wrapper `<T>` imports, and its ambient
-  // counterpart. Both must be external: inlining `rich-text` gives the wrapper a
-  // private copy of the `<T>` pipeline that cannot dedupe with the app's
-  // `@comvi/core`, and inlining `tags` re-creates the duplicate-graph bug above.
-  "@comvi/core/rich-text",
-  "@comvi/core/tags",
 ];
 
 export interface LibraryBuildOptions {

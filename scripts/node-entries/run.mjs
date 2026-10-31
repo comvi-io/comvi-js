@@ -2,12 +2,11 @@
  * Can plain Node (a test runner, a script) import the entries meant for it,
  * from what npm would install?
  *
- * `@comvi/svelte`'s root re-exports `T.svelte`, which only a Svelte-aware
- * bundler can load, so code that runs in plain Node imports the standalone
- * formatters from `@comvi/svelte/format` instead. This packs the packages with
- * `pnpm pack`, extracts the tarballs into an empty `node_modules` (no install,
- * no network, nothing hoisted from the workspace) and imports each entry in a
- * fresh `node` process.
+ * The Svelte binding's entries publish `.svelte` and rune modules, which only a Svelte-aware
+ * bundler can load, so code that runs in plain Node formats through `@comvi/core/format` with a
+ * real instance. This packs the package with `pnpm pack`, extracts the tarball into an empty
+ * `node_modules` (no install, no network, nothing hoisted from the workspace) and imports the
+ * entry in a fresh `node` process.
  *
  * Needs the workspace built (`pnpm build`). `pnpm check:node-entries`.
  */
@@ -20,13 +19,21 @@ import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-const PACKAGES = ["core", "svelte"];
+const PACKAGES = ["core"];
 
 const CASES = [
   {
-    specifier: "@comvi/svelte/format",
-    exports: ["formatCurrency", "formatDate", "formatNumber", "formatRelativeTime"],
-    probe: "m.formatNumber({ locale: 'de' }, 1234.5)",
+    specifier: "@comvi/core/format",
+    exports: [
+      "displayName",
+      "formatCurrency",
+      "formatDate",
+      "formatDateRange",
+      "formatList",
+      "formatNumber",
+      "formatRelativeTime",
+    ],
+    probe: "m.formatNumber((await import('@comvi/core')).createI18n({ locale: 'de' }), 1234.5)",
     expected: "1.234,5",
   },
 ];

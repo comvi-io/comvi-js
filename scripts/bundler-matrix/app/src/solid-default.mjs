@@ -1,31 +1,12 @@
-// THE DEFAULT solid recipe. Every import comes from `@comvi/solid`;
-// `@comvi/core` is never named by the app, which uses NO capability — the runner
-// asserts from the bundlers' module graphs that ICU, loader, plugins, devtools
-// and core's tag-registration pair all stay out. Core's BASE entry is present —
-// its `createI18n` is what this app constructs with — so it is never an absence
-// sentinel.
-//
-// `useI18nLoader` / `useI18nPlugins` are deliberately NOT named here, unlike in
-// the capability cases. Since the acquisition moved into `@comvi/core` the two
-// hooks ARE the capability subpaths — `acquireLoaderApi` lives on
-// `@comvi/core/loader`, `acquirePluginsApi` on `@comvi/core/plugins` — so merely
-// referencing one pulls the module this case asserts absent. The export surface
-// they used to pin here is pinned by the packages' own SOURCE entry tests, which
-// CALL them through `src/index` rather than through the published root.
-//
-// It is also a regression pin: the base host really lacks the loader/plugin
-// capability members, so a wrapper that bound them eagerly would crash here.
-//
-// <T> rendering needs a DOM and is NOT exercised here. No top-level await: the
-// webpack leg emits commonjs2.
-import { createI18n, I18nProvider, useI18n } from "@comvi/solid";
-
-function assert(condition, label) {
-  if (!condition) {
-    console.error(`FAIL ${label}`);
-    process.exit(1);
-  }
-}
+// THE DEFAULT Solid app on the 0.8 binding: every import from `@comvi/solid`, run through the
+// provider, useI18n() and the bound <T>. The runner asserts that no core subpath (`/cdn`,
+// `/plugins`, `/devtools`, `/format`) and not `@comvi/solid/format` enter the module graph, in
+// development as in production. `@comvi/core/internal` IS in it: it is the binding's seam.
+// Webpack (target node) resolves solid-js's server build and Vite its browser build: the
+// binding is one build for both. No DOM: `t()` and the provider run, <T>'s nodes are not
+// inserted anywhere. No top-level await: the webpack leg emits commonjs2.
+import { createComponent, createRoot } from "solid-js";
+import { createI18n, I18nProvider, T, useI18n } from "@comvi/solid";
 
 function assertEqual(actual, expected, label) {
   if (actual !== expected) {
@@ -36,31 +17,51 @@ function assertEqual(actual, expected, label) {
   }
 }
 
-const isComponent = (component) =>
-  typeof component === "function" || (typeof component === "object" && component !== null);
-assert(typeof createI18n === "function", "@comvi/solid exports createI18n");
-assert(typeof useI18n === "function", "@comvi/solid exports useI18n");
-assert(isComponent(I18nProvider), "@comvi/solid exports I18nProvider");
-
+// A server render on the webpack leg: the instance names its time zone (a development check).
 const i18n = createI18n({
   locale: "en",
-  exposeGlobal: false,
-  messages: { en: { msg: "a <b>c</b> d" } },
+  timeZone: "UTC",
+  catalogs: {
+    default: {
+      en: {
+        hi: "Hello, {name}!",
+        items: "{count, plural, one {# item} other {# items}}",
+      },
+    },
+    shop: { en: { buy: "Buy <b>now</b>" } },
+  },
 });
 
-// `I18n` is a TYPE from a binding root (P5), so the pin is structural: a base
-// core host, with the composition verb and no capability attached.
-assert(
-  typeof i18n.t === "function" && typeof i18n.use === "function",
-  "createI18n builds a core host",
-);
-assert(typeof i18n.reloadMessages === "undefined", "default host has no loader capability");
-assert(typeof i18n.onMissingKey === "undefined", "default host has no plugin capability");
-assert(typeof i18n.instanceId === "undefined", "default host has no devtools discovery");
-assertEqual(
-  i18n.t("msg", { b: ({ children }) => `*${children}*` }),
-  "a <b>c</b> d",
-  "tag markup stays literal without <T>",
-);
+let seen;
+const App = () => {
+  const { t, locale, isReady } = useI18n();
+  const shop = useI18n("shop");
+  seen = [
+    t("hi", { name: "Ann" }),
+    t("items", { count: 2 }),
+    locale(),
+    isReady(),
+    typeof shop.T,
+    typeof T,
+  ];
+  return seen[0];
+};
 
+createRoot((dispose) => {
+  // `<Show>` hands back an accessor in the browser build: reading it runs the children.
+  let node = createComponent(I18nProvider, {
+    i18n,
+    get children() {
+      return createComponent(App, {});
+    },
+  });
+  while (typeof node === "function") node = node();
+  dispose();
+});
+
+assertEqual(
+  JSON.stringify(seen),
+  JSON.stringify(["Hello, Ann!", "2 items", "en", true, "function", "function"]),
+  "<I18nProvider>, useI18n() and the bound <T>",
+);
 console.log("BUNDLER_MATRIX_OK solid-default");

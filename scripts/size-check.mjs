@@ -248,16 +248,18 @@ export function svelteComponentPlugin(packageRoots) {
   return {
     name: "svelte-component",
     setup(build) {
-      let compile;
-      build.onLoad({ filter: /\.svelte$/ }, async (args) => {
-        if (compile === undefined) {
+      let compiler;
+      // `.svelte.js`: a module with runes (the binding's reactive cell), compiled like a component.
+      build.onLoad({ filter: /\.svelte(\.js)?$/ }, async (args) => {
+        if (compiler === undefined) {
           const pkgDir = packageRoots["@comvi/svelte"];
           if (pkgDir === undefined) {
             return { errors: [{ text: "no @comvi/svelte package root: cannot compile .svelte" }] };
           }
-          compile = createRequire(path.join(pkgDir, "package.json"))("svelte/compiler").compile;
+          compiler = createRequire(path.join(pkgDir, "package.json"))("svelte/compiler");
         }
         const source = await fs.promises.readFile(args.path, "utf8");
+        const compile = args.path.endsWith(".js") ? compiler.compileModule : compiler.compile;
         const { js } = compile(source, {
           filename: args.path,
           generate: "client",
@@ -288,6 +290,8 @@ export async function measureFixture({
     target: "es2020",
     logLevel: "silent",
     external,
+    // What a production bundler resolves `esm-env` (@comvi/svelte's DEV and BROWSER) with.
+    conditions: ["production", "browser"],
     define: {
       __DEV__: "false",
       "process.env.NODE_ENV": JSON.stringify("production"),

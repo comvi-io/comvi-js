@@ -29,11 +29,11 @@ import { bundlerCaseNeeds, pendingReason } from "../../tooling/migration-pending
  *    carry: a package's prod and dev artifacts are the same module by
  *    identity, and only their content differs.
  *
- * Wrapper <T> rendering is NOT exercised (needs a DOM/renderer); wrapper
- * tarballs are still packed, installed, and bundled (app/src/wrappers.mjs).
+ * A case renders where its framework can in plain node (React and Vue to a string); the
+ * Svelte cases only build and load (a client component needs a DOM).
  * Each `*-dev-conditions` case imports whichever module carries its package's
- * dev-only diagnostic — `createNextI18n` for `@comvi/next`; on 0.8 the `react-format`
- * and `vue-format` cases carry the binding's — so that module is in the graph under
+ * dev-only diagnostic — `createNextI18n` for `@comvi/next`; on 0.8 the `react-format`,
+ * `vue-format` and `solid-format` cases carry the binding's — so that module is in the graph under
  * both conditions.
  */
 
@@ -91,6 +91,12 @@ const REACT_DEV_TEXT = "[@comvi/react] no <I18nProvider>";
 /** `@comvi/vue`'s `/format` entry, and its dev-only diagnostic (no `app.use(i18n)` above). */
 const VUE_FORMAT_08 = `@comvi${path.sep}vue${path.sep}dist${path.sep}comvi-vue-format`;
 const VUE_DEV_TEXT = "[@comvi/vue] no app.use(i18n)";
+/** `@comvi/solid`'s `/format` entry, and its dev-only diagnostic (no provider above). */
+const SOLID_FORMAT_08 = `@comvi${path.sep}solid${path.sep}dist${path.sep}comvi-solid-format`;
+const SOLID_DEV_TEXT = "[@comvi/solid] no <I18nProvider>";
+/** `@comvi/svelte`'s `/format` entry and its `<T>`, published as sources. */
+const SVELTE_FORMAT_08 = `@comvi${path.sep}svelte${path.sep}dist${path.sep}format.svelte`;
+const SVELTE_T_08 = `@comvi${path.sep}svelte${path.sep}dist${path.sep}T.svelte`;
 /**
  * The in-context editor's heaviest chunk (~100 kB gz), reached through a
  * dynamic `import()` inside the editor's Core chunk. It is in the graph under
@@ -155,8 +161,8 @@ const NEXT_USE_IDENTITY_HINT = ".use(installer) must return the instance it was 
  * warning ship".
  *
  * `bundlers` narrows a case to a subset of the matrix legs (the webpack leg
- * has no svelte loader on purpose: every svelte case relies on webpack pruning
- * the `T.svelte` re-export WITHOUT resolving it).
+ * has no svelte loader, and `@comvi/svelte` publishes `.svelte` and `.svelte.js`
+ * sources a consumer's Svelte tooling compiles, so the Svelte cases are vite-only).
  *
  * `packages` are the workspace tarballs the case needs, `deps` the framework
  * peer deps its bundle imports. A case carrying `pending` is declared but not
@@ -213,15 +219,45 @@ const CASES = [
     packages: ["@comvi/core", "@comvi/vue"],
     deps: ["vue"],
   },
+  {
+    name: "solid-default",
+    sentinels: "absent",
+    absentModules: [...CORE_SUBPATHS_08, SOLID_FORMAT_08],
+    presentModules: [coreEntry08("internal")],
+    packages: ["@comvi/core", "@comvi/solid"],
+    deps: ["solid-js"],
+  },
+  {
+    name: "solid-format",
+    sentinels: "absent",
+    absentModules: CORE_SUBPATHS_08.filter((f) => !f.endsWith("format")),
+    presentModules: [SOLID_FORMAT_08, coreEntry08("format")],
+    devOnlyText: [SOLID_DEV_TEXT],
+    packages: ["@comvi/core", "@comvi/solid"],
+    deps: ["solid-js"],
+  },
+  {
+    name: "svelte-default",
+    bundlers: ["vite"],
+    sentinels: "absent",
+    absentModules: [...CORE_SUBPATHS_08, SVELTE_FORMAT_08],
+    presentModules: [coreEntry08("internal")],
+    packages: ["@comvi/core", "@comvi/svelte"],
+    deps: ["svelte"],
+  },
+  {
+    // `/format` reaches the instance through the binding's cell alone: no `<T>` in its graph.
+    name: "svelte-format",
+    bundlers: ["vite"],
+    sentinels: "absent",
+    absentModules: [...CORE_SUBPATHS_08.filter((f) => !f.endsWith("format")), SVELTE_T_08],
+    presentModules: [SVELTE_FORMAT_08, coreEntry08("format")],
+    packages: ["@comvi/core", "@comvi/svelte"],
+    deps: ["svelte"],
+  },
   // ---------------------------------------------------------------------
   // The 0.7 cases below run again when their binding's lot moves them to 0.8
   // (`fixtures-08`, tooling/migration-pending.mjs).
-  {
-    name: "wrappers",
-    sentinels: "absent",
-    packages: ["@comvi/core", "@comvi/react", "@comvi/vue"],
-    deps: ["react", "vue"],
-  },
   {
     // The companion-only server graph must drop next's own composed-host module
     // (`createNextI18n.js`) and the unused capability subpaths. That holds in
@@ -258,34 +294,6 @@ const CASES = [
   // `optimization.usedExports` off, so a re-export it cannot resolve is a
   // retained module. That is exactly how `export * from "@comvi/core"` kept the
   // root entry alive for vue, and why every entry uses NAMED re-exports only.
-  {
-    name: "solid-default",
-    sentinels: "absent",
-    absentModules: [...UNUSED_CAPABILITY_SUBPATHS, ...LOADER_SUBPATH],
-    packages: ["@comvi/core", "@comvi/solid"],
-    deps: ["solid-js"],
-  },
-  {
-    name: "solid-icu",
-    sentinels: "absent",
-    absentModules: [...LOADER_SUBPATH, ...PLUGINS_SUBPATH, ...DEVTOOLS_SUBPATH],
-    packages: ["@comvi/core", "@comvi/solid"],
-    deps: ["solid-js"],
-  },
-  {
-    name: "svelte-default",
-    sentinels: "absent",
-    absentModules: [...UNUSED_CAPABILITY_SUBPATHS, ...LOADER_SUBPATH],
-    packages: ["@comvi/core", "@comvi/svelte"],
-    deps: ["svelte"],
-  },
-  {
-    name: "svelte-icu",
-    sentinels: "absent",
-    absentModules: [...LOADER_SUBPATH, ...PLUGINS_SUBPATH, ...DEVTOOLS_SUBPATH],
-    packages: ["@comvi/core", "@comvi/svelte"],
-    deps: ["svelte"],
-  },
   {
     // This entry re-exports `T` through `@comvi/react`, whose component reaches
     // the pure rich-text seam rather than ambient registration — which is why it

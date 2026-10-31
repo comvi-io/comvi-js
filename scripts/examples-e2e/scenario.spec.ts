@@ -1281,7 +1281,9 @@ const QUEUED_SWITCHES = ["nuxt"].includes(env("E2E_FRAMEWORK"));
  * supersedes, so uk's request is cancelled the moment de is chosen and its answer can
  * never land. The other client examples (0.7) let it land and discard the switch.
  */
-const ABORTS_SUPERSEDED = ["react", "vanilla", "vue"].includes(env("E2E_FRAMEWORK"));
+const ABORTS_SUPERSEDED = ["react", "vanilla", "vue", "solid", "svelte"].includes(
+  env("E2E_FRAMEWORK"),
+);
 
 test("u: client race — en → uk → de with uk's catalog answered last stays de", async ({ page }) => {
   test.skip(!CDN_CONTROL, NEEDS_CDN);
@@ -1440,7 +1442,9 @@ for (const [step, fault] of [
 // and shows its loading row meanwhile (never the old language's rows).
 const LOADS_AFTER_SWITCH = env("E2E_FRAMEWORK") === "vanilla";
 /** The 0.8 examples: a namespace with no consumer left is not loaded by a switch (lot 4c). */
-const RELEASES_NAMESPACES = ["react", "vanilla", "vue"].includes(env("E2E_FRAMEWORK"));
+const RELEASES_NAMESPACES = ["react", "vanilla", "vue", "solid", "svelte"].includes(
+  env("E2E_FRAMEWORK"),
+);
 
 /** What the second page watches: its default-namespace body and the three `account` rows. */
 const ABOUT_WATCHED: Watched = {

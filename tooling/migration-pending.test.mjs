@@ -38,14 +38,20 @@ const activeExamples = () =>
     (e) => activeShards([e.framework], exampleNeeds, "examples-e2e", quiet).length === 1,
   ).map((e) => `${e.framework}/${e.mode}`);
 
-test("after lot 4 the React, Vue and vanilla examples run; every test app is pending, and the skip says why", () => {
+test("after lot 5 the React, Vue, Svelte, Solid and vanilla examples and both SSR recipes run; every test app is pending, and the skip says why", () => {
   assert.deepEqual(activeExamples(), [
     "react/default",
     "react/cdn",
     "vue/default",
     "vue/cdn",
+    "svelte/default",
+    "svelte/cdn",
+    "solid/default",
+    "solid/cdn",
     "vanilla/default",
     "vanilla/cdn",
+    "sveltekit/default",
+    "solidstart/default",
   ]);
   const lines = [];
   assert.deepEqual(
@@ -55,18 +61,22 @@ test("after lot 4 the React, Vue and vanilla examples run; every test app is pen
   assert.ok(lines.some((l) => l.includes("fixtures-08") && l.includes("lot 6")));
 });
 
-test("Solid landing re-enables the Solid shards while Next and the rest stay pending", () => {
-  const got = landed(["fixtures-08", "@comvi/solid"], activeExamples);
+test("Next landing re-enables the Next shards while Nuxt and the rest stay pending", () => {
+  const got = landed(["fixtures-08", "@comvi/next"], activeExamples);
   assert.deepEqual(got, [
     "react/default",
     "react/cdn",
+    "next/default",
+    "next/cdn",
     "vue/default",
     "vue/cdn",
+    "svelte/default",
+    "svelte/cdn",
     "solid/default",
     "solid/cdn",
     "vanilla/default",
     "vanilla/cdn",
-    // The SSR recipe needs Solid alone, so it lands with it.
+    "sveltekit/default",
     "solidstart/default",
   ]);
 });
@@ -75,9 +85,9 @@ test("a rewritten example or bundler case does not need fixtures-08; the others 
   assert.deepEqual(exampleNeeds("react").sort(), ["@comvi/core", "@comvi/react"]);
   assert.deepEqual(bundlerCaseNeeds("react-default", ["@comvi/core"]), ["@comvi/core"]);
   assert.deepEqual(bundlerCaseNeeds("vue-default", ["@comvi/vue"]), ["@comvi/vue"]);
-  assert.deepEqual(bundlerCaseNeeds("solid-default", ["@comvi/solid"]), [
+  assert.deepEqual(bundlerCaseNeeds("next-client-default", ["@comvi/next"]), [
     "fixtures-08",
-    "@comvi/solid",
+    "@comvi/next",
   ]);
 });
 
@@ -89,9 +99,5 @@ test("a test app runs once it and the core instance are active, independently of
 });
 
 test("example needs come from the example's own package.json", () => {
-  assert.deepEqual(exampleNeeds("sveltekit").sort(), [
-    "@comvi/core",
-    "@comvi/svelte",
-    "fixtures-08",
-  ]);
+  assert.deepEqual(exampleNeeds("sveltekit").sort(), ["@comvi/core", "@comvi/svelte"]);
 });
