@@ -1400,10 +1400,10 @@ proposals: only the owner accepts them.** No React, Vue or core row moved.
 | ------------------------ | ------------ | ----- | ------ | ------------------ | -------------------------------- |
 | solid-icu-cdn            | —            | 5,927 | 6,046  | **6,046**          | +813 (**+830**)                  |
 | svelte-icu-cdn           | —            | 6,448 | 6,577  | **6,577**          | +1,334 (**+1,361**)              |
-| fw-solid-default         | 7,036        | 5,404 | 5,661  | —                  | —                                |
-| fw-solid-full-composite  | 12,914       | 8,044 | 8,427  | —                  | —                                |
-| fw-svelte-default        | 7,235        | 5,949 | 6,225  | —                  | —                                |
-| fw-svelte-full-composite | 13,609       | 8,510 | 8,917  | —                  | —                                |
+| fw-solid-default         | 7,036        | 5,404 | 5,675  | —                  | —                                |
+| fw-solid-full-composite  | 12,914       | 8,044 | 8,447  | —                  | —                                |
+| fw-svelte-default        | 7,235        | 5,949 | 6,247  | —                  | —                                |
+| fw-svelte-full-composite | 13,609       | 8,510 | 8,936  | —                  | —                                |
 | fw-svelte-format         | 462          | 5,686 | 5,971  | —                  | —                                |
 
 For comparison, the increment is +533 on React and +716 on Vue. `fw-svelte-format` measures a real

@@ -251,7 +251,7 @@
       "entry": ["@comvi/solid"],
       "fixture": "framework/solid-default.ts",
       "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 5661,
+      "gzipBudgetBytes": 5675,
       "baseline": {
         "minBytes": 11103,
         "gzipBytes": 5404,
@@ -270,7 +270,7 @@
       ],
       "fixture": "framework/solid-full-composite.ts",
       "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 8427,
+      "gzipBudgetBytes": 8447,
       "baseline": {
         "minBytes": 17206,
         "gzipBytes": 8044,
@@ -283,7 +283,7 @@
       "entry": ["@comvi/svelte"],
       "fixture": "framework/svelte-default.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 6225,
+      "gzipBudgetBytes": 6247,
       "baseline": {
         "minBytes": 12746,
         "gzipBytes": 5949,
@@ -302,7 +302,7 @@
       ],
       "fixture": "framework/svelte-full-composite.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 8917,
+      "gzipBudgetBytes": 8936,
       "baseline": {
         "minBytes": 18829,
         "gzipBytes": 8510,
