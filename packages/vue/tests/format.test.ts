@@ -131,6 +131,15 @@ describe("useFormat()", () => {
     }
   });
 
+  it("walks the configured fallback chain when the runtime lacks the locale, like the core (lot 4d)", () => {
+    const i18n = createI18n({ locale: "xx", fallbackLocale: "de", messages: { xx: {} } });
+    expect(capture(i18n).number(1234.5)).toBe(new Intl.NumberFormat("de").format(1234.5));
+  });
+
+  it("createI18n with an invalid start locale throws a RangeError (lot 4d)", () => {
+    expect(() => createI18n({ locale: "!!" })).toThrow(RangeError);
+  });
+
   it("an explicit `now` option stays fixed in every render (lot 4b)", () => {
     const real = Date.now;
     Date.now = () => 5_000_000;

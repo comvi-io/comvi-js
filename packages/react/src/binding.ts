@@ -163,8 +163,9 @@ export interface UseI18n<NS extends string = "default"> {
   /**
    * `t()` against what this render shows. A call whose params are all text (strings,
    * numbers, dates…) returns a `string`; a rich message (a tag handler, an element param)
-   * returns a React element. Without generated catalogs a call with a handler or an element
-   * param is typed `string | ReactElement`: the message decides at run time.
+   * returns a React element, or a string when its handlers returned text or the key is
+   * missing, so such a call is typed `string | ReactElement`, with or without generated
+   * catalogs: the message decides at run time.
    */
   t: [NsOf] extends [never] ? UntypedT<ReactElement, UntypedParams> : TFor<NS, ReactElement>;
   /** `<T>` bound to this namespace; the same component on every render (R3-5(b)). */

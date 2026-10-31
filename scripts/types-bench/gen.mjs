@@ -240,7 +240,7 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
     "const i18n = createI18n({ locale: 'en' });",
     "const t = i18n.t;",
     "declare const tag: Tag; declare const cond: boolean;",
-    "export const out: string[] = []; export const rich: RichParts[] = [];",
+    "export const out: string[] = []; export const rich: (string | RichParts)[] = [];",
   ];
   const app2 = kind === "app2" || kind === "jsx" || kind === "jsxTypo" || kind in VUE_PROBES;
   if (kind === "app300" || kind === "app30" || app2) {

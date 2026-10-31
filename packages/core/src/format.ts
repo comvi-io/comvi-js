@@ -6,7 +6,9 @@
  * never `JSON.stringify` on the hot path.
  *
  * Each takes the instance and formats in its locale chain (canonical; the app may spell
- * the locale `pt_BR`), or in `locale` alone when passed. Dates use the instance `timeZone` unless
+ * the locale `pt_BR`), or in the chain of `locale` when passed (it, its parents, the
+ * fallback locales — as `t()` resolves `{ locale }`); a `locale` that is not a tag throws a
+ * `RangeError`, an `i18n` that is not an instance of `createI18n()` a `TypeError`. Dates use the instance `timeZone` unless
  * the options name one. `formatNumber` and `formatDate` also take the NAME of an entry of the
  * instance's `formats` option; `formatRelativeTime` counts from the instance's clock (see
  * clock.ts; a server's is serialised by `handover()` as `serverNow`, so the hydration
@@ -18,23 +20,30 @@ import { CORE, type I18n, type I18nOptions } from "./instance";
 import { canonicalize } from "./locale";
 
 /**
- * The Intl locales: `locale` alone when passed, else the instance's lookup chain (its
- * locale, the parents, the fallback locales), canonical — Intl takes the first it has
- * data for. A tag that does not canonicalize is left out. Memoized per chain array (the
- * instance memoizes chains per locale), so a call with no `locale` allocates nothing.
+ * The Intl locales: the lookup chain (the locale, its parents, the fallback locales) of
+ * `locale` when passed, else of the instance's locale, canonical — Intl takes the first it
+ * has data for. A tag that does not canonicalize is left out. Memoized per chain array (the
+ * instance memoizes chains per locale), so a call allocates nothing once its chain is seen.
  */
+declare const __DEV__: boolean;
+
+/** The instance behind `i18n`: formatters take a real one, anything else is a TypeError. */
+const seam = (i18n: I18n) => {
+  const core = CORE.get(i18n);
+  if (!core) throw TypeError(__DEV__ ? "[@comvi/core] not an instance of createI18n()" : "i18n");
+  return core;
+};
+
 type Tags = [key: string, locales: readonly string[], fmts: Record<string, unknown>];
 const chains = new WeakMap<object, Tags>();
-const NONE: Tags = ["", [], Object.create(null)];
 const tags = (i18n: I18n, locale?: string): Tags => {
-  if (locale) {
-    const c = canonicalize(locale);
-    // An override that is not a tag formats in the instance chain, never the host default.
-    return c ? [c, [c], Object.create(null)] : tags(i18n);
-  }
-  const core = CORE.get(i18n);
-  if (!core) return NONE;
-  const ch = core.ch(i18n.locale);
+  const core = seam(i18n);
+  // An override that is not a tag is the caller's mistake, never the current locale.
+  if (locale !== undefined && !canonicalize(locale))
+    throw RangeError(__DEV__ ? `[@comvi/core] invalid locale "${locale}"` : locale);
+  // An override formats in ITS chain, like `t()`'s `{ locale }`: a binding passes the locale
+  // its render shows, which may differ from the instance's during a handover or hydration.
+  const ch = core.ch(locale ?? i18n.locale);
   let t = chains.get(ch);
   if (!t) {
     const ls = ch.map((x) => x[1]);
@@ -71,7 +80,7 @@ const variant = (options?: object): string =>
     : "";
 
 /** The instance options (`timeZone`, `now`, `formats`). */
-const opts = (i18n: I18n): Partial<I18nOptions> => CORE.get(i18n)?.o || {};
+const opts = (i18n: I18n): Partial<I18nOptions> => seam(i18n).o;
 
 /** `options`, or the named entry of the instance's `formats[kind]` (unknown name: none). */
 const named = <T>(i18n: I18n, kind: "number" | "date", options?: T | string): T | undefined =>
@@ -162,8 +171,6 @@ export const formatRelativeTime = (
   options?: RelativeTimeOptions,
   locale?: string,
 ): string => {
-  const ms = +date - (options?.now ?? clock(i18n));
-  const [unit, size] = UNITS.find((u) => Math.abs(ms) >= u[1]) || UNITS[6];
   // Only `now` (or nothing): the default formatter, kept on the chain, no allocation. `now`
   // is not an Intl option: left out, so it never splits the formatter cache.
   let o: Intl.RelativeTimeFormatOptions = AUTO;
@@ -173,14 +180,18 @@ export const formatRelativeTime = (
       o = { numeric: AUTO.numeric, ...intlOptions };
       break;
     }
-  return get<Intl.RelativeTimeFormat>(
+  const f = get<Intl.RelativeTimeFormat>(
     "RelativeTimeFormat",
     i18n,
     o,
     locale,
     // The default options' cache variant is a constant: no key sorting per call.
     o == AUTO ? "numeric=auto" : undefined,
-  ).format(Math.round(ms / size), unit);
+  );
+  // After `get()`: the clock takes a real instance.
+  const ms = +date - (options?.now ?? clock(i18n));
+  const [unit, size] = UNITS.find((u) => Math.abs(ms) >= u[1]) || UNITS[6];
+  return f.format(Math.round(ms / size), unit);
 };
 
 export const formatList = (

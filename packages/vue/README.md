@@ -35,7 +35,6 @@ import App from "./App.vue";
 
 const i18n = createI18n({
   locale: "en",
-  fallbackLocale: "en",
   messages: { en: { greeting: "Hello, {name}!" }, uk: { greeting: "Привіт, {name}!" } },
 });
 createApp(App).use(i18n).mount("#app");
@@ -46,7 +45,6 @@ createApp(App).use(i18n).mount("#app");
 ```vue title="src/App.vue"
 <script setup lang="ts">
 import { useI18n } from "@comvi/vue";
-
 const { t, locale } = useI18n();
 </script>
 
@@ -68,7 +66,6 @@ parent (`de` for `de-AT`) loaded for any namespace it waited for.
 ```vue title="src/Account.vue"
 <script setup lang="ts">
 import { useI18n } from "@comvi/vue";
-
 const { t, isReady, isLoading } = useI18n("account");
 </script>
 
@@ -85,8 +82,7 @@ switch; with no component holding it, it stays cached and a switch skips it. `is
 of the locale on screen, its parent or a `fallbackLocale` is in; `isLoading`: one is on the way.
 A failed load is `false`/`false` only with no usable catalog — with a fallback locale's catalog
 in, it is `true`/`false` once the requests finish; a remount does not retry, `i18n.load("account")`
-does. `t()`,
-`$t` and `<T>` only read (development warns about a namespace nothing loads). Outside a component
+does. `t()`, `$t` and `<T>` only read (development warns about a namespace nothing loads). Outside a component
 use `i18n.load()`, which holds nothing (`beforeEnter: () => i18n.load("account").catch(() => {})`
 preloads a page), or the `namespaces` option.
 
@@ -97,7 +93,6 @@ import { createApp } from "vue";
 import { createI18n } from "@comvi/vue";
 import { cdn } from "@comvi/core/cdn";
 import App from "./App.vue";
-
 const i18n = createI18n({ locale: "en", loader: cdn("https://cdn.comvi.io/<project-token>") });
 i18n.ready.then(() => createApp(App).use(i18n).mount("#app")); // once the first catalogs are in
 ```
@@ -124,8 +119,11 @@ attribute but `i18n-key`, `ns`, `locale` and `markers` is a param, camelized, `c
 
 ## Server rendering
 
-An instance per request; `useI18n(ns)` loads before its component renders, and `handover()`
-carries every namespace the request needed (a route's `load()` too):
+An instance per request; `useI18n(ns)` loads before its component renders, and `handover()` carries
+every namespace the request needed. Match a locale from a route, cookie or header against your
+supported locales first: `createI18n()` throws a `RangeError` for one that is not a tag, a
+configuration error. A valid locale with no translation falls back, and `t(key, { locale })`,
+`has()`, `add()` and `fallbackLocale` entries only report `invalid_locale`.
 
 ```ts title="server.ts"
 import { createSSRApp } from "vue";

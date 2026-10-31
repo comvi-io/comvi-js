@@ -5,7 +5,8 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import type { I18nError } from "../../src/errors";
-import { createI18n } from "../../src/instance";
+import { formatNumber } from "../../src/format";
+import { createI18n, type I18n } from "../../src/instance";
 
 describe("production instance", () => {
   it("renders and reports exactly like development, without messages", async () => {
@@ -69,5 +70,25 @@ describe("production catalog values", () => {
       onError: (e) => errors.push(e),
     });
     expect(errors).toEqual([]);
+  });
+});
+
+describe("production createI18n (lot 4d)", () => {
+  it("an invalid start locale is a RangeError naming the tag only", () => {
+    expect(() => createI18n({ locale: "!!" })).toThrow(RangeError);
+    expect(() => createI18n({ locale: "!!" })).toThrow(/^!!$/);
+  });
+});
+
+describe("production formatters (lot 4d)", () => {
+  it("something that is not an instance is a TypeError, without development text", () => {
+    expect(() => formatNumber({} as I18n, 1)).toThrow(TypeError);
+    expect(() => formatNumber({} as I18n, 1)).not.toThrow(/comvi/);
+  });
+
+  it("an explicit locale that is not a tag is a RangeError naming the tag only", () => {
+    const i18n = createI18n({ locale: "en" });
+    expect(() => formatNumber(i18n, 1, undefined, "!!")).toThrow(RangeError);
+    expect(() => formatNumber(i18n, 1, undefined, "!!")).toThrow(/^!!$/);
   });
 });

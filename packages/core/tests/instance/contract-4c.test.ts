@@ -764,3 +764,99 @@ describe("missing_key: a catalog of the chain in place and every pair of the cha
     expect(mk(errors)).toEqual([]);
   });
 });
+
+describe("the last setLocale() wins across a synchronous notification (lot 4d)", () => {
+  /**
+   * en → de; meanwhile load("account") starts a load for en; de lands; the old call's
+   * cleanup aborts en:account and its publish tells a subscriber, which switches to fr.
+   */
+  const setup = (messages: Record<string, Record<string, string>>) => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages, loader: l.load });
+    const sw: { de?: Promise<void>; fr?: Promise<void> } = {};
+    i18n.on(() => {
+      if (!sw.fr && l.signals.get("en:account")?.aborted) sw.fr = i18n.setLocale("fr");
+    });
+    sw.de = i18n.setLocale("de");
+    void i18n.load("account").catch(() => {});
+    expect(l.requested).toEqual(["de:default", "en:account"]);
+    return { i18n, l, sw };
+  };
+
+  it("fr's catalogs in place: the subscriber's switch applies fr and the stale de call applies nothing after it", async () => {
+    const { i18n, l, sw } = setup({ en: { hi: "Hi" }, fr: { hi: "Salut" } });
+    const seen: string[] = [];
+    i18n.on(() => seen.push(i18n.locale));
+    await l.answer("de:default", { hi: "Hallo" });
+    expect(sw.fr).toBeDefined();
+    await sw.de;
+    await sw.fr;
+    expect(i18n.locale).toBe("fr");
+    expect(i18n.t("hi")).toBe("Salut");
+    // de never reached the screen after fr.
+    expect(seen.slice(seen.indexOf("fr"))).not.toContain("de");
+    expect(l.requested).toEqual(["de:default", "en:account"]);
+  });
+
+  it("fr still loading: the stale call neither cancels fr's request nor applies de; fr applies when it lands", async () => {
+    const { i18n, l, sw } = setup({ en: { hi: "Hi" } });
+    await l.answer("de:default", { hi: "Hallo" });
+    expect(sw.fr).toBeDefined();
+    await sw.de;
+    // fr's one request goes on: the old call's cleanup did not abort it.
+    expect(l.requested.filter((k) => k == "fr:default")).toEqual(["fr:default"]);
+    expect(l.signals.get("fr:default")!.aborted).toBe(false);
+    expect(i18n.locale).toBe("en");
+    await l.answer("fr:default", { hi: "Salut" });
+    await sw.fr;
+    expect(i18n.locale).toBe("fr");
+    expect(i18n.t("hi")).toBe("Salut");
+  });
+});
+
+describe("a stale setLocale() changes nothing after its own publish or prune (lot 4d, Codex review)", () => {
+  it("a subscriber of de's publish switches to fr and holds account: the stale de call starts no de:account", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {}, fr: {} }, loader: l.load });
+    let fr: Promise<void> | undefined;
+    i18n.on(() => {
+      if (!fr && i18n.locale == "de") {
+        fr = i18n.setLocale("fr");
+        acquire(i18n, "account");
+      }
+    });
+    const de = i18n.setLocale("de");
+    await l.answer("de:default");
+    await de;
+    await fr;
+    expect(i18n.locale).toBe("fr");
+    expect(l.requested).toEqual(["de:default", "fr:account"]);
+    await l.answer("fr:account", { title: "Compte" });
+    expect(rl(i18n, "account")).toEqual([true, false]);
+    expect(i18n.t("title", { ns: "account" })).toBe("Compte");
+  });
+
+  it("a subscriber of de's prune switches to fr: the stale de call keeps de's known failure, fr's fallback", async () => {
+    const l = manualLoader();
+    const { i18n, errors } = make({
+      locale: "en",
+      fallbackLocale: { fr: ["de"] },
+      catalogs: { default: { en: { hi: "Hi" }, fr: { hi: "Salut" }, de: null } },
+      loader: l.load,
+    });
+    void i18n.load("account").catch(() => {});
+    let fr: Promise<void> | undefined;
+    i18n.on(() => {
+      if (!fr && l.signals.get("en:account")?.aborted) fr = i18n.setLocale("fr");
+    });
+    const de = i18n.setLocale("de");
+    await flush();
+    await fr;
+    await de?.catch(() => {});
+    expect(i18n.locale).toBe("fr");
+    // de's failure stays known: fr's chain is settled, not loading for ever.
+    expect(rl(i18n)).toEqual([true, false]);
+    expect(i18n.t("gone")).toBe("gone");
+    expect(errors.filter((e) => e.code == "missing_key").map((e) => e.key)).toEqual(["gone"]);
+  });
+});

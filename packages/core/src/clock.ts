@@ -14,9 +14,9 @@ import { CORE, type I18n } from "./instance";
 const T0 = new WeakMap<I18n, number>();
 
 export const clock = (i18n: I18n, live?: unknown): number => {
-  const o = CORE.get(i18n)?.o;
-  if (o?.now != null) return o.now;
-  if (o?.serverNow != null && !live) return o.serverNow;
+  const o = CORE.get(i18n)!.o;
+  if (o.now != null) return o.now;
+  if (o.serverNow != null && !live) return o.serverNow;
   if (typeof document != "undefined") return Date.now();
   let t = T0.get(i18n);
   if (t === undefined) T0.set(i18n, (t = Date.now()));

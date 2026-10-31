@@ -51,7 +51,6 @@ createRoot(document.getElementById("root")!).render(
 
 ```tsx title="src/App.tsx"
 import { useI18n } from "@comvi/react";
-
 export default function App() {
   const { t, locale, setLocale } = useI18n();
   return (
@@ -67,15 +66,14 @@ export default function App() {
 ```
 
 `t()` fills `{name}` from its second argument (`{ ns }`, `{ locale }` there apply to one call);
-text params give a string, a tag handler or an element a React element. `setLocale()` switches
-once the new catalogs are in (the old locale stays on screen; the last of quick calls wins); it
+text params give a string; with a tag handler or an element it is typed `string | ReactElement`
+(a handler may return text, a missing key renders its key). `setLocale()` switches once the new catalogs are in (the old locale stays on screen; the last of quick calls wins); it
 rejects for an invalid tag or when no catalog of the locale or its parent (`de` for `de-AT`) loaded.
 
 ## Namespaces
 
 ```tsx title="src/Account.tsx"
 import { useI18n } from "@comvi/react";
-
 export function Account() {
   const { t, isReady, isLoading } = useI18n("account");
   if (!isReady) return isLoading ? <p className="spinner" /> : <p>Not available</p>;
@@ -87,9 +85,9 @@ export function Account() {
 locale on screen and every switch; with no component holding it, it stays cached and a switch
 skips it. `isReady`: a catalog of the locale on screen, its parent or a `fallbackLocale` is in;
 `isLoading`: one is on the way. A failed load is `false`/`false` only with no usable catalog —
-with a fallback locale's catalog in, it is `true`/`false` once the requests finish; a remount
-does not retry, but
-`i18n.load("account")` does (it preloads a route too, holding nothing). `t()` and `<T>` only read.
+with a fallback locale's catalog in, it is `true`/`false` once the requests finish; a remount does
+not retry, but `i18n.load("account")` does (it preloads a route too, holding nothing). `t()` and
+`<T>` only read.
 
 ## Load from Comvi
 
@@ -120,11 +118,15 @@ paint only, while a namespace being loaded is not `isReady` (another locale's ca
 count), before the children render: an `<I18nHandover>` under a shut gate waits, so pass the data
 first. Server renders and hydrations are never gated; a server preloads with `i18n.load()`.
 
+Match a locale from a route, cookie or header against your supported locales first: `createI18n()`
+and `<I18nHandover locale>` throw a `RangeError` for one that is not a tag, a configuration error.
+A valid locale with no translation falls back, and `t(key, { locale })`, `has()`, `add()` and
+`fallbackLocale` entries only report `invalid_locale`.
+
 ## Markup in a translation
 
 ```tsx
 import { T } from "@comvi/react";
-
 // "terms": "Read the <link>terms</link>, <b>in <i>full</i></b>."
 <T
   i18nKey="terms"
@@ -142,10 +144,6 @@ else as text. Every prop but `i18nKey`, `components`, `ns`, `locale` and `marker
 - [React guide](https://comvi.io/docs/i18n/react): markup inside a translation, first paint, SSR.
 - [Loading translations](https://comvi.io/docs/i18n/loading-translations): loaders, namespaces, fallbacks.
 - [React API reference](https://comvi.io/docs/i18n/api/react): every export, hook and provider prop.
-
-## Contributing
-
-Bug reports, docs fixes and pull requests are welcome: [CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md).
 
 ## License
 

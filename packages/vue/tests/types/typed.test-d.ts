@@ -20,7 +20,12 @@ createI18n({ locale: "en" });
 export function setup() {
   const { t, locale, dir, isLoading, setLocale, T: DT } = useI18n();
   const s: string = t("greeting", { name: "Ann" });
-  const r: VNodeArrayChildren = t("terms", { link: (c) => h("a", c) });
+  // A rich key may still render a string: a handler can return one, and a missing key
+  // renders its key text (lot 4d) — the type says so.
+  const r: string | VNodeArrayChildren = t("terms", { link: (c) => h("a", c) });
+  // @ts-expect-error a rich key is not always parts: this handler returns a string
+  const r2: VNodeArrayChildren = t("terms", { link: () => "terms" });
+  void r2;
   // The registered TagChildren types an inline handler's argument: text, or the parts.
   t("terms", {
     link: (c) => {

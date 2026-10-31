@@ -1312,3 +1312,79 @@ identity, 5,800 by DOM connectivity) were dropped on the owner's call — public
 only. The core growth is the settled-chain check (+39…+46). Minified: core-icu-devtools 10,263, vue-icu-cdn 11,824.
 `core-compile` (1,862), `core-locale` (584), `core-negotiate` (496) and `core-devtools` (639) did
 not move.
+
+## 2026-10-31: lot 4d — owner-approved ceilings
+
+Three correctness fixes on `next`: typed rich keys, the fallback chain of `useFormat()` and one
+section guard for `setLocale()`, `load()` and holds, destroy paths included. Nearly all the growth
+is that guard and the destroy rules (`.lot1-pending-tests.md`, "Lot 4d re-entrancy", which has the
+cost per pass). The owner approved it on 31.10 under the ×1.02 policy above: each ceiling is
+`ceil(measured × 1.02)`, each budget `min(ceiling, ceil(measured × 1.05))`. Increment caps are
+unchanged and hold: `react-icu-cdn` +526 of +547, `vue-icu-cdn` +703 of +753, `core-icu-devtools`
++451 of +500.
+
+One sweep after `TURBO_FORCE=1 pnpm build` at fccdd66e, `node --version` v24.22.1; `pnpm size`
+green. The rows below were re-baselined; before is a sweep of the same `next` base under Node 24.
+
+| row                     | 5158518b | now   | Δ    | budget | ceiling   |
+| ----------------------- | -------- | ----- | ---- | ------ | --------- |
+| core-icu                | 4,574    | 4,747 | +173 | 4,842  | **4,842** |
+| core-icu-cdn            | 5,058    | 5,229 | +171 | 5,334  | **5,334** |
+| core-icu-devtools       | 5,031    | 5,198 | +167 | 5,302  | **5,302** |
+| react-icu-cdn           | 5,592    | 5,755 | +163 | 5,871  | **5,871** |
+| vue-icu-cdn             | 5,759    | 5,932 | +173 | 6,051  | **6,051** |
+| core-icu-cdn-store      | 5,226    | 5,396 | +170 | 5,666  | —         |
+| core-icu-api            | 5,582    | 5,750 | +168 | 6,038  | —         |
+| core-format             | 5,232    | 5,403 | +171 | 5,674  | —         |
+| core-plugins            | 5,152    | 5,329 | +177 | 5,596  | —         |
+| fw-react-default        | 5,069    | 5,243 | +174 | 5,506  | —         |
+| fw-react-full-composite | 8,071    | 8,232 | +161 | 8,644  | —         |
+| fw-vue-default          | 5,251    | 5,419 | +168 | 5,690  | —         |
+| fw-vue-full-composite   | 7,964    | 8,134 | +170 | 8,541  | —         |
+
+`core-compile` (1,862), `core-locale` (584), `core-negotiate` (496) and `core-devtools` (639) did
+not move.
+
+### 2026-10-31: the queue removed (owner decision)
+
+The section guard named above was removed; a synchronous `setLocale()` from a loader or an abort
+listener is no longer supported. Measured under Node v24.22.1 after `TURBO_FORCE=1 pnpm build`:
+core-icu 4,646 (+72 from 5158518b), core-icu-cdn 5,125 (+67), core-icu-devtools 5,097 (+66),
+react-icu-cdn 5,658 (+66), vue-icu-cdn 5,829 (+70), about 100 B under the table above. The ceilings,
+budgets and baselines above are left as they are until the owner's final choice, so this file's
+baselines are higher than the measurement for now; `pnpm size` is green with room.
+
+### 2026-10-31: final lot 4d numbers, before the owner's choice of ceilings
+
+The rest of the package landed (a real instance required by the formatters, a `RangeError` for an
+invalid start locale or formatter override, no copy of `fallbackLocale`). Node v24.22.1, `TURBO_FORCE=1
+pnpm build`: core-icu 4,644 (+70 from 5158518b), core-icu-cdn 5,123 (+65), core-icu-devtools 5,094
+(+63), react-icu-cdn 5,657 (+65), vue-icu-cdn 5,828 (+69). `fw-svelte-format` now creates a real
+instance; lot 5 re-baselines it. Ceilings, budgets and baselines are unchanged here.
+
+## 2026-10-31: lot 4d final, ceilings from the final result
+
+The owner's instruction: ceilings count from the final result, replacing the ceilings of the queue
+variant recorded above. Policy at the top of this file: ceiling and increment cap =
+`ceil(measured × 1.02)`, budget = `min(ceiling, ceil(measured × 1.05))`. One sweep after
+`TURBO_FORCE=1 pnpm build`, `node --version` v24.22.1; `pnpm size` green. Every row below was
+re-baselined from that sweep; every ceiling and cap ends at or below its old value.
+
+| row                     | 5158518b | now   | Δ   | budget | ceiling (old → new) | cap (old → new)           |
+| ----------------------- | -------- | ----- | --- | ------ | ------------------- | ------------------------- |
+| core-icu                | 4,574    | 4,634 | +60 | 4,727  | 4,842 → **4,727**   | —                         |
+| core-icu-cdn            | 5,058    | 5,114 | +56 | 5,217  | 5,334 → **5,217**   | —                         |
+| core-icu-cdn-store      | 5,226    | 5,282 | +56 | 5,547  | —                   | —                         |
+| core-icu-api            | 5,582    | 5,638 | +56 | 5,920  | —                   | —                         |
+| core-icu-devtools       | 5,031    | 5,087 | +56 | 5,189  | 5,302 → **5,189**   | +500 → **+463** (at +453) |
+| core-format             | 5,232    | 5,288 | +56 | 5,553  | —                   | —                         |
+| core-plugins            | 5,152    | 5,217 | +65 | 5,478  | —                   | —                         |
+| react-icu-cdn           | 5,592    | 5,647 | +55 | 5,760  | 5,871 → **5,760**   | +547 → **+544** (at +533) |
+| fw-react-default        | 5,069    | 5,137 | +68 | 5,394  | —                   | —                         |
+| fw-react-full-composite | 8,071    | 8,132 | +61 | 8,539  | —                   | —                         |
+| vue-icu-cdn             | 5,759    | 5,830 | +71 | 5,947  | 6,051 → **5,947**   | +753 → **+731** (at +716) |
+| fw-vue-default          | 5,251    | 5,309 | +58 | 5,575  | —                   | —                         |
+| fw-vue-full-composite   | 7,964    | 8,005 | +41 | 8,406  | —                   | —                         |
+
+`core-compile` (1,862), `core-locale` (584), `core-negotiate` (496) and `core-devtools` (639) did not
+move. Pending rows are unmeasured here; `fw-svelte-format` is re-baselined in lot 5.

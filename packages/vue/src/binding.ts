@@ -243,8 +243,9 @@ export interface UseI18n<NS extends string = "default"> {
   /**
    * `t()` against the instance's state; a template calling it re-renders on a new state. A
    * call whose params are all text returns a `string`; a rich message renders the list of
-   * its parts (a render function's child; in a template use `<T>`). Without generated
-   * catalogs a call with a handler or a node param is typed `string | VNodeArrayChildren`.
+   * its parts (a render function's child; in a template use `<T>`), or a string when its
+   * handlers returned text or the key is missing, so such a call is typed
+   * `string | VNodeArrayChildren`, with or without generated catalogs.
    */
   t: [NsOf] extends [never]
     ? UntypedT<VNodeArrayChildren, UntypedParams>

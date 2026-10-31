@@ -33,9 +33,17 @@ Solid and Svelte read the reactive locale inside each formatter.
   per-binding exception to document.
 - **`Intl` gets the fallback-locale chain.** Without an explicit `locale` argument the formatters
   pass `[locale, ...fallbackLocales]`, so a locale the runtime has no data for formats in the first
-  fallback it does have; an explicit `locale` argument is passed alone.
-- **Core behaves identically under all of them.** `setLocale` and the synchronous `locale`
-  setter both move what the formatters read.
+  fallback it does have. For an instance, an explicit `locale` argument formats in its own chain
+  (the locale, its parents, the fallback locales — as `t()` resolves `{ locale }`, lot 4d), and one
+  that is not a tag (`""`, `"!!"`) throws a `RangeError`; a valid tag `Intl` has no data for (`xx`)
+  is no error and walks its chain. Validity is enforced at two entries, `createI18n()` and React's
+  `<I18nHandover locale>`, both with a `RangeError`, so the locale a binding renders with is a tag; a
+  route locale is matched against the supported locales before it is passed to the API. Not every
+  invalid locale throws: `t(key, { locale })`, `has()`, `add()` and `fallbackLocale` entries report
+  `invalid_locale`, and `setLocale()` rejects.
+- **The formatters take a real instance.** Anything else is a `TypeError`, in development and in
+  production, whatever the other arguments are.
+- **Core behaves identically under all of them.** `setLocale()` moves what the formatters read.
 
 ## Consequences
 
@@ -51,12 +59,12 @@ getTextDirection(i18n.locale); // "ltr" | "rtl" — handles script subtags (ku-A
 
 The cross-binding table, which is the fact no single README can carry:
 
-| binding | formatters re-render on a locale change                                                     | `dir`                        |
-| ------- | ------------------------------------------------------------------------------------------- | ---------------------------- |
-| React   | **yes**. The `formatters` memo closes over the tracked locale and passes it explicitly      | reactive                     |
-| Vue     | **yes**. Each assignment defaults its `locale` argument to the reactive `locale` ref        | reactive (`ComputedRef`)     |
-| Svelte  | **yes**. They call core with a locale source whose getter reads `fromStore(locale).current` | reactive (a `derived` store) |
-| Solid   | **yes**. They call core with a locale source whose getter reads `signals.locale()`          | reactive                     |
+| binding | formatters re-render on a locale change                                                | `dir`                        |
+| ------- | -------------------------------------------------------------------------------------- | ---------------------------- |
+| React   | **yes**. The `formatters` memo closes over the tracked locale and passes it explicitly | reactive                     |
+| Vue     | **yes**. Each assignment defaults its `locale` argument to the reactive `locale` ref   | reactive (`ComputedRef`)     |
+| Svelte  | lot 5. Still on 0.7 (a locale source), `MIGRATION_PENDING`; it moves to the instance   | reactive (a `derived` store) |
+| Solid   | lot 5. Still on 0.7 (a locale source), `MIGRATION_PENDING`; it moves to the instance   | reactive                     |
 
 React's and Vue's formatters are already inside a tracked read at the point the binding builds them.
 Solid's stay plain functions: a function that reads a signal is tracked by whatever JSX expression,
