@@ -241,6 +241,81 @@ describe("setLocale() re-entered from user code (lot 4d)", () => {
     expect(i18n.locale).toBe("de");
   });
 
+  it("destroy() from a loader during setLocale(): no further loader call, the switch settles though the loader ignores its signal", async () => {
+    const m = manualLoader();
+    const { i18n } = make({
+      locale: "en",
+      namespaces: ["a", "b"],
+      catalogs: { a: { en: {} }, b: { en: {} } },
+      loader: (l, n, s) => {
+        if (l == "de" && n == "a") i18n.destroy();
+        return m.load(l, n, s);
+      },
+    });
+    const de = watch(i18n.setLocale("de"));
+    await flush();
+    expect(m.requested).toEqual(["de:a"]);
+    expect(m.signals.get("de:a")!.aborted).toBe(true);
+    expect(de.settled).toBe(true);
+    expect(state(i18n).ld).toEqual([]);
+    expect(i18n.locale).toBe("en");
+  });
+
+  it("destroy() from a loader during load() with a fallback chain: no further loader call, no publish, the load settles", async () => {
+    const m = manualLoader();
+    let rev = -1;
+    const { i18n } = make({
+      locale: "en",
+      fallbackLocale: "de",
+      messages: { en: {}, de: {} },
+      loader: (l, n, s) => {
+        if (l == "en" && n == "shop") {
+          i18n.destroy();
+          rev = i18n.rev();
+        }
+        return m.load(l, n, s);
+      },
+    });
+    const p = watch(i18n.load("shop"));
+    await flush();
+    expect(m.requested).toEqual(["en:shop"]);
+    expect(p.settled).toBe(true);
+    expect(i18n.rev()).toBe(rev);
+    expect(state(i18n).ld).toEqual([]);
+  });
+
+  it("destroy() detaches every flight before abort listeners: they see no flight in the state or ready, and none is left", async () => {
+    const m = manualLoader();
+    const views: (readonly string[])[] = [];
+    const ready: { settled: boolean }[] = [];
+    const { i18n } = make({
+      locale: "en",
+      messages: { en: {} },
+      loader: (l, n, s) => {
+        s.addEventListener("abort", () => {
+          views.push(state(i18n).ld);
+          ready.push(watch(i18n.ready));
+        });
+        return m.load(l, n, s);
+      },
+    });
+    void i18n.load("a");
+    void i18n.load("b");
+    expect(state(i18n).ld).toHaveLength(2);
+    i18n.destroy();
+    expect(views).toEqual([[], []]);
+    expect(state(i18n).ld).toEqual([]);
+    await flush();
+    expect(ready.map((r) => r.settled)).toEqual([true, true]);
+  });
+
+  it("destroy() with nothing in flight publishes nothing", () => {
+    const { i18n } = make({ locale: "en", messages: { en: {} } });
+    const rev = i18n.rev();
+    i18n.destroy();
+    expect(i18n.rev()).toBe(rev);
+  });
+
   it("destroy() from an abort listener: the stale switch settles and nothing more loads", async () => {
     const m = manualLoader();
     const { i18n } = make({

@@ -579,7 +579,7 @@ export const createI18n = (o: I18nOptions): I18n => {
   const get = (l: string, n: string, p?: string | 0 | false): Promise<unknown> | void => {
     const k = l + K + n;
     let f = fl.get(k);
-    if (!f && load && !S.c[n]?.[l] && !bad.has(k)) {
+    if (!f && load && !dead && !S.c[n]?.[l] && !bad.has(k)) {
       const a = new AbortController();
       const no = () => a.signal.aborted;
       let y!: (m: Catalog) => void;
@@ -634,7 +634,7 @@ export const createI18n = (o: I18nOptions): I18n => {
       .filter(Boolean);
     // `g`: a namespace needed for the first time — a published change even when nothing
     // starts loading (protocol 2: `state().ns` lists it).
-    if (g || fl.size > n) pub();
+    if (!dead && (g || fl.size > n)) pub();
     return ps;
   };
 
@@ -655,7 +655,7 @@ export const createI18n = (o: I18nOptions): I18n => {
     return dead
       ? R
       : (later(() =>
-          Promise.all(dead ? [] : ensure(S.locale, [n], g)).then(() => {
+          Promise.all(ensure(S.locale, [n], g)).then(() => {
             if (x && lost(n)) throw bad.get(S.locale + K + n);
           }),
         ) as Promise<void>);
@@ -775,10 +775,14 @@ export const createI18n = (o: I18nOptions): I18n => {
     destroy() {
       if (!dead) {
         dead = ++seq;
-        fl.forEach((f) => f[1].abort());
-        // No load in flight: `ready` is the shared resolved promise from now on.
+        // Detached first, as in a switch: abort listeners find no flight in the state or in
+        // `ready`, the shared resolved promise from now on. Nobody is told: it is the end.
+        const a = [...fl.values()];
         fl.clear();
+        rd = 0;
         subs.clear();
+        if (a[0]) pub();
+        a.forEach((f) => f[1].abort());
         // Every teardown runs, last plugin first, even when one throws.
         downs.reverse().forEach(safe);
       }
