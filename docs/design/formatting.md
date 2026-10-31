@@ -36,8 +36,11 @@ Solid and Svelte read the reactive locale inside each formatter.
   fallback it does have. For an instance, an explicit `locale` argument formats in its own chain
   (the locale, its parents, the fallback locales — as `t()` resolves `{ locale }`, lot 4d), and one
   that is not a tag (`""`, `"!!"`) throws a `RangeError`; a valid tag `Intl` has no data for (`xx`)
-  is no error and walks its chain. `createI18n()` refuses an invalid start locale, so the locale a
-  binding renders with is a tag.
+  is no error and walks its chain. Validity is enforced at two entries, `createI18n()` and React's
+  `<I18nHandover locale>`, both with a `RangeError`, so the locale a binding renders with is a tag; a
+  route locale is matched against the supported locales before it is passed to the API. Not every
+  invalid locale throws: `t(key, { locale })`, `has()`, `add()` and `fallbackLocale` entries report
+  `invalid_locale`, and `setLocale()` rejects.
 - **The formatters take a real instance.** Anything else is a `TypeError`, in development and in
   production, whatever the other arguments are.
 - **Core behaves identically under all of them.** `setLocale` and the synchronous `locale`
