@@ -15,6 +15,7 @@
 
   const c = use();
   const x = core(c.i);
+  // Tells a `{#snippet link}` from a handler prop: Svelte lists passed snippets here as interop.
   const slots = $$slots as Record<string, boolean>;
   /** Rich parts → one value: their text when all are strings. Also the core's joiner. */
   const join = (r: unknown[]) => (r.every((e) => typeof e == "string") ? r.join("") : r);

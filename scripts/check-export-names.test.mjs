@@ -65,3 +65,11 @@ test("no dist is reported as skipped, not as checked", async () => {
   assert.deepEqual(skipped, ["@fixture/pkg ."]);
   assert.equal(checked, 0);
 });
+
+test("a type-only re-export of a class is no value: a runtime export of that name fails", async () => {
+  const dts = "declare class Foo {}\nexport type { Foo };\nexport declare const a: number;\n";
+  const ok = await checkPackages([fixture(JS, dts)]);
+  assert.deepEqual(ok.failures, []);
+  const { failures } = await checkPackages([fixture(`${JS}export const Foo = 2;\n`, dts)]);
+  assert.match(failures[0], /in the dist, not in the \.d\.ts: Foo/);
+});

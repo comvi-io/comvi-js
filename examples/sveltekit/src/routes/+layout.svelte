@@ -22,7 +22,8 @@
         const catalog = data.catalogs[ns]![locale];
         if (catalog) i18n.add(locale, catalog, ns);
       }
-    i18n.setLocale(data.locale).catch(() => {});
+    // The first payload is the locale already: a switch would ask again for what failed.
+    if (data.locale != i18n.locale) i18n.setLocale(data.locale).catch(() => {});
   });
 
   const r = useI18n();

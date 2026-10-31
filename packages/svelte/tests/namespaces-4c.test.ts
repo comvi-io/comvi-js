@@ -210,3 +210,20 @@ describe("setLocale() and the active need", () => {
     expect(w.text()).toBe("Laden");
   });
 });
+
+describe("a released consumer is not loading forever", () => {
+  it("a useI18n result kept after its component unmounts: false/false after a switch", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const out: { u?: { isReady: boolean; isLoading: boolean } } = {};
+    const w = mountWith(i18n, Probe, { ns: "shop", out });
+    await l.answer("en:shop", { title: "Shop" });
+    w.unmount();
+    const sw = i18n.setLocale("de");
+    await l.answer("de:default");
+    await sw;
+    await settle();
+    expect([out.u!.isReady, out.u!.isLoading]).toEqual([false, false]);
+    expect(l.requested).toEqual(["en:shop", "de:default"]);
+  });
+});

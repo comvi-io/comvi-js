@@ -257,6 +257,9 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
   const n = ns || "default";
   // Development: until the mount, reads of `n` are not idle ones.
   if (__DEV__) x.p!(n);
+  // Once released, `isLoading` is a load in flight only: no hold of this one will load `n`, so a
+  // result kept after the cleanup is not loading forever.
+  let u = 0;
   if (isServer) {
     x.h(n);
     if (x.w(x.s(), n)) {
@@ -270,7 +273,11 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
       // Read here: `isReady` branches and an exported `<T ns>` wait too.
       wait();
     }
-  } else onMount(() => onCleanup(x.h(n)));
+  } else
+    onMount(() => {
+      const r = x.h(n);
+      onCleanup(() => ((u = 1), r()));
+    });
   return {
     t: ((k: string, p?: Record<string, unknown>) => x.tr(s(), k, p, n)) as UseI18n<NS>["t"],
     T: (Ts[n] ||= (q) => read(q, n)) as BoundT<NS>,
@@ -279,7 +286,7 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
     // Until the hold at mount, what the hold will load is loading already: no frame that says
     // "unavailable", no `missing_key` (lot 1d, 4c).
     isReady: () => x.r(s(), n),
-    isLoading: () => !!x.w(s(), n),
+    isLoading: () => !!x.w(s(), n, u),
     setLocale: i.setLocale,
     i18n: i,
   };

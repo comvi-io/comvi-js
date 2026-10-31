@@ -1398,8 +1398,8 @@ proposals: only the owner accepts them.** No React, Vue or core row moved.
 
 | row                      | 0.7 baseline | now   | budget | ceiling (proposed) | over core-icu-cdn (proposed cap) |
 | ------------------------ | ------------ | ----- | ------ | ------------------ | -------------------------------- |
-| solid-icu-cdn            | —            | 5,912 | 6,031  | **6,031**          | +798 (**+814**)                  |
-| svelte-icu-cdn           | —            | 6,430 | 6,559  | **6,559**          | +1,316 (**+1,343**)              |
+| solid-icu-cdn            | —            | 5,927 | 6,031  | **6,031**          | +813 (**+814**)                  |
+| svelte-icu-cdn           | —            | 6,448 | 6,559  | **6,559**          | +1,334 (**+1,343**)              |
 | fw-solid-default         | 7,036        | 5,391 | 5,661  | —                  | —                                |
 | fw-solid-full-composite  | 12,914       | 8,025 | 8,427  | —                  | —                                |
 | fw-svelte-default        | 7,235        | 5,928 | 6,225  | —                  | —                                |

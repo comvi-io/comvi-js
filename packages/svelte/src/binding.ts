@@ -138,7 +138,14 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
   const n = ns || "default";
   // Development: until the mount, reads of `n` are not idle ones.
   if (DEV) x.p!(n);
-  if (BROWSER) onMount(() => x.h(n));
+  // Once released, `isLoading` is a load in flight only: no hold of this one will load `n`, so a
+  // result kept after the destroy is not loading forever.
+  let u = 0;
+  if (BROWSER)
+    onMount(() => {
+      const r = x.h(n);
+      return () => ((u = 1), r());
+    });
   else x.h(n);
   return {
     t: ((k: string, p?: never) =>
@@ -160,7 +167,7 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
       return x.r(c.s, n);
     },
     get isLoading() {
-      return !!x.w(c.s, n);
+      return !!x.w(c.s, n, u);
     },
     setLocale: i.setLocale,
     i18n: i,

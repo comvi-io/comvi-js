@@ -368,3 +368,29 @@ describe("reading never loads", () => {
     expect(String(warn.mock.calls[0][0])).toContain('"undeclared"');
   });
 });
+
+describe("a released consumer is not loading forever", () => {
+  it("a useI18n result kept after its component unmounts: false/false after a switch", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    let u!: ReturnType<typeof useI18n>;
+    const Shop = () => {
+      u = useI18n("shop");
+      return null;
+    };
+    const [on, set] = createSignal(true);
+    app(i18n, () => (
+      <Show when={on()}>
+        <Shop />
+      </Show>
+    ));
+    await l.answer("en:shop", { title: "Shop" });
+    set(false); // unmounted: released
+    const sw = i18n.setLocale("de");
+    await l.answer("de:default");
+    await sw;
+    await tick();
+    expect([u.isReady(), u.isLoading()]).toEqual([false, false]);
+    expect(l.requested).toEqual(["en:shop", "de:default"]);
+  });
+});

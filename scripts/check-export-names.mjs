@@ -91,6 +91,8 @@ export function declaredValueNames(files) {
       const names = checker
         .getExportsOfModule(symbol)
         .filter((s) => {
+          // `export type { Foo }` of a class: its target is a value, this export is not.
+          if (s.declarations?.some((d) => ts.isTypeOnlyImportOrExportDeclaration(d))) return false;
           const target = s.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(s) : s;
           // An alias the checker cannot follow is reported as a value, so it shows up as a
           // difference instead of passing unseen.
