@@ -371,20 +371,10 @@ export const createI18n = (o: I18nOptions): I18n => {
     return ch;
   };
 
-  /** A state for locale `l` (an invalid locale has no entry of its own in its chain). */
+  /** A state for locale `l`, a valid tag: `createI18n()` and `setLocale()` refuse any other. */
   const st = (rev: number, lrev: number, l: string, c: Store, dp: State["dp"]) => {
     const h = chain(l);
-    return mk(
-      rev,
-      lrev,
-      l,
-      h.o ? dirOf(h[0][1]) : "ltr",
-      c,
-      [...fl.keys()],
-      dp,
-      h.o ? h[0][1] : l,
-      mf,
-    );
+    return mk(rev, lrev, l, dirOf(h[0][1]), c, [...fl.keys()], dp, h[0][1], mf);
   };
 
   /**
@@ -683,9 +673,10 @@ export const createI18n = (o: I18nOptions): I18n => {
             my != seq || ch.some((x) => x[0] == k.split(K)[0]) || drop(k, f, undefined, f[1]),
         );
       // Every step of a switch that runs user code is checked against `seq` after it: a stale
-      // call leaves the flights, the failure cache and the locale to the newer one.
+      // call leaves the flights, the failure cache and the locale to the newer one. `destroy()`
+      // moves `seq` too, for good (this method returns before `++seq` once dead).
       const go = (): unknown => {
-        if (my == seq && !dead) {
+        if (my == seq) {
           // Also what a load(ns) started while this switch was pending needs (re-checked
           // until nothing is left to load).
           const ps = ensure(l, ns);
