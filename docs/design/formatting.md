@@ -43,8 +43,7 @@ Solid and Svelte read the reactive locale inside each formatter.
   `invalid_locale`, and `setLocale()` rejects.
 - **The formatters take a real instance.** Anything else is a `TypeError`, in development and in
   production, whatever the other arguments are.
-- **Core behaves identically under all of them.** `setLocale` and the synchronous `locale`
-  setter both move what the formatters read.
+- **Core behaves identically under all of them.** `setLocale()` moves what the formatters read.
 
 ## Consequences
 
