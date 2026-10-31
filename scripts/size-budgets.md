@@ -1353,3 +1353,11 @@ core-icu 4,646 (+72 from 5158518b), core-icu-cdn 5,125 (+67), core-icu-devtools 
 react-icu-cdn 5,658 (+66), vue-icu-cdn 5,829 (+70), about 100 B under the table above. The ceilings,
 budgets and baselines above are left as they are until the owner's final choice, so this file's
 baselines are higher than the measurement for now; `pnpm size` is green with room.
+
+### 2026-10-31: final lot 4d numbers, before the owner's choice of ceilings
+
+The rest of the package landed (a real instance required by the formatters, a `RangeError` for an
+invalid start locale or formatter override, no copy of `fallbackLocale`). Node v24.22.1, `TURBO_FORCE=1
+pnpm build`: core-icu 4,644 (+70 from 5158518b), core-icu-cdn 5,123 (+65), core-icu-devtools 5,094
+(+63), react-icu-cdn 5,657 (+65), vue-icu-cdn 5,828 (+69). `fw-svelte-format` now creates a real
+instance; lot 5 re-baselines it. Ceilings, budgets and baselines are unchanged here.
