@@ -36,9 +36,31 @@ describe("formatters", () => {
     expect(displayName(i18n, "UA", "region")).toBe("Ukraine");
   });
 
-  it("an override that is not a locale formats in the instance chain, never the host default", () => {
+  it("no override: the instance's chain (lot 4d)", () => {
+    const i18n = createI18n({ locale: "xx", fallbackLocale: "de" });
+    const de = new Intl.NumberFormat("de").format(1234.5);
+    expect(formatNumber(i18n, 1234.5)).toBe(de);
+    expect(formatNumber(i18n, 1234.5, undefined, undefined)).toBe(de);
+  });
+
+  it("an explicit override that is not a tag is a RangeError, in every formatter, never the current locale (lot 4d)", () => {
     const i18n = createI18n({ locale: "de", onError: () => {} });
-    expect(formatNumber(i18n, 1234.5, undefined, "!!")).toBe("1.234,5");
+    for (const bad of ["!!", ""]) {
+      expect(() => formatNumber(i18n, 1, undefined, bad)).toThrow(RangeError);
+      expect(() => formatCurrency(i18n, 1, "EUR", undefined, bad)).toThrow(RangeError);
+      expect(() => formatDate(i18n, D, undefined, bad)).toThrow(RangeError);
+      expect(() => formatDateRange(i18n, D, D, undefined, bad)).toThrow(RangeError);
+      expect(() => formatRelativeTime(i18n, D, { now: D }, bad)).toThrow(RangeError);
+      expect(() => formatList(i18n, ["a"], undefined, bad)).toThrow(RangeError);
+      expect(() => displayName(i18n, "de", "language", bad)).toThrow(RangeError);
+    }
+  });
+
+  it("a valid tag Intl has no data for is not an error: it walks its chain to the fallback (lot 4d)", () => {
+    const i18n = createI18n({ locale: "fr", fallbackLocale: "de" });
+    expect(formatNumber(i18n, 1234.5, undefined, "xx")).toBe(
+      new Intl.NumberFormat("de").format(1234.5),
+    );
   });
 
   it("dates use the instance time zone unless the options name one", () => {
@@ -193,28 +215,25 @@ describe("cache variants of option objects", () => {
   });
 });
 
-describe("an object that is not an instance", () => {
-  it("formats in the runtime's default locale instead of throwing", () => {
-    const fake = {} as I18n;
-    expect(formatNumber(fake, 1234.5)).toBe(new Intl.NumberFormat().format(1234.5));
-    // No instance options either: no time zone, no named formats, the clock as `now`.
-    expect(formatDate(fake, D)).toBe(new Intl.DateTimeFormat().format(D));
-    expect(formatNumber(fake, 0.5, "pct")).toBe(new Intl.NumberFormat().format(0.5));
-    expect(formatRelativeTime(fake, Date.now() - 3 * 86_400_000)).toBe(
-      new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(-3, "day"),
-    );
-    expect(formatRelativeTime(fake, D - 86_400_000, { now: D })).toBe(
-      new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }).format(-1, "day"),
-    );
-  });
-  it("still formats in an explicit locale, alone (lot 4d, Codex review)", () => {
-    const fake = {} as I18n;
-    expect(formatNumber(fake, 1234.5, undefined, "de")).toBe(
-      new Intl.NumberFormat("de").format(1234.5),
-    );
-    // A tag that does not canonicalize: the runtime's default.
-    expect(formatNumber(fake, 1234.5, undefined, "!!")).toBe(
-      new Intl.NumberFormat().format(1234.5),
-    );
+describe("an object that is not an instance (lot 4d)", () => {
+  const fakes = [{}, { locale: "en" }, null, undefined] as unknown as I18n[];
+  const calls: ((f: I18n) => unknown)[] = [
+    (f) => formatNumber(f, 1),
+    (f) => formatNumber(f, 1, "pct"),
+    (f) => formatNumber(f, 1, undefined, "de"),
+    (f) => formatCurrency(f, 1, "EUR"),
+    (f) => formatDate(f, D),
+    (f) => formatDate(f, D, "short"),
+    (f) => formatDateRange(f, D, D),
+    (f) => formatRelativeTime(f, D),
+    (f) => formatRelativeTime(f, D, { now: D }),
+    (f) => formatList(f, ["a"]),
+    (f) => displayName(f, "de"),
+  ];
+  it("every formatter throws a TypeError, whatever else it is given", () => {
+    for (const fake of fakes) for (const call of calls) expect(() => call(fake)).toThrow(TypeError);
+    expect(() => formatNumber({} as I18n, 1)).toThrow(/not an instance of createI18n/);
+    // Not a RangeError first: the instance is checked before the override.
+    expect(() => formatNumber({} as I18n, 1, undefined, "!!")).toThrow(TypeError);
   });
 });
