@@ -150,8 +150,12 @@ export interface I18n {
    * Loads what `locale` needs for the namespaces active NOW — those of the `namespaces`
    * option and those a component's `useI18n(ns)` holds; one held later loads after the
    * switch — keeping the current locale on screen meanwhile, then switches — inside the
-   * call when nothing needs loading. A later call wins: this one then never switches and
-   * resolves once its loads settle or are aborted. The latest call switches when at least
+   * call when nothing needs loading. A later call wins from the moment it is made: this one
+   * then never switches and resolves once its loads settle or are aborted, a failed one too.
+   * Called from a subscriber, a loader or an abort listener while the instance publishes,
+   * switches or starts a load, it runs when that work ends, before the outermost call returns:
+   * `locale` does not change inside the callback, and every subscriber is told of each state
+   * in order. The latest call switches when at least
    * one namespace it waited for has a catalog of `locale`'s own chain in place (`de-AT`, or
    * its parent `de`); a namespace whose load failed then renders its fallback. It rejects
    * with the loader's error, keeping the old locale, only when EVERY namespace it waited
@@ -309,6 +313,9 @@ export const createI18n = (o: I18nOptions): I18n => {
   let rd: Promise<void> | 0 = 0;
   let seq = 0;
   let dead = 0;
+  /** A section is running (`sec()`); what starts work waits in `q`. */
+  let busy = 0;
+  const q: (() => void)[] = [];
   /** The marking hook (R3-14 H4); every state built from now on carries it. */
   let mf: Mark | null | undefined;
   let S: State;
@@ -373,12 +380,36 @@ export const createI18n = (o: I18nOptions): I18n => {
   };
 
   /**
-   * Replaces the state (its loads in flight are `fl`'s keys) and tells the subscribers; a
-   * throwing subscriber does not stop the rest.
+   * One section: while `f` runs, what user code it calls synchronously (a subscriber, a loader,
+   * an abort listener) starts — a switch, a load, a hold — waits in `q`. The queue runs when
+   * `f` ends, each entry inside the same section, before the outermost call returns; nothing
+   * here waits for the network. A new `setLocale()` is the latest from its call, queued or
+   * not, so the steps of a switch still check `seq` after running user code.
    */
-  const pub = (l = S.locale, c = S.c, dp = S.dp) => {
+  const sec = <T>(f: () => T): T => {
+    if (busy) return f();
+    busy = 1;
+    try {
+      return f();
+    } finally {
+      while (q[0]) q.shift()!();
+      busy = 0;
+    }
+  };
+
+  /** `f` as a section: now, or when the running one ends (then settling with its result). */
+  const later = <T>(f: () => T | PromiseLike<T>): T | PromiseLike<T> =>
+    busy ? new Promise<T>((y) => q.push(() => y(new Promise<T>((z) => z(f()))))) : sec(f);
+
+  /**
+   * Replaces the state (its loads in flight are `fl`'s keys), aborts `a` when a flight left it,
+   * and tells the subscribers, as one section: each sees the state it was told of. A throwing
+   * subscriber does not stop the rest.
+   */
+  const pub = (l = S.locale, c = S.c, dp = S.dp, a?: AbortController) => {
     S = st(S.rev + 1, S.lrev + +(l != S.locale), l, c, dp);
-    subs.forEach(safe);
+    a?.abort();
+    sec(() => subs.forEach(safe));
   };
 
   /**
@@ -524,11 +555,17 @@ export const createI18n = (o: I18nOptions): I18n => {
     return s.mk && x !== false && !dead ? s.mk(r, key, n) : r;
   };
 
-  /** Forgets flight `k` and publishes (with `c`, the catalogs it brought). */
-  const drop = (k: string, c?: Store) => {
-    fl.delete(k);
-    rd = 0;
-    pub(S.locale, c);
+  /**
+   * Forgets flight `f` of key `k` and publishes (with `c`, the catalogs it brought). Only that
+   * flight: a newer request of the same pair stays. With `a`, its controller, the flight is
+   * aborted once it has left `fl` and the state, so its abort listeners see neither.
+   */
+  const drop = (k: string, f: Flight, c?: Store, a?: AbortController) => {
+    if (fl.get(k) == f) {
+      fl.delete(k);
+      rd = 0;
+      pub(S.locale, c, undefined, a);
+    }
   };
 
   /**
@@ -545,16 +582,18 @@ export const createI18n = (o: I18nOptions): I18n => {
     if (!f && load && !S.c[n]?.[l] && !bad.has(k)) {
       const a = new AbortController();
       const no = () => a.signal.aborted;
+      let y!: (m: Catalog) => void;
+      let x!: (e: unknown) => void;
       fl.set(
         k,
         (f = [
           // Settles on abort even when the loader ignores its signal.
-          new Promise<Catalog>((y, x) => {
-            a.signal.onabort = x;
-            Promise.resolve(load(l, n, a.signal)).then(y, x);
+          new Promise<Catalog>((u, v) => {
+            y = u;
+            a.signal.onabort = x = v;
           })
             // Under what `add()` put in the pair meanwhile: a saved edit survives (H8).
-            .then((m) => no() || drop(k, ing(S.c, l, m, n, 1)))
+            .then((m) => no() || drop(k, f!, ing(S.c, l, m, n, 1)))
             // Also takes what layering a value that is not a catalog throws.
             // A parent's failure waits for `p`'s own load of `n` and is reported only if
             // that failed too.
@@ -567,11 +606,18 @@ export const createI18n = (o: I18nOptions): I18n => {
                       () => bad.has(c) && err("load_failed", l, n, undefined, e),
                     )
                   : err("load_failed", l, n, undefined, e),
-                drop(k)),
+                drop(k, f!)),
             ),
           a,
         ]),
       );
+      rd = 0;
+      // Registered first: what the loader does synchronously finds a whole flight.
+      try {
+        Promise.resolve(load(l, n, a.signal)).then(y, x);
+      } catch (e) {
+        x(e);
+      }
     }
     return f && ((f[2] = p), f[0]);
   };
@@ -588,10 +634,7 @@ export const createI18n = (o: I18nOptions): I18n => {
       .filter(Boolean);
     // `g`: a namespace needed for the first time — a published change even when nothing
     // starts loading (protocol 2: `state().ns` lists it).
-    if (g || fl.size > n) {
-      rd = 0;
-      pub();
-    }
+    if (g || fl.size > n) pub();
     return ps;
   };
 
@@ -611,9 +654,11 @@ export const createI18n = (o: I18nOptions): I18n => {
     cnt[n] = (cnt[n] | 0) + y;
     return dead
       ? R
-      : Promise.all(ensure(S.locale, [n], g)).then(() => {
-          if (x && lost(n)) throw bad.get(S.locale + K + n);
-        });
+      : (later(() =>
+          Promise.all(dead ? [] : ensure(S.locale, [n], g)).then(() => {
+            if (x && lost(n)) throw bad.get(S.locale + K + n);
+          }),
+        ) as Promise<void>);
   };
 
   const lost = (n: string, l = S.locale, ch = chain(l)) =>
@@ -642,34 +687,38 @@ export const createI18n = (o: I18nOptions): I18n => {
       // Production names the tag only (the report says `invalid_locale`).
       if (!valid(l))
         return Promise.reject(RangeError(__DEV__ ? `[@comvi/core] invalid locale "${l}"` : l));
+      // The last call is decided here, whenever its body runs.
       const my = ++seq;
       const ch = chain(l);
       // The active set at the call: what this switch waits for (never rebuilt meanwhile).
       const ns = act();
       /**
-       * Aborts the loads of locales outside `l`'s chain. Each drop publishes, and a subscriber
-       * may switch again: from then on this call is stale and touches nothing — the flights
-       * still listed (a newer switch may wait on them) or added since are the newer call's.
+       * Aborts the loads of locales outside `l`'s chain. A drop runs user code, which may call
+       * `setLocale()`: from then on this call is stale and leaves the rest to the newer one.
        */
       const prune = () =>
         fl.forEach(
-          (f, k) => my != seq || ch.some((x) => x[0] == k.split(K)[0]) || (f[1].abort(), drop(k)),
+          (f, k) =>
+            my != seq || ch.some((x) => x[0] == k.split(K)[0]) || drop(k, f, undefined, f[1]),
         );
-      prune();
-      // The target's own failures are asked for again — unless a subscriber of the prune
-      // switched meanwhile: a stale call leaves the failure cache to the newer one.
-      if (my == seq) retry(0, l);
+      // Every step of a switch that runs user code is checked against `seq` after it: a stale
+      // call leaves the flights, the failure cache and the locale to the newer one.
       const go = (): unknown => {
         if (my == seq && !dead) {
           // Also what a load(ns) started while this switch was pending needs (re-checked
           // until nothing is left to load).
           const ps = ensure(l, ns);
-          if (ps.length) return Promise.all(ps).then(go);
+          // The continuation is a section too: its cleanup, publish and loads run user code.
+          if (ps.length) return Promise.all(ps).then(() => sec(go));
           // Partial failure switches (R4-11): a namespace is missing only when the target
           // itself failed AND no catalog of its own chain (`de-AT` → `de`) is in place. The
-          // locale kept on screen gets back what this switch's start aborted.
-          if (ns.length && ns.every((n) => lost(n, l, ch)))
-            throw (ensure(S.locale, act()), bad.get(l + K + ns[0]));
+          // locale kept on screen gets back what this switch's start aborted. Stale after that
+          // recovery's publish: it resolves, like any superseded call.
+          if (ns.length && ns.every((n) => lost(n, l, ch))) {
+            ensure(S.locale, act());
+            if (my == seq) throw bad.get(l + K + ns[0]);
+            return;
+          }
           // Loads of the old locale a load(ns) started meanwhile are obsolete now.
           prune();
           // A subscriber told of that cleanup, or of this publish, may have switched again:
@@ -680,8 +729,18 @@ export const createI18n = (o: I18nOptions): I18n => {
           if (my == seq) ensure(l, act());
         }
       };
-      // Nothing to load: the switch happens inside this call.
-      return new Promise((y) => y(go() as void));
+      // Nothing to load: the switch happens inside this call, or, from user code inside
+      // another section, right after it.
+      return new Promise((y) =>
+        y(
+          later(() => {
+            prune();
+            // The target's own failures are asked for again.
+            if (my == seq) retry(0, l);
+            return go() as void;
+          }),
+        ),
+      );
     },
     load(n) {
       // The namespace's failed loads are asked for again (an explicit retry).
@@ -764,6 +823,6 @@ export const createI18n = (o: I18nOptions): I18n => {
     }
   // A plugin may have switched the locale already, which loaded what that needs; without a
   // loader nothing can start.
-  if (!seq && load) ensure(S.locale, act());
+  if (!seq && load) sec(() => ensure(S.locale, act()));
   return i18n;
 };
