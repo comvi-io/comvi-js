@@ -6,6 +6,8 @@
  * tags-quoted-closing-tag, emoji-unicode (tags).
  */
 import { describe, expect, it, vi } from "vitest";
+import type { I18nError } from "../../src/errors";
+import { createI18n } from "../../src/instance";
 import { fmt } from "../helpers";
 
 const wrap =
@@ -162,5 +164,43 @@ describe("a handler's second argument: the text of its tag (lot 4b)", () => {
     fmt("<x><y>a</y></x>", { x: (_c: unknown, text: unknown) => text, y: () => "Y" });
     expect(warn.mock.calls.length).toBe(before);
     warn.mockRestore();
+  });
+});
+
+describe("an unclosed <br>: still a syntax report, with a development hint", () => {
+  const HINT =
+    "write `<br/>` instead. It renders nothing without a `br` handler or `components` entry";
+  const report = (message: string) => {
+    const errors: I18nError[] = [];
+    const out = createI18n({
+      locale: "en",
+      messages: { en: { k: message } },
+      onError: (e) => errors.push(e),
+    }).t("k");
+    return { out, errors };
+  };
+
+  it("a<br>b renders its key, reports syntax and names `<br/>`", () => {
+    const { out, errors } = report("a<br>b");
+    expect(out).toBe("k");
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ code: "syntax", key: "k", locale: "en" });
+    expect(errors[0].message).toBe(`\`<br>\` is never closed; ${HINT}`);
+  });
+
+  it("inside another tag and inside a sub-message too", () => {
+    expect(report("<b>a<br>b</b>").errors[0].message).toBe(`\`</b>\` closes no open tag; ${HINT}`);
+    expect(report("{n, plural, other {a<br>b}}").errors[0].message).toContain(HINT);
+  });
+
+  it("another unclosed tag has no hint: the scope is br", () => {
+    expect(report("a<b>b").errors[0].message).toBe("`<b>` is never closed");
+    expect(report("a<hr>b").errors[0].message).toBe("`<hr>` is never closed");
+  });
+
+  it("what the hint says: `<br/>` is valid and renders nothing without a handler", () => {
+    const { out, errors } = report("a<br/>b");
+    expect(out).toBe("ab");
+    expect(errors).toEqual([]);
   });
 });

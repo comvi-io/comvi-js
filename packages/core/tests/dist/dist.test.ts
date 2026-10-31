@@ -23,6 +23,21 @@ beforeAll(() => {
     throw new Error("dist is missing — run `pnpm --filter @comvi/core build` before the tests");
 });
 
+describe("development diagnostics in the built files", () => {
+  const HINT = "renders nothing without";
+  const files = fs.readdirSync(DIST, { recursive: true, encoding: "utf8" }).filter((f) => f.endsWith(".js"));
+  const has = (f: string) => fs.readFileSync(path.join(DIST, f), "utf8").includes(HINT);
+
+  it("the <br> hint and the load_failed cause text are in a development file and in no production one", () => {
+    expect(files.filter((f) => f.endsWith(".dev.js")).some(has)).toBe(true);
+    expect(files.filter((f) => !f.endsWith(".dev.js")).filter(has)).toEqual([]);
+    const prod = files
+      .filter((f) => !f.endsWith(".dev.js"))
+      .filter((f) => fs.readFileSync(path.join(DIST, f), "utf8").includes("cause not printable"));
+    expect(prod).toEqual([]);
+  });
+});
+
 describe.each([
   ["prod", ""],
   ["dev", ".dev"],
@@ -47,6 +62,43 @@ describe.each([
     await new Promise((r) => setTimeout(r, 0));
     expect(i18n.t("a")).toBe("a");
     expect(sub).not.toHaveBeenCalled();
+  });
+
+  it("an unclosed <br> renders its key; only the development build explains it", async () => {
+    const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
+    const messages: (string | undefined)[] = [];
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { k: "a<br>b" } },
+      onError: (e) => messages.push(e.message),
+    });
+    expect(i18n.t("k")).toBe("k");
+    expect(messages).toEqual([
+      label === "dev"
+        ? "`<br>` is never closed; write `<br/>` instead. It renders nothing without a `br` handler or `components` entry"
+        : undefined,
+    ]);
+  });
+
+  it(`two namespaces failing in one locale: the default reporter ${label === "dev" ? "prints two lines, each with its namespace and cause" : "prints nothing"}`, async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
+    const i18n = createI18n({
+      locale: "de",
+      namespaces: ["shop", "cart"],
+      messages: { de: {} },
+      loader: (_l, n) => Promise.reject(n == "shop" ? new Error("404 shop") : "cart down"),
+    });
+    await i18n.ready;
+    expect(error.mock.calls.map((c) => c[0])).toEqual(
+      label === "dev"
+        ? [
+            '[@comvi/core] load_failed (de, namespace "shop"): 404 shop',
+            '[@comvi/core] load_failed (de, namespace "cart"): cart down',
+          ]
+        : [],
+    );
+    error.mockRestore();
   });
 
   it(`a missing key renders the key; the default reporter ${label === "dev" ? "prints it once" : "prints nothing"}`, async () => {
