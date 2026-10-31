@@ -1,18 +1,22 @@
-// Framework size fixture: the UPPER BOUND of the capabilities the svelte root exports,
-// composed on one host from one specifier, plus <T>.
-import {
-  createI18n,
-  devtools,
-  icuCompiler,
-  attachLoader,
-  plugins,
-  setI18nContext,
-  T,
-  useI18n,
-} from "@comvi/svelte";
+// Framework size fixture: the UPPER BOUND of a Svelte app: every export of `@comvi/svelte` and
+// `@comvi/svelte/format` with the CDN loader, both plugins and devtools on one instance.
+import { createI18n, handover, setI18n, T, useI18n } from "@comvi/svelte";
+import { useFormat } from "@comvi/svelte/format";
+import { cdn } from "@comvi/core/cdn";
+import { detect, persist } from "@comvi/core/plugins";
+import { devtools } from "@comvi/core/devtools";
 
-const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(attachLoader).use(plugins());
-i18n.addMessages({ en: { greeting: "Hello, <b>{name}</b>!" } });
-i18n.use(devtools());
+const i18n = createI18n({
+  locale: "en",
+  timeZone: "UTC",
+  loader: cdn("https://cdn.comvi.io/distribution"),
+  plugins: [detect({ supported: ["en", "de"] }), persist(), devtools()],
+});
 
-console.log(i18n.t("greeting" as never, { name: "world" } as never), setI18nContext, useI18n, T);
+export const setup = () => {
+  setI18n(i18n);
+  const { t, isLoading, locale, T: ShopT } = useI18n("shop");
+  const fmt = useFormat();
+  return [t("items", { count: 2 }), isLoading, locale, ShopT, T, fmt.currency(9.5, "EUR")];
+};
+export const payload = () => handover(i18n);

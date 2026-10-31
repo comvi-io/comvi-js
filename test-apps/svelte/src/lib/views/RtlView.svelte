@@ -1,13 +1,14 @@
 <script lang="ts">
   import { useI18n } from '@comvi/svelte';
 
-  const { t, locale } = useI18n();
+  const r = useI18n();
+  const t = r.t;
 
-  $: isRtl = $locale === 'ar';
+  const isRtl = $derived(r.dir === 'rtl');
 </script>
 
 <div class="space-y-6">
-  <h2 class="text-2xl font-bold">{$t('nav.rtl')}</h2>
+  <h2 class="text-2xl font-bold">{t('nav.rtl')}</h2>
 
   <div class="p-6 border rounded-lg {isRtl ? 'bg-amber-50 border-amber-200' : 'bg-gray-50'}">
     <div class="flex gap-4 items-start">
@@ -19,7 +20,7 @@
           {isRtl ? 'RTL Mode Active (Arabic)' : 'LTR Mode Active'}
         </h3>
         <p>
-          {$t('home.intro', { name: 'User' })}
+          {t('home.intro', { name: 'User' })}
         </p>
         <p class="mt-2 text-sm opacity-75">
           Switch language to Arabic/English to see the layout flip.

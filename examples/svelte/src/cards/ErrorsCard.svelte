@@ -6,6 +6,6 @@
   const { t } = useI18n();
 </script>
 
-<Card title={$t('demo.errors.title')} body={$t('demo.errors.body')}>
-  <p class="widget" data-testid="missing-count">{$t('demo.errors.count', { count: $missingKeys })}</p>
+<Card title={t('demo.errors.title')} body={t('demo.errors.body')}>
+  <p class="widget" data-testid="missing-count">{t('demo.errors.count', { count: $missingKeys })}</p>
 </Card>

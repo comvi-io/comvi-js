@@ -1,37 +1,36 @@
 <script lang="ts">
   import { untrack, type Snippet } from "svelte";
   import { page } from "$app/state";
-  import { createI18n, icuCompiler, setI18nContext, useI18n } from "@comvi/svelte";
-  import { catalogLoader, fallbackLocale, localePath, locales } from "../lib/i18n";
+  import { createI18n, setI18n, useI18n } from "@comvi/svelte";
+  import { localePath, locales, options } from "../lib/i18n";
   import type { LayoutData } from "./$types";
   import "../app.css";
 
   let { data, children }: { data: LayoutData; children: Snippet } = $props();
 
-  // The root layout stays mounted across client navigation, so the instance is
-  // built once, from the first payload.
-  const i18n = untrack(() =>
-    createI18n({
-      locale: data.locale,
-      fallbackLocale,
-      compiler: icuCompiler,
-      messages: data.messages,
-    }).use(catalogLoader()),
-  );
+  // The root layout stays mounted across client navigation, so the instance is built once,
+  // from the first payload: the server's own catalogs, nothing to ask the loader for.
+  const i18n = untrack(() => createI18n({ ...options, ...data }));
 
-  setI18nContext(i18n);
+  setI18n(i18n);
 
-  // Every later payload (a link to /uk, Back) switches the same instance.
+  // Every later payload (a link to /uk, Back) switches the same instance. A `null` slot is
+  // a load that failed on the server.
   $effect.pre(() => {
-    i18n.addMessages(data.messages);
+    for (const ns in data.catalogs)
+      for (const locale in data.catalogs[ns]) {
+        const catalog = data.catalogs[ns]![locale];
+        if (catalog) i18n.add(locale, catalog, ns);
+      }
     i18n.setLocale(data.locale).catch(() => {});
   });
 
-  const { t, locale, dir } = useI18n();
+  const r = useI18n();
+  const t = r.t;
 
   $effect(() => {
-    document.documentElement.lang = $locale;
-    document.documentElement.dir = $dir;
+    document.documentElement.lang = r.locale;
+    document.documentElement.dir = r.dir;
   });
 
   // This page's path without its locale prefix, for the switcher's links.
@@ -40,13 +39,13 @@
 
 <main>
   <header>
-    <h1>{$t("app.title")}</h1>
-    <nav class="switcher" aria-label={$t("app.language")}>
+    <h1>{t("app.title")}</h1>
+    <nav class="switcher" aria-label={t("app.language")}>
       {#each locales as code (code)}
-        <a
-          href={localePath(code, path)}
+        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- localePath() builds the path -->
+        <a href={localePath(code, path)}
           data-testid="locale-{code}"
-          aria-current={$locale === code ? "page" : undefined}>{code}</a
+          aria-current={r.locale === code ? "page" : undefined}>{code}</a
         >
       {/each}
     </nav>
