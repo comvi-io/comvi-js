@@ -286,10 +286,12 @@ const read = ({
   for (const k in m) {
     // A tag name, a component, or `{ component, props }` (R3-24); a component (a function,
     // a class, a memo/forwardRef/lazy object) has no `props` of its own to misread. An
-    // entry that is `undefined` leaves the tag to be rendered as text.
+    // entry that is `undefined` leaves the tag to be rendered as text. `c` is the joined
+    // Fragment; an empty tag passes no children, since a void element refuses even that.
     const e = m[k] as { component?: ComponentType; props?: object } & ComponentType;
     if (p[k] === undefined && e)
-      p[k] = (c: ReactNode) => createElement(e.component || e, e.props, c);
+      p[k] = (c: ReactElement<{ children?: ReactNode }>) =>
+        createElement(e.component || e, e.props, c.props.children && c);
   }
   const [i, s] = useCtx();
   const x = core(i);
