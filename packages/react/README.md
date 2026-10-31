@@ -136,7 +136,7 @@ import { T } from "@comvi/react";
 
 A tag renders through a prop of its name (a handler gets the content as one node), else its
 `components` entry (a tag name, a component, or `{ component, props }`, content as `children`),
-else as text. `<br/>` renders nothing without its handler (React refuses a `components` `"br"`).
+else as text. `<br/>` renders nothing without its handler or `components` entry.
 Every prop but `i18nKey`, `components`, `ns`, `locale` and `markers` is a param.
 
 ## Read next
