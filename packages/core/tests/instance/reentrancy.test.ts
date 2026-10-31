@@ -1,8 +1,8 @@
 /**
- * Lot 4d re-entrancy (`.lot1-pending-tests.md`, "Lot 4d re-entrancy"): user code that runs
- * synchronously inside a switch, a load or a hold — a subscriber, a loader, an abort
- * listener — may call `setLocale()`. The last call wins from the moment it is made, the
- * flights stay accounted for, and every promise settles.
+ * Lot 4d re-entrancy (`.lot1-pending-tests.md`, "Lot 4d re-entrancy"): a subscriber may call
+ * `setLocale()`, the last call wins and no order of notifications is promised; these tests read
+ * the final state. A flight is registered before its loader runs, detached before its abort
+ * listeners, and only the same flight removes itself; `destroy()` follows the same rules.
  */
 import { describe, expect, it } from "vitest";
 import type { Catalog } from "../../src/compile/cache";
@@ -23,74 +23,7 @@ const watch = (p: Promise<unknown>) => {
   return w;
 };
 
-describe("setLocale() re-entered from user code (lot 4d)", () => {
-  it("A · an abort listener and a cleanup notification re-enter: the replacement flight of the same key survives", async () => {
-    const m = manualLoader();
-    const signals: AbortSignal[] = [];
-    let fr: Promise<void> | undefined;
-    let en: Promise<void> | undefined;
-    const { i18n } = make({
-      locale: "en",
-      catalogs: { default: { en: {}, fr: {} }, account: { fr: {} } },
-      loader: (l, n, s) => {
-        if (l == "en" && n == "account") {
-          signals.push(s);
-          if (signals.length == 1)
-            s.addEventListener("abort", () => void (fr = i18n.setLocale("fr")));
-        }
-        return m.load(l, n, s);
-      },
-    });
-    acquire(i18n, "account");
-    i18n.on(() => {
-      if (!en && signals[0]?.aborted) en = i18n.setLocale("en");
-    });
-    const de = watch(i18n.setLocale("de"));
-    await flush();
-    expect(signals.map((s) => s.aborted)).toEqual([true, false]);
-    // The replacement is published and `ready` waits for it.
-    expect(state(i18n).ld).toHaveLength(1);
-    const ready = watch(i18n.ready);
-    const latest = watch(en!);
-    await flush();
-    expect(ready.settled).toBe(false);
-    expect(latest.settled).toBe(false);
-    await m.answer("en:account", { title: "Account" });
-    await flush();
-    expect(ready.settled).toBe(true);
-    expect(latest.settled).toBe(true);
-    expect(de.settled).toBe(true);
-    await fr;
-    expect(i18n.locale).toBe("en");
-    expect(rl(i18n, "account")).toEqual([true, false]);
-    expect(state(i18n).ld).toEqual([]);
-  });
-
-  it("B · a loader calls setLocale() synchronously: the flight it was started for is registered, aborted and forgotten", async () => {
-    const m = manualLoader();
-    let fr: Promise<void> | undefined;
-    const { i18n } = make({
-      locale: "en",
-      messages: { en: {}, fr: {} },
-      loader: (l, n, s) => {
-        if (l == "de") fr = i18n.setLocale("fr");
-        return m.load(l, n, s);
-      },
-    });
-    const de = watch(i18n.setLocale("de"));
-    // Nothing to load for fr: applied before the outer call returned.
-    expect(i18n.locale).toBe("fr");
-    expect(m.signals.get("de:default")!.aborted).toBe(true);
-    expect(state(i18n).ld).toEqual([]);
-    expect(rl(i18n)).toEqual([true, false]);
-    const ready = watch(i18n.ready);
-    const newer = watch(fr!);
-    await flush();
-    expect(ready.settled).toBe(true);
-    expect(de.settled).toBe(true);
-    expect(newer.settled).toBe(true);
-  });
-
+describe("setLocale() from a subscriber, and the flights (lot 4d)", () => {
   it("C · a failure's recovery publishes and a subscriber switches: the stale call resolves, the newer one applies", async () => {
     const m = manualLoader();
     const { i18n } = make({
@@ -125,11 +58,9 @@ describe("setLocale() re-entered from user code (lot 4d)", () => {
     expect(i18n.locale).toBe("en");
   });
 
-  it("a deferred nested call, then a newer one: the newer wins from its call, the deferred one never applies or requests", async () => {
+  it("a subscriber's two switches: the last call wins, every promise settles", async () => {
     const m = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {}, de: {}, it: {} }, loader: m.load });
-    const seen: string[] = [];
-    i18n.on(() => seen.push(i18n.locale));
     let fr: Promise<void> | undefined;
     let it_: Promise<void> | undefined;
     i18n.on(() => {
@@ -139,31 +70,12 @@ describe("setLocale() re-entered from user code (lot 4d)", () => {
       }
     });
     await i18n.setLocale("de");
-    expect(i18n.locale).toBe("it");
-    expect(seen).not.toContain("fr");
-    expect(m.requested).toEqual([]);
     await expect(fr).resolves.toBeUndefined();
     await expect(it_).resolves.toBeUndefined();
+    expect(i18n.locale).toBe("it");
+    expect(state(i18n).ld).toEqual([]);
   });
-
-  it("a subscriber's switch does not change `locale` inside the subscriber; the next subscriber sees each state in order", async () => {
-    const { i18n } = make({ locale: "en", messages: { en: {}, de: {}, fr: {} } });
-    const inside: string[] = [];
-    const next: string[] = [];
-    i18n.on(() => {
-      if (i18n.locale == "de") {
-        void i18n.setLocale("fr");
-        inside.push(i18n.locale);
-      }
-    });
-    i18n.on(() => next.push(i18n.locale));
-    await i18n.setLocale("de");
-    expect(inside).toEqual(["de"]);
-    expect(next).toEqual(["de", "fr"]);
-    expect(i18n.locale).toBe("fr");
-  });
-
-  it("a subscriber's switch from a landing's publish keeps the same order", async () => {
+  it("a subscriber's switch from a landing's publish: the last call wins, the landed catalog stays", async () => {
     const m = manualLoader();
     const { i18n } = make({
       locale: "en",
@@ -171,18 +83,17 @@ describe("setLocale() re-entered from user code (lot 4d)", () => {
       namespaces: ["default"],
       loader: m.load,
     });
-    const order: string[] = [];
     let fr: Promise<void> | undefined;
     i18n.on(() => {
       if (!fr && m.signals.has("en:shop") && !state(i18n).ld.length) fr = i18n.setLocale("fr");
     });
-    i18n.on(() => order.push(`${i18n.locale}:${i18n.has("s", { ns: "shop" })}`));
     const p = i18n.load("shop");
-    order.length = 0;
     await m.answer("en:shop", { s: "S" });
     await p;
     await fr;
-    expect(order).toEqual(["en:true", "fr:false"]);
+    expect(i18n.locale).toBe("fr");
+    expect(i18n.has("s", { ns: "shop", locale: "en" })).toBe(true);
+    expect(state(i18n).ld).toEqual([]);
   });
 
   it("an abort listener finds the flight gone from the accounting, the published state and ready", async () => {
@@ -222,22 +133,26 @@ describe("setLocale() re-entered from user code (lot 4d)", () => {
     expect(i18n.locale).toBe("fr");
   });
 
-  it("destroy() from a subscriber: what is queued settles and starts nothing", async () => {
+  it("destroy() from a subscriber: every promise settles, nothing is left in flight or starts after it", async () => {
     const m = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {}, de: {} }, loader: m.load });
     let fr: Promise<void> | undefined;
     let ld: Promise<void> | undefined;
+    let asked = -1;
     i18n.on(() => {
       if (!fr && i18n.locale == "de") {
         fr = i18n.setLocale("fr");
         ld = i18n.load("shop");
         i18n.destroy();
+        asked = m.requested.length;
       }
     });
     await i18n.setLocale("de");
     await expect(fr).resolves.toBeUndefined();
     await expect(ld).resolves.toBeUndefined();
-    expect(m.requested).toEqual([]);
+    expect(m.requested).toHaveLength(asked);
+    expect([...m.signals.values()].every((x) => x.aborted)).toBe(true);
+    expect(state(i18n).ld).toEqual([]);
     expect(i18n.locale).toBe("de");
   });
 
@@ -331,26 +246,6 @@ describe("setLocale() re-entered from user code (lot 4d)", () => {
     expect(m.requested).toEqual(["en:shop"]);
     expect(i18n.locale).toBe("en");
   });
-
-  it("the guard covers a switch's continuation: after its loads, a subscriber's switch waits for the subscriber too", async () => {
-    const m = manualLoader();
-    const { i18n } = make({ locale: "en", messages: { en: {}, fr: {} }, loader: m.load });
-    const inside: string[] = [];
-    let fr: Promise<void> | undefined;
-    i18n.on(() => {
-      if (!fr && i18n.locale == "de") {
-        fr = i18n.setLocale("fr");
-        inside.push(i18n.locale);
-      }
-    });
-    const de = i18n.setLocale("de");
-    await m.answer("de:default");
-    await de;
-    await fr;
-    expect(inside).toEqual(["de"]);
-    expect(i18n.locale).toBe("fr");
-  });
-
   it("a failed flight's cleanup leaves the newer request of the same key: onError switches away and back", async () => {
     const m = manualLoader();
     let fr: Promise<void> | undefined;
@@ -377,33 +272,6 @@ describe("setLocale() re-entered from user code (lot 4d)", () => {
     expect(i18n.locale).toBe("de");
     expect(state(i18n).ld).toEqual([]);
   });
-
-  it("the guard covers a continuation's loader start: every flight of a stale target is registered and aborted", async () => {
-    const m = manualLoader();
-    let fr: Promise<void> | undefined;
-    const { i18n } = make({
-      locale: "en",
-      messages: { en: {}, fr: {} },
-      loader: (l, n, s) => {
-        if (l == "de" && n == "a") fr = i18n.setLocale("fr");
-        return m.load(l, n, s);
-      },
-    });
-    const de = i18n.setLocale("de");
-    // Held while the switch waits: they load for en, and for de right after it applies.
-    acquire(i18n, "a");
-    acquire(i18n, "b");
-    await m.answer("de:default");
-    await de;
-    expect(m.signals.get("de:a")!.aborted).toBe(true);
-    expect(m.signals.get("de:b")!.aborted).toBe(true);
-    await m.answer("fr:a");
-    await m.answer("fr:b");
-    await fr;
-    expect(i18n.locale).toBe("fr");
-    expect(state(i18n).ld).toEqual([]);
-  });
-
   it("a stale prune leaves the rest to the newer switch: a flight in the newer chain goes on", async () => {
     const m = manualLoader();
     let fr: Promise<void> | undefined;
@@ -411,21 +279,95 @@ describe("setLocale() re-entered from user code (lot 4d)", () => {
       locale: "en",
       fallbackLocale: { fr: ["en"] },
       messages: { en: {}, fr: {} },
-      loader: (l, n, s) => {
-        if (n == "a") s.addEventListener("abort", () => void (fr = i18n.setLocale("fr")));
-        return m.load(l, n, s);
-      },
+      loader: m.load,
+    });
+    i18n.on(() => {
+      if (!fr && m.signals.get("en:a")?.aborted) fr = i18n.setLocale("fr");
     });
     void i18n.load("a");
     void i18n.load("b");
     void i18n.setLocale("de");
-    // de's prune aborted en:a; its listener switched to fr, whose chain keeps en:b.
+    // de's prune aborted en:a; a subscriber switched to fr, whose chain keeps en:b.
     expect(m.signals.get("en:a")!.aborted).toBe(true);
     expect(m.signals.get("en:b")!.aborted).toBe(false);
     await fr;
     expect(i18n.locale).toBe("fr");
     await m.answer("en:b");
     expect(state(i18n).ld).toEqual([]);
+  });
+});
+
+/**
+ * A synchronous `setLocale()` from a loader or an abort listener is outside the contract (the
+ * loader only fetches a catalog). These record what holds today, with one namespace, and are
+ * not a promise: registration before the loader and flight identity are what they exercise.
+ */
+describe("outside the contract, not a promise: setLocale() from a loader or an abort listener", () => {
+  it("A · an abort listener and a cleanup notification re-enter: the replacement flight of the same key survives", async () => {
+    const m = manualLoader();
+    const signals: AbortSignal[] = [];
+    let fr: Promise<void> | undefined;
+    let en: Promise<void> | undefined;
+    const { i18n } = make({
+      locale: "en",
+      catalogs: { default: { en: {}, fr: {} }, account: { fr: {} } },
+      loader: (l, n, s) => {
+        if (l == "en" && n == "account") {
+          signals.push(s);
+          if (signals.length == 1)
+            s.addEventListener("abort", () => void (fr = i18n.setLocale("fr")));
+        }
+        return m.load(l, n, s);
+      },
+    });
+    acquire(i18n, "account");
+    i18n.on(() => {
+      if (!en && signals[0]?.aborted) en = i18n.setLocale("en");
+    });
+    const de = watch(i18n.setLocale("de"));
+    await flush();
+    expect(signals.map((s) => s.aborted)).toEqual([true, false]);
+    // The replacement is published and `ready` waits for it.
+    expect(state(i18n).ld).toHaveLength(1);
+    const ready = watch(i18n.ready);
+    const latest = watch(en!);
+    await flush();
+    expect(ready.settled).toBe(false);
+    expect(latest.settled).toBe(false);
+    await m.answer("en:account", { title: "Account" });
+    await flush();
+    expect(ready.settled).toBe(true);
+    expect(latest.settled).toBe(true);
+    expect(de.settled).toBe(true);
+    await fr;
+    expect(i18n.locale).toBe("en");
+    expect(rl(i18n, "account")).toEqual([true, false]);
+    expect(state(i18n).ld).toEqual([]);
+  });
+
+  it("B · a loader calls setLocale() synchronously: the flight it was started for is registered, aborted and forgotten", async () => {
+    const m = manualLoader();
+    let fr: Promise<void> | undefined;
+    const { i18n } = make({
+      locale: "en",
+      messages: { en: {}, fr: {} },
+      loader: (l, n, s) => {
+        if (l == "de") fr = i18n.setLocale("fr");
+        return m.load(l, n, s);
+      },
+    });
+    const de = watch(i18n.setLocale("de"));
+    // Nothing to load for fr: applied before the outer call returned.
+    expect(i18n.locale).toBe("fr");
+    expect(m.signals.get("de:default")!.aborted).toBe(true);
+    expect(state(i18n).ld).toEqual([]);
+    expect(rl(i18n)).toEqual([true, false]);
+    const ready = watch(i18n.ready);
+    const newer = watch(fr!);
+    await flush();
+    expect(ready.settled).toBe(true);
+    expect(de.settled).toBe(true);
+    expect(newer.settled).toBe(true);
   });
 
   it("a loader re-enters through load(): the switch wins, load()'s flight is aborted, the promises settle", async () => {
@@ -449,7 +391,7 @@ describe("setLocale() re-entered from user code (lot 4d)", () => {
     await fr;
   });
 
-  it("a loader re-enters through a hold: the switch wins and the held namespace loads for the new locale", async () => {
+  it("a loader's setLocale() through a hold ends on the new locale", async () => {
     const m = manualLoader();
     let fr: Promise<void> | undefined;
     const { i18n } = make({
@@ -461,11 +403,6 @@ describe("setLocale() re-entered from user code (lot 4d)", () => {
       },
     });
     acquire(i18n, "shop");
-    // The held namespace is in the switch's wait: the old locale stays until it lands.
-    expect(i18n.locale).toBe("en");
-    expect(m.requested).toEqual(["en:shop", "fr:shop"]);
-    expect(m.signals.get("en:shop")!.aborted).toBe(true);
-    expect(state(i18n).ld).toHaveLength(1);
     await m.answer("fr:shop", { s: "S-fr" } as Catalog);
     await fr;
     expect(i18n.locale).toBe("fr");

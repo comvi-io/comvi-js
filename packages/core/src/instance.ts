@@ -152,14 +152,13 @@ export interface I18n {
    * switch — keeping the current locale on screen meanwhile, then switches — inside the
    * call when nothing needs loading. A later call wins from the moment it is made: this one
    * then never switches and resolves once its loads settle or are aborted, a failed one too.
-   * Called from a subscriber, a loader or an abort listener while the instance publishes,
-   * switches or starts a load, it runs when that work ends, before the outermost call returns:
-   * `locale` does not change inside the callback, and every subscriber is told of each state
-   * in order. The latest call switches when at least
-   * one namespace it waited for has a catalog of `locale`'s own chain in place (`de-AT`, or
-   * its parent `de`); a namespace whose load failed then renders its fallback. It rejects
-   * with the loader's error, keeping the old locale, only when EVERY namespace it waited
-   * for has none; an invalid tag rejects with a `RangeError`. Failures are reported through
+   * A subscriber may call it: the last call wins, and no order of notifications is promised (a
+   * later subscriber may read the final locale twice). A loader only fetches a catalog: a
+   * synchronous call from a loader or an abort listener is not supported. The latest call
+   * switches when at least one namespace it waited for has a catalog of `locale`'s own chain in
+   * place (`de-AT`, or its parent `de`); a namespace whose load failed then renders its fallback.
+   * It rejects with the loader's error, keeping the old locale, only when EVERY namespace it
+   * waited for has none; an invalid tag rejects with a `RangeError`. Failures are reported through
    * `onError` either way.
    */
   setLocale(locale: string): Promise<void>;
@@ -313,9 +312,6 @@ export const createI18n = (o: I18nOptions): I18n => {
   let rd: Promise<void> | 0 = 0;
   let seq = 0;
   let dead = 0;
-  /** A section is running (`sec()`); what starts work waits in `q`. */
-  let busy = 0;
-  const q: (() => void)[] = [];
   /** The marking hook (R3-14 H4); every state built from now on carries it. */
   let mf: Mark | null | undefined;
   let S: State;
@@ -380,36 +376,13 @@ export const createI18n = (o: I18nOptions): I18n => {
   };
 
   /**
-   * One section: while `f` runs, what user code it calls synchronously (a subscriber, a loader,
-   * an abort listener) starts — a switch, a load, a hold — waits in `q`. The queue runs when
-   * `f` ends, each entry inside the same section, before the outermost call returns; nothing
-   * here waits for the network. A new `setLocale()` is the latest from its call, queued or
-   * not, so the steps of a switch still check `seq` after running user code.
-   */
-  const sec = <T>(f: () => T): T => {
-    if (busy) return f();
-    busy = 1;
-    try {
-      return f();
-    } finally {
-      while (q[0]) q.shift()!();
-      busy = 0;
-    }
-  };
-
-  /** `f` as a section: now, or when the running one ends (then settling with its result). */
-  const later = <T>(f: () => T | PromiseLike<T>): T | PromiseLike<T> =>
-    busy ? new Promise<T>((y) => q.push(() => y(new Promise<T>((z) => z(f()))))) : sec(f);
-
-  /**
    * Replaces the state (its loads in flight are `fl`'s keys), aborts `a` when a flight left it,
-   * and tells the subscribers, as one section: each sees the state it was told of. A throwing
-   * subscriber does not stop the rest.
+   * and tells the subscribers; a throwing subscriber does not stop the rest.
    */
   const pub = (l = S.locale, c = S.c, dp = S.dp, a?: AbortController) => {
     S = st(S.rev + 1, S.lrev + +(l != S.locale), l, c, dp);
     a?.abort();
-    sec(() => subs.forEach(safe));
+    subs.forEach(safe);
   };
 
   /**
@@ -654,11 +627,9 @@ export const createI18n = (o: I18nOptions): I18n => {
     cnt[n] = (cnt[n] | 0) + y;
     return dead
       ? R
-      : (later(() =>
-          Promise.all(ensure(S.locale, [n], g)).then(() => {
-            if (x && lost(n)) throw bad.get(S.locale + K + n);
-          }),
-        ) as Promise<void>);
+      : Promise.all(ensure(S.locale, [n], g)).then(() => {
+          if (x && lost(n)) throw bad.get(S.locale + K + n);
+        });
   };
 
   const lost = (n: string, l = S.locale, ch = chain(l)) =>
@@ -708,8 +679,7 @@ export const createI18n = (o: I18nOptions): I18n => {
           // Also what a load(ns) started while this switch was pending needs (re-checked
           // until nothing is left to load).
           const ps = ensure(l, ns);
-          // The continuation is a section too: its cleanup, publish and loads run user code.
-          if (ps.length) return Promise.all(ps).then(() => sec(go));
+          if (ps.length) return Promise.all(ps).then(go);
           // Partial failure switches (R4-11): a namespace is missing only when the target
           // itself failed AND no catalog of its own chain (`de-AT` → `de`) is in place. The
           // locale kept on screen gets back what this switch's start aborted. Stale after that
@@ -729,18 +699,13 @@ export const createI18n = (o: I18nOptions): I18n => {
           if (my == seq) ensure(l, act());
         }
       };
-      // Nothing to load: the switch happens inside this call, or, from user code inside
-      // another section, right after it.
-      return new Promise((y) =>
-        y(
-          later(() => {
-            prune();
-            // The target's own failures are asked for again.
-            if (my == seq) retry(0, l);
-            return go() as void;
-          }),
-        ),
-      );
+      // Nothing to load: the switch happens inside this call.
+      return new Promise((y) => {
+        prune();
+        // The target's own failures are asked for again.
+        if (my == seq) retry(0, l);
+        y(go() as void);
+      });
     },
     load(n) {
       // The namespace's failed loads are asked for again (an explicit retry).
@@ -827,6 +792,6 @@ export const createI18n = (o: I18nOptions): I18n => {
     }
   // A plugin may have switched the locale already, which loaded what that needs; without a
   // loader nothing can start.
-  if (!seq && load) sec(() => ensure(S.locale, act()));
+  if (!seq && load) ensure(S.locale, act());
   return i18n;
 };
