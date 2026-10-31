@@ -91,6 +91,22 @@ describe("defaultOnError ids and text", () => {
       },
       "(cause not printable)",
     ],
+    [
+      "an Error whose message is a symbol",
+      Object.defineProperty(new Error(), "message", { value: Symbol("boom") }),
+      "Symbol(boom)",
+    ],
+    [
+      "an Error whose message cannot print",
+      Object.defineProperty(new Error(), "message", {
+        value: {
+          toString() {
+            throw 1;
+          },
+        },
+      }),
+      "(cause not printable)",
+    ],
   ])("load_failed prints a rejection with %s, never crashing", (label, cause, text) => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     defaultOnError({ code: "load_failed", locale: "de", ns: label, cause });

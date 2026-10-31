@@ -43,7 +43,7 @@ export const noop = (): void => {};
 /** A load failure's cause for the console: an Error's message, else the value as a string. */
 const printable = (cause: unknown): string => {
   try {
-    return cause instanceof Error ? cause.message : String(cause);
+    return String(cause instanceof Error ? cause.message : cause);
   } catch {
     return "(cause not printable)";
   }
