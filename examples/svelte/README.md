@@ -13,7 +13,7 @@ JSON catalogs in `src/locales`.
 - **Lazy loading**: a catalog is downloaded the first time its language is picked, and the
   `account` namespace only when the Account page opens.
 - **Call options**: one call reads another locale without switching to it.
-- **Fallback and missing keys**: English fills the gaps, and every miss reaches `onMissingKey`.
+- **Fallback and missing keys**: English fills the gaps, and every miss reaches `onError`.
 - **Right-to-left**: Arabic sets `<html dir="rtl">`.
 - **Navigation**: `/`, `/features` and `/about`, with the locale kept across pages and Back.
 
@@ -28,8 +28,8 @@ npm run dev
 
 ## Where to look
 
-- `src/i18n.ts` creates the i18n instance: the catalogs, the ICU compiler, the locale detector.
-- `src/App.svelte` publishes it with `setI18nContext` and lays out the page.
+- `src/i18n.ts` creates the i18n instance: the catalogs, the loader, the locale detector.
+- `src/App.svelte` publishes it with `setI18n` and lays out the page.
 - `src/cards/` holds one component per feature, each using `useI18n()`.
 - `src/router.ts` is the history router behind `/`, `/features` and `/about`.
 

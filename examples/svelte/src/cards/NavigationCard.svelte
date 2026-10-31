@@ -6,8 +6,8 @@
   const { t } = useI18n();
 </script>
 
-<Card title={$t('demo.navigation.title')} body={$t('demo.navigation.body')}>
+<Card title={t('demo.navigation.title')} body={t('demo.navigation.body')}>
   <p class="widget">
-    <a data-testid="nav-about" href="/about" use:link>{$t('demo.navigation.cta')}</a>
+    <a data-testid="nav-about" href="/about" use:link>{t('demo.navigation.cta')}</a>
   </p>
 </Card>

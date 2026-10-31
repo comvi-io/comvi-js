@@ -1,19 +1,19 @@
 <script lang="ts">
   import { useI18n } from '@comvi/svelte';
 
-  const { locale, setLocale } = useI18n();
+  const r = useI18n();
 
   const locales = ['en', 'de', 'fr', 'es', 'uk', 'ar'];
 
   function handleChange(event: Event) {
     const target = event.target as HTMLSelectElement;
-    setLocale(target.value);
+    r.setLocale(target.value).catch(() => {});
   }
 </script>
 
 <select
-  value={$locale}
-  on:change={handleChange}
+  value={r.locale}
+  onchange={handleChange}
   class="border border-gray-300 rounded px-2 py-1 bg-white text-gray-700"
 >
   {#each locales as loc (loc)}

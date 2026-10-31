@@ -3,32 +3,31 @@
 
   const { t } = useI18n();
 
-  let gender: 'male' | 'female' | 'other' = 'male';
-  let formality: 'formal' | 'informal' = 'formal';
-  let genderCount = 5;
-  let formalityCount = 3;
-  let nestedCount = 3;
+  let gender = $state<'male' | 'female' | 'other'>('male');
+  let formality = $state<'formal' | 'informal'>('formal');
+  let genderCount = $state(5);
+  let formalityCount = $state(3);
+  let nestedCount = $state(3);
 </script>
 
 <div class="space-y-8">
-  <h2 class="text-2xl font-bold">{$t('rich_text.title')}</h2>
+  <h2 class="text-2xl font-bold">{t('rich_text.title')}</h2>
 
   <div class="space-y-2">
     <h3 class="font-semibold">HTML Tags</h3>
     <div class="p-4 bg-gray-50 rounded border">
-      <T i18nKey="rich_text.bold_text" />
+      <T i18nKey="rich_text.bold_text" components={{ strong: 'strong' }} />
     </div>
   </div>
 
   <div class="space-y-2">
-    <h3 class="font-semibold">Links (with components prop)</h3>
+    <h3 class="font-semibold">Links (a snippet of the tag's name)</h3>
     <div class="p-4 bg-gray-50 rounded border">
-      <T
-        i18nKey="rich_text.link_text"
-        components={{
-          link: { tag: 'a', props: { href: 'https://example.com', class: 'text-blue-600 hover:underline', target: '_blank' } }
-        }}
-      />
+      <T i18nKey="rich_text.link_text">
+        {#snippet link(children: string)}
+          <a href="https://example.com" class="text-blue-600 hover:underline" target="_blank">{children}</a>
+        {/snippet}
+      </T>
     </div>
   </div>
 
@@ -38,7 +37,7 @@
       <T
         i18nKey="rich_text.component_interpolation"
         components={{
-          placeholder: { tag: 'strong', props: { class: 'text-blue-600' } }
+          placeholder: { component: 'strong', props: { class: 'text-blue-600' } }
         }}
       />
     </div>
@@ -49,7 +48,7 @@
   </div>
 
   <div class="border-t pt-8 mt-8">
-    <h3 class="text-xl font-bold mb-4">{$t('rich_text.nested_tags_title')}</h3>
+    <h3 class="text-xl font-bold mb-4">{t('rich_text.nested_tags_title')}</h3>
 
     <div class="space-y-3 mb-6">
       <h4 class="font-semibold">
@@ -59,8 +58,8 @@
         <T
           i18nKey="rich_text.nested_simple"
           components={{
-            link: { tag: 'a', props: { href: '#', class: 'text-blue-600 hover:underline' } },
-            bold: { tag: 'strong', props: {} }
+            link: { component: 'a', props: { href: '#', class: 'text-blue-600 hover:underline' } },
+            bold: { component: 'strong', props: {} }
           }}
         />
       </div>
@@ -85,11 +84,11 @@
       <div class="p-4 bg-yellow-50 rounded border border-yellow-200">
         <T
           i18nKey="rich_text.nested_mixed"
-          params={{ count: nestedCount }}
+          count={nestedCount}
           components={{
-            alert: { tag: 'span', props: { class: 'text-yellow-800' } },
-            bold: { tag: 'strong', props: { class: 'font-bold text-yellow-900' } },
-            link: { tag: 'a', props: { href: '#', class: 'text-yellow-700 underline hover:text-yellow-900' } }
+            alert: { component: 'span', props: { class: 'text-yellow-800' } },
+            bold: { component: 'strong', props: { class: 'font-bold text-yellow-900' } },
+            link: { component: 'a', props: { href: '#', class: 'text-yellow-700 underline hover:text-yellow-900' } }
           }}
         />
       </div>
@@ -104,11 +103,11 @@
         <T
           i18nKey="rich_text.nested_deep"
           components={{
-            card: { tag: 'div', props: { class: 'bg-white rounded-lg shadow p-4' } },
-            header: { tag: 'div', props: { class: 'flex items-center gap-2 font-bold text-blue-900 mb-2' } },
-            icon: { tag: 'span', props: { class: 'text-blue-500' } },
-            content: { tag: 'div', props: { class: 'text-blue-800' } },
-            link: { tag: 'a', props: { href: '#', class: 'text-blue-600 hover:underline' } }
+            card: { component: 'div', props: { class: 'bg-white rounded-lg shadow p-4' } },
+            header: { component: 'div', props: { class: 'flex items-center gap-2 font-bold text-blue-900 mb-2' } },
+            icon: { component: 'span', props: { class: 'text-blue-500' } },
+            content: { component: 'div', props: { class: 'text-blue-800' } },
+            link: { component: 'a', props: { href: '#', class: 'text-blue-600 hover:underline' } }
           }}
         />
       </div>
@@ -120,8 +119,8 @@
   </div>
 
   <div class="border-t pt-8 mt-8">
-    <h3 class="text-xl font-bold mb-4">{$t('rich_text.select_title')}</h3>
-    <p class="text-gray-600 mb-6">{$t('rich_text.select_intro')}</p>
+    <h3 class="text-xl font-bold mb-4">{t('rich_text.select_title')}</h3>
+    <p class="text-gray-600 mb-6">{t('rich_text.select_intro')}</p>
 
     <div class="space-y-3 mb-6">
       <h4 class="font-semibold">Gender Select</h4>
@@ -129,7 +128,7 @@
         <div class="flex gap-2">
           {#each ['male', 'female', 'other'] as g (g)}
             <button
-              on:click={() => (gender = g as typeof gender)}
+              onclick={() => (gender = g as typeof gender)}
               class="px-3 py-1 rounded text-sm transition-colors {gender === g
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 hover:bg-gray-300'}"
@@ -140,7 +139,7 @@
         </div>
       </div>
       <div class="p-4 bg-gray-50 rounded border">
-        {$t('rich_text.user_action', { gender })}
+        {t('rich_text.user_action', { gender })}
       </div>
     </div>
 
@@ -150,7 +149,7 @@
         <div class="flex gap-2">
           {#each ['formal', 'informal'] as f (f)}
             <button
-              on:click={() => (formality = f as typeof formality)}
+              onclick={() => (formality = f as typeof formality)}
               class="px-3 py-1 rounded text-sm transition-colors {formality === f
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 hover:bg-gray-300'}"
@@ -161,13 +160,13 @@
         </div>
       </div>
       <div class="p-4 bg-gray-50 rounded border">
-        {$t('rich_text.greeting_formal', { formality })}
+        {t('rich_text.greeting_formal', { formality })}
       </div>
     </div>
   </div>
 
   <div class="border-t pt-8 mt-8">
-    <h3 class="text-xl font-bold mb-4">{$t('rich_text.combined_title')}</h3>
+    <h3 class="text-xl font-bold mb-4">{t('rich_text.combined_title')}</h3>
 
     <div class="space-y-3 mb-6">
       <h4 class="font-semibold">Gender + Message Count</h4>
@@ -175,7 +174,7 @@
         <div class="flex gap-2">
           {#each ['male', 'female', 'other'] as g (g)}
             <button
-              on:click={() => (gender = g as typeof gender)}
+              onclick={() => (gender = g as typeof gender)}
               class="px-3 py-1 rounded text-sm transition-colors {gender === g
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 hover:bg-gray-300'}"
@@ -195,7 +194,7 @@
         </label>
       </div>
       <div class="p-4 bg-gray-50 rounded border">
-        {$t('rich_text.user_messages', { gender, count: genderCount })}
+        {t('rich_text.user_messages', { gender, count: genderCount })}
       </div>
     </div>
 
@@ -205,7 +204,7 @@
         <div class="flex gap-2">
           {#each ['formal', 'informal'] as f (f)}
             <button
-              on:click={() => (formality = f as typeof formality)}
+              onclick={() => (formality = f as typeof formality)}
               class="px-3 py-1 rounded text-sm transition-colors {formality === f
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-200 hover:bg-gray-300'}"
@@ -225,7 +224,7 @@
         </label>
       </div>
       <div class="p-4 bg-gray-50 rounded border">
-        {$t('rich_text.new_notifications', { formality, count: formalityCount })}
+        {t('rich_text.new_notifications', { formality, count: formalityCount })}
       </div>
     </div>
   </div>

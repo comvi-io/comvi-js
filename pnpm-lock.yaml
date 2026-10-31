@@ -585,6 +585,9 @@ importers:
       '@comvi/core':
         specifier: workspace:*
         version: link:../core
+      esm-env:
+        specifier: ^1.2.2
+        version: 1.2.2
     devDependencies:
       '@arethetypeswrong/cli':
         specifier: latest
@@ -969,6 +972,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/svelte
     devDependencies:
+      '@comvi/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
       '@comvi/vite-config':
         specifier: workspace:*
         version: link:../../tooling/vite-config

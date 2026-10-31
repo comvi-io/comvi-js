@@ -7,10 +7,10 @@
   // What `<link>` in the catalog becomes. The translator places the tag, the
   // app owns the element and its attributes.
   const components = {
-    link: { tag: 'a', props: { href: 'https://comvi.io/docs', target: '_blank', rel: 'noreferrer' } },
+    link: { component: 'a', props: { href: 'https://comvi.io/docs', target: '_blank', rel: 'noreferrer' } },
   };
 </script>
 
-<Card title={$t('demo.tags.title')} body={$t('demo.tags.body')}>
+<Card title={t('demo.tags.title')} body={t('demo.tags.body')}>
   <p class="widget" data-testid="read-more"><T i18nKey="docs.read_more" {components} /></p>
 </Card>

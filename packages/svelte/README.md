@@ -7,159 +7,146 @@
 
 <h1 align="center">@comvi/svelte</h1>
 
-<p align="center">Svelte 5 bindings for Comvi i18n: context, stores, and the <code>&lt;T&gt;</code> component.</p>
+<p align="center">Svelte 5 bindings for Comvi i18n: <code>setI18n()</code>, <code>useI18n()</code> and the <code>&lt;T&gt;</code> component.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/svelte"><img src="https://img.shields.io/npm/v/@comvi/svelte?color=blue" alt="npm"></a>
-  <a href="https://bundlejs.com/?q=@comvi/svelte&amp;treeshake=%5B%7BcreateI18n%2CsetI18nContext%2CuseI18n%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22svelte%22%5D%7D%7D"><img src="https://deno.bundlejs.com/badge?q=@comvi/svelte&amp;treeshake=%5B%7BcreateI18n%2CsetI18nContext%2CuseI18n%7D%5D&amp;config=%7B%22esbuild%22%3A%7B%22external%22%3A%5B%22svelte%22%5D%7D%7D" alt="Bundle size"></a>
   <a href="https://github.com/comvi-io/comvi-js/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/svelte"><img src="https://developer.stackblitz.com/img/open_in_stackblitz_small.svg" alt="Open in StackBlitz"></a>
 </p>
 
 ---
 
-`@comvi/svelte` puts the Comvi i18n instance on Svelte's context and hands your components `$t`
-and `$locale` as stores, plus `<T>` for translations that contain markup. It targets Svelte 5; the
-package depends on `@comvi/core`, so one install is enough.
+`@comvi/svelte` binds the Comvi i18n instance to Svelte 5 with runes: `setI18n(i18n)` in the root
+component, `useI18n()` in components, and `<T>` for translations that contain markup.
 
 ## Install
 
 ```bash
-npm install @comvi/svelte
-# Peer: svelte ^5.3.0
+npm install @comvi/svelte @comvi/core # peer: svelte ^5.3.0; the app imports @comvi/core/cdn
 ```
 
 ## Setup
 
-In the root layout, `src/routes/+layout.svelte`:
+```ts title="src/i18n.ts"
+import { createI18n } from "@comvi/svelte";
 
-```svelte title="src/routes/+layout.svelte" check=group=svelte-2
-<script lang="ts">
-  import { createI18n, setI18nContext } from '@comvi/svelte';
-  import type { Snippet } from 'svelte';
-
-  const { children }: { children: Snippet } = $props();
-
-  const i18n = createI18n({
-    locale: 'en',
-    fallbackLocale: 'en',
-    messages: {
-      en: { greeting: 'Hello, {name}!' },
-      uk: { greeting: 'Привіт, {name}!' },
-    },
-  });
-
-  setI18nContext(i18n);
-</script>
-
-{@render children()}
+export const i18n = createI18n({
+  locale: "en",
+  messages: { en: { greeting: "Hello, {name}!" }, uk: { greeting: "Привіт, {name}!" } },
+});
 ```
 
-`createI18n` returns the i18n instance and `setI18nContext` puts it where `useI18n()` finds it. It also calls
-`init()` in a microtask, so there is no `init()` call to write; pass `{ autoInit: false }` to run it
-yourself, and `{ onError }` to see a failed auto-init. In a plain Vite app the same code goes in
-`src/App.svelte`.
-
-## Use in components
-
-In a page, `src/routes/+page.svelte`:
-
-```svelte title="src/routes/+page.svelte" check=group=svelte-2
+```svelte title="src/App.svelte"
 <script lang="ts">
-  import { useI18n } from '@comvi/svelte';
+  import { setI18n, useI18n } from "@comvi/svelte";
+  import { i18n } from "./i18n";
 
-  const { t, locale, setLocale } = useI18n();
+  setI18n(i18n);
+  const r = useI18n();
+  const t = r.t;
 </script>
 
-<h1>{$t('greeting', { name: 'Alice' })}</h1>
-<select value={$locale} onchange={(e) => setLocale(e.currentTarget.value)}>
+<h1>{t("greeting", { name: "Alice" })}</h1>
+<select value={r.locale} onchange={(e) => r.setLocale(e.currentTarget.value)}>
   <option value="en">English</option>
   <option value="uk">Українська</option>
 </select>
 ```
 
-`useI18n()` returns stores, so `$`-prefix them in markup: `$t` renders a string, `$tRaw` a
-string or, when the translation carries tags, a parts array. `setLocale()` is a plain function
-that resolves once the new locale's catalog has loaded.
+`t()` fills `{name}` from its second argument (`{ ns }`, `{ locale }` there apply to one call) and
+re-runs in a template or a `$derived` when the instance's state changes. It always returns a
+string: a tag handler's output joins into it, and rich text is `<T>`'s. `locale`, `dir`, `isReady`
+and `isLoading` are getters, as `page` of `$app/state`: read them through the object (`r.locale`);
+destructured in a `<script>`, one is read once. `setLocale()` switches once the new catalogs are in
+(the last of quick switches wins); it rejects for an invalid tag, or when no catalog of the locale
+or its parent (`de` for `de-AT`) loaded for any namespace it waited for.
+
+```svelte title="src/Account.svelte"
+<script lang="ts">
+  import { useI18n } from "@comvi/svelte";
+  const account = useI18n("account");
+</script>
+
+{#if account.isReady}<h2>{account.t("title")}</h2>
+{:else if account.isLoading}<p class="spinner"></p>
+{:else}<p>Not available</p>{/if}
+```
+
+`useI18n("account")` binds `t` and `T` and holds the namespace from mount to destroy: it loads for
+the locale on screen and every switch; with no component holding it, it stays cached and a switch
+skips it. `isReady`: a catalog of the locale on screen, its parent or a `fallbackLocale` is in;
+`isLoading`: one is on the way. A failed load is `false`/`false` only with no usable catalog; a
+remount does not retry, `i18n.load("account")` does. `t()` and `<T>` only read (development warns
+about a namespace nothing loads). Nothing gates the first paint: `await i18n.ready` before
+`mount()`, or read `isReady`.
+
+`useFormat()` from `@comvi/svelte/format` formats numbers, currency, dates, ranges, lists, display
+names and relative time in the locale on screen; what calls one re-runs on a switch.
 
 ## Load from Comvi
 
-Pass the CDN loader (`@comvi/core/cdn`) as the instance's `loader`, in `src/routes/+layout.svelte`:
-
-```svelte title="src/routes/+layout.svelte" check=group=svelte-cdn
-<script lang="ts">
-  import { createI18n, setI18nContext } from '@comvi/svelte';
-  import { cdn } from '@comvi/core/cdn';
-  import type { Snippet } from 'svelte';
-
-  const { children }: { children: Snippet } = $props();
-
-  const i18n = createI18n({
-    locale: 'en',
-    fallbackLocale: 'en',
-    loader: cdn('https://cdn.comvi.io/<project-token>'),
-  });
-
-  setI18nContext(i18n);
-</script>
-
-{@render children()}
+```ts title="src/main.ts"
+import { mount } from "svelte";
+import { createI18n } from "@comvi/svelte";
+import { cdn } from "@comvi/core/cdn";
+import App from "./App.svelte";
+export const i18n = createI18n({
+  locale: "en",
+  loader: cdn("https://cdn.comvi.io/<project-token>"),
+});
+i18n.ready.then(() => mount(App, { target: document.body }));
 ```
 
-Read `isInitializing` in the page, in `src/routes/+page.svelte`:
+## Markup in a translation
 
-```svelte title="src/routes/+page.svelte" check=group=svelte-cdn
+```svelte
 <script lang="ts">
-  import { useI18n } from '@comvi/svelte';
-
-  const { isInitializing, t } = useI18n();
+  import { T } from "@comvi/svelte";
+  import Note from "./Note.svelte"; // <em>{@render children?.()}</em>
 </script>
 
-{#if $isInitializing}
-  <div class="spinner"></div>
-{:else}
-  <h1>{$t('greeting', { name: 'Alice' })}</h1>
-{/if}
+<!-- "terms": "Read the <link>terms</link>,<br/><b>in <i>full</i></b>." -->
+<T i18nKey="terms" components={{ b: "strong", i: Note, br: "br" }}>
+  {#snippet link(children: string)}<a href="/terms">{children}</a>{/snippet}
+</T>
 ```
 
-With a catalog in flight during the first paint, `$isInitializing` is the gate:
-there is no provider component and no `fallback` prop. The CDN URL is on
-[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi).
+A tag renders through a function prop of its name (returning text), else its `components` entry (a
+tag name, a component, or `{ component: "a", props: { href: "/terms" } }`; the content is its
+`children` snippet, nested tags included; an empty tag passes none, so `br: "br"` is a real `<br>`),
+else a snippet of its name (`children` is the tag's text: nested markup is flattened, and
+development warns), else as text. Every other prop but `i18nKey`, `ns`, `locale` and `markers` is a
+param. `useI18n("shop").T` is `<T>` bound to that namespace.
 
-## Specific to Svelte
+## Server rendering
 
-- Everything reactive is a store: `$t`, `$tRaw`, `$locale`, `$isLoading`, `$isInitializing`, `$dir`.
-  `$t` inside a `$derived` re-runs when the locale or the catalog changes.
-- `formatNumber`, `formatDate`, `formatCurrency` and `formatRelativeTime` are plain functions, not
-  stores, and still follow the locale in markup and `$derived`. A trailing `locale` argument
-  overrides it. Outside a component, import the same four from `@comvi/svelte` and pass the
-  instance first: `formatRelativeTime(i18n, -2, 'hour')`. Code reached by plain Node (tests,
-  scripts) imports them from `@comvi/svelte/format`.
-- `<T components={{ link: 'a', policy: { tag: 'a', props: { href: '/privacy' } } }} />`: each tag
-  maps to an element name, a `{ tag, props }` config, or a Svelte component that receives the tag's
-  content as its `children` snippet. `<T>` builds real DOM nodes, never an HTML string.
-- `@comvi/svelte` ships no SvelteKit adapter and needs none. Build a fresh instance per request and
-  never mutate a module-level singleton on the server. The root layout's `load` returns plain
-  data, `{ locale, messages }`, never the instance. `+layout.svelte` builds the instance once from
-  that payload, inside `untrack()`, and passes every later `data` to it in an `$effect.pre`
-  (`addMessages()`, then `setLocale()`); without that, a link to another locale changes the URL and
-  keeps the old text.
-- `<svelte:head>` cannot set attributes on `<html>`. Replace `%lang%` in `src/app.html` from a
-  `handle` hook for the server render, with the locale checked against your list first, and set `lang` and `dir` from `$locale` and `$dir` in an
-  `$effect` for client navigation.
+An instance per request. `render()` of `svelte/server` is synchronous, so a route loads what it
+shows first: `await i18n.ready`, `await i18n.load(ns)`; a namespace held with no catalog renders its
+loading branch. Match a locale from a route, cookie or header against your supported locales first:
+`createI18n()` throws a `RangeError` for one that is not a tag.
+
+```ts title="src/routes/+layout.server.ts"
+import { createI18n, handover } from "@comvi/svelte";
+import { locales, options } from "$lib/i18n"; // options: { timeZone: "UTC", loader, … }; timeZone required
+
+export const load = async ({ params }) => {
+  const locale = locales.includes(params.locale) ? params.locale : "en";
+  const i18n = createI18n({ ...options, locale });
+  await i18n.ready;
+  return handover(i18n);
+};
+```
+
+In `+layout.svelte`, `setI18n(createI18n({ ...options, ...data }))` starts from the server's state:
+the same `isReady`/`isLoading`, no mismatch, nothing fetched that the server rendered. A later
+payload goes through `i18n.add(locale, catalog, ns)` and `setLocale()`: see
+[`examples/sveltekit`](https://github.com/comvi-io/comvi-js/tree/main/examples/sveltekit).
 
 ## Read next
 
-- [Svelte guide](https://comvi.io/docs/i18n/svelte): rich text, gating the first paint, SSR.
-- [Svelte API reference](https://comvi.io/docs/i18n/api/svelte): every export, the standalone stores and `<T>` props.
-- [SvelteKit SSR](https://comvi.io/docs/i18n/ssr#sveltekit-and-solidstart): the server `load`, the layout and a page.
-- [Type safety](https://comvi.io/docs/i18n/type-safety): generate `TranslationKeys` so `$t` autocompletes.
-
-## Contributing
-
-Bug reports, docs fixes and pull requests are welcome.
-[CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md) explains the setup
-and what CI checks.
+- [Svelte guide](https://comvi.io/docs/i18n/svelte): markup inside a translation, first paint, SSR.
+- [Loading translations](https://comvi.io/docs/i18n/loading-translations): loaders, namespaces, fallbacks.
 
 ## License
 

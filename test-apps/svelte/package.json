@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "svelte-check --tsconfig ./tsconfig.json",
+    "typecheck": "comvi typegen --from ../locales --source-locale en && svelte-check --tsconfig ./tsconfig.json",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -14,6 +14,7 @@
     "@comvi/svelte": "workspace:*"
   },
   "devDependencies": {
+    "@comvi/cli": "workspace:*",
     "@comvi/vite-config": "workspace:*",
     "@comvi/vite-plugin": "workspace:*",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",

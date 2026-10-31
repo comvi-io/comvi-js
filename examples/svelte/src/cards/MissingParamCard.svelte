@@ -5,6 +5,6 @@
   const { t } = useI18n();
 </script>
 
-<Card title={$t('demo.missing.title')} body={$t('demo.missing.body')}>
-  <p class="widget" data-testid="missing-param">{$t('greeting.hello', {})}</p>
+<Card title={t('demo.missing.title')} body={t('demo.missing.body')}>
+  <p class="widget" data-testid="missing-param">{t('greeting.hello', {})}</p>
 </Card>
