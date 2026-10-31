@@ -32,8 +32,7 @@ import { argument } from "./icu";
 declare const __DEV__: boolean;
 
 /** Development: what an unclosed `<br>` was probably meant to be. Not read in production. */
-const BR_HINT =
-  "; write `<br/>` instead. It renders nothing without a `br` handler or `components` entry";
+const BR_HINT = "; write `<br/>` instead. It renders nothing without a `br` handler";
 
 export type Params = Readonly<Record<string, unknown>>;
 

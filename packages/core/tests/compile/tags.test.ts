@@ -168,8 +168,7 @@ describe("a handler's second argument: the text of its tag (lot 4b)", () => {
 });
 
 describe("an unclosed <br>: still a syntax report, with a development hint", () => {
-  const HINT =
-    "write `<br/>` instead. It renders nothing without a `br` handler or `components` entry";
+  const HINT = "write `<br/>` instead. It renders nothing without a `br` handler";
   const report = (message: string) => {
     const errors: I18nError[] = [];
     const out = createI18n({

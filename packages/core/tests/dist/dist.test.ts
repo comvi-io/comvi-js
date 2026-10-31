@@ -75,7 +75,7 @@ describe.each([
     expect(i18n.t("k")).toBe("k");
     expect(messages).toEqual([
       label === "dev"
-        ? "`<br>` is never closed; write `<br/>` instead. It renders nothing without a `br` handler or `components` entry"
+        ? "`<br>` is never closed; write `<br/>` instead. It renders nothing without a `br` handler"
         : undefined,
     ]);
   });
