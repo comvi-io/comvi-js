@@ -1,4 +1,4 @@
-import { createSignal, onMount, createEffect, For, Switch, Match } from "solid-js";
+import { createSignal, onCleanup, onMount, createEffect, For, Switch, Match } from "solid-js";
 import { I18nProvider, useI18n } from "@comvi/solid";
 import { i18n } from "./i18n";
 import LanguageSwitcher from "./components/LanguageSwitcher";
@@ -19,18 +19,11 @@ function AppContent() {
   }
 
   onMount(() => {
-    const defaultNs = i18n.getDefaultNamespace();
-    const activeNamespaces = i18n.getActiveNamespaces();
-    if (!activeNamespaces.includes(defaultNs)) {
-      i18n.addActiveNamespace(defaultNs);
-    }
-
     const handleHashChange = () => {
       setCurrentPath(window.location.hash.slice(1) || "/");
     };
     window.addEventListener("hashchange", handleHashChange);
-
-    return () => window.removeEventListener("hashchange", handleHashChange);
+    onCleanup(() => window.removeEventListener("hashchange", handleHashChange));
   });
 
   createEffect(() => {

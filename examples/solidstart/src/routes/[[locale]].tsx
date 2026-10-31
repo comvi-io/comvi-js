@@ -1,7 +1,7 @@
-import { createEffect, createResource, For, Show, type ParentProps } from "solid-js";
+import { createEffect, For, type ParentProps } from "solid-js";
 import { useLocation, useParams, type RouteDefinition } from "@solidjs/router";
-import { createI18n, I18nProvider, icuCompiler, useI18n } from "@comvi/solid";
-import { catalogLoader, fallbackLocale, loadI18n, localePath, locales } from "~/lib/i18n";
+import { I18nProvider, useI18n } from "@comvi/solid";
+import { fallbackLocale, i18nFor, localePath, locales } from "~/lib/i18n";
 
 // A first segment outside `locales` falls through to [...404].tsx.
 export const route = {
@@ -10,30 +10,16 @@ export const route = {
 
 export default function LocaleLayout(props: ParentProps) {
   const params = useParams();
-  // Keyed on the URL's locale: a link to /uk loads uk's payload. The fetcher
-  // is an arrow so the previous payload is not posted back to the server.
-  const [data] = createResource(
-    () => params.locale ?? fallbackLocale,
-    (locale) => loadI18n(locale),
-    { deferStream: true },
-  );
+  const i18n = i18nFor(params.locale ?? fallbackLocale);
+
+  // A client navigation to /uk: keeps the page on screen until uk's catalogs are in. On the
+  // first run the instance is already in this locale, which costs nothing.
+  createEffect(() => void i18n.setLocale(params.locale ?? fallbackLocale).catch(() => {}));
 
   return (
-    <Show when={data()} keyed>
-      {(ready) => {
-        const i18n = createI18n({
-          locale: ready.locale,
-          fallbackLocale,
-          compiler: icuCompiler,
-          messages: ready.messages,
-        }).use(catalogLoader());
-        return (
-          <I18nProvider i18n={i18n} ssrLocale={ready.locale}>
-            <Shell>{props.children}</Shell>
-          </I18nProvider>
-        );
-      }}
-    </Show>
+    <I18nProvider i18n={i18n}>
+      <Shell>{props.children}</Shell>
+    </I18nProvider>
   );
 }
 

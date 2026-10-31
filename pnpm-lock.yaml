@@ -528,12 +528,6 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@comvi/test-utils':
-        specifier: workspace:*
-        version: link:../../tooling/test-utils
-      '@comvi/vite-config':
-        specifier: workspace:*
-        version: link:../../tooling/vite-config
       '@solidjs/testing-library':
         specifier: ^0.8.10
         version: 0.8.10(solid-js@1.9.17)
@@ -932,6 +926,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/solid
     devDependencies:
+      '@comvi/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
       '@comvi/vite-config':
         specifier: workspace:*
         version: link:../../tooling/vite-config

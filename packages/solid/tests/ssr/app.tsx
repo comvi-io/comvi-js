@@ -1,27 +1,53 @@
-/**
- * The ONE component tree both halves of the hydration test render.
- *
- * It is compiled twice — server-flavoured when reached from `render.server.tsx`,
- * client-flavoured when imported by the test — and hydration keys are a
- * deterministic walk of the tree, so sharing the source is what makes the two
- * paints comparable at all.
- */
-import type { AnyI18nInstance } from "@comvi/core";
-import { I18nProvider } from "../../src/context";
-import { useI18n } from "../../src/useI18n";
+/** The components of the SSR tests, compiled once per side (vitest.config.ts). */
+import { Show, Suspense, type JSX } from "solid-js";
+import { I18nProvider, T, useI18n, type I18n } from "../../src";
+import { useFormat } from "../../src/format";
 
-const Greeting = () => {
-  const { t, locale } = useI18n();
-  return <span data-locale={locale()}>{t("greeting" as never)}</span>;
+export const Account = () => {
+  const { t, isReady, isLoading } = useI18n("account");
+  return <p>{isReady() ? (t("title") as string) : isLoading() ? "loading" : "unavailable"}</p>;
 };
 
-export interface AppProps {
-  i18n: AnyI18nInstance;
-  ssrLocale?: string;
-}
+/** A component with keys after its useI18n: a server-only id would shift them. */
+export const Keyed = () => {
+  const { t } = useI18n("account");
+  const { t: d, locale } = useI18n();
+  return (
+    <main lang={locale()}>
+      <h1>{d("hi", { name: "Ann" }) as string}</h1>
+      <Show when={true}>
+        <h2>{t("title") as string}</h2>
+      </Show>
+      <p>
+        <T i18nKey="terms" components={{ link: { component: "a", props: { href: "/t" } } }} />
+      </p>
+      <p>
+        <T i18nKey="lines" components={{ br: "br" }} />
+      </p>
+    </main>
+  );
+};
 
-export const App = (props: AppProps) => (
-  <I18nProvider i18n={props.i18n} autoInit={false} ssrLocale={props.ssrLocale}>
-    <Greeting />
-  </I18nProvider>
+export const Ago = () => <p>{useFormat().relative(880_000)}</p>;
+
+export const Price = () => <p>{useFormat().number(1234.5)}</p>;
+
+export const Lines = (p: { k: string }) => <T i18nKey={p.k} components={{ br: "br" }} />;
+
+export const Empty = () => (
+  <T i18nKey="m" components={{ p: (q: { children?: JSX.Element }) => <i>{q.children}</i> }} />
+);
+
+/** A parameter in `<T>` right under the provider, with no element around it. */
+export const Bare = (p: { name: string }) => <T i18nKey="hi" name={p.name} />;
+
+export const Provide = (p: { i18n: I18n; children: JSX.Element }) => (
+  <I18nProvider i18n={p.i18n}>{p.children}</I18nProvider>
+);
+
+/** The app shape of a Solid server render: a Suspense boundary above the provider. */
+export const Page = (p: { i18n: I18n; children: JSX.Element }) => (
+  <Suspense fallback="waiting">
+    <I18nProvider i18n={p.i18n}>{p.children}</I18nProvider>
+  </Suspense>
 );

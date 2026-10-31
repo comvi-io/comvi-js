@@ -14,7 +14,6 @@
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
     "paths": {
-      "@comvi/solid": ["../../packages/solid/src/index.ts"],
       "~/*": ["./src/*"]
     }
   },

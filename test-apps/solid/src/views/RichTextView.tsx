@@ -18,7 +18,7 @@ export default function RichTextView() {
       <div class="space-y-2">
         <h3 class="font-semibold">HTML Tags</h3>
         <div class="p-4 bg-gray-50 rounded border">
-          <T i18nKey="rich_text.bold_text" />
+          <T i18nKey="rich_text.bold_text" components={{ strong: "strong" }} />
         </div>
       </div>
 
@@ -30,7 +30,7 @@ export default function RichTextView() {
             i18nKey="rich_text.link_text"
             components={{
               link: {
-                tag: "a",
+                component: "a",
                 props: {
                   href: "https://example.com",
                   class: "text-blue-600 hover:underline",
@@ -49,7 +49,7 @@ export default function RichTextView() {
           <T
             i18nKey="rich_text.component_interpolation"
             components={{
-              placeholder: { tag: "strong", props: { class: "text-blue-600" } },
+              placeholder: { component: "strong", props: { class: "text-blue-600" } },
             }}
           />
         </div>
@@ -72,8 +72,11 @@ export default function RichTextView() {
             <T
               i18nKey="rich_text.nested_simple"
               components={{
-                link: { tag: "a", props: { href: "#", class: "text-blue-600 hover:underline" } },
-                bold: { tag: "strong", props: {} },
+                link: {
+                  component: "a",
+                  props: { href: "#", class: "text-blue-600 hover:underline" },
+                },
+                bold: { component: "strong", props: {} },
               }}
             />
           </div>
@@ -102,12 +105,12 @@ export default function RichTextView() {
           <div class="p-4 bg-yellow-50 rounded border border-yellow-200">
             <T
               i18nKey="rich_text.nested_mixed"
-              params={{ count: nestedCount() }}
+              count={nestedCount()}
               components={{
-                alert: { tag: "span", props: { class: "text-yellow-800" } },
-                bold: { tag: "strong", props: { class: "font-bold text-yellow-900" } },
+                alert: { component: "span", props: { class: "text-yellow-800" } },
+                bold: { component: "strong", props: { class: "font-bold text-yellow-900" } },
                 link: {
-                  tag: "a",
+                  component: "a",
                   props: { href: "#", class: "text-yellow-700 underline hover:text-yellow-900" },
                 },
               }}
@@ -129,14 +132,17 @@ export default function RichTextView() {
             <T
               i18nKey="rich_text.nested_deep"
               components={{
-                card: { tag: "div", props: { class: "bg-white rounded-lg shadow p-4" } },
+                card: { component: "div", props: { class: "bg-white rounded-lg shadow p-4" } },
                 header: {
-                  tag: "div",
+                  component: "div",
                   props: { class: "flex items-center gap-2 font-bold text-blue-900 mb-2" },
                 },
-                icon: { tag: "span", props: { class: "text-blue-500" } },
-                content: { tag: "div", props: { class: "text-blue-800" } },
-                link: { tag: "a", props: { href: "#", class: "text-blue-600 hover:underline" } },
+                icon: { component: "span", props: { class: "text-blue-500" } },
+                content: { component: "div", props: { class: "text-blue-800" } },
+                link: {
+                  component: "a",
+                  props: { href: "#", class: "text-blue-600 hover:underline" },
+                },
               }}
             />
           </div>

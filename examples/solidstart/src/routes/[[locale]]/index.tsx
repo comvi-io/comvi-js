@@ -5,7 +5,7 @@ import { localePath } from "~/lib/i18n";
 // What `<link>` in the catalog becomes: the translator places the tag, the app
 // owns the element.
 const components = {
-  link: { tag: "a", props: { href: "https://comvi.io/docs/i18n/ssr" } },
+  link: { component: "a", props: { href: "https://comvi.io/docs/i18n/ssr" } },
 };
 
 export default function Home() {

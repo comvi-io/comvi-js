@@ -2,7 +2,7 @@
   "name": "@comvi/solid",
   "version": "0.7.1",
   "type": "module",
-  "description": "SolidJS integration for Comvi — reactive primitives and type-safe translations",
+  "description": "SolidJS binding for Comvi i18n: provider, useI18n(), <T> and useFormat()",
   "license": "MIT",
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {
@@ -35,7 +35,13 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "development": "./dist/comvi-solid.dev.js",
       "default": "./dist/comvi-solid.js"
+    },
+    "./format": {
+      "types": "./dist/format.d.ts",
+      "development": "./dist/comvi-solid-format.dev.js",
+      "default": "./dist/comvi-solid-format.js"
     }
   },
   "engines": {
@@ -47,9 +53,9 @@
   "sideEffects": false,
   "scripts": {
     "dev": "vite build --watch",
-    "build": "node ../../tooling/clean-dist.mjs && vite build && node ../../tooling/qualify-dts-specifiers.mjs dist",
+    "build": "node ../../tooling/clean-dist.mjs && tsc --noEmit && vite build && vite build --config vite.config.dev.ts && node ../../tooling/qualify-dts-specifiers.mjs dist",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
-    "test:types": "tsc --noEmit -p tsconfig.test-types.json && tsc --noEmit -p tsconfig.keys-closed.json && tsc --noEmit -p tsconfig.keys-via-binding.json",
+    "test:types": "tsc --noEmit -p tsconfig.test-types.json && tsc --noEmit -p tsconfig.test-types-untyped.json",
     "test": "vitest run && pnpm test:types",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -64,8 +70,6 @@
     "solid-js": "^1.8.0"
   },
   "devDependencies": {
-    "@comvi/test-utils": "workspace:*",
-    "@comvi/vite-config": "workspace:*",
     "@solidjs/testing-library": "^0.8.10",
     "@types/node": "^22.20.5",
     "@typescript-eslint/eslint-plugin": "^8.72.0",
