@@ -101,6 +101,8 @@ import App from "./App";
 
 // 1. Data. A server-rendered page embeds `handover(i18n)` (`@comvi/core/internal`) as window.__I18N__
 //    (its catalogs win over inline `messages`) and calls hydrateRoot(root, …) instead of createRoot.
+//    Match a locale from a URL, cookie or header against your supported locales first: one that is
+//    not a tag is a configuration error (RangeError); a valid one with no translation falls back.
 const i18n = createI18n({
   locale: "en",
   loader: cdn("https://cdn.comvi.io/<project-token>"),

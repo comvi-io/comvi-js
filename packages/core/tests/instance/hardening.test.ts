@@ -255,17 +255,18 @@ describe("defaultParams belong to a snapshot", () => {
   });
 });
 
-describe("fallbackLocale is owned by the instance", () => {
-  it("mutating the caller's list before another locale's first lookup changes nothing", () => {
-    const list = ["en"];
-    const map = { default: ["en"] };
+describe("fallbackLocale is read as given", () => {
+  it("the library never writes to it: a frozen list and a frozen map work through a switch", async () => {
+    const list = Object.freeze(["en"]);
+    const map = Object.freeze({ default: Object.freeze(["en"]) });
     const messages = { en: { a: "A-en" }, fr: { a: "A-fr" } };
-    const a = make({ locale: "de", fallbackLocale: list, messages }).i18n;
-    const b = make({ locale: "de", fallbackLocale: map, messages }).i18n;
-    list[0] = "fr";
-    map.default[0] = "fr";
-    expect(a.t("a", { locale: "uk" })).toBe("A-en");
-    expect(b.t("a", { locale: "uk" })).toBe("A-en");
+    for (const fallbackLocale of [list, map]) {
+      const { i18n } = make({ locale: "de", fallbackLocale, messages });
+      expect(i18n.t("a")).toBe("A-en");
+      expect(i18n.t("a", { locale: "uk" })).toBe("A-en");
+      await i18n.setLocale("uk");
+      expect(i18n.t("a")).toBe("A-en");
+    }
   });
 
   it("an invalid fallbackLocale entry is reported, not dropped silently", () => {

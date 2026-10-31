@@ -4,7 +4,8 @@
  * loader-locale-switch-arbitration, init-failure-rollback (→ partial failure, R4-11),
  * fallback-locale-ownership, languages (instance half).
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createI18n } from "../../src/instance";
 import { state } from "../../src/internal";
 import { flush, make, manualLoader, tableLoader, trace } from "./helpers";
 
@@ -376,14 +377,6 @@ describe("the fallback chain", () => {
     expect(i18n.t("b")).toBe("en-b");
   });
 
-  it("ignores later mutation of the fallback array passed in", () => {
-    const fb = ["en"];
-    const { i18n } = make({ locale: "de", fallbackLocale: fb, messages: { en: { a: "en" } } });
-    expect(i18n.t("a")).toBe("en");
-    fb[0] = "fr";
-    expect(i18n.t("a")).toBe("en");
-  });
-
   it("zh-HK never falls back to zh (Hans); zh-Hant-HK reaches zh-Hant", () => {
     const { i18n } = make({
       locale: "zh-HK",
@@ -423,16 +416,35 @@ describe("invalid locales are rejected before anything renders or loads (R3-1, R
     },
   );
 
-  it("an invalid start locale is reported and renders through its fallback locales", () => {
+  it.each(["!!", "", "not a locale"])(
+    "createI18n({ locale: %j }) throws a RangeError before plugins, the loader or a report (lot 4d)",
+    (bad) => {
+      const setup = vi.fn();
+      const loader = vi.fn(async () => ({}));
+      const onError = vi.fn();
+      expect(() =>
+        createI18n({
+          locale: bad,
+          fallbackLocale: "en",
+          loader,
+          onError,
+          plugins: [{ name: "p", setup }],
+        }),
+      ).toThrow(RangeError);
+      expect(setup).not.toHaveBeenCalled();
+      expect(loader).not.toHaveBeenCalled();
+      expect(onError).not.toHaveBeenCalled();
+    },
+  );
+
+  it("a valid start locale with no catalog loads and falls back as usual; Intl need not know it", () => {
     const { i18n, errors } = make({
-      locale: "!!",
+      locale: "xx",
       fallbackLocale: "en",
-      messages: { en: { n: "{n, plural, one {# item} other {# items}}" } },
+      messages: { en: { a: "A" } },
     });
-    expect(errors).toContainEqual(
-      expect.objectContaining({ code: "invalid_locale", locale: "!!" }),
-    );
-    expect(i18n.t("n", { n: 1234 })).toBe("1,234 items");
-    expect(i18n.dir).toBe("ltr");
+    expect(i18n.locale).toBe("xx");
+    expect(i18n.t("a")).toBe("A");
+    expect(errors.map((e) => e.code)).not.toContain("invalid_locale");
   });
 });

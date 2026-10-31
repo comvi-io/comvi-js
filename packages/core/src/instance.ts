@@ -48,11 +48,19 @@ export interface Plugin {
 }
 
 export interface I18nOptions {
-  /** The locale, as the app spells it (`en`, `pt-BR`). */
+  /**
+   * The locale, as the app spells it (`en`, `pt-BR`). One that is not a tag (`""`, `"!!"`) is a
+   * configuration error: `createI18n()` throws a `RangeError` before plugins or the loader run.
+   * A missing translation is a different situation: a valid tag with no catalog, or one `Intl`
+   * has no data for, loads and falls back as usual. Match a locale from a URL, cookie or header
+   * against the supported locales BEFORE `createI18n()`.
+   */
   locale: string;
   /**
    * Locales `t()` falls back to after the locale's own parents (`pt-BR` → `pt`): one, a
-   * list, or a list per locale with a `default` list for the others.
+   * list, or a list per locale with a `default` list for the others. An entry that is not a
+   * tag is reported (`invalid_locale`) and left out, not thrown. Configuration is immutable
+   * after creation.
    */
   fallbackLocale?: string | readonly string[] | Readonly<Record<string, readonly string[]>>;
   /**
@@ -280,8 +288,12 @@ const own = (v?: Readonly<Record<string, unknown>>) =>
   v && Object.keys(v).length ? { ...v } : null;
 
 export const createI18n = (o: I18nOptions): I18n => {
-  // An own copy: the caller mutating its list later changes nothing.
-  const fb = JSON.parse(JSON.stringify(o.fallbackLocale || 0)) as I18nOptions["fallbackLocale"];
+  // Before anything runs: a failed creation leaves nothing behind.
+  if (!canonicalize(o.locale))
+    throw RangeError(__DEV__ ? `[@comvi/core] invalid locale "${o.locale}"` : o.locale);
+  // Configuration is immutable after creation: updating it by mutating what was passed is not
+  // supported. Read as given, never written.
+  const fb = o.fallbackLocale || 0;
   const h = o.onError || defaultOnError;
   /** Reports; what the reporter throws is rethrown outside the render or the load. */
   const report: OnError = (e) => safe(() => h(e));
@@ -348,7 +360,7 @@ export const createI18n = (o: I18nOptions): I18n => {
       ch.o = ch.length;
       ([] as string[])
         .concat(
-          // `fb` is never null: a JSON copy of the option, `0` for none.
+          // `fb` is never null: the option, `0` for none.
           (typeof fb != "object" || Array.isArray(fb)
             ? fb
             : (fb as Record<string, readonly string[]>)[l] ||
@@ -418,8 +430,6 @@ export const createI18n = (o: I18nOptions): I18n => {
     for (const l in cats[n])
       if (cats[n][l]) c0 = ing(c0, l, cats[n][l]!, n);
       else bad.set(l + K + n, (cnt[n] |= 0));
-  // An invalid start locale is reported (by its chain); it renders through its fallback
-  // locales only.
   S = st(0, 0, o.locale, c0, own(o.defaultParams));
 
   /**

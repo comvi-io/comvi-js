@@ -125,7 +125,9 @@ attribute but `i18n-key`, `ns`, `locale` and `markers` is a param, camelized, `c
 ## Server rendering
 
 An instance per request; `useI18n(ns)` loads before its component renders, and `handover()`
-carries every namespace the request needed (a route's `load()` too):
+carries every namespace the request needed (a route's `load()` too). Match a locale from a URL, cookie or header
+against your supported locales before `createI18n()`: one that is not a tag is a configuration error
+and throws a `RangeError`, while a valid locale with no translation falls back as usual:
 
 ```ts title="server.ts"
 import { createSSRApp } from "vue";
