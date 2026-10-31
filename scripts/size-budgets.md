@@ -1361,3 +1361,30 @@ invalid start locale or formatter override, no copy of `fallbackLocale`). Node v
 pnpm build`: core-icu 4,644 (+70 from 5158518b), core-icu-cdn 5,123 (+65), core-icu-devtools 5,094
 (+63), react-icu-cdn 5,657 (+65), vue-icu-cdn 5,828 (+69). `fw-svelte-format` now creates a real
 instance; lot 5 re-baselines it. Ceilings, budgets and baselines are unchanged here.
+
+## 2026-10-31: lot 4d final, ceilings from the final result
+
+The owner's instruction: ceilings count from the final result, replacing the ceilings of the queue
+variant recorded above. Policy at the top of this file: ceiling and increment cap =
+`ceil(measured × 1.02)`, budget = `min(ceiling, ceil(measured × 1.05))`. One sweep after
+`TURBO_FORCE=1 pnpm build`, `node --version` v24.22.1; `pnpm size` green. Every row below was
+re-baselined from that sweep; every ceiling and cap ends at or below its old value.
+
+| row                     | 5158518b | now   | Δ   | budget | ceiling (old → new) | cap (old → new)           |
+| ----------------------- | -------- | ----- | --- | ------ | ------------------- | ------------------------- |
+| core-icu                | 4,574    | 4,634 | +60 | 4,727  | 4,842 → **4,727**   | —                         |
+| core-icu-cdn            | 5,058    | 5,114 | +56 | 5,217  | 5,334 → **5,217**   | —                         |
+| core-icu-cdn-store      | 5,226    | 5,282 | +56 | 5,547  | —                   | —                         |
+| core-icu-api            | 5,582    | 5,638 | +56 | 5,920  | —                   | —                         |
+| core-icu-devtools       | 5,031    | 5,087 | +56 | 5,189  | 5,302 → **5,189**   | +500 → **+463** (at +453) |
+| core-format             | 5,232    | 5,288 | +56 | 5,553  | —                   | —                         |
+| core-plugins            | 5,152    | 5,217 | +65 | 5,478  | —                   | —                         |
+| react-icu-cdn           | 5,592    | 5,647 | +55 | 5,760  | 5,871 → **5,760**   | +547 → **+544** (at +533) |
+| fw-react-default        | 5,069    | 5,137 | +68 | 5,394  | —                   | —                         |
+| fw-react-full-composite | 8,071    | 8,132 | +61 | 8,539  | —                   | —                         |
+| vue-icu-cdn             | 5,759    | 5,830 | +71 | 5,947  | 6,051 → **5,947**   | +753 → **+731** (at +716) |
+| fw-vue-default          | 5,251    | 5,309 | +58 | 5,575  | —                   | —                         |
+| fw-vue-full-composite   | 7,964    | 8,005 | +41 | 8,406  | —                   | —                         |
+
+`core-compile` (1,862), `core-locale` (584), `core-negotiate` (496) and `core-devtools` (639) did not
+move. Pending rows are unmeasured here; `fw-svelte-format` is re-baselined in lot 5.
