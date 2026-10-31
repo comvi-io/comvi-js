@@ -9,10 +9,11 @@
  * nested tags renders with 0 React warnings (no missing key); two concurrent requests with
  * different locales over SHARED catalogs do not bleed (R4-12).
  */
-import { renderToString } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { renderToReadableStream, renderToString } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
 import { version } from "react";
 import { createI18n, I18nHandover, I18nProvider, T, useI18n, useLocale } from "../src";
+import { useFormat } from "../src/format";
 import { reactWarnings } from "./helpers";
 
 const html = (s: string) => s.replace(/<!-- -->/g, "");
@@ -135,5 +136,63 @@ describe("SSR (renderToString)", () => {
     };
     const [a, b] = await Promise.all([request("en", "A"), request("de", "B")]);
     expect([a, b]).toEqual(["Hello A", "Hallo B"]);
+  });
+});
+
+describe("SSR: <I18nHandover locale> that is not a tag (lot 4d)", () => {
+  const OnlyT = () => <p>{useI18n().t("a")}</p>;
+  const OnlyFormat = () => <p>{useFormat().number(1)}</p>;
+  const Plain = () => <p>x</p>;
+  const Locale = () => <p>{useLocale()}</p>;
+  const setup = () => {
+    const i18n = createI18n({ locale: "en", messages: { en: { a: "A" } } });
+    return { i18n, set: vi.spyOn(i18n, "setLocale"), add: vi.spyOn(i18n, "add"), rev: i18n.rev() };
+  };
+  const page = (i18n: ReturnType<typeof createI18n>, bad: string, C: () => React.ReactNode) => (
+    <I18nProvider i18n={i18n}>
+      <I18nHandover locale={bad} catalogs={{ default: { de: { a: "A-de" } } }}>
+        <C />
+      </I18nHandover>
+    </I18nProvider>
+  );
+  describe.each(["!!", ""])("locale=%j", (bad) => {
+    describe.each([
+      ["only t()", OnlyT],
+      ["only useFormat()", OnlyFormat],
+      ["a plain child", Plain],
+    ] as const)("with %s", (_, C) => {
+      const nothingPublished = (s: ReturnType<typeof setup>) => {
+        expect(s.set).not.toHaveBeenCalled();
+        expect(s.add).not.toHaveBeenCalled();
+        expect(s.i18n.rev()).toBe(s.rev);
+      };
+      it("renderToString throws a RangeError", () => {
+        const s = setup();
+        expect(() => renderToString(page(s.i18n, bad, C))).toThrow(RangeError);
+        nothingPublished(s);
+      });
+      it("a stream's shell rejects with a RangeError", async () => {
+        const s = setup();
+        await expect(
+          renderToReadableStream(page(s.i18n, bad, C), { onError: () => {} }),
+        ).rejects.toBeInstanceOf(RangeError);
+        nothingPublished(s);
+      });
+    });
+  });
+
+  it("a valid locale with no catalog renders as before: the key, no error", () => {
+    const onError = vi.fn();
+    const i18n = createI18n({ locale: "en", messages: { en: { a: "A" } }, onError });
+    const out = renderToString(
+      <I18nProvider i18n={i18n}>
+        <I18nHandover locale="de">
+          <Locale />
+        </I18nHandover>
+      </I18nProvider>,
+    );
+    expect(html(out)).toBe("<p>de</p>");
+    expect(i18n.locale).toBe("en");
+    expect(onError.mock.calls.filter(([e]) => e.code == "invalid_locale")).toEqual([]);
   });
 });

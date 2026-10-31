@@ -491,23 +491,23 @@ describe("the target locale across renders and instances (0.7 target-locale)", (
     expect(view.container.textContent).toBe("uk:Привіт");
   });
 
-  it("an invalid target is reported, not thrown, and the instance stays", async () => {
+  it("an invalid target throws a RangeError in the render, and the instance stays", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     const errors: string[] = [];
     const i18n = createI18n({ locale: "en", messages, onError: (e) => errors.push(e.code) });
-    render(
-      <I18nProvider i18n={i18n}>
-        <I18nHandover locale="!!">
-          <Probe log={[]} />
-        </I18nHandover>
-      </I18nProvider>,
-    );
-    await settle();
+    expect(() =>
+      render(
+        <I18nProvider i18n={i18n}>
+          <I18nHandover locale="!!">
+            <Probe log={[]} />
+          </I18nHandover>
+        </I18nProvider>,
+      ),
+    ).toThrow(RangeError);
     expect(i18n.locale).toBe("en");
-    expect(errors).toContain("invalid_locale");
+    expect(errors).toEqual([]);
   });
-});
 
-describe("a target the instance cannot switch to, a catalogs refresh", () => {
   it("a target whose load fails is given up: the subtree renders the instance's locale", async () => {
     const l = manualLoader();
     const errors: string[] = [];
@@ -537,23 +537,6 @@ describe("a target the instance cannot switch to, a catalogs refresh", () => {
     expect(errors).toContain("load_failed");
     expect(view.container.textContent).toBe("en:Hello");
     expect(locales.at(-1)).toBe("en");
-  });
-
-  it("an invalid target renders the instance's locale too", async () => {
-    const i18n = createI18n({
-      locale: "en",
-      messages: { en: { greeting: "Hello" } },
-      onError: () => {},
-    });
-    const view = render(
-      <I18nProvider i18n={i18n}>
-        <I18nHandover locale="!!">
-          <Probe log={[]} />
-        </I18nHandover>
-      </I18nProvider>,
-    );
-    await settle();
-    expect(view.container.textContent).toBe("en:Hello");
   });
 
   it("a refreshed catalogs object with the same target does not undo the user's setLocale()", async () => {

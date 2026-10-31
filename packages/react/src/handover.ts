@@ -19,8 +19,10 @@ import {
   type ReactNode,
 } from "react";
 import type { I18n } from "@comvi/core";
-import { view } from "@comvi/core/internal";
+import { canonicalize, view } from "@comvi/core/internal";
 import { provide, useCtx, type Ctx, type ProviderCatalogs } from "./binding";
+
+declare const __DEV__: boolean;
 
 // React 18 warns about useLayoutEffect in a server render; the server runs no effects.
 const useCommit = typeof document < "u" ? useLayoutEffect : useEffect;
@@ -34,10 +36,12 @@ export interface I18nHandoverProps {
    */
   catalogs?: ProviderCatalogs;
   /**
-   * The locale to render in (a route parameter). The subtree renders in it at once and the
-   * instance switches at commit; a later `setLocale()` wins until this prop changes. A
-   * switch that fails (no catalog of the locale loads) gives the target up: the subtree
-   * renders the instance's locale again.
+   * The locale to render in (a route parameter, matched against the supported locales first).
+   * The subtree renders in it at once and the instance switches at commit; a later
+   * `setLocale()` wins until this prop changes. A switch that fails (no catalog of the locale
+   * loads) gives the target up: the subtree renders the instance's locale again. One that is
+   * not a tag (`""`, `"!!"`) is a configuration error: the render throws a `RangeError` before
+   * the children render, and nothing reaches the instance. Absent: no target.
    */
   locale?: string;
   children?: ReactNode;
@@ -57,6 +61,8 @@ export const I18nHandover = ({
   locale: target,
   children,
 }: I18nHandoverProps): ReactElement => {
+  if (target !== undefined && !canonicalize(target))
+    throw RangeError(__DEV__ ? `[@comvi/react] invalid locale "${target}"` : target);
   const [i, base] = useCtx();
   // Locale handover as DERIVED state, never a render-time write: render the target while
   // the published locale has not moved since the prop was given (`lrev`), then follow it.
@@ -85,8 +91,9 @@ export const I18nHandover = ({
   useCommit(() => {
     if (target && target != i.locale)
       i.setLocale(target).catch(() =>
-        // Reported through onError already (load_failed, invalid_locale): give the target
-        // up, so the subtree renders the instance's locale instead of keys in the target.
+        // Reported through onError already (load_failed; the render refused an invalid tag):
+        // give the target up, so the subtree renders the instance's locale instead of keys in
+        // the target.
         setH((h) => (h[0] == i && h[1] == target ? [i, target, target, h[3]] : h)),
       );
   }, [i, target]);

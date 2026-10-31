@@ -42,4 +42,27 @@ describe("production", () => {
     expect(out).toBe("<b>2 items</b> x|<b>3 Artikel</b>");
     expect(warn).not.toHaveBeenCalled();
   });
+
+  it.each(["!!", ""])(
+    "<I18nHandover locale=%j> throws a RangeError naming the tag only, nothing published (lot 4d)",
+    (bad) => {
+      const i18n = createI18n({ locale: "en", messages: { en: {} } });
+      const set = vi.spyOn(i18n, "setLocale");
+      let e: unknown;
+      try {
+        renderToStaticMarkup(
+          <I18nProvider i18n={i18n}>
+            <I18nHandover locale={bad}>
+              <p>x</p>
+            </I18nHandover>
+          </I18nProvider>,
+        );
+      } catch (x) {
+        e = x;
+      }
+      expect(e).toBeInstanceOf(RangeError);
+      expect((e as Error).message).toBe(bad);
+      expect(set).not.toHaveBeenCalled();
+    },
+  );
 });
