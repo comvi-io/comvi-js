@@ -95,8 +95,8 @@ export const view = (
       if (c === state.c) c = N(c);
       (c as Record<string, Store[string]>)[n] = N(c[n], { [l]: next });
     }
-  // The chain gives the locale's direction and canonical tag (an invalid one renders
-  // through its fallbacks, as a published state does). In another locale than the published
+  // The chain gives the locale's direction and canonical tag (an invalid one, which this seam
+  // can be handed, renders through its fallbacks). In another locale than the published
   // one, what its chain lacks is loading (`isLoading`; never requested, it is no
   // `missing_key`) by the core's own rule: the switch at commit loads it.
   const h = core(i18n).ch(locale);

@@ -140,11 +140,23 @@ describe("SSR (renderToString)", () => {
 });
 
 describe("SSR: <I18nHandover locale> that is not a tag (lot 4d)", () => {
-  const OnlyT = () => <p>{useI18n().t("a")}</p>;
-  const OnlyFormat = () => <p>{useFormat().number(1)}</p>;
-  const Plain = () => <p>x</p>;
+  /** Child bodies that ran: the refusal comes before the children. */
+  let ran = 0;
+  const OnlyT = () => {
+    ran++;
+    return <p>{useI18n().t("a")}</p>;
+  };
+  const OnlyFormat = () => {
+    ran++;
+    return <p>{useFormat().number(1)}</p>;
+  };
+  const Plain = () => {
+    ran++;
+    return <p>x</p>;
+  };
   const Locale = () => <p>{useLocale()}</p>;
   const setup = () => {
+    ran = 0;
     const i18n = createI18n({ locale: "en", messages: { en: { a: "A" } } });
     return { i18n, set: vi.spyOn(i18n, "setLocale"), add: vi.spyOn(i18n, "add"), rev: i18n.rev() };
   };
@@ -161,22 +173,31 @@ describe("SSR: <I18nHandover locale> that is not a tag (lot 4d)", () => {
       ["only useFormat()", OnlyFormat],
       ["a plain child", Plain],
     ] as const)("with %s", (_, C) => {
-      const nothingPublished = (s: ReturnType<typeof setup>) => {
+      const refused = (e: unknown, s: ReturnType<typeof setup>) => {
+        expect(e).toBeInstanceOf(RangeError);
+        // The handover's own error, not a child's formatter: the core's says `[@comvi/core]`.
+        expect((e as Error).message).toBe(`[@comvi/react] invalid locale "${bad}"`);
+        expect(ran).toBe(0);
         expect(s.set).not.toHaveBeenCalled();
         expect(s.add).not.toHaveBeenCalled();
         expect(s.i18n.rev()).toBe(s.rev);
       };
       it("renderToString throws a RangeError", () => {
         const s = setup();
-        expect(() => renderToString(page(s.i18n, bad, C))).toThrow(RangeError);
-        nothingPublished(s);
+        let e: unknown;
+        try {
+          renderToString(page(s.i18n, bad, C));
+        } catch (x) {
+          e = x;
+        }
+        refused(e, s);
       });
       it("a stream's shell rejects with a RangeError", async () => {
         const s = setup();
-        await expect(
-          renderToReadableStream(page(s.i18n, bad, C), { onError: () => {} }),
-        ).rejects.toBeInstanceOf(RangeError);
-        nothingPublished(s);
+        const e = await renderToReadableStream(page(s.i18n, bad, C), { onError: () => {} }).catch(
+          (x: unknown) => x,
+        );
+        refused(e, s);
       });
     });
   });

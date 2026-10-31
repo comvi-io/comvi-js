@@ -289,8 +289,10 @@ const own = (v?: Readonly<Record<string, unknown>>) =>
 
 export const createI18n = (o: I18nOptions): I18n => {
   // Before anything runs: a failed creation leaves nothing behind.
-  if (!canonicalize(o.locale))
-    throw RangeError(__DEV__ ? `[@comvi/core] invalid locale "${o.locale}"` : o.locale);
+  // Read once: an option getter cannot hand the state a second answer.
+  const start = o.locale;
+  if (!canonicalize(start))
+    throw RangeError(__DEV__ ? `[@comvi/core] invalid locale "${start}"` : start);
   // Configuration is immutable after creation: updating it by mutating what was passed is not
   // supported. Read as given, never written.
   const fb = o.fallbackLocale || 0;
@@ -420,7 +422,7 @@ export const createI18n = (o: I18nOptions): I18n => {
     for (const l in cats[n])
       if (cats[n][l]) c0 = ing(c0, l, cats[n][l]!, n);
       else bad.set(l + K + n, (cnt[n] |= 0));
-  S = st(0, 0, o.locale, c0, own(o.defaultParams));
+  S = st(0, 0, start, c0, own(o.defaultParams));
 
   /**
    * `isReady` (lot 4c): a catalog of namespace `n` from the chain of the state's locale (the

@@ -11,9 +11,20 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createI18n, I18nHandover, I18nProvider, useI18n, type I18n } from "../src";
 import { useFormat } from "../src/format";
 
-const OnlyT = () => <p>{useI18n().t("a")}</p>;
-const OnlyFormat = () => <p>{useFormat().number(1)}</p>;
-const Plain = () => <p>x</p>;
+/** Child bodies that ran: the refusal comes before the children. */
+let ran = 0;
+const OnlyT = () => {
+  ran++;
+  return <p>{useI18n().t("a")}</p>;
+};
+const OnlyFormat = () => {
+  ran++;
+  return <p>{useFormat().number(1)}</p>;
+};
+const Plain = () => {
+  ran++;
+  return <p>x</p>;
+};
 const children = { "only t()": OnlyT, "only useFormat()": OnlyFormat, "a plain child": Plain };
 
 class Catch extends Component<{ on: (e: unknown) => void; children: ReactNode }> {
@@ -30,6 +41,7 @@ class Catch extends Component<{ on: (e: unknown) => void; children: ReactNode }>
 }
 
 const setup = () => {
+  ran = 0;
   const loader = vi.fn(() => new Promise<never>(() => {}));
   const onError = vi.fn();
   const i18n = createI18n({ locale: "en", messages: { en: { a: "A" } }, loader, onError });
@@ -53,6 +65,9 @@ describe.each(["!!", ""])("<I18nHandover locale=%j> throws a RangeError", (bad) 
   describe.each(Object.entries(children))("with %s", (_, C) => {
     const expectRefused = (e: unknown, s: ReturnType<typeof setup>, rev: number) => {
       expect(e).toBeInstanceOf(RangeError);
+      // The handover's own error, not a child's formatter: the core's says `[@comvi/core]`.
+      expect((e as Error).message).toBe(`[@comvi/react] invalid locale "${bad}"`);
+      expect(ran).toBe(0);
       expect(s.set).not.toHaveBeenCalled();
       expect(s.add).not.toHaveBeenCalled();
       expect(s.loader).not.toHaveBeenCalled();

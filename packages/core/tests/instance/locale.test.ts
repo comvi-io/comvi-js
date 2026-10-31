@@ -448,3 +448,30 @@ describe("invalid locales are rejected before anything renders or loads (R3-1, R
     expect(errors.map((e) => e.code)).not.toContain("invalid_locale");
   });
 });
+
+describe("createI18n reads the locale once (lot 4d)", () => {
+  it("a getter answering differently later starts in what the validated read gave", () => {
+    let reads = 0;
+    // Not make(): its spread would read the getter once and hand createI18n a plain value.
+    const i18n = createI18n({
+      get locale() {
+        return ++reads === 1 ? "en" : "";
+      },
+    });
+    expect(i18n.locale).toBe("en");
+    expect(reads).toBe(1);
+  });
+
+  it("a getter answering an invalid tag throws from that one read", () => {
+    let reads = 0;
+    expect(() =>
+      createI18n({
+        get locale() {
+          reads++;
+          return "!!";
+        },
+      }),
+    ).toThrow(RangeError);
+    expect(reads).toBe(1);
+  });
+});
