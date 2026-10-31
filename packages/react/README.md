@@ -34,7 +34,6 @@ npm install @comvi/react @comvi/core # peer: react 18 or 19; the app imports @co
 import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
 import App from "./App";
-
 const i18n = createI18n({
   locale: "en",
   messages: { en: { greeting: "Hello, {name}!" }, uk: { greeting: "Привіт, {name}!" } },
@@ -118,26 +117,27 @@ paint only, while a namespace being loaded is not `isReady` (another locale's ca
 count), before the children render: an `<I18nHandover>` under a shut gate waits, so pass the data
 first. Server renders and hydrations are never gated; a server preloads with `i18n.load()`.
 
-Match a locale from a route, cookie or header against your supported locales first: `createI18n()`
-and `<I18nHandover locale>` throw a `RangeError` for one that is not a tag, a configuration error.
-A valid locale with no translation falls back, and `t(key, { locale })`, `has()`, `add()` and
-`fallbackLocale` entries only report `invalid_locale`.
+Match a route, cookie or header locale against your supported locales first: `createI18n()` and
+`<I18nHandover locale>` throw a `RangeError` for an invalid tag (`t(key, { locale })`, `has()`,
+`add()` and `fallbackLocale` entries only report `invalid_locale`); a valid one with no translation falls back.
 
 ## Markup in a translation
 
 ```tsx
 import { T } from "@comvi/react";
-// "terms": "Read the <link>terms</link>, <b>in <i>full</i></b>."
+// "terms": "Read the <link>terms</link>,<br/><b>in <i>full</i></b>."
 <T
   i18nKey="terms"
   link={(chunks) => <a href="/terms">{chunks}</a>}
+  br={() => <br />}
   components={{ b: "strong", i: "em" }}
 />;
 ```
 
 A tag renders through a prop of its name (a handler gets the content as one node), else its
 `components` entry (a tag name, a component, or `{ component, props }`, content as `children`),
-else as text. Every prop but `i18nKey`, `components`, `ns`, `locale` and `markers` is a param.
+else as text. `<br/>` renders nothing without its handler (React refuses a `components` `"br"`).
+Every prop but `i18nKey`, `components`, `ns`, `locale` and `markers` is a param.
 
 ## Read next
 

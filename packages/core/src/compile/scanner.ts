@@ -31,6 +31,9 @@ import { argument } from "./icu";
 
 declare const __DEV__: boolean;
 
+/** Development: what an unclosed `<br>` was probably meant to be. Not read in production. */
+const BR_HINT = "; write `<br/>` instead. It renders nothing without a `br` handler";
+
 export type Params = Readonly<Record<string, unknown>>;
 
 /**
@@ -279,7 +282,7 @@ export const message = (
       if (m[1]) {
         // A closing tag ends the children of the tag it names; nothing else may close.
         if (m[3] || name != tag) {
-          if (__DEV__) fail(`\`</${name}>\` closes no open tag`);
+          if (__DEV__) fail(`\`</${name}>\` closes no open tag` + (tag == "br" ? BR_HINT : ""));
           fail();
         }
         flush();
@@ -296,7 +299,7 @@ export const message = (
   }
   if (tag != null) {
     // The loop ended without the closing tag: end of text or the `}` of a sub-message.
-    if (__DEV__) fail(`\`<${tag}>\` is never closed`);
+    if (__DEV__) fail(`\`<${tag}>\` is never closed` + (tag == "br" ? BR_HINT : ""));
     fail();
   }
   flush();
