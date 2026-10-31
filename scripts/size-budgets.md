@@ -1312,3 +1312,35 @@ identity, 5,800 by DOM connectivity) were dropped on the owner's call — public
 only. The core growth is the settled-chain check (+39…+46). Minified: core-icu-devtools 10,263, vue-icu-cdn 11,824.
 `core-compile` (1,862), `core-locale` (584), `core-negotiate` (496) and `core-devtools` (639) did
 not move.
+
+## 2026-10-31: lot 4d — owner-approved ceilings
+
+Three correctness fixes on `next`: typed rich keys, the fallback chain of `useFormat()` and one
+section guard for `setLocale()`, `load()` and holds, destroy paths included. Nearly all the growth
+is that guard and the destroy rules (`.lot1-pending-tests.md`, "Lot 4d re-entrancy", which has the
+cost per pass). The owner approved it on 31.10 under the ×1.02 policy above: each ceiling is
+`ceil(measured × 1.02)`, each budget `min(ceiling, ceil(measured × 1.05))`. Increment caps are
+unchanged and hold: `react-icu-cdn` +526 of +547, `vue-icu-cdn` +703 of +753, `core-icu-devtools`
++451 of +500.
+
+One sweep after `TURBO_FORCE=1 pnpm build` at fccdd66e, `node --version` v24.22.1; `pnpm size`
+green. The rows below were re-baselined; before is a sweep of the same `next` base under Node 24.
+
+| row                     | 5158518b | now   | Δ    | budget | ceiling   |
+| ----------------------- | -------- | ----- | ---- | ------ | --------- |
+| core-icu                | 4,574    | 4,747 | +173 | 4,842  | **4,842** |
+| core-icu-cdn            | 5,058    | 5,229 | +171 | 5,334  | **5,334** |
+| core-icu-devtools       | 5,031    | 5,198 | +167 | 5,302  | **5,302** |
+| react-icu-cdn           | 5,592    | 5,755 | +163 | 5,871  | **5,871** |
+| vue-icu-cdn             | 5,759    | 5,932 | +173 | 6,051  | **6,051** |
+| core-icu-cdn-store      | 5,226    | 5,396 | +170 | 5,666  | —         |
+| core-icu-api            | 5,582    | 5,750 | +168 | 6,038  | —         |
+| core-format             | 5,232    | 5,403 | +171 | 5,674  | —         |
+| core-plugins            | 5,152    | 5,329 | +177 | 5,596  | —         |
+| fw-react-default        | 5,069    | 5,243 | +174 | 5,506  | —         |
+| fw-react-full-composite | 8,071    | 8,232 | +161 | 8,644  | —         |
+| fw-vue-default          | 5,251    | 5,419 | +168 | 5,690  | —         |
+| fw-vue-full-composite   | 7,964    | 8,134 | +170 | 8,541  | —         |
+
+`core-compile` (1,862), `core-locale` (584), `core-negotiate` (496) and `core-devtools` (639) did
+not move.
