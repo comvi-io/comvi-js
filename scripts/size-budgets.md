@@ -1344,3 +1344,12 @@ green. The rows below were re-baselined; before is a sweep of the same `next` ba
 
 `core-compile` (1,862), `core-locale` (584), `core-negotiate` (496) and `core-devtools` (639) did
 not move.
+
+### 2026-10-31: the queue removed (owner decision)
+
+The section guard named above was removed; a synchronous `setLocale()` from a loader or an abort
+listener is no longer supported. Measured under Node v24.22.1 after `TURBO_FORCE=1 pnpm build`:
+core-icu 4,646 (+72 from 5158518b), core-icu-cdn 5,125 (+67), core-icu-devtools 5,097 (+66),
+react-icu-cdn 5,658 (+66), vue-icu-cdn 5,829 (+70), about 100 B under the table above. The ceilings,
+budgets and baselines above are left as they are until the owner's final choice, so this file's
+baselines are higher than the measurement for now; `pnpm size` is green with room.
