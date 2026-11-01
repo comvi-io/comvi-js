@@ -13,17 +13,17 @@
   },
   "dependencies": {
     "@comvi/next": "workspace:*",
-    "next": "^15.5.28",
+    "next": "^16.4.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@next/eslint-plugin-next": "^15.5.28",
+    "@next/eslint-plugin-next": "^16.4.3",
     "@tailwindcss/postcss": "^4.3.3",
-    "@types/node": "^22",
+    "@types/node": "^26",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "tailwindcss": "^4.3.3",
-    "typescript": "~6.0.2"
+    "typescript": "~7.0.2"
   }
 }
