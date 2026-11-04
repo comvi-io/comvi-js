@@ -919,8 +919,9 @@ export const F15_VARIANT = {
 /**
  * The `failed` build's record of how each browser `setLocale()` settled, in
  * `window.__settled` (`uk:resolved`, `uk:rejected`): a plugin wraps the
- * instance's method and only watches the promise it returns. A superseded
- * switch resolves, so a step waits on this instead of on time.
+ * instance's method and hands the app a promise with the same outcome, so a
+ * rejection the app forgets to catch still surfaces as unhandled. A step waits
+ * on this record instead of on time.
  */
 const settledPlugin = (pkg, options) => ({
   file: "src/lib/i18n.ts",
@@ -932,11 +933,14 @@ const settledPlugin = (pkg, options) => ({
     '    if (typeof window == "undefined") return;\n' +
     "    const set = i18n.setLocale;\n" +
     "    const note = (entry: string) => (globalThis as { __settled?: string[] }).__settled?.push(entry);\n" +
-    "    i18n.setLocale = (locale) => {\n" +
-    "      const done = set(locale);\n" +
-    "      done.then(() => note(`${locale}:resolved`), () => note(`${locale}:rejected`));\n" +
-    "      return done;\n" +
-    "    };\n" +
+    "    i18n.setLocale = (locale) =>\n" +
+    "      set(locale).then(\n" +
+    "        () => void note(`${locale}:resolved`),\n" +
+    "        (e: unknown) => {\n" +
+    "          note(`${locale}:rejected`);\n" +
+    "          throw e;\n" +
+    "        },\n" +
+    "      );\n" +
     "  },\n" +
     "};\n" +
     options.replace("loader };", "loader, plugins: [settled] };"),

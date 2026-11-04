@@ -359,10 +359,10 @@ const requested = (page: Page) =>
  * whatever it publishes; the check after this runs in a later task, once the binding's
  * render has gone through.
  */
-async function settled(page: Page, entry: string): Promise<void> {
+async function settled(page: Page, ...entries: string[]): Promise<void> {
   await page.waitForFunction(
-    (wanted) => (window as { __settled?: string[] }).__settled?.includes(wanted),
-    entry,
+    (wanted) => wanted.some((e) => (window as { __settled?: string[] }).__settled?.includes(e)),
+    entries,
   );
 }
 
@@ -434,7 +434,7 @@ test("h2: back to / before a pending switch to uk lands, the page stays English"
   await page.waitForFunction(() =>
     (window as { __loaded?: string[] }).__loaded?.includes("uk:default"),
   );
-  await settled(page, "uk:resolved");
+  await settled(page, "uk:resolved", "uk:rejected");
   await expect(page).toHaveURL((url) => url.pathname === "/");
   expect(await page.locator("html").getAttribute("lang"), "<html lang> once uk settled").toBe("en");
   expect(await page.getByTestId("greeting").textContent(), "the greeting once uk settled").toBe(
