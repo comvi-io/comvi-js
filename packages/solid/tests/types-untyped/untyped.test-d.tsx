@@ -1,7 +1,8 @@
 /**
  * Types without generated catalogs (an ungenerated project): any key, any params. A t() call
- * with text params returns `string`; a call with a tag handler or a node param is
- * `string | JSX.Element`: the message decides at run time.
+ * with text params returns `string`; a call with a tag handler is `string | JSX.Element`: the
+ * message decides at run time. A plain `{x}` is always text (04.11.2026): a JSX element is no
+ * param, a tag around the text renders markup.
  */
 import type { JSX, ParentProps } from "solid-js";
 import { createI18n, I18nProvider, T, useI18n } from "../../src";
@@ -29,6 +30,11 @@ export function Component() {
   });
   // Text params only (numbers, dates, lists of them): a string.
   const text: string = t("when", { at: new Date(), n: 2, list: ["a", 1] });
+  // @ts-expect-error a JSX element in a plain {x} would print String(element)
+  t("hi", { icon: <b /> });
+  // @ts-expect-error the same in <T>: render markup through a tag and `components`
+  const nodeProp = <T i18nKey="hi" icon={<b />} />;
+  const replaced = <T i18nKey="hi" name="Olena" components={{ strong: "strong" }} />;
   // `components` renders tags of <T> by name: a tag name or a component.
   const viaComponents = <T i18nKey="terms" components={{ b: "strong", i: Italic }} />;
   // @ts-expect-error a component entry is not a number
@@ -37,7 +43,10 @@ export function Component() {
   const bound = <Bound i18nKey="cart.title" count={2} b={(c) => <b>{c}</b>} />;
   // @ts-expect-error the bound <T> takes no ns: it is fixed by useI18n(ns)
   const wrongNs = <Bound i18nKey="x" ns="other" />;
-  return [s, f, node, rich, notText, text, viaComponents, badComponents, bound, wrongNs];
+  return [
+    ...[s, f, node, rich, notText, text, nodeProp, replaced],
+    ...[viaComponents, badComponents, bound, wrongNs],
+  ];
 }
 
 const Italic = (p: ParentProps) => <i>{p.children}</i>;

@@ -39,12 +39,21 @@ declare module "@comvi/core" {
 export type Children = string | readonly unknown[];
 
 /**
- * Params of a message in a project with no generated catalogs: a value or a tag handler. The
- * handler member gives an inline `(children) => …` its argument type.
+ * What a plain `{x}` prints as text (`String(value)`), or a list of them. A plain `{x}` is
+ * always text (owner decision 04.11.2026): markup comes only from tags.
  */
-export type UntypedParams = Record<
+type Text = string | number | bigint | boolean | Date | null | undefined;
+
+/**
+ * Params of a message in a project with no generated catalogs: a value printed as text or a
+ * tag handler. The handler member gives an inline `(children) => …` its argument type.
+ * A handler is a method signature, so its parameter is compared both ways: one annotated
+ * with a narrower type (`(c: string) => …`) is still a handler.
+ * `C` is `<T>`'s `components` map, a prop under the same index signature.
+ */
+export type UntypedParams<C = never> = Record<
   string,
-  object | string | number | bigint | boolean | null | undefined | ((children: Children) => unknown)
+  Text | readonly Text[] | { tag(children: Children): unknown }["tag"] | C
 >;
 
 /**
@@ -103,7 +112,7 @@ export type TComponent = [NsOf] extends [never]
         locale?: string;
         markers?: boolean;
         components?: TagMap;
-      } & UntypedParams
+      } & UntypedParams<TagMap>
     >
   : {
       new <K extends Key<N>, N extends NsOf = "default" & NsOf>(
@@ -124,7 +133,7 @@ export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
         markers?: boolean;
         ns?: never;
         components?: TagMap;
-      } & UntypedParams
+      } & UntypedParams<TagMap>
     >
   : NS extends NsOf
     ? {

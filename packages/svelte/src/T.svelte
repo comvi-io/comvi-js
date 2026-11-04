@@ -38,10 +38,8 @@
           return {
             [E]: 1,
             s: p[k],
-            c: ([] as unknown[])
-              .concat(t)
-              .filter((e) => typeof e == "string")
-              .join(""),
+            // A plain {x} is always text, so the tag's text is a string.
+            c: t as string,
           };
         };
     for (const k in components) {

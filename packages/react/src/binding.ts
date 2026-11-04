@@ -137,11 +137,24 @@ export const I18nProvider = ({
 };
 
 /**
- * Params of a message in a project with no generated catalogs: a value, a node or a tag
- * handler. The handler member gives an inline `(chunks) => <a>{chunks}</a>` its argument
- * type, so it needs no annotation.
+ * What a plain `{x}` prints as text (`String(value)`), or a list of them. A plain `{x}` is
+ * always text (owner decision 04.11.2026): markup comes only from tags.
  */
-export type UntypedParams = Record<string, object | ReactNode | ((chunks: ReactNode) => ReactNode)>;
+type Text = string | number | bigint | boolean | Date | null | undefined;
+
+/**
+ * Params of a message in a project with no generated catalogs: a value printed as text or a
+ * tag handler. An element is no param: `Hello, <strong>{name}</strong>!` with
+ * `components={{ strong: "strong" }}` renders it. The handler member gives an inline
+ * `(chunks) => <a>{chunks}</a>` its argument type, so it needs no annotation.
+ * A handler is a method signature, so its parameter is compared both ways: one annotated
+ * with a narrower type (`(c: string) => …`) is still a handler.
+ * `C` is `<T>`'s `components` map, a prop under the same index signature.
+ */
+export type UntypedParams<C = never> = Record<
+  string,
+  Text | readonly Text[] | { tag(chunks: ReactNode): unknown }["tag"] | C
+>;
 
 /** `<T>` bound to namespace NS (from `useI18n(ns)`): typed by that namespace's keys. */
 export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
@@ -152,7 +165,7 @@ export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
         markers?: boolean;
         ns?: never;
         components?: Readonly<Record<string, TagComponent>>;
-      } & UntypedParams,
+      } & UntypedParams<Readonly<Record<string, TagComponent>>>,
     ) => ReactNode
   : NS extends NsOf
     ? BoundTFor<NS, ReactNode, 2, Readonly<Record<string, TagComponent>>>
@@ -162,7 +175,7 @@ export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
 export interface UseI18n<NS extends string = "default"> {
   /**
    * `t()` against what this render shows. A call whose params are all text (strings,
-   * numbers, dates…) returns a `string`; a rich message (a tag handler, an element param)
+   * numbers, dates…) returns a `string`; a rich message (a tag handler)
    * returns a React element, or a string when its handlers returned text or the key is
    * missing, so such a call is typed `string | ReactElement`, with or without generated
    * catalogs: the message decides at run time.
@@ -233,7 +246,7 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
       i18n: i,
       // `node` joins rich parts into one node and, through the core, gives every tag
       // handler (`defaultParams` ones too) its children as ONE node: `<a>{chunks}</a>`
-      // renders nested tags and element params without React's missing-key warning.
+      // renders nested tags without React's missing-key warning.
       t: ((k: string, p?: Record<string, unknown>) =>
         node(x.tr(s, k, p, n, node))) as UseI18n<NS>["t"],
       T: (Ts[n] ||= (q) => read({ ...q, ns: n } as never)) as BoundT<NS>,
@@ -269,7 +282,7 @@ export type TComponent = [NsOf] extends [never]
         locale?: string;
         markers?: boolean;
         components?: Readonly<Record<string, TagComponent>>;
-      } & UntypedParams,
+      } & UntypedParams<Readonly<Record<string, TagComponent>>>,
     ) => ReactNode
   : // The typo guard of `t()` (R3-2) is in the shared core type: see TComponentFor.
     TComponentFor<ReactNode, 2, Readonly<Record<string, TagComponent>>>;

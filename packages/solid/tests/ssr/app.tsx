@@ -41,6 +41,25 @@ export const Empty = () => (
 /** A parameter in `<T>` right under the provider, with no element around it. */
 export const Bare = (p: { name: string }) => <T i18nKey="hi" name={p.name} />;
 
+/**
+ * Objects in a plain `{x}` (04.11.2026: always text). `{ t }` is the shape of a Solid server
+ * template, which the server inserts as raw HTML; a JSX element is that shape on the server and
+ * a DOM element in the browser.
+ */
+export const FORGED = { t: '<img src="x">' };
+export const Forged = () => (
+  <p>
+    <T i18nKey="hi" {...{ name: FORGED }} />|
+    {useI18n().t("hi", { name: FORGED } as never) as string}
+  </p>
+);
+export const Node = () => (
+  <p>
+    <T i18nKey="hi" {...({ name: <b>x</b> } as object)} />|
+    {useI18n().t("hi", { name: <b>x</b> } as never) as string}
+  </p>
+);
+
 export const Provide = (p: { i18n: I18n; children: JSX.Element }) => (
   <I18nProvider i18n={p.i18n}>{p.children}</I18nProvider>
 );

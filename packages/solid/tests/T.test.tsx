@@ -15,6 +15,32 @@ const html = (i18n: I18n, el: () => JSX.Element) =>
 
 const Italic = (p: ParentProps) => <i class="it">{p.children}</i>;
 
+describe("a plain {x} is always text (04.11.2026)", () => {
+  const i18n = () => make({ locale: "en", messages: { en: { m: "[{x}]" } } }).i18n;
+
+  it("a JSX element or a server template shape `{ t }` prints as text, not as markup", () => {
+    const el = <b>x</b>;
+    const c = render(() => (
+      <I18nProvider i18n={i18n()}>
+        <T i18nKey="m" {...({ x: el } as object)} />
+        <T i18nKey="m" {...({ x: { t: "<img src=x>" } } as object)} />
+        {useI18n().t("m", { x: { t: "<img src=x>" } } as never) as string}
+      </I18nProvider>
+    )).container;
+    expect(c.querySelector("b, img")).toBeNull();
+    expect(c.textContent).toBe(`[${String(el)}][[object Object]][[object Object]]`);
+  });
+
+  it("markup comes from a tag around the text {x}", () => {
+    const k = make({ locale: "en", messages: { en: { m: "Hi <strong>{x}</strong>!<br/>Bye" } } });
+    expect(
+      html(k.i18n, () => (
+        <T i18nKey="m" x="<i>Ann</i>" components={{ strong: "strong", br: "br" }} />
+      )),
+    ).toBe("Hi <strong>&lt;i&gt;Ann&lt;/i&gt;</strong>!<br>Bye");
+  });
+});
+
 describe("<T components>", () => {
   const i18n = () => make({ locale: "en", messages, onError: () => {} }).i18n;
 

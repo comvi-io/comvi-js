@@ -10,7 +10,8 @@
  *   IMMEDIATE sub-message of a plural/selectordinal — `#`. The literal runs to the
  *   next lone `'` (or the end of the text; an unterminated quote is not an error).
  *   Any other `'` is literal.
- * - `{name}` prints a parameter as `String(value)`, never through Intl (R3-17, fmt.ts);
+ * - `{name}` prints a parameter as `String(value)`, never through Intl (R3-17, fmt.ts) — a
+ *   function or an object (a framework node) too: a plain `{x}` is always text (04.11.2026);
  *   `{name, plural|selectordinal|select, …}` is handled by icu.ts. Every other
  *   argument type (`number`, `date`, `time`, …) is a `syntax` error.
  * - `#` is the plural count only in the immediate sub-message of a plural or
@@ -26,7 +27,7 @@
  * development and production.
  */
 import { devWarn, defaultOnError, type I18nError, type OnError } from "../errors";
-import { formatNumber, formatValue } from "./fmt";
+import { formatNumber } from "./fmt";
 import { argument } from "./icu";
 
 declare const __DEV__: boolean;
@@ -257,9 +258,7 @@ export const message = (
           const v = arg(p, name);
           return v == null
             ? missing(P, x, l, name, __DEV__ && `no value for {${name}}`)
-            : typeof v === "string"
-              ? v
-              : frame(formatValue(v));
+            : String(v);
         });
       } else {
         P.i++;

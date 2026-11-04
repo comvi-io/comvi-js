@@ -190,10 +190,12 @@ type Printed = string | number | bigint | boolean | Date | null | undefined;
 
 /**
  * `t()` of a project with no generated catalogs: any key, any params. With params that
- * are all printed as text it returns a string; a param that is an object or a function
- * (a tag handler, a framework node) can come back as is, inside rich parts — so that
- * call is typed `string | Rich` (review A6). `P` is the params type of that call: a
- * binding passes its own, so an inline tag handler gets its argument type (lot 4b).
+ * are all printed as text it returns a string; a function param may be a tag handler,
+ * whose output comes back inside rich parts — so that call is typed `string | Rich`
+ * (review A6). A plain `{x}` is always text, whatever its value (owner decision
+ * 04.11.2026): a framework node there prints `String(value)`; markup comes from a tag.
+ * `P` is the params type of that call: a binding passes its own, so an inline tag handler
+ * gets its argument type (lot 4b).
  */
 export interface UntypedT<Rich = RichParts, P = Readonly<Record<string, unknown>>> {
   (key: string, params?: Readonly<Record<string, Printed | readonly Printed[]>>): string;

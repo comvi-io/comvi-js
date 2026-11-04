@@ -110,7 +110,9 @@ export const Terms = () => (
 A tag renders through a handler prop of its name (`link={(c) => <a href="/terms">{c}</a>}`), else its
 `components` entry (a tag name, a component, or `{ component: "a", props: { href: "/terms" } }`; the
 content is its `children`, and an empty tag passes none, so `<br/>` renders a real `<br>`), else as
-text. Every other prop but `i18nKey`, `ns`, `locale` and `markers` is a param, `class` too. `<T>`
+text. Every other prop but `i18nKey`, `ns`, `locale` and `markers` is a param, `class` too; a param
+is always text, a JSX element too, so markup goes in a tag around it
+(`"Hello, <strong>{name}</strong>!"` with `components={{ strong: "strong" }}`). `<T>`
 re-renders on a change of its props, the locale or its namespace's catalogs, not on another
 namespace's load.
 

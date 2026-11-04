@@ -5,11 +5,11 @@
  * waits through `createResource`, under a Suspense boundary; `handover()` carries what it
  * loaded; the browser renders the same text, requests nothing and reports no mismatch.
  */
-import { hydrate } from "solid-js/web";
+import { hydrate, render } from "solid-js/web";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createI18n, handover, I18nProvider, type Catalog } from "../../src";
 import { manualLoader, make, tick } from "../helpers";
-import { Account, Ago, Keyed, Lines, Page, Provide } from "./app";
+import { Account, Ago, Forged, Keyed, Lines, Node, Page, Provide } from "./app";
 
 type Server = typeof import("./render.server");
 let server: Server;
@@ -298,6 +298,58 @@ describe("what a server render writes", () => {
     });
     const html = server.sync(i18n, "bare", { name: "<img src=x>" });
     expect(html).toBe("Hi &lt;img src=x>");
+  });
+
+  // Owner decision 04.11.2026: a plain {x} is always text, on both sides.
+  it("a server template shape `{ t }` in a plain {x} is text on the server and the client, which agree", () => {
+    const i18n = () =>
+      createI18n({ locale: "en", timeZone: "UTC", messages: { en: { hi: "Hi {name}!" } } });
+    const text = "Hi [object Object]!|Hi [object Object]!";
+    const html = server.sync(i18n(), "forged");
+    expect(html).not.toContain("<img");
+    const client = document.createElement("div");
+    const dispose = render(
+      () => (
+        <Provide i18n={i18n()}>
+          <Forged />
+        </Provide>
+      ),
+      client,
+    );
+    expect(client.querySelector("img")).toBeNull();
+    expect(client.textContent).toBe(text);
+    dispose();
+    const h = hydrated(html, () => (
+      <Provide i18n={i18n()}>
+        <Forged />
+      </Provide>
+    ));
+    expect(h.errors).toEqual([]);
+    expect(h.container.querySelector("img")).toBeNull();
+    expect(h.container.textContent).toBe(text);
+    h.dispose();
+  });
+
+  it("a JSX element in a plain {x} is not rendered as an element, on the server or the client", () => {
+    const i18n = () =>
+      createI18n({ locale: "en", timeZone: "UTC", messages: { en: { hi: "Hi {name}!" } } });
+    const html = server.sync(i18n(), "node");
+    expect(html).not.toContain("<b");
+    expect(html).toContain("Hi [object Object]!");
+    const client = document.createElement("div");
+    const dispose = render(
+      () => (
+        <Provide i18n={i18n()}>
+          <Node />
+        </Provide>
+      ),
+      client,
+    );
+    expect(client.querySelector("b")).toBeNull();
+    // String() of a browser element: what the environment's toString says, as text.
+    const b = String(<b>x</b>);
+    expect(client.textContent).toBe(`Hi ${b}!|Hi ${b}!`);
+    dispose();
   });
 
   it("useFormat() renders with the real instance and the request's locale", () => {

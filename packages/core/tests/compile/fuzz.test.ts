@@ -76,8 +76,8 @@ const VALUES: unknown[] = [
   [],
   ["a", "b"],
   ["a", 1],
-  Object.create(null),
   { toString: () => "own" },
+  { t: "<img src=x>" },
 ];
 
 const prng = (seed: number) => () => {
@@ -115,6 +115,15 @@ describe("fuzz", () => {
     }
     // the alphabet is rich enough that a fair share of templates are valid
     expect(compiled).toBeGreaterThan(1_000);
+  });
+
+  it("a plain {x} is String(value): an object String() cannot print throws String()'s TypeError, as a select does", () => {
+    // Owner decision 04.11.2026: a plain {x} prints String(value) for every value, with no
+    // guard; a null-prototype object has no toString, so String() throws, here as in
+    // `{v, select, …}`, which has always keyed its branch by String(value).
+    const v = Object.create(null);
+    expect(() => render(compile("{v}"), { v }, "en")).toThrow(TypeError);
+    expect(() => render(compile("{v, select, other {o}}"), { v }, "en")).toThrow(TypeError);
   });
 
   it("survives pathological nesting without a stack overflow for realistic depth", () => {

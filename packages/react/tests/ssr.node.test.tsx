@@ -5,8 +5,8 @@
  * handler is not contained on the server. 0.7's ssrLocale / ssrInitial* props are gone:
  * the instance per request carries the locale, and <I18nHandover locale> renders a target.
  *
- * New in 1c (synthesis §4.4): the React 19 SSR smoke — rich text with element params and
- * nested tags renders with 0 React warnings (no missing key); two concurrent requests with
+ * New in 1c (synthesis §4.4): the React 19 SSR smoke — rich text with void and nested
+ * tags renders with 0 React warnings (no missing key); two concurrent requests with
  * different locales over SHARED catalogs do not bleed (R4-12).
  */
 import { renderToReadableStream, renderToString } from "react-dom/server";
@@ -87,11 +87,11 @@ describe("SSR (renderToString)", () => {
     ).toThrow("handler failed");
   });
 
-  it("React 19 smoke: rich text with element params and nested tags, 0 warnings", async () => {
+  it("React 19 smoke: rich text with void and nested tags, 0 warnings", async () => {
     const i18n = createI18n({
       locale: "en",
       messages: {
-        en: { m: "<b>Hi <i>{name}</i> {icon}</b>, {count, plural, one {# item} other {# items}}" },
+        en: { m: "<b>Hi <i>{name}</i> <icon/></b>, {count, plural, one {# item} other {# items}}" },
       },
     });
     const warnings = await reactWarnings(() => {
@@ -101,7 +101,7 @@ describe("SSR (renderToString)", () => {
             i18nKey="m"
             name="Ann"
             count={2}
-            icon={<svg />}
+            icon={() => <svg />}
             b={(c: React.ReactNode) => <b>{c}</b>}
             i={(c: React.ReactNode) => <i>{c}</i>}
           />
@@ -111,7 +111,7 @@ describe("SSR (renderToString)", () => {
               i18nKey="m"
               name={String(n)}
               count={n}
-              icon={<svg />}
+              icon={() => <svg />}
               b={(c: React.ReactNode) => <b>{c}</b>}
               i={(c: React.ReactNode) => <i>{c}</i>}
             />
@@ -121,6 +121,16 @@ describe("SSR (renderToString)", () => {
       expect(html(out)).toContain("<b>Hi <i>Ann</i> <svg></svg></b>, 2 items");
     });
     expect(warnings).toEqual([]);
+  });
+
+  it("an element or an HTML string in a plain {x} renders as text on the server (04.11.2026)", () => {
+    const i18n = createI18n({ locale: "en", messages: { en: { m: "[{x}][{y}]" } } });
+    const out = renderToString(
+      <I18nProvider i18n={i18n}>
+        <T i18nKey="m" {...({ x: <kbd>K</kbd> } as object)} y="<img src=x>" />
+      </I18nProvider>,
+    );
+    expect(html(out)).toBe("[[object Object]][&lt;img src=x&gt;]");
   });
 
   it("two concurrent requests in different locales over shared catalogs do not bleed (R4-12)", async () => {

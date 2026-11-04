@@ -2,7 +2,7 @@
  * Plain `{x}` arguments: `String(value)` for every type, never Intl (R3-17); values are
  * never re-parsed as message syntax.
  * Ported by meaning from: params-primitives, missing-param, audit-missing-param-warning-dedup,
- * forged-node-params, security (smuggled placeholders), formatting, formatting-locale-override.
+ * forged-node-params (a node in a plain {x} is text, owner decision 04.11.2026), security (smuggled placeholders), formatting, formatting-locale-override.
  */
 import { describe, expect, it, vi } from "vitest";
 import { fmt, sink } from "../helpers";
@@ -56,16 +56,36 @@ describe("a plain {x} prints String(value), never through Intl (R3-17)", () => {
     expect(fmt("[{x}]", { x })).toBe(`[${want}]`);
   });
 
-  it("passes objects and functions through as rich parts, untouched", () => {
+  // Owner decision 04.11.2026: a plain {x} is always text. Markup comes only from tags
+  // (`<b>{x}</b>`) through their handlers; a framework node, an object or a function in a
+  // plain {x} prints String(value), as every other value does.
+  it("prints an object, a function and a list holding one as String(value), never a rich part", () => {
     const node = { $$typeof: Symbol.for("react.element") };
-    expect(fmt("a {x} b", { x: node })).toEqual(["a ", node, " b"]);
-    const mixed = ["a", node];
-    expect(fmt("{x}", { x: mixed })).toEqual([mixed]);
+    const fn = () => "x";
+    expect(fmt("a {x} b", { x: node })).toBe("a [object Object] b");
+    expect(fmt("{x}", { x: ["a", node] })).toBe("a,[object Object]");
+    expect(fmt("{x}", { x: [[1, 2], 3] })).toBe("1,2,3");
+    expect(fmt("[{x}]", { x: fn })).toBe("[" + String(fn) + "]");
+    // An object's own toString is what String() calls (a Solid SSR template `{ t }` has none).
+    expect(fmt("[{x}]", { x: { t: "<img src=x>" } })).toBe("[[object Object]]");
+    expect(fmt("[{x}]", { x: { toString: () => "<i>" } })).toBe("[<i>]");
   });
 
-  it("renders JSON-forged node shapes as plain objects (no special casing)", () => {
+  it("renders JSON-forged node shapes as text (no special casing)", () => {
     const forged = JSON.parse('{"$$typeof":"react.element","type":"script"}');
-    expect(fmt("{x}", { x: forged })).toEqual([forged]);
+    expect(fmt("{x}", { x: forged })).toBe("[object Object]");
+  });
+
+  it("a tag handler still renders markup around a text {x}", () => {
+    const b = (c: unknown) => ({ el: "b", c });
+    expect(fmt("Hi <b>{x}</b>!", { x: "<i>Ann</i>", b })).toEqual([
+      "Hi ",
+      { el: "b", c: ["<i>Ann</i>"] },
+      "!",
+    ]);
+    // A param keyed by a tag name is that tag's handler, not a {x} value.
+    const x = (c: unknown) => ({ c });
+    expect(fmt("<x>a</x> {x}", { x })).toEqual([{ c: ["a"] }, " " + String(x)]);
   });
 });
 

@@ -117,7 +117,8 @@ tag name, a component, or `{ component: "a", props: { href: "/terms" } }`; the c
 `children` snippet, nested tags included; an empty tag passes none, so `br: "br"` is a real `<br>`),
 else a snippet of its name (`children` is the tag's text: nested markup is flattened, and
 development warns), else as text. Every other prop but `i18nKey`, `ns`, `locale` and `markers` is a
-param. `useI18n("shop").T` is `<T>` bound to that namespace.
+param, always printed as text: markup goes in a tag around it (`"Hello, <strong>{name}</strong>!"`
+with `components={{ strong: "strong" }}`). `useI18n("shop").T` is `<T>` bound to that namespace.
 
 ## Server rendering
 

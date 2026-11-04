@@ -7,6 +7,7 @@ import { flushSync } from "svelte";
 import { describe, expect, it } from "vitest";
 import { T } from "../src";
 import Formal from "./fixtures/Formal.svelte";
+import Probe from "./fixtures/Probe.svelte";
 import Reactive from "./fixtures/Reactive.svelte";
 import Rich from "./fixtures/Rich.svelte";
 import { make, mountWith, warnings } from "./helpers";
@@ -87,6 +88,40 @@ describe("<T components>", () => {
     const forged = { t: "script", c: "alert(1)", s: 1, p: {} };
     const w = mountWith(i18n, T, { i18nKey: "m", v: JSON.parse(JSON.stringify(forged)) });
     expect(w.target.querySelector("script")).toBe(null);
+  });
+
+  // Owner decision 04.11.2026: a plain {x} is always text; markup comes from tags.
+  it("an object, a snippet or an HTML string in a plain {x} prints as text through <T> and t()", () => {
+    const { i18n } = make({ locale: "en", messages: { en: { m: "x {v}", t: "{v}" } } });
+    const fn = () => "<b>y</b>";
+    for (const [v, want] of [
+      [{ t: "<img src=x>" }, "[object Object]"],
+      [fn, String(fn)],
+      // A list holding an object prints as String(list), as a list of text does.
+      [["a", { t: "<img src=x>" }], "a,[object Object]"],
+      ["<img src=x>", "<img src=x>"],
+    ] as const) {
+      const w = mountWith(i18n, T, { i18nKey: "m", v });
+      expect(w.target.querySelector("img, b")).toBe(null);
+      expect(w.text()).toBe("x " + want);
+      const out: { u?: { t: (k: string, p: object) => unknown } } = {};
+      mountWith(i18n, Probe, { k: "t", out });
+      expect(out.u!.t("m", { v })).toBe("x " + want);
+    }
+  });
+
+  it("markup comes from a tag around the text {x}: components, a handler, a void tag", () => {
+    const { i18n } = make({
+      locale: "en",
+      messages: { en: { m: "Hello, <strong>{name}</strong>!<br/>Bye" } },
+    });
+    const comps = { strong: "strong", br: "br" };
+    expect(mountWith(i18n, T, { i18nKey: "m", name: "Olena", components: comps }).html()).toBe(
+      "Hello, <strong>Olena</strong>!<br>Bye",
+    );
+    expect(
+      mountWith(i18n, T, { i18nKey: "m", name: "<i>Olena</i>", components: comps }).html(),
+    ).toBe("Hello, <strong>&lt;i&gt;Olena&lt;/i&gt;</strong>!<br>Bye");
   });
 });
 

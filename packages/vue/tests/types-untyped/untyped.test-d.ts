@@ -1,8 +1,9 @@
 /**
  * Types without generated catalogs (an ungenerated project): any key, any params. A t()
- * call with text params returns `string`; a call with a tag handler or a node param is
+ * call with text params returns `string`; a call with a tag handler is
  * `string | VNodeArrayChildren` — the message decides at run time (lot 4b: honest types;
- * lot 4 typed it `string`). Templates: Untyped.vue.
+ * lot 4 typed it `string`). A plain `{x}` is always text (04.11.2026): a VNode is no param, a
+ * tag around the text renders markup. Templates: Untyped.vue.
  */
 import { defineComponent, h, type VNodeArrayChildren, type VNodeChild } from "vue";
 import type { Children } from "../../src";
@@ -40,6 +41,15 @@ export function setup() {
   });
   // Text params only (numbers, dates, lists of them): a string.
   const text: string = t("when", { at: new Date(), n: 2, list: ["a", 1] });
+  // @ts-expect-error a VNode in a plain {x} would print String(vnode)
+  t("hi", { icon: h("b") });
+  // @ts-expect-error the same in <T>: render markup through a tag and `components`
+  T({ i18nKey: "hi", icon: h("b") });
+  const replaced: VNodeChild = T({
+    i18nKey: "hi",
+    name: "Olena",
+    components: { strong: "strong" },
+  });
   // `components` renders tags of <T> by name: an HTML tag name or a component.
   const viaComponents: VNodeChild = T({
     i18nKey: "terms",
@@ -51,7 +61,7 @@ export function setup() {
   const bound: VNodeChild = Bound({ i18nKey: "cart.title", count: 2, b: (c) => h("b", c) });
   // @ts-expect-error the bound <T> takes no ns: it is fixed by useI18n(ns)
   Bound({ i18nKey: "x", ns: "other" });
-  return [s, f, node, rich, notText, text, viaComponents, bound];
+  return [s, f, node, rich, notText, text, replaced, viaComponents, bound];
 }
 
 const Italic = defineComponent({

@@ -87,6 +87,20 @@ describe("server render", () => {
     expect(core(i18n).k.shop ?? 0).toBe(0);
   });
 
+  it("an object or an HTML string in a plain {x} is text on the server (04.11.2026)", () => {
+    const i18n = createI18n({
+      locale: "en",
+      timeZone: "UTC",
+      messages: { en: { m: "[{x}][{y}]" } },
+    });
+    const html = strip(
+      render(With, {
+        props: { i18n, C: T, i18nKey: "m", x: { t: "<img src=x>" }, y: "<img src=x>" },
+      }).body,
+    );
+    expect(html).toBe("[[object Object]][&lt;img src=x>]");
+  });
+
   it("handover() throws without a timeZone (development): server and browser must format dates in one zone", () => {
     const i18n = createI18n({ locale: "en" });
     expect(() => handover(i18n)).toThrow(/timeZone/);

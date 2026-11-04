@@ -115,13 +115,23 @@ export const I18nProvider = (p: I18nProviderProps): JSX.Element => {
 };
 
 /**
- * Params of a message in a project with no generated catalogs: a value, a node or a tag
- * handler. The handler member gives an inline `(chunks) => <a>{chunks}</a>` its argument type,
- * so it needs no annotation.
+ * What a plain `{x}` prints as text (`String(value)`), or a list of them. A plain `{x}` is
+ * always text (owner decision 04.11.2026): markup comes only from tags.
  */
-export type UntypedParams = Record<
+type Text = string | number | bigint | boolean | Date | null | undefined;
+
+/**
+ * Params of a message in a project with no generated catalogs: a value printed as text or a
+ * tag handler. A JSX element is no param: `Hello, <strong>{name}</strong>!` with
+ * `components={{ strong: "strong" }}` renders it. The handler member gives an inline
+ * `(chunks) => <a>{chunks}</a>` its argument type, so it needs no annotation.
+ * A handler is a method signature, so its parameter is compared both ways: one annotated
+ * with a narrower type (`(c: string) => …`) is still a handler.
+ * `C` is `<T>`'s `components` map, a prop under the same index signature.
+ */
+export type UntypedParams<C = never> = Record<
   string,
-  object | JSX.Element | ((chunks: JSX.Element) => JSX.Element)
+  Text | readonly Text[] | { tag(chunks: JSX.Element): unknown }["tag"] | C
 >;
 
 /**
@@ -146,7 +156,7 @@ export type TComponent = [NsOf] extends [never]
         locale?: string;
         markers?: boolean;
         components?: Readonly<Record<string, TagComponent>>;
-      } & UntypedParams,
+      } & UntypedParams<Readonly<Record<string, TagComponent>>>,
     ) => JSX.Element
   : TComponentFor<JSX.Element, 2, Readonly<Record<string, TagComponent>>>;
 
@@ -159,7 +169,7 @@ export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
         markers?: boolean;
         ns?: never;
         components?: Readonly<Record<string, TagComponent>>;
-      } & UntypedParams,
+      } & UntypedParams<Readonly<Record<string, TagComponent>>>,
     ) => JSX.Element
   : NS extends NsOf
     ? BoundTFor<NS, JSX.Element, 2, Readonly<Record<string, TagComponent>>>

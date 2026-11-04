@@ -145,7 +145,7 @@ describe("<T components> (R3-24, lot 4b)", () => {
     });
   });
 
-  it("a node param inside a slot's tag has no text: the slot gets the message's text around it", () => {
+  it("a node in a plain {x} inside a slot's tag is text: the slot gets it with the message's text", () => {
     const { i18n } = make({
       locale: "en",
       messages: { en: { m: "<link>{icon} terms</link>" } },
@@ -165,8 +165,8 @@ describe("<T components> (R3-24, lot 4b)", () => {
           },
         ),
     });
-    expect(mountWith(i18n, Root).html({ raw: true })).toBe("<a> terms</a>");
-    expect(seen).toEqual([" terms"]);
+    expect(mountWith(i18n, Root).html({ raw: true })).toBe("<a>[object Object] terms</a>");
+    expect(seen).toEqual(["[object Object] terms"]);
   });
 
   it("an entry `{ component, props }` renders the tag with props of its own; a component's own `props` option is not misread (R3-24)", () => {

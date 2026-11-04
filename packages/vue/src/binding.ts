@@ -176,22 +176,31 @@ export const use = (): I18n => {
 };
 
 /**
- * Params of a message in a project with no generated catalogs: a value, a node or a tag
- * handler. The handler member gives an inline `(children) => h("a", children)` its
- * argument type, so it needs no annotation.
+ * What a plain `{x}` prints as text (`String(value)`), or a list of them. A plain `{x}` is
+ * always text (owner decision 04.11.2026): markup comes only from tags.
  */
-export type UntypedParams = Record<
+type Text = string | number | bigint | boolean | Date | null | undefined;
+
+/**
+ * Params of a message in a project with no generated catalogs: a value printed as text or a
+ * tag handler. A VNode is no param: `Hello, <strong>{name}</strong>!` with
+ * `:components="{ strong: 'strong' }"` renders it. The handler member gives an inline
+ * `(children) => h("a", children)` its argument type, so it needs no annotation.
+ * A handler is a method signature, so its parameter is compared both ways: one annotated
+ * with a narrower type (`(c: string) => …`) is still a handler.
+ * `C` is `<T>`'s `components` map, a prop under the same index signature.
+ */
+export type UntypedParams<C = never> = Record<
   string,
-  object | VNodeChild | ((children: Children) => VNodeChild)
+  Text | readonly Text[] | { tag(children: Children): unknown }["tag"] | C
 >;
 
 /** What a slot of `<T>` named after a tag receives. */
 export interface TagSlotProps {
   /**
    * The text of the tag's content, from the message before any nested handler runs
-   * (`{{ children }}`). Nested markup is flattened to its text and a node param leaves
-   * none: render such a tag through `components` or a handler attribute to keep the markup
-   * (development warns).
+   * (`{{ children }}`). Nested markup is flattened to its text: render such a tag through
+   * `components` or a handler attribute to keep the markup (development warns).
    */
   children: string;
 }
@@ -218,7 +227,7 @@ export type TComponent = [NsOf] extends [never]
         locale?: string;
         markers?: boolean;
         components?: Readonly<Record<string, TagComponent>>;
-      } & UntypedParams,
+      } & UntypedParams<Readonly<Record<string, TagComponent>>>,
     ) => VNodeChild
   : // The typo guard of `t()` (R3-2) is in the shared core type: see TComponentFor.
     TComponentFor<VNodeChild, 1, Readonly<Record<string, TagComponent>>>;
@@ -232,7 +241,7 @@ export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
         markers?: boolean;
         ns?: never;
         components?: Readonly<Record<string, TagComponent>>;
-      } & UntypedParams,
+      } & UntypedParams<Readonly<Record<string, TagComponent>>>,
     ) => VNodeChild
   : NS extends NsOf
     ? BoundTFor<NS, VNodeChild, 1, Readonly<Record<string, TagComponent>>>
@@ -307,20 +316,15 @@ export const render = (
     // message with no handler run — the core's second argument to a handler that declares
     // one, built before the content (so before any nested handler runs).
     q[k] = (c: Children, x: unknown) => {
-      // Development: the slot gets text, so the markup of a nested tag or a node is lost.
+      // Development: the slot gets text, so the markup of a nested tag is lost.
       if (__DEV__ && typeof c != "string" && !flat.has(q.i18nKey + "\0" + k)) {
         flat.add(q.i18nKey + "\0" + k);
         console.warn(
           `[@comvi/vue] <${k}> in "${q.i18nKey}" holds markup, but its slot's \`children\` is the text only. Render <${k}> through \`components\` (or a handler attribute) to keep the markup`,
         );
       }
-      // A node param has no text: only the message's text reaches the slot.
-      return slots[k]({
-        children: ([] as unknown[])
-          .concat(x)
-          .filter((e) => typeof e == "string")
-          .join(""),
-      });
+      // The text of the tag's content: a plain {x} is always text, so it is a string.
+      return slots[k]({ children: x as string });
     };
   for (const k in m) {
     // A tag name, a component, or `{ component, props }` (R3-24): an element takes the

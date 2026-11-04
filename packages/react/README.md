@@ -66,7 +66,7 @@ export default function App() {
 ```
 
 `t()` fills `{name}` from its second argument (`{ ns }`, `{ locale }` there apply to one call);
-text params give a string; with a tag handler or an element it is typed `string | ReactElement`
+text params give a string; with a tag handler it is typed `string | ReactElement`
 (a handler may return text, a missing key renders its key). `setLocale()` switches once the new catalogs are in (the old locale stays on screen; the last of quick calls wins); it
 rejects for an invalid tag or when no catalog of the locale or its parent (`de` for `de-AT`) loaded.
 
@@ -138,6 +138,8 @@ import { T } from "@comvi/react";
 A tag renders through a prop of its name (a handler gets the content as one node), else its
 `components` entry (a tag name, a component, or `{ component, props }`, content as `children`),
 else as text. Every prop but `i18nKey`, `components`, `ns`, `locale` and `markers` is a param.
+A param is always text, an element too: markup goes in a tag around it,
+`"Hello, <strong>{name}</strong>!"` with `name="Olena" components={{ strong: "strong" }}`.
 
 ## Read next
 
