@@ -283,7 +283,7 @@ Each example is built four times from the same copy:
 | e2   | `shared` renders each locale right alone, then the burst mixes them; without this, a green e could mean the burst never overlapped                 |
 | g    | on `failed`, `/uk` renders the en fallback, its payload holds `uk` as `null`, and the hydrated page asks the loader for nothing                    |
 | h    | on `failed`, `/uk` → `/uk/about` → `/about` asks for nothing; back on `/uk/about` the layout's `setLocale()` retries `uk` once, which then renders |
-| h2   | on `failed`, `/` → `/uk` with the browser's `uk` load held, then `/` before it lands: once released, the page stays English on `/`                 |
+| h2   | on `failed`, `/` → `/uk` with the browser's `uk` load held, then `/` before it lands: once released and the `uk` switch settled, `/` is English    |
 | h3   | on `failed`, `/` → `/uk` with the browser's `uk` load failing stays English; `/uk/about` asks for nothing, `/about` → `/uk/about` retries once     |
 | f    | the example's own `typecheck`                                                                                                                      |
 
@@ -298,6 +298,9 @@ the locale check removed from `load` or `matchFilters` (d), the `shared` build f
 layout's locale guard removed (g, h: the hydration then asks for `uk` again), and the guard
 comparing with `i18n.locale`, which is still `en` while `uk` loads (h2: the held switch lands on `/`).
 Step h3 is green on that guard too: it pins behaviour, and was not seen red.
+Steps h2 and h3 wait on no clock: the `failed` build wraps the browser instance's `setLocale()`
+to record how each switch settled (`window.__settled`), and they read the page once the `uk`
+switch has.
 
 Step h pins what a later navigation does with a locale that failed on the server, not a promise:
 the payload of every new request for it carries `null` again, and the layout's explicit

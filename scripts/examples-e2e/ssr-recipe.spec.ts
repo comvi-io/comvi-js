@@ -353,10 +353,27 @@ const requested = (page: Page) =>
     return (window as { __requested?: string[] }).__requested;
   });
 
+/**
+ * Wait until a browser `setLocale()` has settled as `entry` (`uk:resolved`), on the `failed`
+ * build. The record is written in the promise's own callback, after the switch has published
+ * whatever it publishes; the check after this runs in a later task, once the binding's
+ * render has gone through.
+ */
+async function settled(page: Page, entry: string): Promise<void> {
+  await page.waitForFunction(
+    (wanted) => (window as { __settled?: string[] }).__settled?.includes(wanted),
+    entry,
+  );
+}
+
 /** Record the browser's loader calls (`failed` build) and wait for the hydration. */
 async function openFailed(page: Page, target: string): Promise<void> {
   await watchHydration(page);
-  await page.addInitScript(() => ((window as { __requested?: string[] }).__requested = []));
+  await page.addInitScript(() => {
+    const w = window as { __requested?: string[]; __settled?: string[] };
+    w.__requested = [];
+    w.__settled = [];
+  });
   await page.goto(target);
   await hydrated(page);
   await page.evaluate(() => ((window as { __sameDocument?: boolean }).__sameDocument = true));
@@ -412,14 +429,17 @@ test("h2: back to / before a pending switch to uk lands, the page stays English"
   await follow(page, "locale-en", "/");
 
   await page.evaluate(() => (window as { __release?: () => void }).__release?.());
+  // The held load returns, and the switch to uk settles: superseded by the switch back to en,
+  // or landing on uk where the layout never asked for en again.
   await page.waitForFunction(() =>
     (window as { __loaded?: string[] }).__loaded?.includes("uk:default"),
   );
-  // Let the settled load run its course (promise callbacks, then the render).
-  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));
+  await settled(page, "uk:resolved");
   await expect(page).toHaveURL((url) => url.pathname === "/");
-  await expect(page.locator("html")).toHaveAttribute("lang", "en");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(flat.en["app.title"]);
+  expect(await page.locator("html").getAttribute("lang"), "<html lang> once uk settled").toBe("en");
+  expect(await page.getByTestId("greeting").textContent(), "the greeting once uk settled").toBe(
+    GREETING.en,
+  );
   await expectPage(page, "en");
 });
 
@@ -431,9 +451,10 @@ test("h3: a switch that failed in the browser is retried by a switch away and ba
   await page.evaluate(() => ((window as { __fail?: boolean }).__fail = true));
   await follow(page, "locale-uk", "/uk");
   expect(await requested(page), "the switch to uk asked once").toEqual(["uk:default"]);
-  // Let the rejected switch run its course (promise callbacks, then the render).
-  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));
-  await expect(page.getByTestId("greeting")).toHaveText(GREETING.en);
+  await settled(page, "uk:rejected");
+  expect(await page.getByTestId("greeting").textContent(), "the greeting once uk failed").toBe(
+    GREETING.en,
+  );
   await page.evaluate(() => ((window as { __fail?: boolean }).__fail = false));
 
   // The page's own links follow the locale on screen (en), so /uk/about is a link of the test's.

@@ -914,6 +914,32 @@ export const F15_VARIANT = {
 };
 
 /**
+ * The `failed` build's record of how each browser `setLocale()` settled, in
+ * `window.__settled` (`uk:resolved`, `uk:rejected`): a plugin wraps the
+ * instance's method and only watches the promise it returns. A superseded
+ * switch resolves, so a step waits on this instead of on time.
+ */
+const settledPlugin = (pkg, options) => ({
+  file: "src/lib/i18n.ts",
+  from: options,
+  to:
+    `const settled: import("${pkg}").Plugin = {\n` +
+    '  name: "e2e-settled",\n' +
+    "  setup(i18n) {\n" +
+    '    if (typeof window == "undefined") return;\n' +
+    "    const set = i18n.setLocale;\n" +
+    "    const note = (entry: string) => (globalThis as { __settled?: string[] }).__settled?.push(entry);\n" +
+    "    i18n.setLocale = (locale) => {\n" +
+    "      const done = set(locale);\n" +
+    "      done.then(() => note(`${locale}:resolved`), () => note(`${locale}:rejected`));\n" +
+    "      return done;\n" +
+    "    };\n" +
+    "  },\n" +
+    "};\n" +
+    options.replace("loader };", "loader, plugins: [settled] };"),
+});
+
+/**
  * The SSR recipes' concurrency variants, applied to the copy in this order
  * after the main phase.
  *
@@ -928,7 +954,8 @@ export const F15_VARIANT = {
  *     the browser's loader calls recorded in `window.__requested` (and the
  *     loads that returned in `window.__loaded`); a promise in `window.__hold`
  *     holds every browser load until it settles, and `window.__fail` fails the
- *     browser's uk load. Applied to the example as committed and undone before
+ *     browser's uk load; `window.__settled` records how each browser
+ *     `setLocale()` settled (`settledPlugin`). Applied to the example as committed and undone before
  *     `pressure`. Steps g, h, h2 and h3.
  *   - `shared`: `pressure`, with one module-level instance rendering every
  *     request, the mistake the recipes are built to avoid. Step e2 runs here
@@ -958,6 +985,10 @@ export const RECIPE_VARIANTS = {
             "  (globalThis as { __loaded?: string[] }).__loaded?.push(`${locale}:${ns}`);\n" +
             "  return catalog;\n",
         },
+        settledPlugin(
+          "@comvi/svelte",
+          'export const options: Omit<I18nOptions, "locale"> = { fallbackLocale, timeZone: "UTC", loader };\n',
+        ),
       ],
     },
     pressure: {
@@ -1024,6 +1055,10 @@ export const RECIPE_VARIANTS = {
             "  (globalThis as { __loaded?: string[] }).__loaded?.push(`${locale}:${ns}`);\n" +
             "  return catalog;\n",
         },
+        settledPlugin(
+          "@comvi/solid",
+          'const options = { fallbackLocale, timeZone: "UTC", loader };\n',
+        ),
       ],
     },
     pressure: {
