@@ -340,11 +340,11 @@ const PHASES = {
   ),
   // sveltekit, solidstart: `ssr-recipe.spec.ts`, then each RECIPE_VARIANTS build.
   recipe: {
-    args: ["--grep-invert", "\\b(e|e2|g|h|h2): "],
+    args: ["--grep-invert", "\\b(e|e2|g|h|h2|h3): "],
     expect: ["a", "b", "c", "d"],
     rename: {},
   },
-  failed: { args: ["--grep", "\\b(g|h|h2): "], expect: ["g", "h", "h2"], rename: {} },
+  failed: { args: ["--grep", "\\b(g|h|h2|h3): "], expect: ["g", "h", "h2", "h3"], rename: {} },
   pressure: { args: ["--grep", "\\b(a|e): "], expect: ["a", "e"], rename: { a: "a2" } },
   shared: { args: ["--grep", "\\be2: "], expect: ["e2"], rename: {} },
 };
@@ -619,7 +619,7 @@ async function e2eExample(example, packages, options, cdn) {
 
 /**
  * The SSR recipes: their own typecheck (f), the scenario on the example as
- * committed, steps g, h and h2 against the `failed` variant, then steps a (as a2)
+ * committed, steps g–h3 against the `failed` variant, then steps a (as a2)
  * and e against the `pressure` variant and e2 against `shared`, each rebuilt
  * from the same copy.
  */
@@ -654,7 +654,7 @@ async function recipePhases(ctx, result) {
     applyVariant(target, failed);
     Object.assign(result.steps, await buildServeRun(ctx, "failed", null));
   } catch (error) {
-    failSteps(result, example, ["g", "h", "h2"], error);
+    failSteps(result, example, ["g", "h", "h2", "h3"], error);
   } finally {
     for (const [file, source] of committed) fs.writeFileSync(path.join(target, file), source);
   }

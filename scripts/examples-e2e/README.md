@@ -268,7 +268,7 @@ Each example is built four times from the same copy:
 | build      | what it is                                                                                           | steps |
 | ---------- | ---------------------------------------------------------------------------------------------------- | ----- |
 | `recipe`   | the example as committed, served by `node build` or `node .output/server/index.mjs`                  | a–d   |
-| `failed`   | the loader fails `uk` on the server only and records the browser's calls; undone before `pressure`   | g–h2  |
+| `failed`   | the loader fails `uk` on the server only and records the browser's calls; undone before `pressure`   | g–h3  |
 | `pressure` | 10 ms where a deployed app waits on the network: catalog loading, and data between switch and render | a2, e |
 | `shared`   | `pressure` with one module-level instance rendering every request                                    | e2    |
 
@@ -284,6 +284,7 @@ Each example is built four times from the same copy:
 | g    | on `failed`, `/uk` renders the en fallback, its payload holds `uk` as `null`, and the hydrated page asks the loader for nothing                    |
 | h    | on `failed`, `/uk` → `/uk/about` → `/about` asks for nothing; back on `/uk/about` the layout's `setLocale()` retries `uk` once, which then renders |
 | h2   | on `failed`, `/` → `/uk` with the browser's `uk` load held, then `/` before it lands: once released, the page stays English on `/`                 |
+| h3   | on `failed`, `/` → `/uk` with the browser's `uk` load failing stays English; `/uk/about` asks for nothing, `/about` → `/uk/about` retries once     |
 | f    | the example's own `typecheck`                                                                                                                      |
 
 The variants are text edits of the temp copy, listed in `RECIPE_VARIANTS` in `lib.mjs`; an edit
@@ -296,8 +297,13 @@ without the payload (b), the SvelteKit `$effect.pre` removed or the Solid `<Show
 the locale check removed from `load` or `matchFilters` (d), the `shared` build for e, the
 layout's locale guard removed (g, h: the hydration then asks for `uk` again), and the guard
 comparing with `i18n.locale`, which is still `en` while `uk` loads (h2: the held switch lands on `/`).
+Step h3 is green on that guard too: it pins behaviour, and was not seen red.
 
 Step h pins what a later navigation does with a locale that failed on the server, not a promise:
 the payload of every new request for it carries `null` again, and the layout's explicit
 `setLocale()` on a switch to it is a retry in the browser, so each such switch may ask the loader
 once more. A navigation within the locale (`/uk` → `/uk/about`) asks for nothing.
+Step h3 does the same for a switch that failed in the browser. Neither layout runs again within
+the locale (SvelteKit's layout data depends on the locale only), so `/uk/about` asks for nothing and
+a switch away and back retries. The layouts forget a failed switch's locale, so a SvelteKit payload
+for the same locale (an `invalidateAll()`) would retry too; no step covers that.

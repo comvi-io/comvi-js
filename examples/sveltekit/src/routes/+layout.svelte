@@ -24,8 +24,13 @@
         if (catalog) i18n.add(locale, catalog, ns);
       }
     // The first payload is the locale already: a switch would ask again for what failed. A
-    // later one switches even back to the locale on screen, over a switch still loading.
-    if (data.locale != routeLocale) i18n.setLocale((routeLocale = data.locale)).catch(() => {});
+    // later one switches even back to the locale on screen, over a switch still loading. A
+    // switch that fails forgets its locale, so a later payload for it asks again.
+    const locale = data.locale;
+    if (locale != routeLocale)
+      i18n.setLocale((routeLocale = locale)).catch(() => {
+        if (routeLocale == locale) routeLocale = i18n.locale;
+      });
   });
 
   const r = useI18n();

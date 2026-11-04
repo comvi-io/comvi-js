@@ -9,7 +9,7 @@ import { test as base, expect, type APIRequestContext, type Page } from "@playwr
  * English, `/uk` Ukrainian).
  *
  * Run by `run.mjs` only, against a production build: `recipe` runs a–d on the
- * example as committed, `failed` runs g, h and h2, `pressure` runs e and `shared`
+ * example as committed, `failed` runs g–h3, `pressure` runs e and `shared`
  * runs e2 against the `RECIPE_VARIANTS` builds of it (lib.mjs). As in `scenario.spec.ts`, the
  * critical texts are literals here, and every test fails on its own on a
  * `console.error`, an uncaught error or a hydration warning.
@@ -421,6 +421,41 @@ test("h2: back to / before a pending switch to uk lands, the page stays English"
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(flat.en["app.title"]);
   await expectPage(page, "en");
+});
+
+test("h3: a switch that failed in the browser is retried by a switch away and back", async ({
+  page,
+}) => {
+  await openFailed(page, "/");
+  await expectPage(page, "en");
+  await page.evaluate(() => ((window as { __fail?: boolean }).__fail = true));
+  await follow(page, "locale-uk", "/uk");
+  expect(await requested(page), "the switch to uk asked once").toEqual(["uk:default"]);
+  // Let the rejected switch run its course (promise callbacks, then the render).
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));
+  await expect(page.getByTestId("greeting")).toHaveText(GREETING.en);
+  await page.evaluate(() => ((window as { __fail?: boolean }).__fail = false));
+
+  // The page's own links follow the locale on screen (en), so /uk/about is a link of the test's.
+  await page.evaluate(() => {
+    const link = Object.assign(document.createElement("a"), {
+      href: "/uk/about",
+      textContent: "e2e",
+    });
+    link.dataset.testid = "e2e-uk-about";
+    document.body.append(link);
+  });
+  // Within the locale the layout does not run again (SvelteKit keeps the layout's data, Solid's
+  // effect reads the route's locale only): nothing is asked, the fallback stays.
+  await follow(page, "e2e-uk-about", "/uk/about");
+  await expect(page.getByTestId("about")).toHaveText(flat.en["about.body"]);
+  expect(await requested(page), "the same locale asks for nothing").toEqual(["uk:default"]);
+  // A switch away and back retries.
+  await follow(page, "locale-en", "/about");
+  await expectAbout(page, "en");
+  await follow(page, "locale-uk", "/uk/about");
+  await expectAbout(page, "uk");
+  expect(await requested(page), "one new request for uk").toEqual(["uk:default", "uk:default"]);
 });
 
 async function render(request: APIRequestContext, locale: Locale) {

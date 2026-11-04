@@ -14,11 +14,16 @@ export default function LocaleLayout(props: ParentProps) {
 
   // A client navigation to /uk keeps the page on screen until uk's catalogs are in. The first
   // render's locale is in place: a switch would ask again for what failed on the server. A
-  // later one switches even back to the locale on screen, over a switch still loading.
+  // later one switches even back to the locale on screen, over a switch still loading. A
+  // switch that fails forgets its locale; this runs again only when the route's locale
+  // changes, so /uk/about after a failed /uk asks for nothing, and a switch away and back does.
   let routeLocale = i18n.locale;
   createEffect(() => {
     const locale = params.locale ?? fallbackLocale;
-    if (locale != routeLocale) i18n.setLocale((routeLocale = locale)).catch(() => {});
+    if (locale != routeLocale)
+      i18n.setLocale((routeLocale = locale)).catch(() => {
+        if (routeLocale == locale) routeLocale = i18n.locale;
+      });
   });
 
   return (
