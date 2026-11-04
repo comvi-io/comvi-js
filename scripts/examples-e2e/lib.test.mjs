@@ -867,6 +867,12 @@ test("RECIPE_VARIANTS match the committed sveltekit and solidstart examples, in 
         recursive: true,
         filter: (source) => !source.includes("node_modules"),
       });
+      // `failed` applies to the example as committed; run.mjs undoes it before `pressure`.
+      const i18n = path.join(dir, "src", "lib", "i18n.ts");
+      const committed = fs.readFileSync(i18n, "utf8");
+      applyVariant(dir, RECIPE_VARIANTS[kind].failed);
+      assert.match(fs.readFileSync(i18n, "utf8"), /locale === "uk"\) throw/);
+      fs.writeFileSync(i18n, committed);
       applyVariant(dir, RECIPE_VARIANTS[kind].pressure);
       applyVariant(dir, RECIPE_VARIANTS[kind].shared);
       // The `shared` variant really is one module-level instance.

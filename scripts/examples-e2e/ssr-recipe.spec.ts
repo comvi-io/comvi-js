@@ -9,8 +9,8 @@ import { test as base, expect, type APIRequestContext, type Page } from "@playwr
  * English, `/uk` Ukrainian).
  *
  * Run by `run.mjs` only, against a production build: `recipe` runs a–d on the
- * example as committed, `pressure` runs e and `shared` runs e2 against the
- * `RECIPE_VARIANTS` builds of it (lib.mjs). As in `scenario.spec.ts`, the
+ * example as committed, `failed` runs g and h, `pressure` runs e and `shared`
+ * runs e2 against the `RECIPE_VARIANTS` builds of it (lib.mjs). As in `scenario.spec.ts`, the
  * critical texts are literals here, and every test fails on its own on a
  * `console.error`, an uncaught error or a hydration warning.
  */
@@ -343,6 +343,57 @@ test("d: a first segment outside the locales is a 404", async ({ request }) => {
     expect(response.status(), `GET ${target}`).toBe(200);
     expect(htmlAttribute(await response.text(), "lang"), `GET ${target}`).toBe("en");
   }
+});
+
+/** What the browser's loader was asked for, `locale:ns`, on the `failed` build. */
+const requested = (page: Page) =>
+  page.evaluate(async () => {
+    // A load that the hydration or a switch starts calls the loader within a task.
+    await new Promise((resolve) => setTimeout(resolve));
+    return (window as { __requested?: string[] }).__requested;
+  });
+
+/** Record the browser's loader calls (`failed` build) and wait for the hydration. */
+async function openFailed(page: Page, target: string): Promise<void> {
+  await watchHydration(page);
+  await page.addInitScript(() => ((window as { __requested?: string[] }).__requested = []));
+  await page.goto(target);
+  await hydrated(page);
+  await page.evaluate(() => ((window as { __sameDocument?: boolean }).__sameDocument = true));
+}
+
+test("g: a catalog that failed on the server reaches the browser as a failure, and the hydration does not ask for it", async ({
+  request,
+  page,
+}) => {
+  const response = await request.get("/uk");
+  expect(response.status(), "GET /uk").toBe(200);
+  const html = await response.text();
+  expect(htmlAttribute(html, "lang"), "<html lang>").toBe("uk");
+  expect(testIdText(html, "greeting"), "the en fallback").toBe(GREETING.en);
+  // The payload's uk slot is `null`: devalue in SvelteKit, JSON in SolidStart.
+  expect(html, "uk handed over as a failure").toMatch(/\buk"?:null\b/);
+
+  await openFailed(page, "/uk");
+  await expect(page.getByTestId("greeting")).toHaveText(GREETING.en);
+  await expect(page.locator("html")).toHaveAttribute("lang", "uk");
+  expect(await requested(page), "the browser's loader calls").toEqual([]);
+});
+
+test("h: a later navigation back to the failed locale retries it once, through setLocale()", async ({
+  page,
+}) => {
+  await openFailed(page, "/uk");
+  // The same locale: nothing is asked again, the fallback stays.
+  await follow(page, "nav-about", "/uk/about");
+  await expect(page.getByTestId("about")).toHaveText(flat.en["about.body"]);
+  await follow(page, "locale-en", "/about");
+  await expectAbout(page, "en");
+  expect(await requested(page), "the browser's loader calls before the switch back").toEqual([]);
+  // A switch to uk is an explicit retry: one request, then Ukrainian.
+  await follow(page, "locale-uk", "/uk/about");
+  await expectAbout(page, "uk");
+  expect(await requested(page), "the browser's loader calls").toEqual(["uk:default"]);
 });
 
 async function render(request: APIRequestContext, locale: Locale) {

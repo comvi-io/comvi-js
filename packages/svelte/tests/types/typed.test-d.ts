@@ -3,14 +3,13 @@
  * `@ts-expect-error` must fire, and every other line must compile.
  */
 import type { Component } from "svelte";
-import type { BoundTFor, TComponentFor, TFor } from "@comvi/core";
+import type { TFor } from "@comvi/core";
 import {
   createI18n,
   T,
   useI18n,
   type BoundT,
   type Children,
-  type TagComponent,
   type TagSnippet,
   type TComponent,
   type UseI18n,
@@ -44,20 +43,14 @@ export function setup() {
   t("greting", { name: "x" });
   // @ts-expect-error a default-namespace key on the shop t
   shop.t("title");
-  // The bound <T> of useI18n("shop") is typed by the shop keys (R3-5(b)).
-  const ShopT = shop.T;
-  ShopT({ i18nKey: "cart.title", count: 1, markers: false });
-  // @ts-expect-error a default-namespace key on the bound shop <T>
-  ShopT({ i18nKey: "greeting", name: "x" });
-  // @ts-expect-error missing param on the bound <T>
-  ShopT({ i18nKey: "cart.title" });
-  // @ts-expect-error a typo on the bound <T> (the key errs; its params stay loose, R3-2)
-  ShopT({ i18nKey: "cart.titel", count: 1 });
-  // A tag param is optional on <T>: `components` or a snippet of the tag's name may render it.
+  // `<T>` is checked in templates (tests/templates, svelte-check); a script never calls it with
+  // its props alone, which Svelte 5 does not run.
+  // @ts-expect-error a one-argument call of <T>
   T({ i18nKey: "terms" });
+  // @ts-expect-error a one-argument call of the bound <T>
   DT({ i18nKey: "terms" });
-  // @ts-expect-error a typo on <T>
-  T({ i18nKey: "greting" });
+  // @ts-expect-error a one-argument call of the bound shop <T>
+  shop.T({ i18nKey: "cart.title", count: 1 });
   const l: string = locale;
   const d: "ltr" | "rtl" = dir;
   const b: boolean = isLoading && isReady;
@@ -67,16 +60,12 @@ export function setup() {
 }
 
 /**
- * The binding's types ARE the core's guarded ones (R3-2 typo guard), as in @comvi/vue: the plan's
- * `TFor<NS, never>` for `t`, `TComponentFor<…, 1, …>` and `BoundTFor<…, 1, …>` beside the
- * `Component` half a template reads.
+ * The binding's `t` IS the core's guarded one (R3-2 typo guard), as in @comvi/vue: the plan's
+ * `TFor<NS, never>`. `<T>` takes the props of the core's `TComponentFor<…, 1, …>`, as a component.
  */
 type Equal<A, B> =
   (<X>() => X extends A ? 1 : 2) extends <X>() => X extends B ? 1 : 2 ? true : false;
-type C = Readonly<Record<string, TagComponent>>;
 export const sameTr: Equal<UseI18n<"shop">["t"], TFor<"shop", never>> = true;
-export const typedT: typeof T extends TComponentFor<void, 1, C> ? true : false = true;
-export const typedBound: BoundT<"shop"> extends BoundTFor<"shop", void, 1, C> ? true : false = true;
 // What svelte-check needs of a component in a template.
 export const inMarkup: TComponent extends Component<any> ? true : false = true;
 export const boundInMarkup: BoundT<"shop"> extends Component<any> ? true : false = true;

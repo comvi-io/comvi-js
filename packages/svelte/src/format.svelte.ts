@@ -24,9 +24,13 @@ export interface Formatters {
   date(value: Date | number, options?: Intl.DateTimeFormatOptions | string): string;
   dateRange(start: Date | number, end: Date | number, options?: Intl.DateTimeFormatOptions): string;
   /**
-   * `value` relative to `options.now` (default: the instance's clock — a handed-over server
-   * clock until this component has mounted, then the browser's; nothing re-renders as time
-   * moves on).
+   * `value` relative to `options.now`, by default the instance's clock. Of everything here only
+   * that time source changes at this component's mount. Before the mount — a server render, a
+   * hydration, and the first render of a component mounted later (after a client navigation,
+   * behind an `{#if}`) — it is the `serverNow` of an instance created from a `handover()`, else
+   * the running clock; from the mount on, the browser's clock, and the mount re-runs what called
+   * `relative()` once. So a late-mounted component of a handed-over instance renders first
+   * against the server's clock, then against the browser's. Nothing re-renders as time moves on.
    */
   relative(value: Date | number, options?: RelativeTimeOptions): string;
   list(items: readonly string[], options?: Intl.ListFormatOptions): string;
@@ -37,8 +41,9 @@ export interface Formatters {
 export const useFormat = (): Formatters => {
   const c = use();
   const i = c.i;
-  // False for a server render and a hydration: both count from the request's one clock.
-  // The mount re-runs what read it (accepted: as React's re-render after a hydration).
+  // False until this component's mount (Svelte has no public hydration signal): a server
+  // render, a hydration and a late-mounted component's first render count from the instance's
+  // clock. The mount re-runs what read it (accepted: as React's re-render after a hydration).
   let live = $state(false);
   onMount(() => void (live = true));
   return {

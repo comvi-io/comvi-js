@@ -12,8 +12,15 @@
  *   props through a Proxy so a param stays reactive (a getter of the parent's) on the client.
  */
 import { BROWSER, DEV } from "esm-env";
-import { onMount, type Component, type Snippet } from "svelte";
-import type { BoundTFor, I18n, NsOf, TComponentFor, TFor, UntypedT } from "@comvi/core";
+import {
+  onMount,
+  type Component,
+  type ComponentConstructorOptions,
+  type ComponentInternals,
+  type Snippet,
+  type SvelteComponent,
+} from "svelte";
+import type { I18n, KeysOf, NsOf, Tag, TComponentFor, TFor, UntypedT } from "@comvi/core";
 import { core, N } from "@comvi/core/internal";
 import { use } from "./context.svelte.js";
 import TComponentImpl from "./T.svelte";
@@ -58,13 +65,35 @@ export type TagComponent =
 export type TagSnippet = Snippet<[children: string]>;
 
 type TagMap = Readonly<Record<string, TagComponent>>;
-/** The props of a generic `<T>` signature as `Component` reads them in a template. */
-type Markup<F extends (props: never) => unknown> = Component<Parameters<F>[0]>;
+
+/** The core's typed `<T>` signature: only its props are taken from it, never its call. */
+declare const _typed: TComponentFor<void, 1, TagMap>;
+/** The key guard of the core's signatures (R3-2): what a key that is not one infers. */
+type NotAKey = Exclude<Parameters<typeof _typed>[0]["i18nKey"], PropertyKey>;
+type Key<N extends NsOf> = KeysOf[N] | NotAKey;
+/**
+ * The props of key K of namespace N, as the core types them for `<T>` (`i18nKey` and `ns` outside
+ * the mapping, so the key and the namespace are still inferred).
+ */
+type PropsOf<K extends Key<N>, N extends NsOf> = { i18nKey: K; ns?: N } & {
+  [P in keyof Parameters<typeof _typed<K, N>>[0]]: OrSnippet<Parameters<typeof _typed<K, N>>[0][P]>;
+};
+/**
+ * A tag param: a handler gets the tag's `Children`, a snippet of the tag's name
+ * (`{#snippet link(children: string)}`) the text. A method's parameter is compared both ways, so
+ * one signature takes both, and an inline handler still gets its argument's type.
+ */
+type OrSnippet<V> = Tag extends V
+  ? Exclude<V, Tag> | { tag(children: Children): unknown }["tag"]
+  : V;
 
 /**
  * `<T i18nKey ns? locale? markers? components? {...params}>`: typed by the generated catalogs
- * when declared. Called in TypeScript, the key's own params are checked; in a template
- * svelte-check takes the `Component` half: the keys of the catalogs, loose params.
+ * when declared, in a template by svelte-check: the key, the namespace and the key's params. Typed
+ * as svelte-package types a generic `.svelte` component: svelte-check reads the construct
+ * signature, which infers the key; the call is Svelte 5's `(internals, props)`. A script mounts
+ * it with `mount(T, { target, props })`, which checks the key against every namespace's keys
+ * only; `new T()` is not Svelte 5.
  */
 export type TComponent = [NsOf] extends [never]
   ? Component<
@@ -76,7 +105,15 @@ export type TComponent = [NsOf] extends [never]
         components?: TagMap;
       } & UntypedParams
     >
-  : TComponentFor<void, 1, TagMap> & Markup<TComponentFor<void, 1, TagMap>>;
+  : {
+      new <K extends Key<N>, N extends NsOf = "default" & NsOf>(
+        options: ComponentConstructorOptions<PropsOf<K, N>>,
+      ): SvelteComponent<PropsOf<K, N>>;
+      <K extends Key<N>, N extends NsOf = "default" & NsOf>(
+        internals: ComponentInternals,
+        props: PropsOf<K, N>,
+      ): {};
+    };
 
 /** `<T>` bound to namespace NS (from `useI18n(ns)`): typed by that namespace's keys. */
 export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
@@ -90,7 +127,15 @@ export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
       } & UntypedParams
     >
   : NS extends NsOf
-    ? BoundTFor<NS, void, 1, TagMap> & Markup<BoundTFor<NS, void, 1, TagMap>>
+    ? {
+        new <K extends Key<NS>>(
+          options: ComponentConstructorOptions<PropsOf<K, NS> & { ns?: never }>,
+        ): SvelteComponent<PropsOf<K, NS> & { ns?: never }>;
+        <K extends Key<NS>>(
+          internals: ComponentInternals,
+          props: PropsOf<K, NS> & { ns?: never },
+        ): {};
+      }
     : never;
 
 /** What `useI18n(ns)` returns. Read the state members through the object: they are getters. */
