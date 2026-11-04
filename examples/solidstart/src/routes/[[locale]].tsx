@@ -12,13 +12,13 @@ export default function LocaleLayout(props: ParentProps) {
   const params = useParams();
   const i18n = i18nFor(params.locale ?? fallbackLocale);
 
-  // A client navigation to /uk: keeps the page on screen until uk's catalogs are in. On the
-  // first run the instance is already in this locale, which costs nothing.
-  // Only a real switch: the first render's locale is in place, and a switch would ask again for what
-  // failed on the server.
+  // A client navigation to /uk keeps the page on screen until uk's catalogs are in. The first
+  // render's locale is in place: a switch would ask again for what failed on the server. A
+  // later one switches even back to the locale on screen, over a switch still loading.
+  let routeLocale = i18n.locale;
   createEffect(() => {
     const locale = params.locale ?? fallbackLocale;
-    if (locale != i18n.locale) i18n.setLocale(locale).catch(() => {});
+    if (locale != routeLocale) i18n.setLocale((routeLocale = locale)).catch(() => {});
   });
 
   return (

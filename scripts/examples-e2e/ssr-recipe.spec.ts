@@ -9,7 +9,7 @@ import { test as base, expect, type APIRequestContext, type Page } from "@playwr
  * English, `/uk` Ukrainian).
  *
  * Run by `run.mjs` only, against a production build: `recipe` runs a–d on the
- * example as committed, `failed` runs g and h, `pressure` runs e and `shared`
+ * example as committed, `failed` runs g, h and h2, `pressure` runs e and `shared`
  * runs e2 against the `RECIPE_VARIANTS` builds of it (lib.mjs). As in `scenario.spec.ts`, the
  * critical texts are literals here, and every test fails on its own on a
  * `console.error`, an uncaught error or a hydration warning.
@@ -394,6 +394,33 @@ test("h: a later navigation back to the failed locale retries it once, through s
   await follow(page, "locale-uk", "/uk/about");
   await expectAbout(page, "uk");
   expect(await requested(page), "the browser's loader calls").toEqual(["uk:default"]);
+});
+
+test("h2: back to / before a pending switch to uk lands, the page stays English", async ({
+  page,
+}) => {
+  await openFailed(page, "/");
+  await expectPage(page, "en");
+  // Hold the browser's loads: uk failed on the server, so the switch to it waits for one.
+  await page.evaluate(() => {
+    const w = window as { __hold?: Promise<void>; __release?: () => void; __loaded?: string[] };
+    w.__loaded = [];
+    w.__hold = new Promise((resolve) => (w.__release = resolve));
+  });
+  await follow(page, "locale-uk", "/uk");
+  expect(await requested(page), "the switch to uk is loading").toEqual(["uk:default"]);
+  await follow(page, "locale-en", "/");
+
+  await page.evaluate(() => (window as { __release?: () => void }).__release?.());
+  await page.waitForFunction(() =>
+    (window as { __loaded?: string[] }).__loaded?.includes("uk:default"),
+  );
+  // Let the settled load run its course (promise callbacks, then the render).
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));
+  await expect(page).toHaveURL((url) => url.pathname === "/");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(flat.en["app.title"]);
+  await expectPage(page, "en");
 });
 
 async function render(request: APIRequestContext, locale: Locale) {

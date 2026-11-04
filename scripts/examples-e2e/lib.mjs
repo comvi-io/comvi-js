@@ -70,7 +70,7 @@ export const CDN_CONTROL_STEPS = ["t", "t2", "u", "v", "v2"];
  */
 export const RECIPE_KINDS = ["sveltekit", "solidstart"];
 
-export const RECIPE_STEPS = ["a", "a2", "b", "c", "d", "e", "e2", "g", "h", "f"];
+export const RECIPE_STEPS = ["a", "a2", "b", "c", "d", "e", "e2", "g", "h", "h2", "f"];
 
 export const RECIPE_LEGEND = {
   a: "SSR: plain-HTTP /, /uk, /de, /ar, /about and /uk/about are translated, with <html lang dir>; with JavaScript off the text is on screen",
@@ -82,6 +82,7 @@ export const RECIPE_LEGEND = {
   e2: "negative control: the SHARED build (one instance for every request) renders each locale right one at a time, then the burst renders some responses in another request's locale",
   g: "on the FAILED build (uk fails on the server only): /uk renders the en fallback, its payload carries uk as a failure (null), and the hydrated page asks the loader for nothing",
   h: "on the FAILED build: /uk → /uk/about → /about asks for nothing; back to /uk/about the explicit setLocale() retries uk once in the browser, which renders Ukrainian",
+  h2: "on the FAILED build: / → /uk with the browser's uk load held, then back to / before it lands: the page stays English",
   f: "the example's own typecheck (svelte-check, tsc)",
 };
 
@@ -923,8 +924,10 @@ export const F15_VARIANT = {
  *     renders one request at a time, even a shared instance comes out right,
  *     and SolidStart has nothing to stream. Steps a (as a2) and e run here.
  *   - `failed`: the example with its loader failing uk on the server only, and
- *     the browser's loader calls recorded in `window.__requested`. Applied to
- *     the example as committed and undone before `pressure`. Steps g and h.
+ *     the browser's loader calls recorded in `window.__requested` (and the
+ *     loads that returned in `window.__loaded`); a promise in `window.__hold`
+ *     holds every browser load until it settles. Applied to the example as
+ *     committed and undone before `pressure`. Steps g, h and h2.
  *   - `shared`: `pressure`, with one module-level instance rendering every
  *     request, the mistake the recipes are built to avoid. Step e2 runs here
  *     and must find responses in another request's locale; if it does not,
@@ -941,7 +944,16 @@ export const RECIPE_VARIANTS = {
           to:
             "const loader: Loader = async (locale, ns) => {\n" +
             '  if (import.meta.env.SSR && locale === "uk") throw new Error("e2e: uk fails on the server");\n' +
-            "  (globalThis as { __requested?: string[] }).__requested?.push(`${locale}:${ns}`);\n",
+            "  (globalThis as { __requested?: string[] }).__requested?.push(`${locale}:${ns}`);\n" +
+            "  await (globalThis as { __hold?: Promise<unknown> }).__hold;\n",
+        },
+        {
+          file: "src/lib/i18n.ts",
+          from: "  return (await load()).default;\n",
+          to:
+            "  const { default: catalog } = await load();\n" +
+            "  (globalThis as { __loaded?: string[] }).__loaded?.push(`${locale}:${ns}`);\n" +
+            "  return catalog;\n",
         },
       ],
     },
@@ -997,7 +1009,16 @@ export const RECIPE_VARIANTS = {
           to:
             "const loader: Loader = async (locale, ns) => {\n" +
             '  if (isServer && locale === "uk") throw new Error("e2e: uk fails on the server");\n' +
-            "  (globalThis as { __requested?: string[] }).__requested?.push(`${locale}:${ns}`);\n",
+            "  (globalThis as { __requested?: string[] }).__requested?.push(`${locale}:${ns}`);\n" +
+            "  await (globalThis as { __hold?: Promise<unknown> }).__hold;\n",
+        },
+        {
+          file: "src/lib/i18n.ts",
+          from: "  return (await load()).default;\n",
+          to:
+            "  const { default: catalog } = await load();\n" +
+            "  (globalThis as { __loaded?: string[] }).__loaded?.push(`${locale}:${ns}`);\n" +
+            "  return catalog;\n",
         },
       ],
     },
