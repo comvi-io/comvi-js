@@ -611,6 +611,7 @@ test("allPassed: an SSR recipe is judged on its own steps", () => {
   assert.equal(allPassed([{ ...recipe, steps: { ...steps, e2: undefined } }]), false);
   assert.equal(allPassed([{ ...recipe, steps: { ...steps, f: { status: "fail" } } }]), false);
   assert.equal(allowedSkips({ kind: "sveltekit", cdn: false }).size, 0);
+  assert.deepEqual([...allowedSkips({ kind: "solidstart", cdn: false })], ["h4"]);
 });
 
 test("allPassed: skips are fine, failures and unreached steps are not", () => {

@@ -268,7 +268,7 @@ Each example is built four times from the same copy:
 | build      | what it is                                                                                           | steps |
 | ---------- | ---------------------------------------------------------------------------------------------------- | ----- |
 | `recipe`   | the example as committed, served by `node build` or `node .output/server/index.mjs`                  | a–d   |
-| `failed`   | the loader fails `uk` on the server only and records the browser's calls; undone before `pressure`   | g–h3  |
+| `failed`   | the loader fails `uk` on the server only and records the browser's calls; undone before `pressure`   | g–h4  |
 | `pressure` | 10 ms where a deployed app waits on the network: catalog loading, and data between switch and render | a2, e |
 | `shared`   | `pressure` with one module-level instance rendering every request                                    | e2    |
 
@@ -285,6 +285,7 @@ Each example is built four times from the same copy:
 | h    | on `failed`, `/uk` → `/uk/about` → `/about` asks for nothing; back on `/uk/about` the layout's `setLocale()` retries `uk` once, which then renders |
 | h2   | on `failed`, `/` → `/uk` with the browser's `uk` load held, then `/` before it lands: once released and the `uk` switch settled, `/` is English    |
 | h3   | on `failed`, `/` → `/uk` with the browser's `uk` load failing stays English; `/uk/about` asks for nothing, `/about` → `/uk/about` retries once     |
+| h4   | SvelteKit, on `failed`: after a failed `/` → `/uk`, the `uk` link again reruns the layout's load, which retries `uk` once; SolidStart skips        |
 | f    | the example's own `typecheck`                                                                                                                      |
 
 The variants are text edits of the temp copy, listed in `RECIPE_VARIANTS` in `lib.mjs`; an edit
@@ -297,7 +298,9 @@ without the payload (b), the SvelteKit `$effect.pre` removed or the Solid `<Show
 the locale check removed from `load` or `matchFilters` (d), the `shared` build for e, the
 layout's locale guard removed (g, h: the hydration then asks for `uk` again), and the guard
 comparing with `i18n.locale`, which is still `en` while `uk` loads (h2: the held switch lands on `/`).
-Step h3 is green on that guard too: it pins behaviour, and was not seen red.
+Step h3 is green on that guard too: it pins behaviour, and was not seen red. Step h4 was seen red
+with the SvelteKit layout's `.catch` keeping the failed locale (the payload for it then asks for
+nothing).
 Steps h2 and h3 wait on no clock: the `failed` build wraps the browser instance's `setLocale()`
 to record how each switch settled (`window.__settled`), and they read the page once the `uk`
 switch has.
@@ -308,5 +311,8 @@ the payload of every new request for it carries `null` again, and the layout's e
 once more. A navigation within the locale (`/uk` → `/uk/about`) asks for nothing.
 Step h3 does the same for a switch that failed in the browser. Neither layout runs again within
 the locale (SvelteKit's layout data depends on the locale only), so `/uk/about` asks for nothing and
-a switch away and back retries. The layouts forget a failed switch's locale, so a SvelteKit payload
-for the same locale (an `invalidateAll()`) would retry too; no step covers that.
+a switch away and back retries. A link to the URL on screen (the switcher's `uk` link on `/uk`) is
+where the two differ. SvelteKit runs the layout's load again and hands over a payload for the same
+locale, so its layout forgets a failed switch's locale and that payload retries (h4). SolidStart's
+layout runs only when the route's locale changes, which that link does not, so it asks for nothing
+and remembering the failed locale cannot block a retry; h4 skips there.

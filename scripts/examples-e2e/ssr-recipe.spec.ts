@@ -9,7 +9,7 @@ import { test as base, expect, type APIRequestContext, type Page } from "@playwr
  * English, `/uk` Ukrainian).
  *
  * Run by `run.mjs` only, against a production build: `recipe` runs a–d on the
- * example as committed, `failed` runs g–h3, `pressure` runs e and `shared`
+ * example as committed, `failed` runs g–h4, `pressure` runs e and `shared`
  * runs e2 against the `RECIPE_VARIANTS` builds of it (lib.mjs). As in `scenario.spec.ts`, the
  * critical texts are literals here, and every test fails on its own on a
  * `console.error`, an uncaught error or a hydration warning.
@@ -476,6 +476,30 @@ test("h3: a switch that failed in the browser is retried by a switch away and ba
   await expectAbout(page, "en");
   await follow(page, "locale-uk", "/uk/about");
   await expectAbout(page, "uk");
+  expect(await requested(page), "one new request for uk").toEqual(["uk:default", "uk:default"]);
+});
+
+test("h4: a switch that failed in the browser is retried by its switcher link again", async ({
+  page,
+}) => {
+  test.skip(
+    process.env.E2E_KIND === "solidstart",
+    "a link to the URL on screen changes no route param, so SolidStart's layout does not run",
+  );
+  await openFailed(page, "/");
+  await expectPage(page, "en");
+  await page.evaluate(() => ((window as { __fail?: boolean }).__fail = true));
+  await follow(page, "locale-uk", "/uk");
+  await settled(page, "uk:rejected");
+  expect(await page.getByTestId("greeting").textContent(), "the greeting once uk failed").toBe(
+    GREETING.en,
+  );
+  await page.evaluate(() => ((window as { __fail?: boolean }).__fail = false));
+
+  // The switcher's uk link is the URL on screen: SvelteKit runs the layout's load again, and
+  // its payload names uk, the locale whose switch failed. That payload asks again.
+  await follow(page, "locale-uk", "/uk");
+  await expectPage(page, "uk");
   expect(await requested(page), "one new request for uk").toEqual(["uk:default", "uk:default"]);
 });
 

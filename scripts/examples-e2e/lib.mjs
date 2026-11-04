@@ -70,7 +70,7 @@ export const CDN_CONTROL_STEPS = ["t", "t2", "u", "v", "v2"];
  */
 export const RECIPE_KINDS = ["sveltekit", "solidstart"];
 
-export const RECIPE_STEPS = ["a", "a2", "b", "c", "d", "e", "e2", "g", "h", "h2", "h3", "f"];
+export const RECIPE_STEPS = ["a", "a2", "b", "c", "d", "e", "e2", "g", "h", "h2", "h3", "h4", "f"];
 
 export const RECIPE_LEGEND = {
   a: "SSR: plain-HTTP /, /uk, /de, /ar, /about and /uk/about are translated, with <html lang dir>; with JavaScript off the text is on screen",
@@ -84,6 +84,7 @@ export const RECIPE_LEGEND = {
   h: "on the FAILED build: /uk → /uk/about → /about asks for nothing; back to /uk/about the explicit setLocale() retries uk once in the browser, which renders Ukrainian",
   h2: "on the FAILED build: / → /uk with the browser's uk load held, then back to / before it lands: the page stays English",
   h3: "on the FAILED build: / → /uk with the browser's uk load failing stays English; /uk/about asks for nothing, then /about → /uk/about retries uk once and renders Ukrainian",
+  h4: "on the FAILED build, SvelteKit: / → /uk with the browser's uk load failing stays English; the uk link again reruns the layout's load, which retries uk once and renders Ukrainian (SolidStart skips: no route param changes)",
   f: "the example's own typecheck (svelte-check, tsc)",
 };
 
@@ -812,11 +813,13 @@ export function allPassed(results) {
  *   - without --cdn: k, k2, k3, g2, z and the CDN-steering steps (t, t2, u, v,
  *     v2) are about the mock CDN.
  *   - with --cdn: s is not run (the F-15 variant runs in the bundled mode).
- *   - sveltekit, solidstart: nothing. They read bundled catalogs only, and a
- *     `--cdn` run leaves them out instead of skipping them.
+ *   - sveltekit, solidstart: they read bundled catalogs only, and a `--cdn`
+ *     run leaves them out instead of skipping them. solidstart skips h4: a link
+ *     to the URL on screen changes no route param, so its layout does not run.
  */
 export function allowedSkips({ kind, cdn }) {
   const allowed = new Set();
+  if (kind === "solidstart") allowed.add("h4");
   if (isRecipe(kind)) return allowed;
   if (kind === "vite") for (const step of ["f", "i", "o", "s", "t", "t2", "y"]) allowed.add(step);
   if (cdn) allowed.add("s");
@@ -956,7 +959,7 @@ const settledPlugin = (pkg, options) => ({
  *     holds every browser load until it settles, and `window.__fail` fails the
  *     browser's uk load; `window.__settled` records how each browser
  *     `setLocale()` settled (`settledPlugin`). Applied to the example as committed and undone before
- *     `pressure`. Steps g, h, h2 and h3.
+ *     `pressure`. Steps g–h4.
  *   - `shared`: `pressure`, with one module-level instance rendering every
  *     request, the mistake the recipes are built to avoid. Step e2 runs here
  *     and must find responses in another request's locale; if it does not,
