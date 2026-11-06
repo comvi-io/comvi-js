@@ -34,3 +34,30 @@ describe("@comvi/core/ssr", () => {
     expect(asked).toEqual([]);
   });
 });
+
+describe("@comvi/core/ssr: a payload React Server Components can pass (lot 6a)", () => {
+  // React Flight refuses null-prototype objects from a Server Component to a Client Component
+  // ("Classes or null prototypes are not supported"): `next build` of a page passing
+  // `handover(i18n)` as a prop failed on it.
+  const proto = (o: object) => Object.getPrototypeOf(o);
+
+  it("every object of the payload has Object.prototype, a patched slot too", () => {
+    const i18n = createI18n({
+      locale: "en",
+      timeZone: "UTC",
+      catalogs: { default: { en: { a: "A" } }, constructor: { en: { b: "B" } } },
+    });
+    i18n.add("en", { c: "C" });
+    const p = ssr.handover(i18n);
+    expect(proto(p)).toBe(Object.prototype);
+    expect(proto(p.catalogs)).toBe(Object.prototype);
+    for (const n of Object.keys(p.catalogs)) {
+      expect(proto(p.catalogs[n])).toBe(Object.prototype);
+      for (const l of Object.keys(p.catalogs[n]))
+        expect(proto(p.catalogs[n][l]!)).toBe(Object.prototype);
+    }
+    expect(p.catalogs.default.en).toEqual({ a: "A", c: "C" });
+    expect(Object.hasOwn(p.catalogs, "constructor")).toBe(true);
+    expect(p.catalogs.constructor).toEqual({ en: { b: "B" } });
+  });
+});

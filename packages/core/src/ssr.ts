@@ -56,7 +56,7 @@ export const handover = (i18n: I18n): Handover => {
   for (const n in s.c)
     for (const l in s.c[n]) {
       const y = s.c[n][l]!;
-      (catalogs[n] ||= N())[l] = y.p ? N(y.m, y.p) : y.m;
+      (catalogs[n] ||= N())[l] = y.p ? { ...y.m, ...y.p } : y.m;
     }
   // A slot whose load failed (the negative cache) is handed over as `null`, so the browser
   // renders the fallback the server rendered and does not ask for it at hydration (R3-21);
@@ -65,5 +65,13 @@ export const handover = (i18n: I18n): Handover => {
     const [l, n] = k.split("\0");
     (catalogs[n] ||= N())[l] ??= null;
   });
-  return { locale: s.locale, timeZone: x.o.timeZone, serverNow: clock(i18n), catalogs };
+  return {
+    locale: s.locale,
+    timeZone: x.o.timeZone,
+    serverNow: clock(i18n),
+    // Built prototype-free (a namespace called `constructor` is its own key), handed over with
+    // Object.prototype: React Server Components refuse a null-prototype prop (lot 6a). Spread
+    // and `fromEntries` define own keys, `__proto__` included.
+    catalogs: Object.fromEntries(Object.entries(catalogs).map(([n, c]) => [n, { ...c }])),
+  };
 };
