@@ -3,7 +3,7 @@
  *
  * Subpaths: `/cdn` (the CDN v1 loader), `/plugins` (locale detection and persistence),
  * `/format` (Intl formatters over the shared cache), `/devtools` (the browser-extension
- * hook), `/internal` (binding seams, no semver guarantee).
+ * hook), `/ssr` (`handover()`, what a server render hands the browser), `/internal` (binding seams, no semver guarantee).
  */
 export { createI18n } from "./instance";
 export { negotiate } from "./locale";

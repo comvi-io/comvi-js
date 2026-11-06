@@ -96,7 +96,7 @@ import { createI18n, I18nProvider } from "@comvi/react";
 import { cdn } from "@comvi/core/cdn";
 import App from "./App";
 
-// 1. Data. A server-rendered page embeds `handover(i18n)` (`@comvi/core/internal`) as window.__I18N__
+// 1. Data. A server-rendered page embeds `handover(i18n)` (`@comvi/core/ssr`) as window.__I18N__
 //    (its catalogs win over inline `messages`) and calls hydrateRoot(root, …) instead of createRoot.
 const i18n = createI18n({
   locale: "en",
