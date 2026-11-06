@@ -17,9 +17,8 @@
 
 ---
 
-`@comvi/next` translates Server Components with an i18n instance per request and hands what the
-server rendered to Client Components as data: the same text on the first paint, no catalog fetched
-by the browser. App Router only.
+`@comvi/next` translates Server Components with an i18n instance per request and hands what they
+rendered to Client Components as data: same first paint, no catalog fetched. App Router only.
 
 ## Install
 
@@ -86,8 +85,8 @@ request. `handover(i18n)` is plain data: catalogs (a failed one as `null`), loca
 
 ## Use in components
 
-A Server Component asks for the namespaces it needs; a page that needs more than its layout hands
-its own payload to its Client Components, in `src/app/[locale]/account/page.tsx`:
+A Server Component asks for the namespaces it needs (`t` reads the first; without `ns`, `default`);
+a page that needs more than its layout hands its own payload over, in `src/app/[locale]/account/page.tsx`:
 
 ```tsx title="src/app/[locale]/account/page.tsx" check=group=next-1
 import { handover } from "@comvi/core/ssr";
@@ -123,6 +122,9 @@ export function Profile() {
 With no `loader` in `options` the browser loads nothing; a catalog the server failed to load
 renders its fallback on both sides, and `router.refresh()` renders the route again. A `loader`
 (from a `"use client"` module) loads only what no payload brought; `i18n.load(ns)` retries.
+A route or locale change remounts the provider and is exact; a later payload of the same mount
+(`router.refresh()`) hands over its loaded catalogs only: a namespace first seen there as failed may
+be asked once by a `loader`, and one that fails there after loading keeps the earlier catalog.
 
 ## Locale routing
 
@@ -134,10 +136,8 @@ The URL is the locale: switch by navigating (`<Link locale="uk">`, `useLocalized
 import { createMiddleware } from "@comvi/next/middleware";
 import { routing } from "./i18n/routing";
 
-export default createMiddleware(routing);
+export default createMiddleware(routing); // getI18n() without `locale` reads the locale it sets
 ```
-
-Without `locale`, `getI18n()` reads the middleware's locale (a dynamic read), else `defaultLocale`.
 
 ## Contributing
 

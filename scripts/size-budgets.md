@@ -1436,12 +1436,14 @@ row changed; their figures moved down: `core-icu-cdn` 5,114 → 5,050, `react-ic
 
 `@comvi/next` left MIGRATION_PENDING with the 0.8 recipe (`createGetI18n` + `handover()` +
 `<I18nProvider payload>`). Measured after `TURBO_FORCE=true pnpm build`, `node --version` v24.22.1.
-No core, React, Vue, Solid or Svelte figure moved (the `/ssr` entry is imported by no core row).
+No core, React, Vue, Solid or Svelte figure moved (the `/ssr` entry is imported by no core row). The
+review fix (prototype-free maps in the client provider, plain leaves in `handover()`) is in the figures:
+client 6,138 → 6,147, server 5,291 → 5,308; the budgets stay.
 
 | row                           | 0.7 baseline | lot 6a | budget        | graph                                                          |
 | ----------------------------- | ------------ | ------ | ------------- | -------------------------------------------------------------- |
-| fw-next-client-default        | 8,209        | 6,138  | 8,620 → 6,445 | `<I18nProvider payload>` + a `@comvi/react` component          |
-| fw-next-server-default-loader | 8,329        | 5,291  | 8,746 → 5,556 | `createGetI18n` with a loader + `handover()`                   |
+| fw-next-client-default        | 8,209        | 6,147  | 8,620 → 6,445 | `<I18nProvider payload>` + a `@comvi/react` component          |
+| fw-next-server-default-loader | 8,329        | 5,308  | 8,746 → 5,556 | `createGetI18n` with a loader + `handover()`                   |
 | fw-next-middleware-edge       | 2,045        | 2,045  | 2,148         | unchanged                                                      |
 | fw-next-plugin-node           | 939          | 121    | 986           | `withComvi()` without the 0.7 config alias (lot 6b adds types) |
 
@@ -1449,3 +1451,23 @@ No core, React, Vue, Solid or Svelte figure moved (the `/ssr` entry is imported 
 package root, `createNextI18n`, `.use()` and `<ComviProvider>`. The client row is the Next client
 graph of a page: against `react-icu-cdn` (5,589 B, which carries `cdn()` and no Next code) it adds the
 payload provider, React's `<I18nHandover>` chunk and the routing context, and leaves out `cdn()`.
+
+SSR payload of a real page (brief §9): the `payload` props of `<I18nProvider>` read out of the RSC
+payload in the HTML (`self.__next_f`) of the production build of `test-apps/next` (Next 15.5.28;
+`test-apps/next16` on Next 16.4.3 gives the same JSON bytes), `node --version` v24.22.1. JSON B is
+the props object as the Flight stream carries it; gzip at level 9 of that text alone.
+
+| page        | provider | namespace × locale                         | JSON B | gzip B |
+| ----------- | -------- | ------------------------------------------ | ------ | ------ |
+| `/`         | layout   | default×en                                 | 2,894  | 1,151  |
+| `/uk`       | layout   | default×uk, default×en                     | 7,476  | 2,350  |
+| `/ar`       | layout   | default×ar, default×en                     | 6,772  | 2,199  |
+| `/admin`    | layout   | default×en                                 | 2,894  | 1,151  |
+| `/admin`    | page     | default×en, admin×en                       | 302    | 215    |
+| `/uk/admin` | layout   | default×uk, default×en                     | 7,476  | 2,350  |
+| `/uk/admin` | page     | default×uk, default×en, admin×uk, admin×en | 595    | 347    |
+
+The page provider's `default` catalogs are the same objects as the layout's (one load per request,
+`handover()` hands a catalog over as the object the instance holds), so React's serializer writes
+them once and the page payload refers to them (`"$4:props:…:catalogs:default:uk"`): the second
+provider costs its own namespace only. The whole HTML of `/uk/admin` is 16,328 B (4,766 B gzip).

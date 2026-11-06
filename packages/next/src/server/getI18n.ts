@@ -51,7 +51,10 @@ export interface GetI18nOptions<NS extends string = "default"> {
 
 /** What `getI18n()` gives a Server Component, Route Handler or Server Action. */
 export interface ServerI18n<NS extends string = "default"> {
-  /** `t()` bound to the first `ns`; a rich message returns one React node. */
+  /**
+   * `t()` bound to the first `ns` (the `default` namespace without one); a rich message returns
+   * one React node.
+   */
   t: UseI18n<NS>["t"];
   locale: string;
   dir: "ltr" | "rtl";

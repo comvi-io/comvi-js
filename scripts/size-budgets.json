@@ -362,11 +362,11 @@
       "external": ["next", "next/*", "react", "react/*"],
       "gzipBudgetBytes": 5556,
       "baseline": {
-        "minBytes": 10909,
-        "gzipBytes": 5291,
+        "minBytes": 10938,
+        "gzipBytes": 5308,
         "measuredAt": "2026-11-06"
       },
-      "note": "Gated Next server floor: `createGetI18n` from `@comvi/next/server` with a loader, and `handover()` from `@comvi/core/ssr` (lot 6a: the 0.7 composed-host graph replaced). Lot 6a (2026-11-06, Node v24.22.1): 5291 B, budget 8746 → 5556 (ceil × 1.05), size-budgets.md 2026-11-06 lot 6a."
+      "note": "Gated Next server floor: `createGetI18n` from `@comvi/next/server` with a loader, and `handover()` from `@comvi/core/ssr` (lot 6a: the 0.7 composed-host graph replaced). Lot 6a (2026-11-06, Node v24.22.1): 5291 B (5308 B with the review fix), budget 8746 → 5556 (ceil × 1.05), size-budgets.md 2026-11-06 lot 6a."
     },
     {
       "name": "fw-next-client-default",
@@ -375,11 +375,11 @@
       "external": ["next", "next/*", "react", "react/*"],
       "gzipBudgetBytes": 6445,
       "baseline": {
-        "minBytes": 12913,
-        "gzipBytes": 6138,
+        "minBytes": 12970,
+        "gzipBytes": 6147,
         "measuredAt": "2026-11-06"
       },
-      "note": "Gated Next client graph: `<I18nProvider payload>` from `@comvi/next/client` and a Client Component on `@comvi/react` (t() with {name} and a plural); no server module in the graph (lot 6a: the 0.7 composed client host replaced). Lot 6a (2026-11-06, Node v24.22.1): 6138 B, budget 8620 → 6445 (ceil × 1.05), size-budgets.md 2026-11-06 lot 6a."
+      "note": "Gated Next client graph: `<I18nProvider payload>` from `@comvi/next/client` and a Client Component on `@comvi/react` (t() with {name} and a plural); no server module in the graph (lot 6a: the 0.7 composed client host replaced). Lot 6a (2026-11-06, Node v24.22.1): 6138 B (6147 B with the review fix), budget 8620 → 6445 (ceil × 1.05), size-budgets.md 2026-11-06 lot 6a."
     },
     {
       "name": "fw-next-plugin-node",
