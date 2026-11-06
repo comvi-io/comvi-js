@@ -87,3 +87,24 @@ describe("<I18nProvider payload> of @comvi/next/client", () => {
     expect(screen.getByTestId("default:hi").textContent).toBe("de|Hallo");
   });
 });
+
+describe("a payload's namespace and locale names are own keys (review of lot 6a)", () => {
+  it("__proto__ and constructor namespaces leave Object.prototype alone and are handed over", async () => {
+    const catalogs = JSON.parse(
+      '{"__proto__":{"en":{"p":"Proto"}},"constructor":{"en":{"c":"Ctor"}},"default":{"en":{"hi":"Hi"}}}',
+    ) as Handover["catalogs"];
+    const tree = (p: Handover) => (
+      <I18nProvider payload={p}>
+        <Probe ns="__proto__" k="p" />
+        <Probe ns="constructor" k="c" />
+      </I18nProvider>
+    );
+    // A later payload of the same mount goes through the non-null filter.
+    const { rerender } = render(tree(payload("en", { default: { en: { hi: "Hi" } } })));
+    await act(async () => rerender(tree(payload("en", catalogs))));
+    expect(Object.prototype).not.toHaveProperty("en");
+    expect(({} as Record<string, unknown>).en).toBeUndefined();
+    expect(screen.getByTestId("__proto__:p").textContent).toBe("en|Proto");
+    expect(screen.getByTestId("constructor:c").textContent).toBe("en|Ctor");
+  });
+});

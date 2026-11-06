@@ -34,11 +34,19 @@ export interface I18nProviderProps {
   children?: ReactNode;
 }
 
-/** The payload's catalogs without its failed (`null`) slots, the shape `<I18nHandover>` takes. */
+/** A prototype-free map: any name (`__proto__`, `constructor`) is an own key of it. */
+const map = <T,>(): Record<string, T> => Object.create(null);
+
+/**
+ * The payload's catalogs without its failed (`null`) slots, the shape `<I18nHandover>` takes.
+ * Own keys only, into prototype-free maps: a namespace or locale named `__proto__` or
+ * `constructor` is a slot like any other, never `Object.prototype`.
+ */
 const present = (catalogs: Handover["catalogs"]): ProviderCatalogs => {
-  const out: Record<string, Record<string, Catalog>> = {};
-  for (const n in catalogs)
-    for (const l in catalogs[n]) if (catalogs[n][l]) (out[n] ||= {})[l] = catalogs[n][l]!;
+  const out = map<Record<string, Catalog>>();
+  for (const n of Object.keys(catalogs))
+    for (const l of Object.keys(catalogs[n]))
+      if (catalogs[n][l]) (out[n] ||= map())[l] = catalogs[n][l]!;
   return out;
 };
 
