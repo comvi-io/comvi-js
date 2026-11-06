@@ -146,14 +146,14 @@ type Text = string | number | bigint | boolean | Date | null | undefined;
  * Params of a message in a project with no generated catalogs: a value printed as text or a
  * tag handler. An element is no param: `Hello, <strong>{name}</strong>!` with
  * `components={{ strong: "strong" }}` renders it. The handler member gives an inline
- * `(chunks) => <a>{chunks}</a>` its argument type, so it needs no annotation.
- * A handler is a method signature, so its parameter is compared both ways: one annotated
- * with a narrower type (`(c: string) => …`) is still a handler.
+ * `(chunks) => <a>{chunks}</a>` its argument type, so it needs no annotation. The handler
+ * receives a React node (a Fragment of the tag's content), so one annotated with a narrower
+ * type (`(c: string) => …`) is refused: it would throw at run time.
  * `C` is `<T>`'s `components` map, a prop under the same index signature.
  */
 export type UntypedParams<C = never> = Record<
   string,
-  Text | readonly Text[] | { tag(chunks: ReactNode): unknown }["tag"] | C
+  Text | readonly Text[] | ((chunks: ReactNode) => unknown) | C
 >;
 
 /** `<T>` bound to namespace NS (from `useI18n(ns)`): typed by that namespace's keys. */

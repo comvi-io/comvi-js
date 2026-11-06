@@ -21,6 +21,7 @@ import { renderToString } from "vue/server-renderer";
 import { createSSRApp } from "vue";
 import { describe, expect, it, vi } from "vitest";
 import { createI18n, T, useI18n, type VueI18n } from "../src";
+import type { Children } from "../src";
 import { mountWith, tick, vueWarnings } from "./helpers";
 
 const en = (m: Record<string, string>) => createI18n({ locale: "en", messages: { en: m } });
@@ -288,7 +289,7 @@ describe("<T i18nKey>", () => {
 
   it("never mutates the caller's params when it wraps a handler", () => {
     const i18n = en({ m: "<x>a</x>{y}" });
-    const x = (c: string) => h("u", c);
+    const x = (c: Children) => h("u", c);
     const params = Object.freeze({ x, y: "!" });
     let out: unknown;
     mountWith(
@@ -439,12 +440,12 @@ describe("params that only look like nodes (0.7 T-forged-node)", () => {
       defineComponent({
         setup() {
           const { t } = useI18n();
-          rich = t("r", { i: (c: string) => h("i", c) });
+          rich = t("r", { i: (c) => h("i", c) });
           plain = t("p", { x: "s" });
           // A VNode in a plain {x} is text (04.11.2026): the call returns a string.
           node = t("p", { x: h("i") } as never);
           // A handler that returns text keeps the whole output a string.
-          text = t("s", { b: (c: string) => `*${c}*` });
+          text = t("s", { b: (c) => `*${c}*` });
           return () => null;
         },
       }),
