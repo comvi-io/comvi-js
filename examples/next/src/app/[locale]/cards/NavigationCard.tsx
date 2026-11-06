@@ -1,6 +1,6 @@
 "use client";
 
-import { useI18n } from "@comvi/next/client";
+import { useI18n } from "@comvi/react";
 import { Link } from "@comvi/next/navigation";
 import { Card } from "./Card";
 

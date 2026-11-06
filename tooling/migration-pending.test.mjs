@@ -38,32 +38,8 @@ const activeExamples = () =>
     (e) => activeShards([e.framework], exampleNeeds, "examples-e2e", quiet).length === 1,
   ).map((e) => `${e.framework}/${e.mode}`);
 
-test("after lot 5 the React, Vue, Svelte, Solid and vanilla examples and both SSR recipes run; every test app is pending, and the skip says why", () => {
+test("after lot 6a the React, Next, Vue, Svelte, Solid and vanilla examples, both SSR recipes and the Next test apps run; the Nuxt apps are pending, and the skip says why", () => {
   assert.deepEqual(activeExamples(), [
-    "react/default",
-    "react/cdn",
-    "vue/default",
-    "vue/cdn",
-    "svelte/default",
-    "svelte/cdn",
-    "solid/default",
-    "solid/cdn",
-    "vanilla/default",
-    "vanilla/cdn",
-    "sveltekit/default",
-    "solidstart/default",
-  ]);
-  const lines = [];
-  assert.deepEqual(
-    activeShards(TEST_APPS, testAppNeeds, "test-apps-smoke", (l) => lines.push(l)),
-    [],
-  );
-  assert.ok(lines.some((l) => l.includes("fixtures-08") && l.includes("lot 6")));
-});
-
-test("Next landing re-enables the Next shards while Nuxt and the rest stay pending", () => {
-  const got = landed(["fixtures-08", "@comvi/next"], activeExamples);
-  assert.deepEqual(got, [
     "react/default",
     "react/cdn",
     "next/default",
@@ -79,23 +55,52 @@ test("Next landing re-enables the Next shards while Nuxt and the rest stay pendi
     "sveltekit/default",
     "solidstart/default",
   ]);
+  const lines = [];
+  assert.deepEqual(
+    activeShards(TEST_APPS, testAppNeeds, "test-apps-smoke", (l) => lines.push(l)),
+    ["next", "next16"],
+  );
+  assert.ok(lines.some((l) => l.includes("fixtures-08") && l.includes("lot 7")));
+});
+
+test("Nuxt landing re-enables the Nuxt shards", () => {
+  const got = landed(["fixtures-08", "@comvi/nuxt"], activeExamples);
+  assert.deepEqual(got, [
+    "react/default",
+    "react/cdn",
+    "next/default",
+    "next/cdn",
+    "vue/default",
+    "vue/cdn",
+    "nuxt/default",
+    "nuxt/cdn",
+    "svelte/default",
+    "svelte/cdn",
+    "solid/default",
+    "solid/cdn",
+    "vanilla/default",
+    "vanilla/cdn",
+    "sveltekit/default",
+    "solidstart/default",
+  ]);
 });
 
 test("a rewritten example or bundler case does not need fixtures-08; the others do", () => {
   assert.deepEqual(exampleNeeds("react").sort(), ["@comvi/core", "@comvi/react"]);
   assert.deepEqual(bundlerCaseNeeds("react-default", ["@comvi/core"]), ["@comvi/core"]);
   assert.deepEqual(bundlerCaseNeeds("vue-default", ["@comvi/vue"]), ["@comvi/vue"]);
-  assert.deepEqual(bundlerCaseNeeds("next-client-default", ["@comvi/next"]), [
+  assert.deepEqual(bundlerCaseNeeds("next-client-default", ["@comvi/next"]), ["@comvi/next"]);
+  assert.deepEqual(bundlerCaseNeeds("nuxt-default", ["@comvi/nuxt"]), [
     "fixtures-08",
-    "@comvi/next",
+    "@comvi/nuxt",
   ]);
 });
 
 test("a test app runs once it and the core instance are active, independently of the others", () => {
-  const got = landed(["fixtures-08", "@test-apps/next16"], () =>
+  const got = landed(["fixtures-08", "@test-apps/nuxt4"], () =>
     activeShards(TEST_APPS, testAppNeeds, "test-apps-smoke", quiet),
   );
-  assert.deepEqual(got, ["next16"]);
+  assert.deepEqual(got, ["next", "next16", "nuxt4"]);
 });
 
 test("example needs come from the example's own package.json", () => {

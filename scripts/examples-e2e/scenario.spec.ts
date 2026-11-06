@@ -483,7 +483,9 @@ test("e: catalogs load lazily, one per visited locale", async ({ page }) => {
   await switchTo(page, "uk");
   await expect(line).toHaveText(fetched("uk", ["en", "uk"]));
   await switchTo(page, "de");
-  await expect(line).toHaveText(fetched("de", ["en", "uk", "de"]));
+  // Next (0.8): the browser fetches no catalog; each locale's page carries its
+  // own and its fallback's (`en`), handed over by the server, and nothing else.
+  await expect(line).toHaveText(fetched("de", KIND === "next" ? ["en", "de"] : ["en", "uk", "de"]));
 });
 
 test("f: SSR — plain-HTTP /uk is already translated, then hydrates", async ({ page, request }) => {
@@ -1442,7 +1444,7 @@ for (const [step, fault] of [
 // and shows its loading row meanwhile (never the old language's rows).
 const LOADS_AFTER_SWITCH = env("E2E_FRAMEWORK") === "vanilla";
 /** The 0.8 examples: a namespace with no consumer left is not loaded by a switch (lot 4c). */
-const RELEASES_NAMESPACES = ["react", "vanilla", "vue", "solid", "svelte"].includes(
+const RELEASES_NAMESPACES = ["react", "next", "vanilla", "vue", "solid", "svelte"].includes(
   env("E2E_FRAMEWORK"),
 );
 

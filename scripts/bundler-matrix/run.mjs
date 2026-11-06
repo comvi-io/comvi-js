@@ -42,42 +42,6 @@ const REPO_ROOT = path.resolve(SCRIPT_DIR, "..", "..");
 const APP_DIR = path.join(SCRIPT_DIR, "app");
 const OUT_DIR = path.join(APP_DIR, "out");
 
-// There is deliberately no ROOT_ENTRY constant: `comvi-core.js` is the BASE
-// host — present in every comvi graph, side-effect-free, resolved per condition
-// — so its presence proves nothing. What carries the "no full graph leaked"
-// claim instead: the tag-registration sentinels (derived from the packed
-// `sideEffects` array below) and `UNUSED_CAPABILITY_SUBPATHS`.
-
-/**
- * Core's capability subpaths as module-ID fragments — entry file and hashed
- * chunk alike — grouped per capability so a case can name exactly the ones ITS
- * app does not use. `absentModules` matches substrings, so the chunk fragments
- * cover the content-hashed names too.
- */
-const ICU_SUBPATH = [
-  `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-icu.js`,
-  `comvi-core-compile-icu-`,
-];
-const LOADER_SUBPATH = [
-  `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-loader.js`,
-  `comvi-core-importMapLoader-`,
-];
-const PLUGINS_SUBPATH = [
-  `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-plugins.js`,
-  `comvi-core-plugins-`,
-];
-const DEVTOOLS_SUBPATH = [
-  `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-devtools.js`,
-  `comvi-core-devtools-`,
-];
-/**
- * The three capability subpaths a single-package app that uses the LOADER does
- * not touch. LOADER_SUBPATH is deliberately not part of it: the cases using this
- * constant call `attachLoader` or the configured `loader(map)`. These fragments
- * staying OUT of the graph is the whole claim "an unused named re-export costs
- * nothing".
- */
-const UNUSED_CAPABILITY_SUBPATHS = [...ICU_SUBPATH, ...PLUGINS_SUBPATH, ...DEVTOOLS_SUBPATH];
 /**
  * The 0.8 core's subpath entries as module-ID fragments (each is an entry file of its own,
  * prod and `.dev` alike), and the `/format` entries of `@comvi/react` and `@comvi/vue`. An app that does not import
@@ -106,11 +70,6 @@ const SVELTE_T_08 = `@comvi${path.sep}svelte${path.sep}dist${path.sep}T.svelte`;
 const EDITOR_MODAL_CHUNK = [
   `@comvi${path.sep}plugin-in-context-editor${path.sep}dist${path.sep}EditModal-`,
 ];
-/**
- * `@comvi/next`'s composed-root module, the one that carries its `IS_DEV`
- * diagnostic. `preserveModules` names it per module rather than per chunk, and
- * the fragment covers `createNextI18n.js` and `createNextI18n.dev.js` alike.
- */
 /** `@comvi/next`'s middleware module, per artifact (the `next-proxy` case). */
 const NEXT_CREATE_MIDDLEWARE = `@comvi${path.sep}next${path.sep}dist${path.sep}middleware${path.sep}createMiddleware`;
 const NEXT_CREATE_MIDDLEWARE_PROD = `${NEXT_CREATE_MIDDLEWARE}.js`;
@@ -120,15 +79,6 @@ const NEXT_PROXY_FORBIDDEN = [
   `@comvi${path.sep}core${path.sep}`,
   `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
 ];
-const NEXT_COMPOSED_ROOT_MODULE = [`@comvi${path.sep}next${path.sep}dist${path.sep}createNextI18n`];
-/**
- * `@comvi/next`'s one `IS_DEV` diagnostic: the readable half of the
- * `E_USE_INSTANCE_IDENTITY` error `createNextI18n(…).use` throws when an installer
- * hands back a different object. The production family throws the bare code
- * instead, so this text is a development-artifact marker in the same way.
- * `next-dev-conditions.mjs` deliberately never quotes it.
- */
-const NEXT_USE_IDENTITY_HINT = ".use(installer) must return the instance it was given";
 /**
  * Matrix cases. `sentinels` says what the bundler's module graph must look
  * like for core's tag-registration chunks (the `sideEffects` set):
@@ -259,23 +209,13 @@ const CASES = [
   // The 0.7 cases below run again when their binding's lot moves them to 0.8
   // (`fixtures-08`, tooling/migration-pending.mjs).
   {
-    // The companion-only server graph must drop next's own composed-host module
-    // (`createNextI18n.js`) and the unused capability subpaths. That holds in
-    // DEVELOPMENT too, where webpack keeps the sibling `./server` re-exports
-    // alive — which is the point: the server helpers name only base bindings
-    // from `@comvi/core`, so the composed builder is absent at the SOURCE
-    // instead of relying on the bundler to prune it. `@comvi/core` itself is
-    // present — it is the base host this fixture composes on.
+    // The 0.8 server recipe under `react-server`: `createGetI18n` and `handover()`. Next's
+    // client half and the core subpaths the app does not name stay out.
     name: "next-server-on-default",
-    // A Next SERVER graph resolves under `react-server`, which is what turns
-    // the entry's own `import "server-only"` into an empty module. Without it
-    // the bundle carries the marker's throw, exactly as a client graph would.
     conditions: ["react-server"],
     sentinels: "absent",
-    absentModules: [
-      ...UNUSED_CAPABILITY_SUBPATHS,
-      `@comvi${path.sep}next${path.sep}dist${path.sep}createNextI18n.js`,
-    ],
+    absentModules: [...CORE_SUBPATHS_08, `@comvi${path.sep}next${path.sep}dist${path.sep}client`],
+    presentModules: [coreEntry08("ssr"), coreEntry08("internal")],
     packages: ["@comvi/core", "@comvi/react", "@comvi/next"],
     deps: ["react", "next"],
   },
@@ -295,16 +235,16 @@ const CASES = [
   // retained module. That is exactly how `export * from "@comvi/core"` kept the
   // root entry alive for vue, and why every entry uses NAMED re-exports only.
   {
-    // This entry re-exports `T` through `@comvi/react`, whose component reaches
-    // the pure rich-text seam rather than ambient registration — which is why it
-    // needs no webpack-development exception for the tag sentinels.
+    // The 0.8 client recipe: `<I18nProvider payload>` from `@comvi/next/client`. Next's server
+    // half and the core subpaths the app does not name stay out.
     name: "next-client-default",
     sentinels: "absent",
     absentModules: [
-      ...UNUSED_CAPABILITY_SUBPATHS,
-      ...LOADER_SUBPATH,
-      `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
+      ...CORE_SUBPATHS_08,
+      REACT_FORMAT_08,
+      `@comvi${path.sep}next${path.sep}dist${path.sep}server`,
     ],
+    presentModules: [coreEntry08("internal")],
     packages: ["@comvi/core", "@comvi/react", "@comvi/next"],
     deps: ["react", "next"],
   },
@@ -333,18 +273,6 @@ const CASES = [
     packages: ["@comvi/core", "@comvi/react", "@comvi/next"],
     deps: ["react", "next"],
   },
-  {
-    name: "next-client-icu",
-    sentinels: "absent",
-    absentModules: [
-      ...LOADER_SUBPATH,
-      ...PLUGINS_SUBPATH,
-      ...DEVTOOLS_SUBPATH,
-      `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
-    ],
-    packages: ["@comvi/core", "@comvi/react", "@comvi/next"],
-    deps: ["react", "next"],
-  },
   // ---------------------------------------------------------------------
   // The DEV-CONDITIONS recipes: one per package that ships an `IS_DEV`
   // diagnostic, each defining NO `__DEV__` anywhere (neither bundler config
@@ -356,18 +284,6 @@ const CASES = [
   // warnings dead in BOTH modes — a defect no other case can see, because the
   // module graph is identical either way and only the resolved artifact's
   // text differs.
-  {
-    // `@comvi/next`, on its ROOT entry: `createNextI18n` — the only module
-    // with an `IS_DEV` diagnostic — ships from `./index` alone. Tags are
-    // PRESENT here, unlike every other dev-conditions case: the composed root
-    // bare-imports `@comvi/core/tags`, as the 0.4 root did.
-    name: "next-dev-conditions",
-    sentinels: "present",
-    devOnlyText: [NEXT_USE_IDENTITY_HINT],
-    presentModules: NEXT_COMPOSED_ROOT_MODULE,
-    packages: ["@comvi/core", "@comvi/react", "@comvi/next"],
-    deps: ["react", "next"],
-  },
   {
     // The editor's production exclusion, as a gate rather than a claim. The
     // package's exports map answers the `production` condition with a no-op

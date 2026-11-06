@@ -285,5 +285,5 @@ test("10: the client bundle carries no server code and no server secret", async 
     "x-comvi-locale", // createGetI18n's request read
     "node:http",
   ])
-    expect(client, secret).not.toContain(secret);
+    expect(client.includes(secret), `${secret} in a client chunk`).toBe(false);
 });

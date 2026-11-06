@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useI18n } from "@comvi/next/client";
+import { useI18n } from "@comvi/react";
 import { useName } from "./NameProvider";
 
 export function StartGreeting() {

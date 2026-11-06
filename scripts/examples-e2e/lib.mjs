@@ -100,7 +100,7 @@ export const STEP_LEGEND = {
   b: "switcher en → uk → de changes the greeting",
   c: "plural 0/1/2/5 in en, uk (one/few/many) and de",
   d: "<T> renders a real <a href> with translated text",
-  e: "catalogs load lazily, one per visited locale",
+  e: "catalogs load lazily, one per visited locale (next: each locale's page carries its own and en)",
   f: "SSR: plain-HTTP /uk already translated, then hydrates",
   g: "no console.error or uncaught error in g's own pass (every step also fails on its own)",
   g2: "--cdn: the same in the dead-CDN phase, past a narrow allowlist of network messages",
@@ -908,7 +908,7 @@ export const F15_VARIANT = {
     edits: [
       { file: "src/i18n/routing.ts", from: 'defaultLocale: "en"', to: 'defaultLocale: "uk"' },
     ],
-    requires: [{ file: "src/i18n/config.ts", text: 'fallbackLocale: "en"' }],
+    requires: [{ file: "src/i18n/routing.ts", text: 'fallbackLocale: "en"' }],
   },
   nuxt: {
     edits: [{ file: "nuxt.config.ts", from: 'defaultLocale: "en"', to: 'defaultLocale: "uk"' }],
