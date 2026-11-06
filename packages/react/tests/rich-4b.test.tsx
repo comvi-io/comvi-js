@@ -4,6 +4,7 @@
  * `null` does), and `t()` returns what its types say.
  */
 import type { ReactNode } from "react";
+import { renderToString } from "react-dom/server";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { I18nProvider, T, useI18n } from "../src";
@@ -33,6 +34,54 @@ describe("<T components> (lot 4b, R3-24 in React)", () => {
     );
     expect(container.querySelectorAll("br")).toHaveLength(1);
     expect(container.innerHTML).toBe("Line one<br>Line two");
+  });
+
+  it("an empty tag through components: a void element takes no children, on the client and the server", () => {
+    const { i18n } = make({
+      locale: "en",
+      messages: {
+        en: {
+          br: "Line one<br/>Line two",
+          closed: "Line one<br></br>Line two",
+          hr: "A <hr/> here",
+        },
+      },
+    });
+    const components = {
+      br: "br",
+      hr: { component: "hr", props: { className: "x" } },
+    };
+    const cases = [
+      ["br", "Line one<br>Line two", "Line one<br/>Line two"],
+      ["closed", "Line one<br>Line two", "Line one<br/>Line two"],
+      ["hr", 'A <hr class="x"> here', 'A <hr class="x"/> here'],
+    ] as const;
+    for (const [key, client, server] of cases) {
+      const el = (
+        <I18nProvider i18n={i18n}>
+          <T i18nKey={key} components={components} />
+        </I18nProvider>
+      );
+      expect(render(el).container.innerHTML).toBe(client);
+      expect(renderToString(el)).toBe(server);
+    }
+  });
+
+  it("an empty tag gives a component no children; a tag with content still gives them", () => {
+    const seen: ReactNode[] = [];
+    const Probe = ({ children }: { children?: ReactNode }) => {
+      seen.push(children);
+      return <i>{children}</i>;
+    };
+    const { i18n } = make({ locale: "en", messages: { en: { m: "<p/><p>x</p>" } } });
+    const { container } = render(
+      <I18nProvider i18n={i18n}>
+        <T i18nKey="m" components={{ p: Probe }} />
+      </I18nProvider>,
+    );
+    expect(container.innerHTML).toBe("<i></i><i>x</i>");
+    expect(seen[0]).toBeUndefined();
+    expect(seen[1]).not.toBeUndefined();
   });
 
   it("precedence: a handler prop, then components; an `undefined` prop does not override, `null` does", () => {
