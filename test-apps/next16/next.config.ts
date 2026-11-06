@@ -1,11 +1,6 @@
-import type { NextConfig } from "next";
 import path from "path";
+import { withComvi } from "@comvi/next/plugin";
 
-const nextConfig: NextConfig = {
+export default withComvi()({
   outputFileTracingRoot: path.resolve(__dirname, "../../"),
-  experimental: {
-    externalDir: true,
-  },
-};
-
-export default nextConfig;
+});

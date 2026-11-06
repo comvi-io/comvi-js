@@ -111,24 +111,24 @@ describe("@comvi/next/middleware stays an Edge-safe entry", () => {
     });
 
     expect(modules.filter((m) => m.includes("comvi-core"))).toEqual([]);
-    expect(modules).not.toContain("src/createNextI18n.ts");
+    expect(modules).not.toContain("src/server/getI18n.ts");
   });
 
-  it("control: the same probe reports core when routing comes from the package root", async () => {
+  it("control: the same probe reports core when the middleware imports the server helper", async () => {
     const { modules } = await graphOf({
       stdin: {
         contents: [
           'import { createMiddleware } from "./src/middleware";',
-          'import { createNextI18n } from "./src/index";',
-          'const { routing } = createNextI18n({ locales: ["en", "de"], defaultLocale: "en" });',
-          "export default createMiddleware(routing);",
+          'import { createGetI18n } from "./src/server";',
+          'export const getI18n = createGetI18n({ locales: ["en"], defaultLocale: "en", timeZone: "UTC" });',
+          'export default createMiddleware({ locales: ["en", "de"], defaultLocale: "en" });',
         ].join("\n"),
         resolveDir: packageRoot,
         loader: "ts",
       },
     });
 
-    expect(modules).toContain("src/createNextI18n.ts");
+    expect(modules).toContain("src/server/getI18n.ts");
     expect(modules.filter((m) => m.includes("comvi-core")).length).toBeGreaterThan(0);
   });
 

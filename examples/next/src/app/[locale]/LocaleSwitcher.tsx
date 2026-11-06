@@ -1,6 +1,6 @@
 "use client";
 
-import { useI18n } from "@comvi/next/client";
+import { useI18n } from "@comvi/react";
 import { useLocalizedRouter, usePathname } from "@comvi/next/navigation";
 import { locales } from "@/i18n/routing";
 

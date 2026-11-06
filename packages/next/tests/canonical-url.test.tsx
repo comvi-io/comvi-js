@@ -15,7 +15,7 @@
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
-import { FakeI18n } from "@comvi/test-utils/fakeI18n";
+import { payloadFor } from "./helpers/payload";
 
 import { I18nProvider } from "../src/client/I18nProvider";
 import type { RoutingConfig } from "../src/routing/types";
@@ -25,9 +25,8 @@ const ROUTING: RoutingConfig = { locales: ["en", "de"], defaultLocale: "en" };
 const renderAt = (url: string, locale: string, routing?: RoutingConfig) => {
   window.history.replaceState(null, "", url);
   const replaced = vi.spyOn(window.history, "replaceState");
-  const fake = new FakeI18n({ language: locale });
   render(
-    <I18nProvider i18n={fake.asI18n()} locale={locale} routing={routing} autoInit={false}>
+    <I18nProvider payload={payloadFor(locale)} routing={routing}>
       <p>page</p>
     </I18nProvider>,
   );
@@ -72,9 +71,8 @@ describe("the routing provider keeps the public URL in the address bar", () => {
 
   it("a switch that arrives as a new locale on the same provider → the URL it landed on is put right", () => {
     window.history.replaceState(null, "", "/de/about");
-    const fake = new FakeI18n({ language: "de" });
     const tree = (locale: string) => (
-      <I18nProvider i18n={fake.asI18n()} locale={locale} routing={ROUTING} autoInit={false}>
+      <I18nProvider payload={payloadFor(locale)} routing={ROUTING}>
         <p>page</p>
       </I18nProvider>
     );

@@ -63,6 +63,11 @@
       "development": "./dist/comvi-core-devtools.dev.js",
       "default": "./dist/comvi-core-devtools.js"
     },
+    "./ssr": {
+      "types": "./dist/ssr.d.ts",
+      "development": "./dist/comvi-core-ssr.dev.js",
+      "default": "./dist/comvi-core-ssr.js"
+    },
     "./internal": {
       "types": "./dist/internal.d.ts",
       "development": "./dist/comvi-core-internal.dev.js",

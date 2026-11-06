@@ -360,72 +360,26 @@
       "entry": ["@comvi/next/server"],
       "fixture": "framework/next-server-default-loader.ts",
       "external": ["next", "next/*", "react", "react/*"],
-      "gzipBudgetBytes": 8746,
+      "gzipBudgetBytes": 5556,
       "baseline": {
-        "minBytes": 22367,
-        "gzipBytes": 8329,
-        "measuredAt": "2026-10-20"
+        "minBytes": 10909,
+        "gzipBytes": 5291,
+        "measuredAt": "2026-11-06"
       },
-      "note": "Gated Next server floor: the `@comvi/next/server` entry with the loader composed."
+      "note": "Gated Next server floor: `createGetI18n` from `@comvi/next/server` with a loader, and `handover()` from `@comvi/core/ssr` (lot 6a: the 0.7 composed-host graph replaced). Lot 6a (2026-11-06, Node v24.22.1): 5291 B (5308 B with the review fix, within the budget; baseline kept, budget not raised), budget 8746 → 5556 (ceil × 1.05), size-budgets.md 2026-11-06 lot 6a."
     },
     {
       "name": "fw-next-client-default",
       "entry": ["@comvi/next/client"],
       "fixture": "framework/next-client-default.ts",
       "external": ["next", "next/*", "react", "react/*"],
-      "gzipBudgetBytes": 8620,
+      "gzipBudgetBytes": 6445,
       "baseline": {
-        "minBytes": 22307,
-        "gzipBytes": 8209,
-        "measuredAt": "2026-10-14"
+        "minBytes": 12913,
+        "gzipBytes": 6138,
+        "measuredAt": "2026-11-06"
       },
-      "note": "Gated Next client floor: the `@comvi/next/client` entry only, no server module in the graph."
-    },
-    {
-      "name": "fw-next-root-composed",
-      "entry": ["@comvi/next"],
-      "fixture": "framework/next-root-composed.ts",
-      "external": ["next", "next/*", "react", "react/*"],
-      "gzipBudgetBytes": 10611,
-      "baseline": {
-        "minBytes": 28097,
-        "gzipBytes": 10105,
-        "measuredAt": "2026-10-20"
-      },
-      "note": "Gated Next recommended path: the composed root from `@comvi/next` with `loader(map)` and `nextPlugin(…)` composed through `.use`."
-    },
-    {
-      "name": "fw-next-root-devtools",
-      "entry": ["@comvi/next"],
-      "fixture": "framework/next-root-devtools.ts",
-      "external": ["next", "next/*", "react", "react/*"],
-      "gzipBudgetBytes": 11837,
-      "baseline": {
-        "minBytes": 31065,
-        "gzipBytes": 11273,
-        "measuredAt": "2026-10-20"
-      },
-      "note": "Gated Next recommended path with `.use(devtools())`: the `fw-next-root-composed` graph plus discovery and the editor loader, the only Next row that carries `@comvi/core/devtools`."
-    },
-    {
-      "name": "fw-next-server-provider",
-      "entry": ["@comvi/next/server"],
-      "fixture": "framework/next-server-provider.ts",
-      "external": [
-        "next",
-        "next/*",
-        "react",
-        "react/*",
-        "@comvi/next/config",
-        "*/client/ComviClientProvider.js"
-      ],
-      "gzipBudgetBytes": 2155,
-      "baseline": {
-        "minBytes": 4383,
-        "gzipBytes": 2052,
-        "measuredAt": "2026-10-11"
-      },
-      "note": "Gated Next server graph of the withComvi setup: `<ComviProvider>` and `getI18n` from `@comvi/next/server`, the provider's client half external as the client reference Next keeps."
+      "note": "Gated Next client graph: `<I18nProvider payload>` from `@comvi/next/client` and a Client Component on `@comvi/react` (t() with {name} and a plural); no server module in the graph (lot 6a: the 0.7 composed client host replaced). Lot 6a (2026-11-06, Node v24.22.1): 6138 B (6147 B with the review fix, within the budget; baseline kept, budget not raised), budget 8620 → 6445 (ceil × 1.05), size-budgets.md 2026-11-06 lot 6a."
     },
     {
       "name": "fw-next-plugin-node",

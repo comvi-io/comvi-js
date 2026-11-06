@@ -457,7 +457,8 @@ jobs:
 
   # `pnpm test-apps:smoke`: builds test-apps/next (Next 15), next16, nuxt
   # (Nuxt 3) and nuxt4 against the workspace packages, serves each production
-  # build and checks redirects, `<html lang>`, SSR text and the Nitro route.
+  # build and checks redirects, `<html lang>`, SSR text and the Nitro route;
+  # the Next apps then run the lot 6a browser scenarios (next.spec.ts).
   # packages/next and packages/nuxt are unit-tested against the upper major of
   # their peer ranges; this job is what proves the lower one.
   test-apps-smoke:
@@ -483,6 +484,10 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # The Next apps also run scripts/test-apps-smoke/next.spec.ts (lot 6a) in Chromium.
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Build and smoke-test the apps
         env:

@@ -69,7 +69,7 @@ each README says where `cdn()` goes instead.
 
 ## How an example is wired
 
-An example creates one instance in its `src/i18n.ts` (Next: `src/i18n/config.ts`, Nuxt: `src/comvi.i18n.ts`): the locale, a loader that reads one bundled file per catalog (or the Comvi CDN with those files as the fallback), the locale detector, and `devtools()`, which makes the instance visible to the Comvi browser extension and lets it load the in-context editor. React's, with the counter plumbing left out:
+An example creates one instance in its `src/i18n.ts` (Next: one per request from `src/i18n/server.ts`, Nuxt: `src/comvi.i18n.ts`): the locale, a loader that reads one bundled file per catalog (or the Comvi CDN with those files as the fallback), the locale detector, and `devtools()`, which makes the instance visible to the Comvi browser extension and lets it load the in-context editor. React's, with the counter plumbing left out:
 
 ```ts title="src/i18n.ts"
 import { createI18n, type Loader } from "@comvi/react";

@@ -21,16 +21,11 @@ import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, renderHook, screen, act, fireEvent } from "@testing-library/react";
 import { NextRequest } from "next/server";
-import { FakeI18n } from "@comvi/test-utils/fakeI18n";
+import { payloadFor } from "./helpers/payload";
 
 import { I18nProvider } from "../src/client/I18nProvider";
 import { Link, useLocalizedRouter } from "../src/navigation";
 import { createMiddleware } from "../src/middleware/createMiddleware";
-import { createNextI18n } from "../src/createNextI18n";
-import { createNextI18nFromInstance } from "../src/server";
-import { _resetServerI18n } from "../src/server/cache";
-import { createI18n } from "@comvi/core";
-import { attachLoader } from "@comvi/core/loader";
 import { defineRouting } from "../src/routing/defineRouting";
 import type { RoutingConfig } from "../src/routing/types";
 
@@ -126,10 +121,9 @@ const navigate = (
 };
 
 const renderRouter = (routing: RoutingConfig, locale: string) => {
-  const fake = new FakeI18n({ language: locale });
   return renderHook(() => useLocalizedRouter(), {
     wrapper: ({ children }: { children: React.ReactNode }) => (
-      <I18nProvider i18n={fake.asI18n()} locale={locale} routing={routing} autoInit={false}>
+      <I18nProvider payload={payloadFor(locale)} routing={routing}>
         {children}
       </I18nProvider>
     ),
@@ -137,9 +131,8 @@ const renderRouter = (routing: RoutingConfig, locale: string) => {
 };
 
 const renderLink = (link: React.ReactNode, routing: RoutingConfig, locale: string) => {
-  const fake = new FakeI18n({ language: locale });
   return render(
-    <I18nProvider i18n={fake.asI18n()} locale={locale} routing={routing} autoInit={false}>
+    <I18nProvider payload={payloadFor(locale)} routing={routing}>
       {link}
     </I18nProvider>,
   );
@@ -450,12 +443,9 @@ describe("a switch through the hooks without a routing config", () => {
   // no longer records the client-router fetch a switch makes, so the switch
   // records itself, in the cookie the middleware reads by default.
   const renderBareRouter = (locale: string) => {
-    const fake = new FakeI18n({ language: locale });
     return renderHook(() => useLocalizedRouter(), {
       wrapper: ({ children }: { children: React.ReactNode }) => (
-        <I18nProvider i18n={fake.asI18n()} locale={locale} autoInit={false}>
-          {children}
-        </I18nProvider>
+        <I18nProvider payload={payloadFor(locale)}>{children}</I18nProvider>
       ),
     });
   };
@@ -474,9 +464,8 @@ describe("a switch through the hooks without a routing config", () => {
 
   it("a clicked <Link locale='de'> → NEXT_LOCALE records de", () => {
     document.cookie = "NEXT_LOCALE=en; Path=/";
-    const fake = new FakeI18n({ language: "en" });
     render(
-      <I18nProvider i18n={fake.asI18n()} locale="en" autoInit={false}>
+      <I18nProvider payload={payloadFor("en")}>
         <Link href="/about" locale="de">
           Deutsch
         </Link>
@@ -489,63 +478,22 @@ describe("a switch through the hooks without a routing config", () => {
   });
 });
 
-describe("the routing object the factories return carries the cookie the middleware writes", () => {
-  // The standard setup: `defineRouting` in `routing.ts`, spread into the
-  // factory, whose `routing` reaches `<I18nProvider>` through `<ComviProvider>`.
-  // The switch must write the cookie the middleware reads. Both factories
-  // used to rebuild `routing` from four keys and drop `localeCookie`.
-  const factories = {
-    createNextI18n: (options: RoutingConfig) => createNextI18n({ ...options }).routing,
-    createNextI18nFromInstance: (options: RoutingConfig) =>
-      createNextI18nFromInstance(
-        () => attachLoader(createI18n({ locale: "en", exposeGlobal: false, devMode: false })),
-        { ...options },
-      ).routing,
-  };
-
-  const switchThrough = (
-    factory: keyof typeof factories,
-    localeCookie: RoutingConfig["localeCookie"],
-  ) => {
-    _resetServerI18n();
-    const routing = factories[factory](
-      defineRouting({ locales: ["en", "de"], defaultLocale: "en", localeCookie }),
-    );
+describe("the routing defineRouting returns carries the cookie the middleware writes", () => {
+  const switchThrough = (localeCookie: RoutingConfig["localeCookie"]) => {
+    const routing = defineRouting({ locales: ["en", "de"], defaultLocale: "en", localeCookie });
     const { result } = renderRouter(routing, "de");
     act(() => {
       result.current.push("/about", "en");
     });
   };
 
-  it.each(Object.keys(factories) as Array<keyof typeof factories>)(
-    "%s with localeCookie: 'MY_LOCALE' → the switch writes MY_LOCALE, not NEXT_LOCALE",
-    (factory) => {
-      switchThrough(factory, "MY_LOCALE");
+  it("localeCookie: 'MY_LOCALE' → the switch writes MY_LOCALE, not NEXT_LOCALE", () => {
+    switchThrough("MY_LOCALE");
+    expect(readCookies()).toEqual({ MY_LOCALE: "en" });
+  });
 
-      expect(readCookies()).toEqual({ MY_LOCALE: "en" });
-    },
-  );
-
-  it.each(Object.keys(factories) as Array<keyof typeof factories>)(
-    "%s with localeCookie: false → the switch writes no cookie",
-    (factory) => {
-      switchThrough(factory, false);
-
-      expect(readCookies()).toEqual({});
-    },
-  );
-
-  it.each(Object.keys(factories) as Array<keyof typeof factories>)(
-    "%s with cookie attributes → returned as configured",
-    (factory) => {
-      _resetServerI18n();
-      const localeCookie = { name: "LANG", maxAge: 60, sameSite: "strict" as const };
-
-      const routing = factories[factory](
-        defineRouting({ locales: ["en", "de"], defaultLocale: "en", localeCookie }),
-      );
-
-      expect(routing.localeCookie).toEqual({ name: "LANG", maxAge: 60, sameSite: "strict" });
-    },
-  );
+  it("localeCookie: false → the switch writes no cookie", () => {
+    switchThrough(false);
+    expect(readCookies()).toEqual({});
+  });
 });

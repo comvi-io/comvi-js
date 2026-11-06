@@ -1,4 +1,4 @@
-import { getI18n } from "@comvi/next/server";
+import { getI18n } from "@/i18n/server";
 
 const SOURCE = "https://github.com/comvi-io/comvi-js/tree/main/examples/next";
 
