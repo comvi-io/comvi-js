@@ -36,6 +36,19 @@ describe("<T components> (R3-24, lot 4b)", () => {
     return mountWith(i18n, Root).html({ raw: true });
   };
 
+  it("<br/> renders a real <br> through `components` or a handler, as the README shows", () => {
+    const { i18n } = make({ locale: "en", messages: { en: { n: "Line one<br/>Line two" } } });
+    for (const attrs of [{ components: { br: "br" } }, { br: () => h("br") }]) {
+      const Root = defineComponent({
+        setup: () => () => h(T as Component, { i18nKey: "n", ...attrs }),
+      });
+      const wrapper = mountWith(i18n, Root);
+      expect(wrapper.findAll("br")).toHaveLength(1);
+      expect(strip(wrapper.html({ raw: true }))).toBe("Line one<br>Line two");
+      wrapper.unmount();
+    }
+  });
+
   it.each([false, true])(
     "renders nested tags by name: a tag name or a component, the content as its default slot (bound: %s)",
     (bound) => {

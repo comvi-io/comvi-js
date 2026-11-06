@@ -25,6 +25,17 @@ describe("<T components> (lot 4b, R3-24 in React)", () => {
     expect(container.innerHTML).toBe('Read <strong>the <i class="it">new</i> terms</strong> now.');
   });
 
+  it("<br/> renders a real <br> through a handler, as the README shows", () => {
+    const { i18n } = make({ locale: "en", messages: { en: { m: "Line one<br/>Line two" } } });
+    const { container } = render(
+      <I18nProvider i18n={i18n}>
+        <T i18nKey="m" br={() => <br />} />
+      </I18nProvider>,
+    );
+    expect(container.querySelectorAll("br")).toHaveLength(1);
+    expect(container.innerHTML).toBe("Line one<br>Line two");
+  });
+
   it("an empty tag through components: a void element takes no children, on the client and the server", () => {
     const { i18n } = make({
       locale: "en",

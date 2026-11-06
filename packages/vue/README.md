@@ -32,7 +32,6 @@ npm install @comvi/vue @comvi/core # peer: vue ^3.5.0; the app imports @comvi/co
 import { createApp } from "vue";
 import { createI18n } from "@comvi/vue";
 import App from "./App.vue";
-
 const i18n = createI18n({
   locale: "en",
   messages: { en: { greeting: "Hello, {name}!" }, uk: { greeting: "Привіт, {name}!" } },
@@ -106,8 +105,8 @@ import TermsLink from "./TermsLink.vue"; // <a href="/terms"><slot /></a>
 </script>
 
 <template>
-  <!-- "terms": "Read the <link>terms</link>, <b>in <i>full</i></b>." -->
-  <T i18n-key="terms" :components="{ link: TermsLink, b: 'strong', i: 'em' }" />
+  <!-- "terms": "Read the <link>terms</link>,<br/><b>in <i>full</i></b>." -->
+  <T i18n-key="terms" :components="{ link: TermsLink, br: 'br', b: 'strong', i: 'em' }" />
 </template>
 ```
 
@@ -115,7 +114,8 @@ A tag renders through a handler attribute of its name (`:link="(c) => h('a', c)"
 `components` entry (a tag name, a component, or `{ component: RouterLink, props: { to: "/terms" } }`;
 the content is its default slot, nested tags included), else a slot of its name
 (`<template #link="{ children }">`, `children` the tag's text), else as text. Every other
-attribute but `i18n-key`, `ns`, `locale` and `markers` is a param, camelized, `class` too.
+attribute but `i18n-key`, `ns`, `locale` and `markers` is a param, camelized, `class` too. `<br/>`
+renders nothing without its entry or handler.
 
 ## Server rendering
 
