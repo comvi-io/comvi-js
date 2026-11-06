@@ -39,6 +39,15 @@ export function setup() {
       return h("a", [inferred as string, wrong]);
     },
   });
+  // A handler gets a string only for text-only content and a list of children around nested
+  // tags (`<b>Hi <i>you</i></b>`), so a `string` annotation would throw there: refused.
+  // @ts-expect-error a handler's argument is Children, not a string
+  t("message", { b: (c: string) => c.toUpperCase() });
+  // @ts-expect-error the same in <T>
+  T({ i18nKey: "message", b: (c: string) => c.toUpperCase() });
+  // An annotation that matches what the binding delivers stays a handler.
+  t("message", { b: (c: Children) => h("b", c) });
+  T({ i18nKey: "message", b: (c: Children) => h("b", c) });
   // Text params only (numbers, dates, lists of them): a string.
   const text: string = t("when", { at: new Date(), n: 2, list: ["a", 1] });
   // @ts-expect-error a VNode in a plain {x} would print String(vnode)

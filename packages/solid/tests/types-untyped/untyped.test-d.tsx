@@ -39,13 +39,22 @@ export function Component() {
   const viaComponents = <T i18nKey="terms" components={{ b: "strong", i: Italic }} />;
   // @ts-expect-error a component entry is not a number
   const badComponents = <T i18nKey="terms" components={{ b: 1 }} />;
+  // The handler gets the tag's content as JSX (a list of parts), never a string: a narrower
+  // annotation throws at run time (`c.toUpperCase is not a function`), so the types refuse it.
+  // @ts-expect-error a handler's argument is a JSX.Element, not a string
+  t("message", { strong: (c: string) => c.toUpperCase() });
+  // @ts-expect-error the same in <T>
+  const narrowProp = <T i18nKey="message" strong={(c: string) => c.toUpperCase()} />;
+  // An annotation that matches what the binding delivers stays a handler.
+  const annotated = <T i18nKey="message" strong={(c: JSX.Element) => <b>{c}</b>} />;
+  t("message", { strong: (c: JSX.Element) => <b>{c}</b> });
   const { T: Bound } = useI18n("shop");
   const bound = <Bound i18nKey="cart.title" count={2} b={(c) => <b>{c}</b>} />;
   // @ts-expect-error the bound <T> takes no ns: it is fixed by useI18n(ns)
   const wrongNs = <Bound i18nKey="x" ns="other" />;
   return [
     ...[s, f, node, rich, notText, text, nodeProp, replaced],
-    ...[viaComponents, badComponents, bound, wrongNs],
+    ...[viaComponents, badComponents, bound, wrongNs, narrowProp, annotated],
   ];
 }
 

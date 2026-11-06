@@ -86,15 +86,22 @@ names and relative time in the locale on screen; what calls one re-runs on a swi
 
 ## Load from Comvi
 
-```ts title="src/main.ts"
-import { mount } from "svelte";
+`src/i18n.ts` gets the loader, and `main.ts` waits for that same instance, the one `App.svelte`
+passes to `setI18n()`:
+
+```ts title="src/i18n.ts"
 import { createI18n } from "@comvi/svelte";
 import { cdn } from "@comvi/core/cdn";
-import App from "./App.svelte";
 export const i18n = createI18n({
   locale: "en",
   loader: cdn("https://cdn.comvi.io/<project-token>"),
 });
+```
+
+```ts title="src/main.ts"
+import { mount } from "svelte";
+import App from "./App.svelte";
+import { i18n } from "./i18n";
 i18n.ready.then(() => mount(App, { target: document.body }));
 ```
 

@@ -46,10 +46,10 @@ type Text = string | number | bigint | boolean | Date | null | undefined;
 
 /**
  * Params of a message in a project with no generated catalogs: a value printed as text or a
- * tag handler. The handler member gives an inline `(children) => …` its argument type.
- * A handler is a method signature, so its parameter is compared both ways: one annotated
- * with a narrower type (`(c: string) => …`) is still a handler.
- * `C` is `<T>`'s `components` map, a prop under the same index signature.
+ * tag handler, as `t()` takes them. The handler member gives an inline `(children) => …` its
+ * argument type. `t()` is text, so its handler gets the tag's text: a method signature lets one
+ * annotated `(c: string) => …` stay a handler. `<T>` takes {@link TagParam} instead, whose
+ * handler may get a list.
  */
 export type UntypedParams<C = never> = Record<
   string,
@@ -75,6 +75,20 @@ export type TagSnippet = Snippet<[children: string]>;
 
 type TagMap = Readonly<Record<string, TagComponent>>;
 
+/**
+ * A tag param of `<T>`: a handler, or a snippet of the tag's name. The handler gets the tag's
+ * `Children` (a list once a nested tag renders through `components`), so one annotated
+ * `(c: string) => …` is refused: it throws on nested markup. A snippet gets the text, and only
+ * a snippet returns a snippet's result, so the second member takes snippets alone. Both members
+ * take `Children`, so an inline handler still gets its argument's type. A handler that returns
+ * `any` passes as a snippet: `any` turns this check off, as it does any other.
+ */
+type TagParam =
+  | ((children: Children) => unknown)
+  | { snippet(children: Children): ReturnType<TagSnippet> }["snippet"];
+/** `UntypedParams` for `<T>`: its tag params as {@link TagParam}, plus the `components` map. */
+type TParams = Record<string, Text | readonly Text[] | TagParam | TagMap>;
+
 /** The core's typed `<T>` signature: only its props are taken from it, never its call. */
 declare const _typed: TComponentFor<void, 1, TagMap>;
 /** The key guard of the core's signatures (R3-2): what a key that is not one infers. */
@@ -88,13 +102,10 @@ type PropsOf<K extends Key<N>, N extends NsOf> = { i18nKey: K; ns?: N } & {
   [P in keyof Parameters<typeof _typed<K, N>>[0]]: OrSnippet<Parameters<typeof _typed<K, N>>[0][P]>;
 };
 /**
- * A tag param: a handler gets the tag's `Children`, a snippet of the tag's name
- * (`{#snippet link(children: string)}`) the text. A method's parameter is compared both ways, so
- * one signature takes both, and an inline handler still gets its argument's type.
+ * A tag param of a generated key in `<T>`: a handler or a snippet of the tag's name
+ * ({@link TagParam}).
  */
-type OrSnippet<V> = Tag extends V
-  ? Exclude<V, Tag> | { tag(children: Children): unknown }["tag"]
-  : V;
+type OrSnippet<V> = Tag extends V ? Exclude<V, Tag> | TagParam : V;
 
 /**
  * `<T i18nKey ns? locale? markers? components? {...params}>`: typed by the generated catalogs
@@ -112,7 +123,7 @@ export type TComponent = [NsOf] extends [never]
         locale?: string;
         markers?: boolean;
         components?: TagMap;
-      } & UntypedParams<TagMap>
+      } & TParams
     >
   : {
       new <K extends Key<N>, N extends NsOf = "default" & NsOf>(
@@ -133,7 +144,7 @@ export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
         markers?: boolean;
         ns?: never;
         components?: TagMap;
-      } & UntypedParams<TagMap>
+      } & TParams
     >
   : NS extends NsOf
     ? {

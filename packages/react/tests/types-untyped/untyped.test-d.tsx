@@ -37,6 +37,15 @@ export function Component() {
       );
     },
   });
+  // The handler gets a React node (a Fragment), never a string: a narrower annotation would
+  // throw at run time (`children.toUpperCase is not a function`), so the types refuse it.
+  // @ts-expect-error a handler's argument is a ReactNode, not a string
+  t("message", { strong: (children: string) => children.toUpperCase() });
+  // @ts-expect-error the same in <T>
+  const narrowProp: ReactNode = <T i18nKey="message" strong={(c: string) => c.toUpperCase()} />;
+  // An annotation that matches what the binding delivers stays a handler.
+  const annotated: ReactNode = <T i18nKey="message" strong={(c: ReactNode) => <b>{c}</b>} />;
+  t("message", { strong: (c: ReactNode) => <b>{c}</b> });
   // Text params only (numbers, dates, lists of them): a string.
   const text: string = t("when", { at: new Date(), n: 2, list: ["a", 1] });
   // An element is no param: a plain {x} prints text, so the types refuse it.
@@ -56,7 +65,7 @@ export function Component() {
   const wrongNs: ReactNode = <Bound i18nKey="x" ns="other" />;
   return [
     ...[s, f, node, rich, notText, text, withNode, nodeProp, replaced],
-    ...[viaComponents, badComponents, bound, wrongNs],
+    ...[viaComponents, badComponents, bound, wrongNs, narrowProp, annotated],
   ];
 }
 
