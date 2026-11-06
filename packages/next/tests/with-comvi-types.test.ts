@@ -46,9 +46,15 @@ async function until(check: () => boolean): Promise<void> {
   expect(check()).toBe(true);
 }
 
-afterEach(() => {
+/** A fresh process tree: no runs here, no marker inherited. */
+function reset(): void {
   for (const run of runs()?.values() ?? []) run.watcher?.close();
   runs()?.clear();
+  delete process.env.COMVI_NEXT_TYPES_BUILT;
+}
+
+afterEach(() => {
+  reset();
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -106,16 +112,26 @@ describe("withComvi({ types }): next build", () => {
     );
     expect(fs.existsSync(path.join(root, OUT))).toBe(false);
 
-    runs()?.clear();
+    reset();
     await withComvi({ types })()(BUILD, { defaultConfig: {} });
     const fresh = read(root);
-    runs()?.clear();
+    reset();
     await expect(checked()(BUILD, { defaultConfig: {} })).resolves.toBeDefined();
 
-    runs()?.clear();
+    reset();
     fs.writeFileSync(path.join(root, "src/locales/en.json"), JSON.stringify({ added: "x" }));
     await expect(checked()(BUILD, { defaultConfig: {} })).rejects.toThrowError(/is outdated/);
     expect(read(root)).toBe(fresh);
+  });
+  it("marks the environment, so a build worker that loads the config again skips", async () => {
+    const root = project();
+    await withComvi({ types })()(BUILD, { defaultConfig: {} });
+    expect(process.env.COMVI_NEXT_TYPES_BUILT).toBe(path.join(root, OUT));
+    // A worker: the marker inherited, no run of its own in that process.
+    runs()?.clear();
+    fs.rmSync(path.join(root, OUT));
+    await withComvi({ types })()(BUILD, { defaultConfig: {} });
+    expect(fs.existsSync(path.join(root, OUT))).toBe(false);
   });
 });
 
