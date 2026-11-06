@@ -1438,14 +1438,15 @@ row changed; their figures moved down: `core-icu-cdn` 5,114 → 5,050, `react-ic
 `<I18nProvider payload>`). Measured after `TURBO_FORCE=true pnpm build`, `node --version` v24.22.1.
 No core, React, Vue, Solid or Svelte figure moved (the `/ssr` entry is imported by no core row). The
 review fix (prototype-free maps in the client provider, plain leaves in `handover()`) is in the figures:
-client 6,138 → 6,147, server 5,291 → 5,308; the budgets stay.
+client 6,138 → 6,147, server 5,291 → 5,308, both within their budgets; the recorded baselines
+stay the figures the budgets were set from (budget = ceil(baseline × 1.05)), nothing is raised.
 
-| row                           | 0.7 baseline | lot 6a | budget        | graph                                                          |
-| ----------------------------- | ------------ | ------ | ------------- | -------------------------------------------------------------- |
-| fw-next-client-default        | 8,209        | 6,147  | 8,620 → 6,445 | `<I18nProvider payload>` + a `@comvi/react` component          |
-| fw-next-server-default-loader | 8,329        | 5,308  | 8,746 → 5,556 | `createGetI18n` with a loader + `handover()`                   |
-| fw-next-middleware-edge       | 2,045        | 2,045  | 2,148         | unchanged                                                      |
-| fw-next-plugin-node           | 939          | 121    | 986           | `withComvi()` without the 0.7 config alias (lot 6b adds types) |
+| row                           | 0.7 baseline | lot 6a                 | budget        | graph                                                          |
+| ----------------------------- | ------------ | ---------------------- | ------------- | -------------------------------------------------------------- |
+| fw-next-client-default        | 8,209        | 6,147 (baseline 6,138) | 8,620 → 6,445 | `<I18nProvider payload>` + a `@comvi/react` component          |
+| fw-next-server-default-loader | 8,329        | 5,308 (baseline 5,291) | 8,746 → 5,556 | `createGetI18n` with a loader + `handover()`                   |
+| fw-next-middleware-edge       | 2,045        | 2,045                  | 2,148         | unchanged                                                      |
+| fw-next-plugin-node           | 939          | 121                    | 986           | `withComvi()` without the 0.7 config alias (lot 6b adds types) |
 
 `fw-next-root-composed`, `fw-next-root-devtools` and `fw-next-server-provider` are gone with the
 package root, `createNextI18n`, `.use()` and `<ComviProvider>`. The client row is the Next client
