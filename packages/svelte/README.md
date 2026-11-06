@@ -119,11 +119,11 @@ i18n.ready.then(() => mount(App, { target: document.body }));
 </T>
 ```
 
-A tag renders through a function prop of its name (returning text), else its `components` entry (a
-tag name, a component, or `{ component: "a", props: { href: "/terms" } }`; the content is its
+A tag renders through its `components` entry (a tag name, a component, or `{ component: "a", props: { href: "/terms" } }`; the content is its
 `children` snippet, nested tags included; an empty tag passes none, so `br: "br"` is a real `<br>`),
 else a snippet of its name (`children` is the tag's text: nested markup is flattened, and
-development warns), else as text. Every other prop but `i18nKey`, `ns`, `locale` and `markers` is a
+development warns; a snippet can also be passed as a prop, `link={terms}`), else as text. `<T>`
+takes no handler: a function prop is a snippet. Every other prop but `i18nKey`, `ns`, `locale` and `markers` is a
 param, always printed as text: markup goes in a tag around it (`"Hello, <strong>{name}</strong>!"`
 with `components={{ strong: "strong" }}`). `useI18n("shop").T` is `<T>` bound to that namespace.
 

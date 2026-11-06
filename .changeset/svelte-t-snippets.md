@@ -1,0 +1,5 @@
+---
+"@comvi/svelte": minor
+---
+
+**BREAKING** (0.8-internal) — `<T>`, the exported one and `useI18n(ns).T` alike, renders tags through `components` and named snippets only; it takes no function handler as a prop. A tag resolves `components` → a snippet of its name → text. A snippet gets the tag's text: a handler that changed the text becomes a snippet, `<T i18nKey="m" b={(c) => c.toUpperCase()} />` → `<T i18nKey="m">{#snippet b(children)}{children.toUpperCase()}{/snippet}</T>`. Markup, nested tags and a component with props go through `components` (`components={{ link: { component: "a", props: { href } } }}`); a handler that passed rich children through (`b={(c) => c}` around a nested component) has no snippet equivalent, so render that tag through `components` too. A snippet passed as a prop (`link={terms}`) now renders like `{#snippet link}`; it used to throw `c is not a function`. A function prop is taken as a snippet; in a plain `{x}` of the same name it still prints `String(value)`. An unannotated snippet's `children` is typed `string`. The text `t()` keeps its string handlers, and `useI18n(ns).T` keeps its namespace binding.

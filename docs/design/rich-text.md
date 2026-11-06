@@ -5,7 +5,7 @@ Status: accepted · Date: 2026-09-14 · Owner decision(s): 0.5.0 rich-text/tags 
 > **Partly outdated (0.8).** This record describes 0.5: `@comvi/core/rich-text` and
 > `@comvi/core/tags` no longer exist. The current contract: `t()` and `<T>` share one message
 > syntax; a tag `<x>…</x>` renders through a handler of its name or a `components` entry, else as
-> its text; a plain `{name}` is always text (see the 04.11.2026 paragraph below). The full rewrite
+> its text (Svelte's `<T>` takes `components` and named snippets, no handler); a plain `{name}` is always text (see the 04.11.2026 paragraph below). The full rewrite
 > is in lot 10.
 
 ## Context

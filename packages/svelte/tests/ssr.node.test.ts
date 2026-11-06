@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { core } from "../../core/src/internal";
 import { createI18n, handover, T, type Catalog, type I18nOptions } from "../src";
 import ConsumerApp from "./fixtures/ConsumerApp.svelte";
+import RichApp from "./fixtures/RichApp.svelte";
 import With from "./fixtures/With.svelte";
 
 const strip = (s: string) => s.replace(/<!--.*?-->/g, "");
@@ -104,5 +105,29 @@ describe("server render", () => {
   it("handover() throws without a timeZone (development): server and browser must format dates in one zone", () => {
     const i18n = createI18n({ locale: "en" });
     expect(() => handover(i18n)).toThrow(/timeZone/);
+  });
+});
+
+describe("server render of rich <T>", () => {
+  it("a link with an address, a component with props, nested tags, <br/>, a snippet", () => {
+    const warn = vi.spyOn(console, "warn");
+    const messages = {
+      link: "Read <link>the terms</link>.",
+      props: "<b>Bold</b> text",
+      nested: "Read <b>the <i>new</i> terms</b>.",
+      br: "a<br/>b",
+      home: "Go <home>home</home>.",
+    };
+    const i18n = createI18n({ locale: "en", timeZone: "UTC", messages: { en: messages } });
+    const html = strip(render(RichApp, { props: { i18n } }).body);
+    expect(html).toContain('<p id="link">Read <a href="/terms">the terms</a>.</p>');
+    expect(html).toContain('<p id="props"><em class="loud">Bold</em> text</p>');
+    expect(html).toContain(
+      '<p id="nested">Read <strong>the <em class="plain">new</em> terms</strong>.</p>',
+    );
+    expect(html).toContain('<p id="br">a<br>b</p>');
+    expect(html).toContain('<p id="snippet">Go <a href="/">home</a>.</p>');
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

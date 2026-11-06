@@ -48,8 +48,7 @@ type Text = string | number | bigint | boolean | Date | null | undefined;
  * Params of a message in a project with no generated catalogs: a value printed as text or a
  * tag handler, as `t()` takes them. The handler member gives an inline `(children) => …` its
  * argument type. `t()` is text, so its handler gets the tag's text: a method signature lets one
- * annotated `(c: string) => …` stay a handler. `<T>` takes {@link TagParam} instead, whose
- * handler may get a list.
+ * annotated `(c: string) => …` stay a handler. `<T>` takes snippets, not handlers.
  */
 export type UntypedParams<C = never> = Record<
   string,
@@ -76,18 +75,10 @@ export type TagSnippet = Snippet<[children: string]>;
 type TagMap = Readonly<Record<string, TagComponent>>;
 
 /**
- * A tag param of `<T>`: a handler, or a snippet of the tag's name. The handler gets the tag's
- * `Children` (a list once a nested tag renders through `components`), so one annotated
- * `(c: string) => …` is refused: it throws on nested markup. A snippet gets the text, and only
- * a snippet returns a snippet's result, so the second member takes snippets alone. Both members
- * take `Children`, so an inline handler still gets its argument's type. A handler that returns
- * `any` passes as a snippet: `any` turns this check off, as it does any other.
+ * `UntypedParams` for `<T>`: a value printed as text or a snippet of a tag's name, plus the
+ * `components` map. `<T>` takes no handler: a function prop is a snippet.
  */
-type TagParam =
-  | ((children: Children) => unknown)
-  | { snippet(children: Children): ReturnType<TagSnippet> }["snippet"];
-/** `UntypedParams` for `<T>`: its tag params as {@link TagParam}, plus the `components` map. */
-type TParams = Record<string, Text | readonly Text[] | TagParam | TagMap>;
+type TParams = Record<string, Text | readonly Text[] | TagSnippet | TagMap>;
 
 /** The core's typed `<T>` signature: only its props are taken from it, never its call. */
 declare const _typed: TComponentFor<void, 1, TagMap>;
@@ -101,11 +92,8 @@ type Key<N extends NsOf> = KeysOf[N] | NotAKey;
 type PropsOf<K extends Key<N>, N extends NsOf> = { i18nKey: K; ns?: N } & {
   [P in keyof Parameters<typeof _typed<K, N>>[0]]: OrSnippet<Parameters<typeof _typed<K, N>>[0][P]>;
 };
-/**
- * A tag param of a generated key in `<T>`: a handler or a snippet of the tag's name
- * ({@link TagParam}).
- */
-type OrSnippet<V> = Tag extends V ? Exclude<V, Tag> | TagParam : V;
+/** A tag param of a generated key in `<T>`: a snippet of the tag's name, never a handler. */
+type OrSnippet<V> = Tag extends V ? Exclude<V, Tag> | TagSnippet : V;
 
 /**
  * `<T i18nKey ns? locale? markers? components? {...params}>`: typed by the generated catalogs

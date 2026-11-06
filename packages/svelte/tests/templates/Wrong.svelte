@@ -3,7 +3,7 @@
   (tests/templates/check.mjs).
 -->
 <script lang="ts">
-  import { T, useI18n } from "../../src";
+  import { T, useI18n, type Children } from "../../src";
   const shop = useI18n("shop");
   const main = useI18n();
 </script>
@@ -19,8 +19,14 @@
 <shop.T i18nKey="cart.title" ns="shop" count={1} /><!-- error: the bound one takes no namespace -->
 <shop.T i18nKey="greeting" name="Ann" /><!-- error: a key of another namespace -->
 <T i18nKey="terms" link={(c: number) => c} /><!-- error: a handler that takes no text -->
-<T i18nKey="terms" link={(c: string) => c.toUpperCase()} /><!-- error: a string-only handler throws around a nested tag -->
+<T i18nKey="terms" link={(c: string) => c.toUpperCase()} /><!-- error: a handler, <T> takes none -->
+<T i18nKey="terms" link={(c) => `[${c}]`} /><!-- error: an inline handler, <T> takes none -->
+<T i18nKey="terms" link={(c: Children) => c} /><!-- error: a Children handler, <T> takes none -->
 <main.T i18nKey="terms" link={(c: string) => c} /><!-- error: the same on the bound one -->
+<main.T i18nKey="terms" link={(c) => `[${c}]`} /><!-- error: an inline one on the bound one -->
 <T i18nKey="terms">
   {#snippet link(children: number)}{children}{/snippet}<!-- error: a snippet that takes no text -->
 </T>
+<main.T i18nKey="terms">
+  {#snippet link(children)}{children.toFixed()}{/snippet}<!-- error: an inferred snippet's children is text -->
+</main.T>
