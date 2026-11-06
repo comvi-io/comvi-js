@@ -1,39 +1,52 @@
-import { createI18n, icuCompiler, loader } from "@comvi/solid";
+import { createI18n, type I18n, type Loader } from "@comvi/solid";
+import { getRequestEvent, isServer } from "solid-js/web";
 
 export const locales = ["en", "uk", "de", "ar"];
 export const fallbackLocale = "en";
 
-/** One import per catalog; each instance gets its own loader. */
-export const catalogLoader = () =>
-  loader({
-    en: () => import("../locales/en.json"),
-    uk: () => import("../locales/uk.json"),
-    de: () => import("../locales/de.json"),
-    ar: () => import("../locales/ar.json"),
-  });
+const bundled = {
+  en: () => import("../locales/en.json"),
+  uk: () => import("../locales/uk.json"),
+  de: () => import("../locales/de.json"),
+  ar: () => import("../locales/ar.json"),
+  "en:account": () => import("../locales/account/en.json"),
+  "uk:account": () => import("../locales/account/uk.json"),
+  "de:account": () => import("../locales/account/de.json"),
+  "ar:account": () => import("../locales/account/ar.json"),
+};
+
+const loader: Loader = async (locale, ns) => {
+  const load = bundled[(ns === "default" ? locale : `${locale}:${ns}`) as keyof typeof bundled];
+  if (!load) throw new Error(`No bundled catalog for ${locale}/${ns}`);
+  return (await load()).default;
+};
+
+// `timeZone`: the server and the browser format dates in one zone.
+const options = { fallbackLocale, timeZone: "UTC", loader };
+
+declare global {
+  interface Window {
+    __I18N__?: object;
+  }
+}
+
+let browser: I18n | undefined;
+
+/**
+ * This request's instance on the server, kept on the request event so two visitors in two
+ * languages never share one. The browser has one: it starts from what the server handed over
+ * (`entry-server.tsx`), so it renders the same text and fetches none of it. `locale` comes from
+ * the route, whose `matchFilters` has checked it against `locales` (createI18n throws a
+ * RangeError for what is not a tag).
+ */
+export function i18nFor(locale: string): I18n {
+  if (!isServer) return (browser ||= createI18n({ ...options, locale, ...window.__I18N__ }));
+  const { locals } = getRequestEvent()!;
+  return (locals.i18n ||= createI18n({ ...options, locale }));
+}
 
 /** English lives at `/`, every other locale under its own prefix. */
 export function localePath(locale: string, path = "/") {
   if (locale === fallbackLocale) return path;
   return path === "/" ? `/${locale}` : `/${locale}${path}`;
-}
-
-/** Loads one locale's catalogs on the server, in an instance of its own, and returns them as data. */
-export async function loadI18n(requested: string) {
-  "use server";
-
-  // A server function is an endpoint any client can call, so the locale is checked here too.
-  const locale = locales.includes(requested) ? requested : fallbackLocale;
-  // The browser instance's compiler: the development build checks every
-  // catalog against it on load.
-  const i18n = createI18n({ locale, fallbackLocale, compiler: icuCompiler }).use(catalogLoader());
-  await i18n.init();
-
-  const namespace = i18n.getDefaultNamespace();
-  const messages = Object.fromEntries(
-    [locale, fallbackLocale]
-      .filter((loc) => i18n.hasLocale(loc, namespace))
-      .map((loc) => [`${loc}:${namespace}`, i18n.getMessages(loc, namespace)]),
-  );
-  return { locale, messages };
 }

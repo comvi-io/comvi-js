@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "comvi typegen --from ../locales --source-locale en && tsc --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -14,6 +14,7 @@
     "@comvi/solid": "workspace:*"
   },
   "devDependencies": {
+    "@comvi/cli": "workspace:*",
     "@comvi/vite-config": "workspace:*",
     "@comvi/vite-plugin": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",

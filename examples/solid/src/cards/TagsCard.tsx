@@ -5,7 +5,7 @@ import { Card } from "../components/Card";
 // owns the element and its attributes.
 const components = {
   link: {
-    tag: "a",
+    component: "a",
     props: { href: "https://comvi.io/docs", target: "_blank", rel: "noreferrer" },
   },
 };

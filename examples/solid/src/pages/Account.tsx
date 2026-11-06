@@ -1,25 +1,15 @@
-import { createSignal, Show } from "solid-js";
+import { Show } from "solid-js";
 import { A } from "@solidjs/router";
-import { useI18n, useI18nLoader } from "@comvi/solid";
+import { useI18n } from "@comvi/solid";
 import { Card } from "../components/Card";
+import { fetched } from "../i18n";
 import { name } from "../name";
 
 export function Account() {
-  const { t, cacheRevision, getActiveNamespaces } = useI18n();
-  // `useI18n("account")` only scopes `t` to the namespace; activating it is
-  // what downloads it, and keeps it loaded across later locale switches.
-  const { t: tAccount } = useI18n("account");
-  const { addActiveNamespace } = useI18nLoader();
-
-  // Show the rows once the load settles, whether it succeeded or failed.
-  const [ready, setReady] = createSignal(false);
-  const done = () => setReady(true);
-  addActiveNamespace("account").then(done, done);
-
-  const namespaces = () => {
-    void cacheRevision();
-    return t("demo.lazy.namespaces", { namespaces: getActiveNamespaces().join(", ") });
-  };
+  const { t } = useI18n();
+  // Loads the `account` namespace and holds it while this page shows, so a language
+  // switch loads it too; once the page closes it stays cached and a switch skips it.
+  const { t: tAccount, isReady, isLoading } = useI18n("account");
 
   return (
     <div class="cards">
@@ -35,7 +25,8 @@ export function Account() {
       </Card>
 
       <Card title={t("demo.lazy.title")} body={t("demo.lazy.body")}>
-        <Show when={ready()} fallback={<p class="widget">{t("app.loading")}</p>}>
+        {/* A failed load settles too: the rows then show the fallback text. */}
+        <Show when={isReady() || !isLoading()} fallback={<p class="widget">{t("app.loading")}</p>}>
           <p class="widget" data-testid="account-signed-in">
             {tAccount("profile.signed_in", { name: name() })}
           </p>
@@ -47,7 +38,9 @@ export function Account() {
             {tAccount("profile.only_en")}
           </p>
           <p class="network">
-            <span>{namespaces()}</span>
+            <span>
+              {t("demo.lazy.namespaces", { namespaces: fetched().namespaces.join(", ") })}
+            </span>
           </p>
         </Show>
       </Card>

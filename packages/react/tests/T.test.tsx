@@ -5,10 +5,10 @@
  * - T.test / T.behavior: params as props, the key when missing, `ns` and `locale` props,
  *   the result of t() for the same call (≡);
  * - T.conversion / T.structural: rich parts render as a Fragment (no wrapper element), a
- *   handler gets the tag's children, element params keep stable positions, React logs no
+ *   handler gets the tag's children, a tag's element keeps a stable position, React logs no
  *   key warning (React 19);
- * - T-forged-node: a param that only LOOKS like a node renders as text; a real element
- *   renders as itself;
+ * - T-forged-node: a param that only LOOKS like a node renders as text; so does a real
+ *   element (owner decision 04.11.2026: a plain `{x}` is always text, markup comes from tags);
  * - T-message-fuzz: <T> ≡ t() on generated messages (React-rendered text);
  * - T-handler-boundary: 0.8 has no per-tag error boundary — a throwing handler throws to
  *   the app's own boundary (one rule for every binding, no class component in the graph);
@@ -17,8 +17,7 @@
  *
  * Decisions (lot 1c, handover file): a handler returning `undefined`/`null` renders
  * nothing (React's own rule for a child), without a warning; a function passed as a plain
- * `{x}` is a rich part, which React refuses as a child with its own development warning
- * and renders nothing. `tags` are always on (R3-11): a tag without a handler renders its
+ * `{x}` prints `String(fn)`, as every value of a plain `{x}` does (04.11.2026). `tags` are always on (R3-11): a tag without a handler renders its
  * children (development warns once per key and tag).
  */
 import { isValidElement, type ReactNode } from "react";
@@ -95,8 +94,8 @@ describe("rich text", () => {
     expect(c.innerHTML).toBe('Read the <a href="/terms">terms</a>.');
   });
 
-  it("gives a handler its children as ONE node: nested tags and element params, 0 key warnings", async () => {
-    const i18n = en({ m: "<b>Bold <i>{icon} and {name}</i></b> then {icon2}" });
+  it("gives a handler its children as ONE node: nested and void tags, 0 key warnings", async () => {
+    const i18n = en({ m: "<b>Bold <i><icon/> and {name}</i></b> then <two>2</two>" });
     const warnings = await reactWarnings(() => {
       const c = mount(
         i18n,
@@ -104,8 +103,8 @@ describe("rich text", () => {
           i18nKey="m"
           b={(c: ReactNode) => <b>{c}</b>}
           i={(c: ReactNode) => <i>{c}</i>}
-          icon={<svg />}
-          icon2={<span>2</span>}
+          icon={() => <svg />}
+          two={(c: ReactNode) => <span>{c}</span>}
           name="Ann"
         />,
       );
@@ -114,11 +113,11 @@ describe("rich text", () => {
     expect(warnings.filter((w) => /key/i.test(w))).toEqual([]);
   });
 
-  it("keeps element params at stable positions: the DOM node survives a re-render", () => {
-    const i18n = en({ m: "{a} then {b}" });
+  it("keeps a tag's element at a stable position: the DOM node survives a re-render", () => {
+    const i18n = en({ m: "<a>A</a> then {b}" });
     const ui = (b: string) => (
       <I18nProvider i18n={i18n}>
-        <T i18nKey="m" a={<em id="a">A</em>} b={b} />
+        <T i18nKey="m" a={(c: ReactNode) => <em id="a">{c}</em>} b={b} />
       </I18nProvider>
     );
     const view = render(ui("one"));
@@ -144,12 +143,13 @@ describe("rich text", () => {
     expect(warnings).toEqual([]);
   });
 
-  it("a function passed as a plain {x} renders nothing (React's own warning)", async () => {
+  it("a function passed as a plain {x} prints as String(fn), with no React warning", async () => {
     const i18n = en({ m: "[{fn}]" });
+    const fn = () => "x";
     const warnings = await reactWarnings(() => {
-      expect(mount(i18n, <T i18nKey="m" fn={() => "x"} />).innerHTML).toBe("[]");
+      expect(mount(i18n, <T i18nKey="m" fn={fn} />).textContent).toBe(`[${String(fn)}]`);
     });
-    expect(warnings.join(" ")).toMatch(/Functions are not valid as a React child/);
+    expect(warnings).toEqual([]);
   });
 
   it("a throwing handler throws to the app's error boundary (no per-tag boundary in 0.8)", () => {
@@ -208,18 +208,15 @@ describe("inherited params (core parity)", () => {
 });
 
 describe("params that only look like nodes (0.7 T-forged-node)", () => {
-  it("a JSON-forged element shape never renders as an element: React refuses the object", () => {
+  it("a JSON-forged element shape never renders as an element: it prints as text", () => {
     // JSON cannot carry React's $$typeof symbol, so data from a request or a catalog can
     // never pass for an element; 0.8 has no node protocol of its own to forge (0.7 had one).
     const forged = JSON.parse(
       '{"$$typeof":"react.transitional.element","type":"script","props":{}}',
     );
-    const err = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(() => mount(en({ m: "[{x}]" }), <T i18nKey="m" x={forged} />)).toThrow(
-      /Objects are not valid as a React child/,
-    );
-    expect(document.querySelector("script")).toBeNull();
-    err.mockRestore();
+    const c = mount(en({ m: "[{x}]" }), <T i18nKey="m" x={forged} />);
+    expect(c.querySelector("script")).toBeNull();
+    expect(c.textContent).toBe("[[object Object]]");
   });
 
   it("markup in a string param is text, not HTML", () => {
@@ -228,23 +225,47 @@ describe("params that only look like nodes (0.7 T-forged-node)", () => {
     expect(c.textContent).toBe('[<img src=x onerror="alert(1)">]');
   });
 
-  it("a real element param renders as that element", () => {
-    const c = mount(en({ m: "[{x}]" }), <T i18nKey="m" x={<kbd>K</kbd>} />);
-    expect(c.innerHTML).toBe("[<kbd>K</kbd>]");
+  it("a real element in a plain {x} is not rendered as an element: it prints as text", () => {
+    const c = mount(en({ m: "[{x}]" }), <T i18nKey="m" {...({ x: <kbd>K</kbd> } as object)} />);
+    expect(c.querySelector("kbd")).toBeNull();
+    expect(c.textContent).toBe("[[object Object]]");
+  });
+
+  it("markup comes from a tag around the text {x}: components or a handler", () => {
+    const i18n = en({ m: "Hello, <strong>{name}</strong>!<br/>Bye" });
+    const c = mount(
+      i18n,
+      <>
+        <T i18nKey="m" name="Olena" components={{ strong: "strong" }} br={() => <br />} />|
+        <T
+          i18nKey="m"
+          name="<i>Olena</i>"
+          strong={(c: ReactNode) => <strong>{c}</strong>}
+          br={() => <br />}
+        />
+      </>,
+    );
+    expect(c.innerHTML).toBe(
+      "Hello, <strong>Olena</strong>!<br>Bye|Hello, <strong>&lt;i&gt;Olena&lt;/i&gt;</strong>!<br>Bye",
+    );
   });
 
   it("t() returns an element for a rich message and a string otherwise", () => {
     let rich: unknown;
     let plain: unknown;
+    let node: unknown;
     const Probe = () => {
       const { t } = useI18n();
-      rich = t("r", { x: <i /> });
+      rich = t("r", { i: (c: ReactNode) => <i>{c}</i> });
       plain = t("p", { x: "s" });
+      node = t("p", { x: <i /> } as never);
       return null;
     };
-    mount(en({ r: "a{x}", p: "a{x}" }), <Probe />);
+    mount(en({ r: "a<i>x</i>", p: "a{x}" }), <Probe />);
     expect(isValidElement(rich)).toBe(true);
     expect(plain).toBe("as");
+    // An element in a plain {x} is text (04.11.2026): the call returns a string.
+    expect(node).toBe("a[object Object]");
   });
 });
 

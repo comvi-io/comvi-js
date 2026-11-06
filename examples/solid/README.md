@@ -28,7 +28,7 @@ npm run dev
 
 ## Where to look
 
-- `src/i18n.ts` creates the i18n instance: the catalogs, the ICU compiler, the locale detector.
+- `src/i18n.ts` creates the i18n instance: the catalogs and the locale detector.
 - `src/main.tsx` wraps the router in `<I18nProvider>`; `src/App.tsx` is the shared layout.
 - `src/cards/` holds one component per feature, each using `useI18n()`.
 - `src/pages/` holds the three routes, `/`, `/features` and `/about`, served by `@solidjs/router`.

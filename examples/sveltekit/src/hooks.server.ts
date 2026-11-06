@@ -1,5 +1,5 @@
 import type { Handle } from "@sveltejs/kit/hooks";
-import { getTextDirection } from "@comvi/core";
+import { dir } from "@comvi/core/internal";
 import { fallbackLocale, locales } from "./lib/i18n";
 
 export const handle: Handle = ({ event, resolve }) => {
@@ -7,7 +7,6 @@ export const handle: Handle = ({ event, resolve }) => {
   const lang = segment && locales.includes(segment) ? segment : fallbackLocale;
 
   return resolve(event, {
-    transformPageChunk: ({ html }) =>
-      html.replace("%lang%", lang).replace("%dir%", getTextDirection(lang)),
+    transformPageChunk: ({ html }) => html.replace("%lang%", lang).replace("%dir%", dir(lang)),
   });
 };

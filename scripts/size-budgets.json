@@ -211,69 +211,117 @@
       "note": "core-icu-cdn's graph on Vue: createI18n + cdn() + app.use(i18n) + useI18n() + t({name}) + plural. Ceiling = core-icu-cdn's 4,910 + the R3-10 binding cap 500 (budget = the ceiling, below measured ×1.05); the increment over core-icu-cdn is HARD-capped at +500 B (lot 4: +490). Itemized accounting in size-budgets.md 2026-10-28 lot 4 and its final pass. Lot 4 N-1 fix (2026-10-28): ceiling 5,395 → 5,410 with core-icu-cdn's; 5380 → 5390 (+490 B), size-budgets.md 2026-10-28 lot 4 N-1 fix. Lot 4b (2026-10-29): ceiling 5,410 → 5,560 B and the increment cap +500 → +600 B (R3-25); 5390 → 5494 (+573 B over core-icu-cdn), budget = the ceiling, size-budgets.md 2026-10-29 lot 4b. Lot 4b fix pass (2026-10-29): 5494 → 5520 B, size-budgets.md 2026-10-29 lot 4b fix pass. Lot 4b fix pass 2 (2026-10-29): 5520 → 5516 B, size-budgets.md 2026-10-29 lot 4b fix pass 2. Lot 4b Codex re-check fix (2026-10-29): 5516 → 5520 B, size-budgets.md 2026-10-29 lot 4b Codex re-check fix. Lot 4c owner decision (2026-10-30): the owner accepts the growth for 4c functionality; increment cap 600 → +714 B (ceil(700 × 1.02)), ceiling 5,560 → 5,833 B (ceil(5718 × 1.02)), baseline → 5718 B, budget 5833; no byte golfing, size-budgets.md 2026-10-30 lot 4c owner-accepted growth. Lot 4c owner decision (2026-10-30, ×1.02 policy): increment cap +714 → +753 B for the released-consumer fix and the settled-chain missing_key rule; baseline 5718 → 5761 B (+703 over core-icu-cdn); budget = min(ceiling 5,833, ceil(5761 × 1.05) = 6050) = 5,833; size-budgets.md 2026-10-30 lot 4c owner-approved ceilings. Lot 4d (2026-10-31): 5761 → 5932 B, budget 5833 → 6051, ceiling 5833 → 6051 (owner decision 31.10, ×1.02), size-budgets.md 2026-10-31 lot 4d. Lot 4d final (2026-10-31): 5932 → 5830 B, budget 6051 → 5947, ceiling 6051 → 5947, cap +753 → +731 (owner: ceilings count from the final result, ×1.02), size-budgets.md 2026-10-31 final."
     },
     {
+      "name": "solid-icu-cdn",
+      "entry": ["@comvi/solid", "@comvi/core/cdn"],
+      "fixture": "framework/solid-icu-cdn.ts",
+      "external": ["solid-js", "solid-js/*"],
+      "gzipBudgetBytes": 5979,
+      "ceilingBytes": 5979,
+      "increment": {
+        "over": "core-icu-cdn",
+        "maxBytes": 828
+      },
+      "baseline": {
+        "minBytes": 12104,
+        "gzipBytes": 5861,
+        "measuredAt": "2026-11-06"
+      },
+      "note": "core-icu-cdn's graph on Solid: createI18n + cdn() + <I18nProvider> + useI18n() + t({name}) + plural. Lot 5: ceiling and increment cap are ceil(measured × 1.02), accepted by the owner on 2026-11-06; size-budgets.md 2026-11-06."
+    },
+    {
+      "name": "svelte-icu-cdn",
+      "entry": ["@comvi/svelte", "@comvi/core/cdn"],
+      "fixture": "framework/svelte-icu-cdn.ts",
+      "external": ["svelte", "svelte/*"],
+      "gzipBudgetBytes": 6507,
+      "ceilingBytes": 6507,
+      "increment": {
+        "over": "core-icu-cdn",
+        "maxBytes": 1356
+      },
+      "baseline": {
+        "minBytes": 13693,
+        "gzipBytes": 6379,
+        "measuredAt": "2026-11-06"
+      },
+      "note": "core-icu-cdn's graph on Svelte: createI18n + cdn() + setI18n() + useI18n() + t({name}) + plural. Lot 5: ceiling and increment cap are ceil(measured × 1.02), accepted by the owner on 2026-11-06; size-budgets.md 2026-11-06."
+    },
+    {
       "name": "fw-solid-default",
       "entry": ["@comvi/solid"],
       "fixture": "framework/solid-default.ts",
       "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 7388,
+      "gzipBudgetBytes": 5610,
       "baseline": {
-        "minBytes": 19721,
-        "gzipBytes": 7036,
-        "measuredAt": "2026-10-14"
+        "minBytes": 10950,
+        "gzipBytes": 5342,
+        "measuredAt": "2026-11-06"
       },
-      "note": "Gated Solid floor: one `@comvi/solid` specifier, base createI18n + bindings — the anchor the Solid ceiling row is read against."
+      "note": "Gated Solid floor: one `@comvi/solid` specifier, bundled catalogs, the provider + useI18n() + t({name}). Re-baselined in lot 5 on the 0.8 binding (0.7: 7,036 B); size-budgets.md 2026-10-31 lot 5 and 2026-11-06."
     },
     {
       "name": "fw-solid-full-composite",
-      "entry": ["@comvi/solid"],
+      "entry": [
+        "@comvi/solid",
+        "@comvi/solid/format",
+        "@comvi/core/cdn",
+        "@comvi/core/plugins",
+        "@comvi/core/devtools"
+      ],
       "fixture": "framework/solid-full-composite.ts",
       "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 13560,
+      "gzipBudgetBytes": 8383,
       "baseline": {
-        "minBytes": 36514,
-        "gzipBytes": 12914,
-        "measuredAt": "2026-10-20"
+        "minBytes": 17053,
+        "gzipBytes": 7983,
+        "measuredAt": "2026-11-06"
       },
-      "note": "Gated Solid ceiling: every capability composed through the one `@comvi/solid` specifier."
+      "note": "Gated Solid ceiling: every export of @comvi/solid and /format (<T>, the bound <T>, handover, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 5 on the 0.8 binding (0.7: 12,914 B); size-budgets.md 2026-10-31 lot 5 and 2026-11-06."
     },
     {
       "name": "fw-svelte-default",
       "entry": ["@comvi/svelte"],
       "fixture": "framework/svelte-default.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 7597,
+      "gzipBudgetBytes": 6169,
       "baseline": {
-        "minBytes": 20024,
-        "gzipBytes": 7235,
-        "measuredAt": "2026-10-20"
+        "minBytes": 12543,
+        "gzipBytes": 5875,
+        "measuredAt": "2026-11-06"
       },
-      "note": "Gated Svelte floor: one `@comvi/svelte` specifier, base createI18n + bindings — the anchor the Svelte ceiling row is read against."
+      "note": "Gated Svelte floor: one `@comvi/svelte` specifier, bundled catalogs, setI18n() + useI18n() + t({name}). Re-baselined in lot 5 on the 0.8 binding (0.7: 7,235 B); size-budgets.md 2026-10-31 lot 5 and 2026-11-06."
     },
     {
       "name": "fw-svelte-full-composite",
-      "entry": ["@comvi/svelte"],
+      "entry": [
+        "@comvi/svelte",
+        "@comvi/svelte/format",
+        "@comvi/core/cdn",
+        "@comvi/core/plugins",
+        "@comvi/core/devtools"
+      ],
       "fixture": "framework/svelte-full-composite.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 14290,
+      "gzipBudgetBytes": 8870,
       "baseline": {
-        "minBytes": 37953,
-        "gzipBytes": 13609,
-        "measuredAt": "2026-10-20"
+        "minBytes": 18628,
+        "gzipBytes": 8447,
+        "measuredAt": "2026-11-06"
       },
-      "note": "Gated Svelte ceiling: every capability composed through the one `@comvi/svelte` specifier."
+      "note": "Gated Svelte ceiling: every export of @comvi/svelte and /format (<T>, the bound <T>, handover, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 5 on the 0.8 binding (0.7: 13,609 B); size-budgets.md 2026-10-31 lot 5 and 2026-11-06."
     },
     {
       "name": "fw-svelte-format",
-      "entry": ["@comvi/svelte/format"],
+      "entry": ["@comvi/svelte/format", "@comvi/svelte", "@comvi/core"],
       "fixture": "framework/svelte-format.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 486,
+      "gzipBudgetBytes": 5909,
       "baseline": {
-        "minBytes": 761,
-        "gzipBytes": 462,
-        "measuredAt": "2026-10-26"
+        "minBytes": 11841,
+        "gzipBytes": 5627,
+        "measuredAt": "2026-11-06"
       },
-      "note": "Gated plain-Node entry: one formatter through `@comvi/svelte/format`; growth past core's formatter cost means the subpath reached the binding graph."
+      "note": "`useFormat()` of @comvi/svelte/format on a real instance through the context: the core's formatters, the relative clock, the binding's cell. Re-baselined in lot 5 (was 462 B, a formatter alone over a plain object; 0.8 formatters take a real instance); size-budgets.md 2026-10-31 lot 5 and 2026-11-06."
     },
     {
       "name": "fw-vue-default",

@@ -2,14 +2,14 @@
 
 A SvelteKit app that renders translated HTML on the server with [`@comvi/svelte`](https://comvi.io/docs/i18n) and keeps following the locale as you navigate. It is built on the [SvelteKit recipe](https://comvi.io/docs/i18n/ssr#sveltekit-and-solidstart) from the docs. Where it differs:
 
-- `loader()` with bundled catalogs instead of `cdn()`, and ICU messages through `icuCompiler`;
+- a loader over bundled catalogs instead of `cdn()`;
 - four locales, with the hook writing `dir` as well as `lang`;
 - the language switcher and a second page, `/about`, in the root layout's routes.
 
 ## What it shows
 
 - **Locale in the URL**: `/` is English, `/uk`, `/de` and `/ar` are the others. The switcher is a set of links, so a reload or a shared link keeps the locale.
-- **One instance per request**: `load` builds an instance, loads the catalogs and returns them as plain data, so two visitors in two languages never share one.
+- **One instance per request**: `load` builds an instance, loads the catalogs and returns `handover()`, plain data, so two visitors in two languages never share one.
 - **No flash on hydration**: the browser's instance starts from that data, so the first paint is already translated.
 - **Client navigation**: a link to `/uk` hands the new data to the same instance, and `<html lang dir>` follows. Arabic turns the page right-to-left.
 - **ICU plurals, `<T>` markup and fallback**: the counter, the documentation link, and an English sentence where Ukrainian has no translation.

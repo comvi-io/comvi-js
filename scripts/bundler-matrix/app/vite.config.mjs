@@ -9,13 +9,10 @@
 // list (webpack's equivalent is `--json` stats `modules[].identifier`).
 //
 // `@sveltejs/vite-plugin-svelte` is the standard consumer configuration for a
-// svelte app and is REQUIRED here: rollup/rolldown must load and parse a
-// module before tree-shaking can drop it, and `@comvi/svelte` publishes
-// `dist/T.svelte` as source. It only transforms `.svelte` files, so the
-// non-svelte fixtures are unaffected. (Webpack's leg needs no equivalent — it
-// prunes the unused `T.svelte` re-export via `sideEffects: false` WITHOUT
-// resolving it, which makes that leg a strictly louder gate: if <T> ever
-// re-entered the graph, the webpack build would fail outright.)
+// svelte app and is REQUIRED here: `@comvi/svelte` publishes `dist/T.svelte` and its
+// rune modules (`*.svelte.js`) as source. It only transforms those, so the
+// non-svelte fixtures are unaffected. (Webpack has no svelte loader here: the Svelte
+// cases are vite-only, `bundlers` in run.mjs.)
 import fs from "node:fs";
 import path from "node:path";
 import { defaultClientConditions, defineConfig } from "vite";

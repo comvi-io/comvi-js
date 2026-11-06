@@ -5338,15 +5338,6 @@
     {
       "package": "packages/core",
       "file": "src/compile/scanner.ts",
-      "mutators": ["ConditionalExpression", "StringLiteral"],
-      "snippet": ": typeof v === \"string\"",
-      "lineHint": 238,
-      "kind": "equivalent",
-      "reason": "the string fast path of `{x}`: formatValue(string) is String(v) === v and frame() returns a string as is, so the generic branch yields the same value. Performance only. Hand-applied 28.10.2026 (both mutants): core suite green."
-    },
-    {
-      "package": "packages/core",
-      "file": "src/compile/scanner.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "} else if (c === \"<\" && (m = ((TAG.lastIndex = P.i), TAG.exec(s)))) {",
       "lineHint": 254,

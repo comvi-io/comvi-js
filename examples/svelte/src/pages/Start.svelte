@@ -7,6 +7,6 @@
 </script>
 
 <div class="start">
-  <p class="widget">{$t('greeting.hello', { name: $name })}</p>
-  <a class="cta" href="/features" use:link>{$t('demo.start.cta')}</a>
+  <p class="widget">{t('greeting.hello', { name: $name })}</p>
+  <a class="cta" href="/features" use:link>{t('demo.start.cta')}</a>
 </div>

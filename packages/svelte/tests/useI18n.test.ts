@@ -1,238 +1,85 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mount, tick, unmount } from "svelte";
-import { FakeI18n } from "@comvi/test-utils/fakeI18n";
-import UseI18nHarness from "./UseI18nHarness.test.svelte";
-import NoContextHarness from "./NoContextHarness.test.svelte";
-import StoreCacheHarness from "./StoreCacheHarness.test.svelte";
-import MessagesCacheHarness from "./MessagesCacheHarness.test.svelte";
+import { flushSync, mount } from "svelte";
+import { describe, expect, it } from "vitest";
+import * as api from "../src";
+import { useI18n } from "../src";
+import Derived from "./fixtures/Derived.svelte";
+import { make, manualLoader, mountWith, settle } from "./helpers";
 
-describe("useI18n", () => {
-  let fake: FakeI18n;
-  let target: HTMLElement;
-  let component: ReturnType<typeof mount> | null;
+/** Runs `f` while a component initialises, under `setI18n(i18n)`; returns what it returned. */
+const during = <R>(i18n: api.I18n, f: () => R): R => {
+  let r: R;
+  mountWith(i18n, () => void (r = f()));
+  return r!;
+};
 
-  beforeEach(() => {
-    fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    fake.addMessages({
-      en: { hello: "Hello", goodbye: "Bye" },
-      "en:admin": { title: "Admin" },
-      fr: { hello: "Bonjour", goodbye: "Au revoir" },
-      "fr:admin": { title: "Administrateur" },
-      ar: { hello: "مرحبا", goodbye: "مع السلامة" },
-      "ar:admin": { title: "المشرف" },
-    });
-    target = document.createElement("div");
-    document.body.appendChild(target);
-    component = null;
+describe("the package", () => {
+  it("exports exactly the 0.8 surface", () => {
+    expect(Object.keys(api).sort()).toEqual(["T", "createI18n", "handover", "setI18n", "useI18n"]);
   });
 
-  afterEach(() => {
-    if (component) {
-      unmount(component);
-      component = null;
-    }
-    target.remove();
-  });
-
-  function text(testId: string): string {
-    return target.querySelector(`[data-testid="${testId}"]`)?.textContent ?? "";
-  }
-
-  function click(testId: string): void {
-    (target.querySelector(`[data-testid="${testId}"]`) as HTMLButtonElement | null)?.click();
-  }
-
-  it("renders translations and public metadata from the hook API", () => {
-    component = mount(UseI18nHarness, {
-      target,
-      props: { i18n: fake.asI18n() },
-    });
-
-    expect(text("hello")).toBe("Hello");
-    expect(text("admin-title")).toBe("Admin");
-    expect(text("admin-common")).toBe("Hello");
-    expect(text("language")).toBe("en");
-    expect(text("dir")).toBe("ltr");
-    expect(text("default-namespace")).toBe("common");
-    expect(text("has-french")).toBe("true");
-    expect(text("has-admin-title")).toBe("true");
-    expect(text("loaded-languages")).toBe("ar,en,fr");
-    expect(text("active-namespaces")).toBe("common");
-    expect(text("default-formality")).toBe("none");
-  });
-
-  it("exposes reactive defaultParams and setDefaultParams", async () => {
-    component = mount(UseI18nHarness, {
-      target,
-      props: { i18n: fake.asI18n() },
-    });
-
-    click("set-default-params");
-    await tick();
-
-    expect(fake.setDefaultParams).toHaveBeenCalledWith({ formality: "formal" });
-    expect(text("default-formality")).toBe("formal");
-  });
-
-  it("returns plain text from $t and structured content from $tRaw", () => {
-    fake.tImplementation = (key) => {
-      if (key === "hello") {
-        return ["Hello ", { type: "element", tag: "strong", props: {}, children: ["Alice"] }, "!"];
-      }
-      return key;
-    };
-
-    component = mount(UseI18nHarness, {
-      target,
-      props: { i18n: fake.asI18n() },
-    });
-
-    expect(text("hello")).toBe("Hello Alice!");
-    expect(text("raw-structured")).toBe("true");
-  });
-
-  it("updates translations, direction, and formatting when language changes through the hook", async () => {
-    component = mount(UseI18nHarness, {
-      target,
-      props: { i18n: fake.asI18n() },
-    });
-
-    // The harness pins `timeZone: "UTC"` on the date, so every literal below
-    // is a function of the locale alone. NBSPs are escaped on purpose.
-    expect([text("number"), text("currency"), text("date"), text("relative")]).toEqual([
-      "1,234.5",
-      "$99.99",
-      "01/02/2024",
-      "2 days ago",
-    ]);
-
-    click("switch-fr");
-    await tick();
-
-    expect(text("hello")).toBe("Bonjour");
-    expect(text("language")).toBe("fr");
-    expect(text("dir")).toBe("ltr");
-    expect([text("number"), text("currency"), text("date"), text("relative")]).toEqual([
-      "1\u202f234,5",
-      "99,99\u00a0$US",
-      "02/01/2024",
-      "il y a 2 jours",
-    ]);
-
-    click("switch-ar");
-    await tick();
-
-    expect(text("hello")).toBe("مرحبا");
-    expect(text("language")).toBe("ar");
-    expect(text("dir")).toBe("rtl");
-  });
-
-  it("reflects loading and namespace state while addActiveNamespace is in flight", async () => {
-    let resolveLoad: (() => void) | undefined;
-    fake.namespaceLoadResult = new Promise<void>((resolve) => {
-      resolveLoad = resolve;
-    });
-
-    component = mount(UseI18nHarness, {
-      target,
-      props: { i18n: fake.asI18n() },
-    });
-
-    click("load-admin");
-    await tick();
-
-    expect(text("loading")).toBe("true");
-    expect(text("active-namespaces")).toBe("admin,common");
-
-    resolveLoad?.();
-
-    await vi.waitFor(() => {
-      expect(text("loading")).toBe("false");
-    });
-
-    expect(text("active-namespaces")).toBe("admin,common");
-  });
-
-  it("reflects cache updates through addMessages and clearMessages", async () => {
-    component = mount(UseI18nHarness, {
-      target,
-      props: { i18n: fake.asI18n() },
-    });
-
-    const before = Number(text("cache-revision"));
-
-    expect(text("dynamic")).toBe("dynamic");
-
-    click("add-dynamic");
-    await tick();
-
-    const afterAdd = Number(text("cache-revision"));
-    expect(afterAdd).toBeGreaterThan(before);
-    expect(text("dynamic")).toBe("Dynamic");
-
-    click("clear-common-en");
-    await tick();
-
-    const afterClear = Number(text("cache-revision"));
-    expect(afterClear).toBeGreaterThan(afterAdd);
-    expect(text("hello")).toBe("hello");
-  });
-
-  it("stops event notifications after unsubscribing", async () => {
-    component = mount(UseI18nHarness, {
-      target,
-      props: { i18n: fake.asI18n() },
-    });
-
-    click("switch-fr");
-    await tick();
-
-    expect(text("events")).toBe("en->fr");
-
-    click("unsubscribe-events");
-    await tick();
-
-    click("switch-ar");
-    await tick();
-
-    expect(text("events")).toBe("en->fr");
-  });
-
-  it("exposes the host's messages cache map, keyed by locale:namespace", () => {
-    component = mount(MessagesCacheHarness, {
-      target,
-      props: { i18n: fake.asI18n() },
-    });
-
-    expect(text("cache-keys")).toBe("ar:admin,ar:common,en:admin,en:common,fr:admin,fr:common");
-    expect(text("cache-en-hello")).toBe("Hello");
-  });
-
-  it("hands repeated calls on one instance the same t and tRaw stores", () => {
-    component = mount(StoreCacheHarness, {
-      target,
-      props: { i18n: fake.asI18n() },
-    });
-
-    expect([text("t-stable"), text("traw-stable")]).toEqual(["true", "true"]);
-  });
-
-  it("keeps namespaces apart — each useI18n(ns) translates in its own namespace", () => {
-    fake.addMessages({ "en:billing": { title: "Billing" } });
-
-    component = mount(StoreCacheHarness, {
-      target,
-      props: { i18n: fake.asI18n() },
-    });
-
-    expect([text("admin-title"), text("billing-title")]).toEqual(["Admin", "Billing"]);
-    expect([text("admin-title-raw"), text("billing-title-raw")]).toEqual(["Admin", "Billing"]);
-  });
-
-  it("throws when called with no i18n context in the tree", () => {
-    expect(() => mount(NoContextHarness, { target })).toThrow(
-      "[@comvi/svelte] i18n context not found. " +
-        "Call setI18nContext(i18n) in your root component (e.g., App.svelte).",
+  it("useI18n() returns the eight members of every binding; without setI18n it throws", () => {
+    const { i18n } = make({ locale: "ar", messages: { ar: {} } });
+    const r = during(i18n, () => useI18n());
+    expect(Object.keys(r).sort()).toEqual(
+      ["T", "dir", "i18n", "isLoading", "isReady", "locale", "setLocale", "t"].sort(),
     );
+    expect([r.locale, r.dir, r.i18n]).toEqual(["ar", "rtl", i18n]);
+    const target = document.createElement("div");
+    expect(() => mount((() => void useI18n()) as never, { target })).toThrow(
+      /\[@comvi\/svelte\] no setI18n/,
+    );
+  });
+
+  it("the members read the instance's published state on each read", async () => {
+    const { i18n } = make({
+      locale: "en",
+      catalogs: { default: { en: { hi: "Hi" }, de: { hi: "Hallo" } } },
+    });
+    const r = during(i18n, () => useI18n());
+    expect([r.locale, r.t("hi" as never)]).toEqual(["en", "Hi"]);
+    await i18n.setLocale("de");
+    expect([r.locale, r.t("hi" as never)]).toEqual(["de", "Hallo"]);
+  });
+
+  it("the same bound <T> for every caller of a namespace; a namespace called constructor gets its own", () => {
+    const { i18n } = make({ locale: "en", messages: { en: {} }, onError() {} });
+    const [a, b, c, d] = during(i18n, () => [
+      useI18n("shop").T,
+      useI18n("shop").T,
+      useI18n("cart").T,
+      useI18n("constructor").T,
+    ]);
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
+    expect(typeof d).toBe("function");
+    expect(d).not.toBe(Object);
+  });
+});
+
+describe("t()", () => {
+  it("is plain text: a handler's output is joined to one string", () => {
+    const { i18n } = make({
+      locale: "en",
+      messages: { en: { terms: "Read <link>the <b>new</b> terms</link>.", plain: "x" } },
+      onError() {},
+    });
+    const t = during(i18n, () => useI18n().t) as (k: string, p?: object) => unknown;
+    expect(t("terms", { link: (c: string) => `[${c}]` })).toBe("Read [the new terms].");
+    expect(t("terms", { link: (c: string) => `[${c}]`, b: (c: string) => `*${c}*` })).toBe(
+      "Read [the *new* terms].",
+    );
+    expect(t("plain")).toBe("x");
+  });
+
+  it("in a $derived on a namespace with no catalog: no state_unsafe_mutation (R4-17)", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load, onError() {} });
+    const w = mountWith(i18n, Derived, { ns: "shop" });
+    flushSync();
+    expect(w.text()).toBe("title");
+    void i18n.load("shop");
+    await settle();
+    await l.answer("en:shop", { title: "Shop" });
+    expect(w.text()).toBe("Shop");
   });
 });

@@ -9,8 +9,8 @@ import { test as base, expect, type APIRequestContext, type Page } from "@playwr
  * English, `/uk` Ukrainian).
  *
  * Run by `run.mjs` only, against a production build: `recipe` runs a–d on the
- * example as committed, `pressure` runs e and `shared` runs e2 against the
- * `RECIPE_VARIANTS` builds of it (lib.mjs). As in `scenario.spec.ts`, the
+ * example as committed, `failed` runs g–h4, `pressure` runs e and `shared`
+ * runs e2 against the `RECIPE_VARIANTS` builds of it (lib.mjs). As in `scenario.spec.ts`, the
  * critical texts are literals here, and every test fails on its own on a
  * `console.error`, an uncaught error or a hydration warning.
  */
@@ -343,6 +343,164 @@ test("d: a first segment outside the locales is a 404", async ({ request }) => {
     expect(response.status(), `GET ${target}`).toBe(200);
     expect(htmlAttribute(await response.text(), "lang"), `GET ${target}`).toBe("en");
   }
+});
+
+/** What the browser's loader was asked for, `locale:ns`, on the `failed` build. */
+const requested = (page: Page) =>
+  page.evaluate(async () => {
+    // A load that the hydration or a switch starts calls the loader within a task.
+    await new Promise((resolve) => setTimeout(resolve));
+    return (window as { __requested?: string[] }).__requested;
+  });
+
+/**
+ * Wait until a browser `setLocale()` has settled as `entry` (`uk:resolved`), on the `failed`
+ * build. The record is written in the promise's own callback, after the switch has published
+ * whatever it publishes; the check after this runs in a later task, once the binding's
+ * render has gone through.
+ */
+async function settled(page: Page, ...entries: string[]): Promise<void> {
+  await page.waitForFunction(
+    (wanted) => wanted.some((e) => (window as { __settled?: string[] }).__settled?.includes(e)),
+    entries,
+  );
+}
+
+/** Record the browser's loader calls (`failed` build) and wait for the hydration. */
+async function openFailed(page: Page, target: string): Promise<void> {
+  await watchHydration(page);
+  await page.addInitScript(() => {
+    const w = window as { __requested?: string[]; __settled?: string[] };
+    w.__requested = [];
+    w.__settled = [];
+  });
+  await page.goto(target);
+  await hydrated(page);
+  await page.evaluate(() => ((window as { __sameDocument?: boolean }).__sameDocument = true));
+}
+
+test("g: a catalog that failed on the server reaches the browser as a failure, and the hydration does not ask for it", async ({
+  request,
+  page,
+}) => {
+  const response = await request.get("/uk");
+  expect(response.status(), "GET /uk").toBe(200);
+  const html = await response.text();
+  expect(htmlAttribute(html, "lang"), "<html lang>").toBe("uk");
+  expect(testIdText(html, "greeting"), "the en fallback").toBe(GREETING.en);
+  // The payload's uk slot is `null`: devalue in SvelteKit, JSON in SolidStart.
+  expect(html, "uk handed over as a failure").toMatch(/\buk"?:null\b/);
+
+  await openFailed(page, "/uk");
+  await expect(page.getByTestId("greeting")).toHaveText(GREETING.en);
+  await expect(page.locator("html")).toHaveAttribute("lang", "uk");
+  expect(await requested(page), "the browser's loader calls").toEqual([]);
+});
+
+test("h: a later navigation back to the failed locale retries it once, through setLocale()", async ({
+  page,
+}) => {
+  await openFailed(page, "/uk");
+  // The same locale: nothing is asked again, the fallback stays.
+  await follow(page, "nav-about", "/uk/about");
+  await expect(page.getByTestId("about")).toHaveText(flat.en["about.body"]);
+  await follow(page, "locale-en", "/about");
+  await expectAbout(page, "en");
+  expect(await requested(page), "the browser's loader calls before the switch back").toEqual([]);
+  // A switch to uk is an explicit retry: one request, then Ukrainian.
+  await follow(page, "locale-uk", "/uk/about");
+  await expectAbout(page, "uk");
+  expect(await requested(page), "the browser's loader calls").toEqual(["uk:default"]);
+});
+
+test("h2: back to / before a pending switch to uk lands, the page stays English", async ({
+  page,
+}) => {
+  await openFailed(page, "/");
+  await expectPage(page, "en");
+  // Hold the browser's loads: uk failed on the server, so the switch to it waits for one.
+  await page.evaluate(() => {
+    const w = window as { __hold?: Promise<void>; __release?: () => void; __loaded?: string[] };
+    w.__loaded = [];
+    w.__hold = new Promise((resolve) => (w.__release = resolve));
+  });
+  await follow(page, "locale-uk", "/uk");
+  expect(await requested(page), "the switch to uk is loading").toEqual(["uk:default"]);
+  await follow(page, "locale-en", "/");
+
+  await page.evaluate(() => (window as { __release?: () => void }).__release?.());
+  // The held load returns, and the switch to uk settles: superseded by the switch back to en,
+  // or landing on uk where the layout never asked for en again.
+  await page.waitForFunction(() =>
+    (window as { __loaded?: string[] }).__loaded?.includes("uk:default"),
+  );
+  await settled(page, "uk:resolved", "uk:rejected");
+  await expect(page).toHaveURL((url) => url.pathname === "/");
+  expect(await page.locator("html").getAttribute("lang"), "<html lang> once uk settled").toBe("en");
+  expect(await page.getByTestId("greeting").textContent(), "the greeting once uk settled").toBe(
+    GREETING.en,
+  );
+  await expectPage(page, "en");
+});
+
+test("h3: a switch that failed in the browser is retried by a switch away and back", async ({
+  page,
+}) => {
+  await openFailed(page, "/");
+  await expectPage(page, "en");
+  await page.evaluate(() => ((window as { __fail?: boolean }).__fail = true));
+  await follow(page, "locale-uk", "/uk");
+  expect(await requested(page), "the switch to uk asked once").toEqual(["uk:default"]);
+  await settled(page, "uk:rejected");
+  expect(await page.getByTestId("greeting").textContent(), "the greeting once uk failed").toBe(
+    GREETING.en,
+  );
+  await page.evaluate(() => ((window as { __fail?: boolean }).__fail = false));
+
+  // The page's own links follow the locale on screen (en), so /uk/about is a link of the test's.
+  await page.evaluate(() => {
+    const link = Object.assign(document.createElement("a"), {
+      href: "/uk/about",
+      textContent: "e2e",
+    });
+    link.dataset.testid = "e2e-uk-about";
+    document.body.append(link);
+  });
+  // Within the locale the layout does not run again (SvelteKit keeps the layout's data, Solid's
+  // effect reads the route's locale only): nothing is asked, the fallback stays.
+  await follow(page, "e2e-uk-about", "/uk/about");
+  await expect(page.getByTestId("about")).toHaveText(flat.en["about.body"]);
+  expect(await requested(page), "the same locale asks for nothing").toEqual(["uk:default"]);
+  // A switch away and back retries.
+  await follow(page, "locale-en", "/about");
+  await expectAbout(page, "en");
+  await follow(page, "locale-uk", "/uk/about");
+  await expectAbout(page, "uk");
+  expect(await requested(page), "one new request for uk").toEqual(["uk:default", "uk:default"]);
+});
+
+test("h4: a switch that failed in the browser is retried by its switcher link again", async ({
+  page,
+}) => {
+  test.skip(
+    process.env.E2E_KIND === "solidstart",
+    "a link to the URL on screen changes no route param, so SolidStart's layout does not run",
+  );
+  await openFailed(page, "/");
+  await expectPage(page, "en");
+  await page.evaluate(() => ((window as { __fail?: boolean }).__fail = true));
+  await follow(page, "locale-uk", "/uk");
+  await settled(page, "uk:rejected");
+  expect(await page.getByTestId("greeting").textContent(), "the greeting once uk failed").toBe(
+    GREETING.en,
+  );
+  await page.evaluate(() => ((window as { __fail?: boolean }).__fail = false));
+
+  // The switcher's uk link is the URL on screen: SvelteKit runs the layout's load again, and
+  // its payload names uk, the locale whose switch failed. That payload asks again.
+  await follow(page, "locale-uk", "/uk");
+  await expectPage(page, "uk");
+  expect(await requested(page), "one new request for uk").toEqual(["uk:default", "uk:default"]);
 });
 
 async function render(request: APIRequestContext, locale: Locale) {

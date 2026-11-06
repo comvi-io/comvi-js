@@ -151,8 +151,8 @@ the bytes first, then decide whether they ship.
 
 `core-compile`, `core-locale`, `core-negotiate`, `core-icu`, `core-icu-cdn`, `core-icu-devtools`,
 `core-devtools`, `core-format`, `core-plugins` (the 0.8 core; the 0.7 `core-base*` rows are gone);
-`react-icu-cdn` and `vue-icu-cdn` (the main path on React and on Vue, each with the binding
-increment cap over `core-icu-cdn`);
+`react-icu-cdn`, `vue-icu-cdn`, `solid-icu-cdn` and `svelte-icu-cdn` (the main path on each binding,
+each with the binding increment cap over `core-icu-cdn`);
 per framework
 `fw-{react,solid,svelte,vue}-{default,full-composite}`, `fw-svelte-format`; `fw-next-client-default`,
 `fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-root-devtools`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
@@ -1388,3 +1388,51 @@ re-baselined from that sweep; every ceiling and cap ends at or below its old val
 
 `core-compile` (1,862), `core-locale` (584), `core-negotiate` (496) and `core-devtools` (639) did not
 move. Pending rows are unmeasured here; `fw-svelte-format` is re-baselined in lot 5.
+
+## 2026-10-31: lot 5, Solid and Svelte on 0.8
+
+`@comvi/solid` and `@comvi/svelte` left MIGRATION_PENDING; their rows were unmeasured since lot 1a.
+One sweep after `TURBO_FORCE=1 pnpm build`, `node --version` v24.22.1. Budgets follow the policy at the top
+of this file. **The ceilings and increment caps of the two new rows are `ceil(measured × 1.02)` and are
+proposals: only the owner accepts them.** No React, Vue or core row moved.
+
+| row                      | 0.7 baseline | now   | budget | ceiling (proposed) | over core-icu-cdn (proposed cap) |
+| ------------------------ | ------------ | ----- | ------ | ------------------ | -------------------------------- |
+| solid-icu-cdn            | —            | 5,927 | 6,046  | **6,046**          | +813 (**+830**)                  |
+| svelte-icu-cdn           | —            | 6,448 | 6,577  | **6,577**          | +1,334 (**+1,361**)              |
+| fw-solid-default         | 7,036        | 5,404 | 5,675  | —                  | —                                |
+| fw-solid-full-composite  | 12,914       | 8,044 | 8,447  | —                  | —                                |
+| fw-svelte-default        | 7,235        | 5,949 | 6,247  | —                  | —                                |
+| fw-svelte-full-composite | 13,609       | 8,510 | 8,936  | —                  | —                                |
+| fw-svelte-format         | 462          | 5,686 | 5,971  | —                  | —                                |
+
+For comparison, the increment is +533 on React and +716 on Vue. `fw-svelte-format` measures a real
+instance, the context and `useFormat()`: the 462 B was one formatter over a plain object, which 0.8
+refuses with a `TypeError`.
+
+`scripts/size-check.mjs` compiles `*.svelte.js` as well as `.svelte` (`compileModule`; the binding's
+reactive cell uses runes) and resolves with the `production` and `browser` conditions at the esbuild
+level, as a production bundler does for `esm-env` (`DEV` and `BROWSER` of `@comvi/svelte`). That leaves the
+figures of every other row as they were.
+
+## 2026-11-06: lot 5 final, ceilings accepted
+
+The owner accepted the lot 5 ceilings at `ceil(measured × 1.02)` of the final figures. Measured after
+`pnpm build` on `lot5/solid-svelte` with `next` merged in (#164, the React void-element fix, and #163,
+the development diagnostics), `node --version` v24.22.1. Between 10-31 and here a plain `{name}` became
+text in the core and every binding (`.changeset/core-08-text-params.md`), which removed the node
+pass-through and took 59–77 B off each row that compiles messages.
+
+| row                      | 10-31 | final | budget | ceiling (accepted) | over core-icu-cdn (accepted cap) |
+| ------------------------ | ----- | ----- | ------ | ------------------ | -------------------------------- |
+| solid-icu-cdn            | 5,927 | 5,861 | 5,979  | **5,979**          | +811 (**+828**)                  |
+| svelte-icu-cdn           | 6,448 | 6,379 | 6,507  | **6,507**          | +1,329 (**+1,356**)              |
+| fw-solid-default         | 5,404 | 5,342 | 5,610  | —                  | —                                |
+| fw-solid-full-composite  | 8,044 | 7,983 | 8,383  | —                  | —                                |
+| fw-svelte-default        | 5,949 | 5,875 | 6,169  | —                  | —                                |
+| fw-svelte-full-composite | 8,510 | 8,447 | 8,870  | —                  | —                                |
+| fw-svelte-format         | 5,686 | 5,627 | 5,909  | —                  | —                                |
+
+Framework-row budgets are `ceil(gzip × 1.05)` of the final figure. No ceiling of a core, React or Vue
+row changed; their figures moved down: `core-icu-cdn` 5,114 → 5,050, `react-icu-cdn` 5,647 → 5,589
+(+539 over core-icu-cdn with #164, cap +544), `vue-icu-cdn` 5,830 → 5,753 (+703, cap +731).

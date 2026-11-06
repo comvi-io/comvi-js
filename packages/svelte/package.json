@@ -2,7 +2,7 @@
   "name": "@comvi/svelte",
   "version": "0.7.1",
   "type": "module",
-  "description": "Svelte 5 integration for Comvi i18n — stores, components, and type-safe translations",
+  "description": "Svelte 5 binding for Comvi i18n: setI18n(), useI18n(), <T> and useFormat()",
   "license": "MIT",
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {
@@ -25,7 +25,6 @@
     "type-safe",
     "comvi",
     "translation",
-    "stores",
     "ssr"
   ],
   "files": [
@@ -50,8 +49,9 @@
       "default": "./dist/index.js"
     },
     "./format": {
-      "types": "./dist/format.d.ts",
-      "default": "./dist/format.js"
+      "types": "./dist/format.svelte.d.ts",
+      "svelte": "./dist/format.svelte.js",
+      "default": "./dist/format.svelte.js"
     }
   },
   "sideEffects": false,
@@ -59,7 +59,7 @@
     "dev": "vite build --watch",
     "build": "node ../../tooling/clean-dist.mjs && svelte-package -i src -o dist && node ../../tooling/qualify-dts-specifiers.mjs dist",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
-    "test:types": "tsc --noEmit -p tsconfig.test-types.json && tsc --noEmit -p tsconfig.keys-open.json && tsc --noEmit -p tsconfig.keys-via-binding.json",
+    "test:types": "tsc --noEmit -p tsconfig.test-types.json && tsc --noEmit -p tsconfig.test-types-untyped.json && node tests/templates/check.mjs",
     "test": "vitest run && pnpm test:types",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -70,7 +70,8 @@
     "attw": "attw --pack . --ignore-rules cjs-resolves-to-esm internal-resolution-error"
   },
   "dependencies": {
-    "@comvi/core": "workspace:*"
+    "@comvi/core": "workspace:*",
+    "esm-env": "^1.2.2"
   },
   "peerDependencies": {
     "svelte": "^5.3.0"
@@ -91,6 +92,7 @@
     "prettier": "^3.9.10",
     "publint": "^0.3.25",
     "svelte": "^5.57.2",
+    "svelte-check": "^4.7.7",
     "svelte-preprocess": "^6.0.5",
     "typescript": "~6.0.2",
     "vite": "^8.3.5",

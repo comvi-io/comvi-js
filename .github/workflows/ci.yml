@@ -216,10 +216,16 @@ jobs:
       - name: Typegen e2e (built artifacts)
         run: pnpm typegen:e2e
 
-      # Imports the entries meant for plain Node (`@comvi/svelte/format`) from
-      # packed tarballs in a fresh `node` process: the svelte root cannot load there.
+      # Imports the entry meant for plain Node (`@comvi/core/format`) from its packed tarball
+      # in a fresh `node` process: the Svelte binding's entries cannot load there.
       - name: Plain-Node entries gate
         run: pnpm check:node-entries
+
+      # Every entry's runtime export names equal the value exports of its `.d.ts`.
+      # `test:release-tools` runs it too, but the quality job builds nothing, so a
+      # package without dist is only skipped there; here a missing dist fails.
+      - name: Export names gate
+        run: pnpm check:export-names
 
       # Verifies every publishable package's exports/main/types/bin targets are
       # present in `npm pack` output.

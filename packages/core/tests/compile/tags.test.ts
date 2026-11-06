@@ -112,7 +112,7 @@ describe("tag children without a handler", () => {
   it("merge into the surrounding text around a rich value", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const node = { el: 1 };
-    expect(fmt("x <b>a{n}b</b> y", { n: node })).toEqual(["x a", node, "b y"]);
+    expect(fmt("x <b>a<i/>b</b> y", { i: () => node })).toEqual(["x a", node, "b y"]);
   });
 });
 

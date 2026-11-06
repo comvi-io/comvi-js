@@ -4,10 +4,10 @@
  * plural-rules-cache, icu-hash-lazy-format; numbering-system probe from lot-0 S3 extra.mjs.
  */
 import { describe, expect, it, vi } from "vitest";
+import { fmt } from "../helpers";
 import {
   _intlCacheSize,
   formatNumber,
-  formatValue,
   INTL_CACHE_LIMIT,
   intl,
   pluralRules,
@@ -59,23 +59,14 @@ describe("the Intl cache", () => {
   });
 });
 
-describe("formatValue (a plain {x}, R3-17)", () => {
+describe("a plain {x} (R3-17)", () => {
   it("is String(value) for numbers, Dates and string lists, and never builds a formatter", () => {
     const d = new Date(Date.UTC(2026, 0, 1, 23));
-    expect(formatValue(1004)).toBe("1004");
-    expect(formatValue(2026)).toBe("2026");
-    expect(formatValue(d)).toBe(String(d));
-    expect(formatValue(["a", "b"])).toBe("a,b");
+    expect(fmt("{x}", { x: 1004 })).toBe("1004");
+    expect(fmt("{x}", { x: 2026 })).toBe("2026");
+    expect(fmt("{x}", { x: d })).toBe(String(d));
+    expect(fmt("{x}", { x: ["a", "b"] })).toBe("a,b");
     expect(_intlCacheSize()).toBe(0);
-  });
-
-  it("passes objects, functions and lists holding one through untouched", () => {
-    const node = {};
-    const fn = () => 1;
-    const list = ["a", node];
-    expect(formatValue(node)).toBe(node);
-    expect(formatValue(fn)).toBe(fn);
-    expect(formatValue(list)).toBe(list);
   });
 });
 

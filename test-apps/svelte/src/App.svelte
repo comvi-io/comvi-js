@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { setI18nContext, useI18n } from '@comvi/svelte';
+  import { setI18n, useI18n } from '@comvi/svelte';
   import { i18n } from '$lib/i18n';
   import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
   import HomeView from '$lib/views/HomeView.svelte';
@@ -9,11 +9,12 @@
   import NamespacesView from '$lib/views/NamespacesView.svelte';
   import RtlView from '$lib/views/RtlView.svelte';
 
-  setI18nContext(i18n);
+  setI18n(i18n);
 
-  const { t, isLoading, locale } = useI18n();
+  const r = useI18n();
+  const t = r.t;
 
-  let currentPath = window.location.hash.slice(1) || '/';
+  let currentPath = $state(window.location.hash.slice(1) || '/');
 
   function navigate(path: string) {
     window.location.hash = path;
@@ -21,14 +22,6 @@
   }
 
   onMount(() => {
-    i18n.init().then(() => {
-      const defaultNs = i18n.getDefaultNamespace();
-      const activeNamespaces = i18n.getActiveNamespaces();
-      if (!activeNamespaces.includes(defaultNs)) {
-        i18n.addActiveNamespace(defaultNs);
-      }
-    });
-
     const handleHashChange = () => {
       currentPath = window.location.hash.slice(1) || '/';
     };
@@ -36,10 +29,10 @@
     return () => window.removeEventListener('hashchange', handleHashChange);
   });
 
-  $: if (typeof document !== 'undefined') {
-    document.documentElement.dir = $locale === 'ar' ? 'rtl' : 'ltr';
-    document.documentElement.lang = $locale;
-  }
+  $effect(() => {
+    document.documentElement.dir = r.dir;
+    document.documentElement.lang = r.locale;
+  });
 
   const navItems = [
     { path: '/', label: 'nav.home' },
@@ -57,9 +50,9 @@
         <h1 class="text-xl font-bold text-blue-600">Comvi Svelte Example</h1>
       </div>
       <div class="flex gap-4 items-center">
-        {#if $isLoading}
+        {#if r.isLoading}
           <div class="text-sm text-gray-500 italic">
-            {$t('common.loading')}
+            {t('common.loading')}
           </div>
         {/if}
         <LanguageSwitcher />
@@ -68,12 +61,12 @@
     <div class="container mx-auto px-4 border-t flex gap-2 overflow-x-auto py-2">
       {#each navItems as item (item.path)}
         <button
-          on:click={() => navigate(item.path)}
+          onclick={() => navigate(item.path)}
           class="px-3 py-2 rounded text-sm hover:bg-gray-100 whitespace-nowrap transition-colors {currentPath === item.path
             ? 'bg-blue-50 text-blue-700 font-medium'
             : ''}"
         >
-          {$t(item.label)}
+          {t(item.label)}
         </button>
       {/each}
     </div>

@@ -1,23 +1,22 @@
 import { useI18n } from "@comvi/solid";
+import { useFormat } from "@comvi/solid/format";
 import { Card } from "../components/Card";
 
 const RELEASED = new Date("2026-09-01T00:00:00Z");
 
 export function FormattingCard() {
-  const { t, formatNumber, formatDate } = useI18n();
+  const { t } = useI18n();
+  // Formatters in the language on screen: they change with it.
+  const format = useFormat();
   return (
     <Card title={t("demo.formatting.title")} body={t("demo.formatting.body")}>
       <p class="widget">
         {t("stats.summary", {
-          views: formatNumber(1234567),
-          date: formatDate(RELEASED, { dateStyle: "long", timeZone: "UTC" }),
+          views: format.number(1234567),
+          date: format.date(RELEASED, { dateStyle: "long", timeZone: "UTC" }),
         })}
       </p>
-      <p class="widget">
-        {t("demo.formatting.price", {
-          price: formatNumber(1234.5, { style: "currency", currency: "EUR" }),
-        })}
-      </p>
+      <p class="widget">{t("demo.formatting.price", { price: format.currency(1234.5, "EUR") })}</p>
     </Card>
   );
 }

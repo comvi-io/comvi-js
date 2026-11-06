@@ -21,7 +21,7 @@
   let count = $state(2);
 </script>
 
-<p class="back"><a href="/" use:link>{$t('demo.start.back')}</a></p>
+<p class="back"><a href="/" use:link>{t('demo.start.back')}</a></p>
 
 <div class="cards">
   <GreetingCard />

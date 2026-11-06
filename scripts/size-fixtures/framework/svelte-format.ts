@@ -1,6 +1,12 @@
-// Framework size fixture: `@comvi/svelte/format`, what a plain-Node module imports. The
-// formatters take a real instance (lot 4d), so the row carries `createI18n` too.
+// Framework size fixture: `useFormat()` of `@comvi/svelte/format`, on a real instance through
+// the context (design §3.3): the core's formatters, the relative clock, the binding's cell.
 import { createI18n } from "@comvi/core";
-import { formatRelativeTime } from "@comvi/svelte/format";
+import { setI18n } from "@comvi/svelte";
+import { useFormat } from "@comvi/svelte/format";
 
-console.log(formatRelativeTime(createI18n({ locale: "en" }), Date.now() - 86_400_000));
+const i18n = createI18n({ locale: "en" });
+
+export const setup = () => {
+  setI18n(i18n);
+  return useFormat().relative(Date.now() - 86_400_000);
+};

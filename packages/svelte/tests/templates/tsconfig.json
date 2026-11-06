@@ -1,0 +1,13 @@
+{
+  // svelte-check of real templates against the generated catalogs of tests/types
+  // (check.mjs). Its own program: the augmentation is global to it.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "declaration": false,
+    "rootDir": "../..",
+    "noUnusedLocals": false
+  },
+  "include": ["./*.svelte", "../types/catalogs.d.ts"]
+}

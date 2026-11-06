@@ -1,62 +1,30 @@
-// TWO RULES this file exists to keep:
-//
-//   1. NAMED re-exports only, never `export *`. A star re-export is a name set
-//      webpack can only resolve by keeping the source module, and
-//      `optimization.usedExports` is off in development — that is how
-//      `@comvi/vue`'s `export * from "@comvi/core"` once kept the whole core
-//      root entry alive in webpack dev. `export type *` is erased before any
-//      bundler sees it and is therefore fine.
-//   2. ONE hop, and never through another wrapper: webpack development
-//      reconnects a single `export … from` across one `sideEffects: false`
-//      package, but not a two-package chain. So every core binding below comes
-//      straight from `@comvi/core` or one of its pure subpaths, never relayed
-//      through another `@comvi/*`.
-//
-// `@comvi/core/tags` is deliberately NOT re-exported, and nothing here imports
-// it either: it is the one side-effectful subpath, so naming it would put
-// ambient tag registration in every graph.
-
+/**
+ * @comvi/solid — the Solid binding of the 0.8 core (design §3.4): `<I18nProvider>`, `useI18n()`,
+ * `<T>`, and `handover()` for a server render. `createI18n` is re-exported, so a Solid app
+ * imports one package; `@comvi/solid/format` adds `useFormat()`.
+ */
 export { createI18n } from "@comvi/core";
-// `I18n` is a TYPE here: `createI18n(o)` and `new I18n(o)` build the same
-// object, so the class VALUE is `@comvi/core`'s to export, not a binding's.
-export type { I18n } from "@comvi/core";
-
-// Standalone formatters, for code outside a component.
-export { formatNumber, formatDate, formatCurrency, formatRelativeTime } from "@comvi/core";
-
-export { I18nProvider, useI18nInstance } from "./context";
-export type { I18nProviderProps } from "./context";
-export { useI18n } from "./useI18n";
-export type { UseI18nReturn } from "./useI18n";
-
-export { useI18nLoader, useI18nPlugins } from "./capabilityHooks";
-export type { UseI18nLoaderReturn, UseI18nPluginsReturn } from "./capabilityHooks";
-
+export { handover } from "@comvi/core/internal";
+export { I18nProvider, useI18n } from "./binding";
 export { T } from "./T";
-export type { TProps } from "./T";
-export type { ComponentMap } from "./types";
-
-export {
-  createLocaleSignal,
-  createDefaultNamespaceSignal,
-  createDefaultNamespaceState,
-  createDefaultParamsSignal,
-  createDefaultParamsState,
-  createLoadingSignal,
-  createInitializingSignal,
-  createInitializedSignal,
-  createCacheRevisionSignal,
-} from "./primitives";
-
-// The capability toolkit. Each is a named binding under `sideEffects: false`,
-// so the subpaths an app never calls stay out of its graph. `loader(map)` /
-// `plugins()` / `devtools()` are the configured installers for `i18n.use(…)`;
-// the `attach*` functions are themselves installers, so `.use(attachLoader)`
-// works too.
-export { icuCompiler } from "@comvi/core/icu";
-export { attachLoader, loader } from "@comvi/core/loader";
-export { definePlugin, plugins } from "@comvi/core/plugins";
-export { devtools } from "@comvi/core/devtools";
-
-export type * from "@comvi/core";
-export type { DevtoolsOptions } from "@comvi/core/devtools";
+export type { Handover } from "@comvi/core/internal";
+export type {
+  BoundT,
+  I18nProviderProps,
+  TagComponent,
+  TComponent,
+  UntypedParams,
+  UseI18n,
+} from "./binding";
+export type {
+  Catalog,
+  I18n,
+  I18nError,
+  I18nErrorCode,
+  I18nOptions,
+  Loader,
+  Plugin,
+  // A generated comvi.d.ts that augments @comvi/solid imports Tag from it (typegen v2).
+  Catalogs,
+  Tag,
+} from "@comvi/core";

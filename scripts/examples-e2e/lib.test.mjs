@@ -611,6 +611,7 @@ test("allPassed: an SSR recipe is judged on its own steps", () => {
   assert.equal(allPassed([{ ...recipe, steps: { ...steps, e2: undefined } }]), false);
   assert.equal(allPassed([{ ...recipe, steps: { ...steps, f: { status: "fail" } } }]), false);
   assert.equal(allowedSkips({ kind: "sveltekit", cdn: false }).size, 0);
+  assert.deepEqual([...allowedSkips({ kind: "solidstart", cdn: false })], ["h4"]);
 });
 
 test("allPassed: skips are fine, failures and unreached steps are not", () => {
@@ -867,11 +868,20 @@ test("RECIPE_VARIANTS match the committed sveltekit and solidstart examples, in 
         recursive: true,
         filter: (source) => !source.includes("node_modules"),
       });
+      // `failed` applies to the example as committed; run.mjs undoes it before `pressure`.
+      const i18n = path.join(dir, "src", "lib", "i18n.ts");
+      const committed = fs.readFileSync(i18n, "utf8");
+      applyVariant(dir, RECIPE_VARIANTS[kind].failed);
+      assert.match(fs.readFileSync(i18n, "utf8"), /locale === "uk"\) throw/);
+      fs.writeFileSync(i18n, committed);
       applyVariant(dir, RECIPE_VARIANTS[kind].pressure);
       applyVariant(dir, RECIPE_VARIANTS[kind].shared);
+      // The `shared` variant really is one module-level instance.
       assert.match(
-        fs.readFileSync(path.join(dir, "src", "lib", "shared.ts"), "utf8"),
-        /export const shared = createI18n/,
+        kind === "sveltekit"
+          ? fs.readFileSync(path.join(dir, "src", "lib", "shared.ts"), "utf8")
+          : fs.readFileSync(path.join(dir, "src", "lib", "i18n.ts"), "utf8"),
+        kind === "sveltekit" ? /export const shared = createI18n/ : /shared \|\|= createI18n/,
       );
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });

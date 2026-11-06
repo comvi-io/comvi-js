@@ -7,7 +7,9 @@
  * - rich parts render with no wrapper element; a handler — an attribute OR a slot named
  *   after the tag — gets the tag's children as ONE child (their text, or the list of their
  *   parts, which Vue renders as a fragment);
- * - a param that only LOOKS like a node renders as text (0.7 T-forged-node);
+ * - a param that only LOOKS like a node renders as text (0.7 T-forged-node), and so does a
+ *   real VNode (owner decision 04.11.2026: a plain `{x}` is always text, markup comes from
+ *   tags);
  * - 0.8 has no `components` map and no per-tag error boundary: a throwing handler throws
  *   to the app's `errorHandler`.
  *
@@ -216,29 +218,30 @@ describe("<T i18nKey>", () => {
     );
   });
 
-  it("gives a handler its children as ONE child: nested tags and node params, no warning", async () => {
-    const i18n = en({ m: "<x>one <y>two</y> {k}</x>" });
+  it("gives a handler its children as ONE child: nested and void tags, no warning", async () => {
+    const i18n = en({ m: "<x>one <y>two</y> <k/></x>" });
     const kinds: string[] = [];
     const x = (c: unknown) => (
       kinds.push(Array.isArray(c) ? "parts" : typeof c),
       h("u", null, [c as never])
     );
     const warnings = await vueWarnings(() => {
-      expect(html(i18n, { i18nKey: "m", x, y: (c: string) => h("b", c), k: h("kbd", "K") })).toBe(
-        "<u>one <b>two</b> <kbd>K</kbd></u>",
-      );
+      expect(
+        html(i18n, { i18nKey: "m", x, y: (c: string) => h("b", c), k: () => h("kbd", "K") }),
+      ).toBe("<u>one <b>two</b> <kbd>K</kbd></u>");
     });
     expect(kinds).toEqual(["parts"]);
     expect(warnings).toEqual([]);
   });
 
-  it("keeps element params at stable positions: the DOM node survives a re-render", async () => {
-    const i18n = en({ m: "{a} then {b}" });
+  it("keeps a tag's element at a stable position: the DOM node survives a re-render", async () => {
+    const i18n = en({ m: "<a>A</a> then {b}" });
     const b = ref("one");
     const w = mountWith(
       i18n,
       defineComponent({
-        render: () => h("div", [h(Tc, { i18nKey: "m", a: h("i", { id: "a" }, "A"), b: b.value })]),
+        render: () =>
+          h("div", [h(Tc, { i18nKey: "m", a: (c: string) => h("i", { id: "a" }, c), b: b.value })]),
       }),
     );
     const node = w.find("#a").element;
@@ -393,21 +396,53 @@ describe("params that only look like nodes (0.7 T-forged-node)", () => {
     expect(out).toBe('[&lt;img src=x onerror="alert(1)"&gt;]');
   });
 
-  it("a real node param renders as that element", () => {
-    expect(html(en({ m: "[{x}]" }), { i18nKey: "m", x: h("kbd", "K") })).toBe("[<kbd>K</kbd>]");
+  it("a real VNode in a plain {x} is not rendered as an element: it prints as text", () => {
+    expect(html(en({ m: "[{x}]" }), { i18nKey: "m", x: h("kbd", "K") })).toBe("[[object Object]]");
+  });
+
+  it("a VNode or an HTML string in a plain {x} renders as text on the server too", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { m: "[{x}][{y}]" } },
+      timeZone: "UTC",
+    });
+    const out = await renderToString(
+      createSSRApp({
+        render: () => h("p", null, [h(Tc, { i18nKey: "m", x: h("kbd", "K"), y: "<img src=x>" })]),
+      }).use(i18n),
+    );
+    expect(out).toBe("<p>[[object Object]][&lt;img src=x&gt;]</p>");
+  });
+
+  it("markup comes from a tag around the text {x}: components, a handler, a void tag", () => {
+    const i18n = en({ m: "Hello, <strong>{name}</strong>!<br/>Bye" });
+    expect(
+      html(i18n, { i18nKey: "m", name: "Olena", components: { strong: "strong", br: "br" } }),
+    ).toBe("Hello, <strong>Olena</strong>!<br>Bye");
+    expect(
+      html(i18n, {
+        i18nKey: "m",
+        name: "<i>Olena</i>",
+        strong: (c: string) => h("strong", c),
+        br: () => h("br"),
+      }),
+    ).toBe("Hello, <strong>&lt;i&gt;Olena&lt;/i&gt;</strong>!<br>Bye");
   });
 
   it("t() returns the parts of a rich message (a render function's child) and a string otherwise", () => {
     let rich: unknown;
     let plain: unknown;
     let text: unknown;
+    let node: unknown;
     mountWith(
-      en({ r: "a{x}", p: "a{x}", s: "<b>x</b>" }),
+      en({ r: "a<i>x</i>", p: "a{x}", s: "<b>x</b>" }),
       defineComponent({
         setup() {
           const { t } = useI18n();
-          rich = t("r", { x: h("i") });
+          rich = t("r", { i: (c: string) => h("i", c) });
           plain = t("p", { x: "s" });
+          // A VNode in a plain {x} is text (04.11.2026): the call returns a string.
+          node = t("p", { x: h("i") } as never);
           // A handler that returns text keeps the whole output a string.
           text = t("s", { b: (c: string) => `*${c}*` });
           return () => null;
@@ -418,6 +453,7 @@ describe("params that only look like nodes (0.7 T-forged-node)", () => {
     expect((rich as unknown[])[0]).toBe("a");
     expect(isVNode((rich as unknown[])[1])).toBe(true);
     expect(plain).toBe("as");
+    expect(node).toBe("a[object Object]");
     expect(text).toBe("*x*");
   });
 });

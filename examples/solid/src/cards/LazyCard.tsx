@@ -1,25 +1,18 @@
 import { useI18n } from "@comvi/solid";
 import { Card } from "../components/Card";
+import { fetched } from "../i18n";
 
 export function LazyCard() {
-  const { t, cacheRevision, getLoadedLocales, getActiveNamespaces } = useI18n();
-
-  // Both getters are plain calls; reading `cacheRevision()` re-runs these when
-  // a catalog lands.
-  const fetched = () => {
-    void cacheRevision();
-    return t("loader.fetched", { locales: getLoadedLocales().join(", ") });
-  };
-  const namespaces = () => {
-    void cacheRevision();
-    return t("demo.lazy.namespaces", { namespaces: getActiveNamespaces().join(", ") });
-  };
+  const { t } = useI18n();
 
   return (
     <Card title={t("demo.lazy.title")} body={t("demo.lazy.body")}>
       <p class="network">
-        <span data-testid="fetched">{fetched()}</span>
-        <span>{namespaces()}</span>
+        {/* The list grows as you switch languages: each one is fetched the first time. */}
+        <span data-testid="fetched">
+          {t("loader.fetched", { locales: fetched().locales.join(", ") })}
+        </span>
+        <span>{t("demo.lazy.namespaces", { namespaces: fetched().namespaces.join(", ") })}</span>
       </p>
     </Card>
   );

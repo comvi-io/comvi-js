@@ -528,12 +528,6 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@comvi/test-utils':
-        specifier: workspace:*
-        version: link:../../tooling/test-utils
-      '@comvi/vite-config':
-        specifier: workspace:*
-        version: link:../../tooling/vite-config
       '@solidjs/testing-library':
         specifier: ^0.8.10
         version: 0.8.10(solid-js@1.9.17)
@@ -585,6 +579,9 @@ importers:
       '@comvi/core':
         specifier: workspace:*
         version: link:../core
+      esm-env:
+        specifier: ^1.2.2
+        version: 1.2.2
     devDependencies:
       '@arethetypeswrong/cli':
         specifier: latest
@@ -631,6 +628,9 @@ importers:
       svelte:
         specifier: ^5.57.2
         version: 5.57.2(@typescript-eslint/types@8.72.0)
+      svelte-check:
+        specifier: ^4.7.7
+        version: 4.7.7(picomatch@4.0.7)(svelte@5.57.2(@typescript-eslint/types@8.72.0))(typescript@6.0.2)
       svelte-preprocess:
         specifier: ^6.0.5
         version: 6.0.5(@babel/core@7.29.7)(postcss-load-config@3.1.4(postcss@8.5.31))(postcss@8.5.31)(svelte@5.57.2(@typescript-eslint/types@8.72.0))(typescript@6.0.2)
@@ -932,6 +932,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/solid
     devDependencies:
+      '@comvi/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
       '@comvi/vite-config':
         specifier: workspace:*
         version: link:../../tooling/vite-config
@@ -969,6 +972,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/svelte
     devDependencies:
+      '@comvi/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
       '@comvi/vite-config':
         specifier: workspace:*
         version: link:../../tooling/vite-config

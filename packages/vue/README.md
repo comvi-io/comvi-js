@@ -115,7 +115,8 @@ A tag renders through a handler attribute of its name (`:link="(c) => h('a', c)"
 the content is its default slot, nested tags included), else a slot of its name
 (`<template #link="{ children }">`, `children` the tag's text), else as text. Every other
 attribute but `i18n-key`, `ns`, `locale` and `markers` is a param, camelized, `class` too. `<br/>`
-renders nothing without its entry or handler.
+renders nothing without its entry or handler. A param is always text, a VNode too: markup goes in a
+tag around it (`"Hello, <strong>{name}</strong>!"` with `:components="{ strong: 'strong' }"`).
 
 ## Server rendering
 

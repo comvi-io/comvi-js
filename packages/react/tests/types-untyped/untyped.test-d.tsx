@@ -1,8 +1,9 @@
 /**
  * Types without generated catalogs (an ungenerated project): any key, any params. A t()
- * call with text params returns `string`; a call with a tag handler or an element param is
+ * call with text params returns `string`; a call with a tag handler is
  * `string | ReactElement` — the message decides at run time (lot 4b: honest types; lot 1c
- * typed it `string`, so `.toUpperCase()` on an element compiled and threw).
+ * typed it `string`, so `.toUpperCase()` on an element compiled and threw). A plain `{x}` is
+ * always text (04.11.2026): an element is no param, a tag around the text renders markup.
  */
 import type { ReactElement, ReactNode } from "react";
 import { createI18n, I18nProvider, T, useI18n } from "../../src";
@@ -38,8 +39,13 @@ export function Component() {
   });
   // Text params only (numbers, dates, lists of them): a string.
   const text: string = t("when", { at: new Date(), n: 2, list: ["a", 1] });
-  // An element param can come back as is: rich.
-  const withNode: string | ReactElement = t("hi", { icon: <b /> });
+  // An element is no param: a plain {x} prints text, so the types refuse it.
+  // @ts-expect-error an element in a plain {x} would print String(element)
+  const withNode = t("hi", { icon: <b /> });
+  // @ts-expect-error the same in <T>: render markup through a tag and `components`
+  const nodeProp: ReactNode = <T i18nKey="hi" icon={<b />} />;
+  // The replacement: "Hello, <strong>{name}</strong>!".
+  const replaced: ReactNode = <T i18nKey="hi" name="Olena" components={{ strong: "strong" }} />;
   // `components` renders tags of <T> by name: a tag name or a component.
   const viaComponents: ReactNode = <T i18nKey="terms" components={{ b: "strong", i: Italic }} />;
   // @ts-expect-error a component entry is not a number
@@ -48,7 +54,10 @@ export function Component() {
   const bound: ReactNode = <Bound i18nKey="cart.title" count={2} b={(c) => <b>{c}</b>} />;
   // @ts-expect-error the bound <T> takes no ns: it is fixed by useI18n(ns)
   const wrongNs: ReactNode = <Bound i18nKey="x" ns="other" />;
-  return [s, f, node, rich, notText, text, withNode, viaComponents, badComponents, bound, wrongNs];
+  return [
+    ...[s, f, node, rich, notText, text, withNode, nodeProp, replaced],
+    ...[viaComponents, badComponents, bound, wrongNs],
+  ];
 }
 
 const Italic = ({ children }: { children?: ReactNode }) => <i>{children}</i>;

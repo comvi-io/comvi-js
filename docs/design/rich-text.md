@@ -2,6 +2,12 @@
 
 Status: accepted · Date: 2026-09-14 · Owner decision(s): 0.5.0 rich-text/tags split
 
+> **Partly outdated (0.8).** This record describes 0.5: `@comvi/core/rich-text` and
+> `@comvi/core/tags` no longer exist. The current contract: `t()` and `<T>` share one message
+> syntax; a tag `<x>…</x>` renders through a handler of its name or a `components` entry, else as
+> its text; a plain `{name}` is always text (see the 04.11.2026 paragraph below). The full rewrite
+> is in lot 10.
+
 ## Context
 
 A sentence with a link in the middle of it has to stay one translation unit, or translators get
@@ -56,10 +62,17 @@ explicitly beside `prepareTranslation`, or `tagInterpolation.extensions` per cal
 two bundles and must import the ambient module in both.** ICU apostrophe quoting is not part of
 this: `'{literal}'` and `''` are core grammar and work on every graph.
 
-**Non-primitive parameter values are a separate axis** and behave identically on every graph: `t()`
-always returns a string, coercing the parts, and `tRaw()` preserves them as a parts array. The one
-value that is never coerced is a function: under a `{name}` placeholder it renders as a missing
-parameter does, because a function is a tag handler and coercing it would print its source.
+**A plain `{name}` is always text** (owner decision 04.11.2026), in the core and in every binding:
+a present value prints `String(value)` — a number, a Date, a list, and a function or an object too,
+a framework node (React element, Vue VNode, Solid JSX) included; a missing one renders as before.
+Markup comes only from tags, through their handlers or `components`. A param keyed by a tag's name
+is that tag's handler, not a `{name}` value:
+
+```tsx
+// Before: "Hello, {name}!"   t("greeting", { name: <strong>Olena</strong> })
+// After:  "Hello, <strong>{name}</strong>!"
+<T i18nKey="greeting" name="Olena" components={{ strong: "strong" }} />
+```
 
 **`<T markers={false}>` keeps the in-context editor's invisible markers out of one result**, the
 same as `t(key, { markers: false })`. Nothing else reads it.

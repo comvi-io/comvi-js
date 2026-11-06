@@ -3,48 +3,41 @@ import solid from "vite-plugin-solid";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "path";
 
-// Resolve core's dist through node_modules, not a relative path: inside a Stryker
-// sandbox (.stryker-tmp/sandbox-*) the package is copied, so "../core" does not
-// exist — but the node_modules symlink chain still reaches the real workspace.
-const CORE_DIST = dirname(createRequire(import.meta.url).resolve("@comvi/core"));
-
+/**
+ * The binding and the core run from SOURCE, as one module graph (one CORE seam). Four
+ * projects: `unit` (happy-dom, `__DEV__` true), `prod` (`__DEV__` false), `contracts` (the
+ * BUILT dist of core and solid; turbo builds before test) and `ssr` (below).
+ */
+const CORE = resolve(import.meta.dirname, "../core/src");
 const SOLID_ROOT = dirname(createRequire(import.meta.url).resolve("solid-js/package.json"));
+const alias = [
+  { find: /^@comvi\/core$/, replacement: `${CORE}/index.ts` },
+  { find: /^@comvi\/core\/(.*)$/, replacement: `${CORE}/$1.ts` },
+];
+const conditions = ["development", "browser"];
+const define = { __DEV__: "true", __VERSION__: '"0.0.0-test"' };
+const shared = {
+  environment: "happy-dom" as const,
+  setupFiles: ["./tests/setup.ts"],
+  globals: true,
+  restoreMocks: true,
+  unstubEnvs: true,
+  unstubGlobals: true,
+};
+
+/** What makes a module SERVER-FLAVOURED in the `ssr` project. */
+const SERVER = "?solid-server";
 
 /**
- * The marker that makes a module SERVER-FLAVOURED in the `ssr` project below.
- *
- * A real hydration test needs the same source compiled twice in one process:
- * `generate: "ssr"` against solid's server build for `renderToString`, and
- * `generate: "dom"` against the browser build for `hydrate()`. Vitest gives a
- * project one module graph, so the two flavours are separated by this query
- * instead: `resolveId` below tags every relative import reached from a
- * `*.server.tsx` fixture with it, which both gives that subgraph its own
- * module instances and lets the ssr-generating `vite-plugin-solid` instance
- * select it by filter.
+ * A real hydration test needs one source compiled twice in one process: `generate: "ssr"`
+ * against Solid's server build for the server render, `generate: "dom"` against the browser
+ * build for `hydrate()`. Every relative import reached from a `*.server.tsx` fixture is tagged
+ * with this query, which gives that subgraph its own module instances and selects it for the
+ * ssr-generating plugin. `@comvi/core` stays one copy; `solid-js` and `solid-js/web` go to the
+ * server builds, Solid's own server builds included (else they would drive the client core).
  */
-const SERVER_FLAVOUR = "?solid-server";
-
-/**
- * Bare specifiers are deliberately NOT tagged: `@comvi/core` stays ONE copy,
- * so the host the test builds is the host the server render and the hydrating
- * client both drive — exactly the object an app would serialize around.
- * `solid-js` and `solid-js/web` are the exception, redirected to the server
- * builds, since the flavour exists precisely to reach those.
- */
-function solidServerFlavour() {
-  /**
-   * Solid's own server builds are on the list: `web/dist/server.js` imports
-   * `solid-js`, and left to the project's browser conditions it would drive
-   * the CLIENT reactive core — one `sharedConfig` for both halves, whose
-   * hydration-key walk then counts the server tree and the client tree into
-   * the same counter and every key disagrees.
-   */
-  const SERVER_IMPORTERS = [
-    /\.server\.tsx$/,
-    new RegExp(SERVER_FLAVOUR.replace("?", "\\?")),
-    /solid-js\/web\/dist\/server\.js$/,
-    /solid-js\/dist\/server\.js$/,
-  ];
+const serverFlavour = () => {
+  const IMPORTERS = [/\.server\.tsx$/, /\?solid-server/, /solid-js\/(web\/)?dist\/server\.js$/];
   return {
     name: "comvi-solid-server-flavour",
     enforce: "pre" as const,
@@ -55,129 +48,66 @@ function solidServerFlavour() {
       source: string,
       importer?: string,
     ) {
-      if (!importer || !SERVER_IMPORTERS.some((pattern) => pattern.test(importer))) return null;
+      if (!importer || !IMPORTERS.some((pattern) => pattern.test(importer))) return null;
       if (source === "solid-js/web") return `${SOLID_ROOT}/web/dist/server.js`;
       if (source === "solid-js") return `${SOLID_ROOT}/dist/server.js`;
-      // Virtual ids (`/@solid-refresh`) and bare packages are left alone.
-      if (source.startsWith("/@") || !/^[./]/.test(source)) return null;
-      const resolved = await this.resolve(source, importer.replace(SERVER_FLAVOUR, ""), {
+      if (source.startsWith("/@") || source.startsWith(CORE) || !/^[./]/.test(source)) return null;
+      const resolved = await this.resolve(source, importer.replace(SERVER, ""), {
         skipSelf: true,
       });
-      return resolved ? `${resolved.id}${SERVER_FLAVOUR}` : null;
+      return resolved ? `${resolved.id}${SERVER}` : null;
     },
   };
-}
-
-/**
- * Pin every `@comvi/core*` specifier — the wrapper's own imports included — to
- * ONE published build family.
- *
- * The JS-consumer contract must be proved under BOTH build conditions: the
- * only difference between them is the text `missingCapability()` throws, and
- * `__DEV__` bakes that into the core artifact at build time. Exact-match
- * regexes, never string prefixes, which would swallow the subpaths too.
- *
- * All five entries move together: mixing a dev base host with a prod
- * `attachLoader` composes across two terser nameCaches and breaks core's
- * `_`-internal contract. `-tags` is in the list because an app or fixture may
- * opt into the ambient entry, and a mixed pair there means two copies of the
- * grammar and two ambient registries.
- */
-const coreBuild = (suffix: "" | ".dev") =>
-  (["", "-loader", "-plugins", "-rich-text", "-tags"] as const).map((entry) => ({
-    find: new RegExp(`^@comvi/core${entry === "" ? "" : `/${entry.slice(1)}`}$`),
-    replacement: `${CORE_DIST}/comvi-core${entry}${suffix}.js`,
-  }));
-
-const shared = {
-  plugins: [solid()],
-  define: {
-    __DEV__: JSON.stringify(true),
-  },
 };
 
-const jsContract = {
-  environment: "happy-dom" as const,
-  globals: true,
-  restoreMocks: true,
-  unstubEnvs: true,
-  unstubGlobals: true,
-  include: ["tests/js-contract/**/*.test.jsx"],
-};
+// Under Stryker (scripts/mutation/run.mjs sets COMVI_MUTATION) tests/contracts is left out:
+// it reads the BUILT dist, never the mutated source.
+const MUTATION = process.env.COMVI_MUTATION ? ["tests/contracts/**"] : [];
 
 export default defineConfig({
   test: {
+    coverage: { provider: "v8", reporter: ["text", "json", "html"], include: ["src/**/*.ts"] },
     projects: [
       {
-        ...shared,
-        resolve: {
-          alias: {
-            "@": resolve(__dirname, "./src"),
-          },
-          conditions: ["development", "browser"],
-        },
+        plugins: [solid()],
+        resolve: { alias, conditions },
+        define,
         test: {
+          ...shared,
           name: "unit",
-          globals: true,
-          restoreMocks: true,
-          unstubEnvs: true,
-          unstubGlobals: true,
-          environment: "happy-dom",
           include: ["tests/**/*.test.{ts,tsx}"],
-          // `tests/ssr` needs the dual compilation the `ssr` project sets up.
-          exclude: ["tests/ssr/**"],
+          exclude: ["tests/prod/**", "tests/ssr/**", ...MUTATION],
         },
       },
       {
-        // The SSR + hydration project: `*.server.tsx` fixtures and everything
-        // they import are compiled `generate: "ssr"` against solid's server
-        // build, the test file itself `generate: "dom"` against the browser
-        // build, in one happy-dom process — so one test can render a tree to a
-        // string and then hydrate that exact string.
+        plugins: [solid()],
+        resolve: { alias, conditions },
+        define: { ...define, __DEV__: "false" },
+        test: { ...shared, name: "prod", include: ["tests/prod/**/*.test.tsx"] },
+      },
+      {
         plugins: [
-          solidServerFlavour(),
+          serverFlavour(),
           solid({
             ssr: true,
             hot: false,
             include: [/\.server\.tsx$/, /\?solid-server/],
             solid: { generate: "ssr", hydratable: true },
           }),
-          // `hot: false` on BOTH: solid-refresh wraps each component in an
-          // extra memo, which shifts the hydration keys on one side only.
+          // `hot: false` on both: solid-refresh wraps a component in an extra memo, which
+          // shifts the hydration keys on one side only.
           solid({ ssr: true, hot: false, exclude: [/\.server\.tsx$/, /\?solid-server/] }),
         ],
-        define: { __DEV__: JSON.stringify(true) },
-        resolve: {
-          alias: { "@": resolve(__dirname, "./src") },
-          conditions: ["development", "browser"],
-        },
+        resolve: { alias, conditions },
+        define,
         test: {
+          ...shared,
           name: "ssr",
-          globals: true,
-          restoreMocks: true,
-          unstubEnvs: true,
-          unstubGlobals: true,
-          environment: "happy-dom",
           include: ["tests/ssr/**/*.test.tsx"],
-          // Solid's server build must go through the plugin pipeline, or the
-          // flavour redirect above resolves to a file nothing transforms.
+          // Solid's server build goes through the pipeline, or the redirect above resolves to
+          // a file nothing transforms.
           server: { deps: { inline: [/solid-js/] } },
         },
-      },
-      {
-        ...shared,
-        resolve: { alias: coreBuild(".dev"), conditions: ["browser"] },
-        define: { ...shared.define, __COMVI_CORE_BUILD__: JSON.stringify("development") },
-        test: { ...jsContract, name: "js-contract-dev" },
-      },
-      {
-        ...shared,
-        resolve: { alias: coreBuild(""), conditions: ["browser"] },
-        define: {
-          __DEV__: JSON.stringify(false),
-          __COMVI_CORE_BUILD__: JSON.stringify("production"),
-        },
-        test: { ...jsContract, name: "js-contract-prod" },
       },
     ],
   },

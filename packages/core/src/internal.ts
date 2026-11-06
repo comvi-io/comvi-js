@@ -30,7 +30,7 @@ export { compile, render, recordFor, lookup, inherit } from "./compile/cache";
 export { N } from "./state";
 export type { Compiled, CompiledRecord, Render, Rendered } from "./compile/cache";
 export type { Env, Params } from "./compile/scanner";
-export { formatNumber, formatValue, pluralRules, intl } from "./compile/fmt";
+export { formatNumber, pluralRules, intl } from "./compile/fmt";
 export { canonicalize, parents, dir, negotiate } from "./locale";
 export { defaultOnError } from "./errors";
 export type { Chain, Core } from "./instance";

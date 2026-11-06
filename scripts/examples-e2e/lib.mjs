@@ -70,7 +70,7 @@ export const CDN_CONTROL_STEPS = ["t", "t2", "u", "v", "v2"];
  */
 export const RECIPE_KINDS = ["sveltekit", "solidstart"];
 
-export const RECIPE_STEPS = ["a", "a2", "b", "c", "d", "e", "e2", "f"];
+export const RECIPE_STEPS = ["a", "a2", "b", "c", "d", "e", "e2", "g", "h", "h2", "h3", "h4", "f"];
 
 export const RECIPE_LEGEND = {
   a: "SSR: plain-HTTP /, /uk, /de, /ar, /about and /uk/about are translated, with <html lang dir>; with JavaScript off the text is on screen",
@@ -80,6 +80,11 @@ export const RECIPE_LEGEND = {
   d: "an unknown first or second segment (/xx, /xx/about, /en-US, /uk/xx) answers 404; /about, /en and /en/about are English",
   e: "on the PRESSURE build, 100 concurrent requests across en, uk, de and ar each render their own locale",
   e2: "negative control: the SHARED build (one instance for every request) renders each locale right one at a time, then the burst renders some responses in another request's locale",
+  g: "on the FAILED build (uk fails on the server only): /uk renders the en fallback, its payload carries uk as a failure (null), and the hydrated page asks the loader for nothing",
+  h: "on the FAILED build: /uk → /uk/about → /about asks for nothing; back to /uk/about the explicit setLocale() retries uk once in the browser, which renders Ukrainian",
+  h2: "on the FAILED build: / → /uk with the browser's uk load held, then back to / before it lands: the page stays English",
+  h3: "on the FAILED build: / → /uk with the browser's uk load failing stays English; /uk/about asks for nothing, then /about → /uk/about retries uk once and renders Ukrainian",
+  h4: "on the FAILED build, SvelteKit: / → /uk with the browser's uk load failing stays English; the uk link again reruns the layout's load, which retries uk once and renders Ukrainian (SolidStart skips: no route param changes)",
   f: "the example's own typecheck (svelte-check, tsc)",
 };
 
@@ -808,11 +813,13 @@ export function allPassed(results) {
  *   - without --cdn: k, k2, k3, g2, z and the CDN-steering steps (t, t2, u, v,
  *     v2) are about the mock CDN.
  *   - with --cdn: s is not run (the F-15 variant runs in the bundled mode).
- *   - sveltekit, solidstart: nothing. They read bundled catalogs only, and a
- *     `--cdn` run leaves them out instead of skipping them.
+ *   - sveltekit, solidstart: they read bundled catalogs only, and a `--cdn`
+ *     run leaves them out instead of skipping them. solidstart skips h4: a link
+ *     to the URL on screen changes no route param, so its layout does not run.
  */
 export function allowedSkips({ kind, cdn }) {
   const allowed = new Set();
+  if (kind === "solidstart") allowed.add("h4");
   if (isRecipe(kind)) return allowed;
   if (kind === "vite") for (const step of ["f", "i", "o", "s", "t", "t2", "y"]) allowed.add(step);
   if (cdn) allowed.add("s");
@@ -910,6 +917,36 @@ export const F15_VARIANT = {
 };
 
 /**
+ * The `failed` build's record of how each browser `setLocale()` settled, in
+ * `window.__settled` (`uk:resolved`, `uk:rejected`): a plugin wraps the
+ * instance's method and hands the app a promise with the same outcome, so a
+ * rejection the app forgets to catch still surfaces as unhandled. A step waits
+ * on this record instead of on time.
+ */
+const settledPlugin = (pkg, options) => ({
+  file: "src/lib/i18n.ts",
+  from: options,
+  to:
+    `const settled: import("${pkg}").Plugin = {\n` +
+    '  name: "e2e-settled",\n' +
+    "  setup(i18n) {\n" +
+    '    if (typeof window == "undefined") return;\n' +
+    "    const set = i18n.setLocale;\n" +
+    "    const note = (entry: string) => (globalThis as { __settled?: string[] }).__settled?.push(entry);\n" +
+    "    i18n.setLocale = (locale) =>\n" +
+    "      set(locale).then(\n" +
+    "        () => void note(`${locale}:resolved`),\n" +
+    "        (e: unknown) => {\n" +
+    "          note(`${locale}:rejected`);\n" +
+    "          throw e;\n" +
+    "        },\n" +
+    "      );\n" +
+    "  },\n" +
+    "};\n" +
+    options.replace("loader };", "loader, plugins: [settled] };"),
+});
+
+/**
  * The SSR recipes' concurrency variants, applied to the copy in this order
  * after the main phase.
  *
@@ -920,6 +957,13 @@ export const F15_VARIANT = {
  *     SolidStart). With bundled catalogs and nothing else to wait for, a burst
  *     renders one request at a time, even a shared instance comes out right,
  *     and SolidStart has nothing to stream. Steps a (as a2) and e run here.
+ *   - `failed`: the example with its loader failing uk on the server only, and
+ *     the browser's loader calls recorded in `window.__requested` (and the
+ *     loads that returned in `window.__loaded`); a promise in `window.__hold`
+ *     holds every browser load until it settles, and `window.__fail` fails the
+ *     browser's uk load; `window.__settled` records how each browser
+ *     `setLocale()` settled (`settledPlugin`). Applied to the example as committed and undone before
+ *     `pressure`. Steps g–h4.
  *   - `shared`: `pressure`, with one module-level instance rendering every
  *     request, the mistake the recipes are built to avoid. Step e2 runs here
  *     and must find responses in another request's locale; if it does not,
@@ -928,26 +972,48 @@ export const F15_VARIANT = {
  */
 export const RECIPE_VARIANTS = {
   sveltekit: {
+    failed: {
+      edits: [
+        {
+          file: "src/lib/i18n.ts",
+          from: "const loader: Loader = async (locale) => {\n",
+          to:
+            "const loader: Loader = async (locale, ns) => {\n" +
+            '  if (import.meta.env.SSR && locale === "uk") throw new Error("e2e: uk fails on the server");\n' +
+            "  (globalThis as { __requested?: string[] }).__requested?.push(`${locale}:${ns}`);\n" +
+            "  await (globalThis as { __hold?: Promise<unknown> }).__hold;\n" +
+            '  if ((globalThis as { __fail?: boolean }).__fail && locale === "uk") throw new Error("e2e: uk fails in the browser");\n',
+        },
+        {
+          file: "src/lib/i18n.ts",
+          from: "  return (await load()).default;\n",
+          to:
+            "  const { default: catalog } = await load();\n" +
+            "  (globalThis as { __loaded?: string[] }).__loaded?.push(`${locale}:${ns}`);\n" +
+            "  return catalog;\n",
+        },
+        settledPlugin(
+          "@comvi/svelte",
+          'export const options: Omit<I18nOptions, "locale"> = { fallbackLocale, timeZone: "UTC", loader };\n',
+        ),
+      ],
+    },
     pressure: {
       edits: [
         {
           file: "src/routes/+layout.server.ts",
-          from: "  await i18n.init();\n",
-          to: "  await i18n.init();\n  await new Promise((resolve) => setTimeout(resolve, 10));\n",
+          from: "  await i18n.ready;\n",
+          to: "  await i18n.ready;\n  await new Promise((resolve) => setTimeout(resolve, 10));\n",
         },
       ],
     },
     shared: {
       files: {
         "src/lib/shared.ts": [
-          'import { createI18n, icuCompiler } from "@comvi/svelte";',
-          'import { catalogLoader, fallbackLocale } from "./i18n";',
+          'import { createI18n } from "@comvi/svelte";',
+          'import { fallbackLocale, options } from "./i18n";',
           "",
-          "export const shared = createI18n({",
-          "  locale: fallbackLocale,",
-          "  fallbackLocale,",
-          "  compiler: icuCompiler,",
-          "}).use(catalogLoader());",
+          "export const shared = createI18n({ ...options, locale: fallbackLocale });",
           "",
         ].join("\n"),
       },
@@ -959,7 +1025,7 @@ export const RECIPE_VARIANTS = {
         },
         {
           file: "src/routes/+layout.server.ts",
-          from: "  const i18n = createI18n({ locale, fallbackLocale, compiler: icuCompiler }).use(catalogLoader());\n  await i18n.init();\n",
+          from: "  const i18n = createI18n({ ...options, locale });\n  await i18n.ready;\n",
           to: "  const i18n = shared;\n  await i18n.setLocale(locale);\n",
         },
         {
@@ -969,19 +1035,45 @@ export const RECIPE_VARIANTS = {
         },
         {
           file: "src/routes/+layout.svelte",
-          from: "  setI18nContext(i18n);",
-          to: "  setI18nContext(shared);",
+          from: "  setI18n(i18n);",
+          to: "  setI18n(shared);",
         },
       ],
     },
   },
   solidstart: {
+    failed: {
+      edits: [
+        {
+          file: "src/lib/i18n.ts",
+          from: "const loader: Loader = async (locale, ns) => {\n",
+          to:
+            "const loader: Loader = async (locale, ns) => {\n" +
+            '  if (isServer && locale === "uk") throw new Error("e2e: uk fails on the server");\n' +
+            "  (globalThis as { __requested?: string[] }).__requested?.push(`${locale}:${ns}`);\n" +
+            "  await (globalThis as { __hold?: Promise<unknown> }).__hold;\n" +
+            '  if ((globalThis as { __fail?: boolean }).__fail && locale === "uk") throw new Error("e2e: uk fails in the browser");\n',
+        },
+        {
+          file: "src/lib/i18n.ts",
+          from: "  return (await load()).default;\n",
+          to:
+            "  const { default: catalog } = await load();\n" +
+            "  (globalThis as { __loaded?: string[] }).__loaded?.push(`${locale}:${ns}`);\n" +
+            "  return catalog;\n",
+        },
+        settledPlugin(
+          "@comvi/solid",
+          'const options = { fallbackLocale, timeZone: "UTC", loader };\n',
+        ),
+      ],
+    },
     pressure: {
       edits: [
         {
           file: "src/lib/i18n.ts",
-          from: "  await i18n.init();\n",
-          to: "  await i18n.init();\n  await new Promise((resolve) => setTimeout(resolve, 10));\n",
+          from: "  return (await load()).default;\n",
+          to: "  await new Promise((resolve) => setTimeout(resolve, 10));\n  return (await load()).default;\n",
         },
         {
           file: "src/routes/[[locale]]/index.tsx",
@@ -1011,38 +1103,31 @@ export const RECIPE_VARIANTS = {
       ],
     },
     shared: {
-      files: {
-        "src/lib/shared.ts": [
-          'import { createI18n, icuCompiler } from "@comvi/solid";',
-          'import { catalogLoader, fallbackLocale } from "./i18n";',
-          "",
-          "export const shared = createI18n({",
-          "  locale: fallbackLocale,",
-          "  fallbackLocale,",
-          "  compiler: icuCompiler,",
-          "}).use(catalogLoader());",
-          "",
-        ].join("\n"),
-      },
       edits: [
         {
-          file: "src/routes/[[locale]].tsx",
-          from: 'import { catalogLoader, fallbackLocale, loadI18n, localePath, locales } from "~/lib/i18n";',
-          to:
-            'import { catalogLoader, fallbackLocale, loadI18n, localePath, locales } from "~/lib/i18n";\n' +
-            'import { shared } from "~/lib/shared";',
+          file: "src/lib/i18n.ts",
+          from: "let browser: I18n | undefined;",
+          to: "let browser: I18n | undefined;\nlet shared: I18n | undefined;",
+        },
+        {
+          file: "src/lib/i18n.ts",
+          from: "  return (locals.i18n ||= createI18n({ ...options, locale }));",
+          to: "  return (locals.i18n = shared ||= createI18n({ ...options, locale }));",
         },
         {
           file: "src/routes/[[locale]].tsx",
-          from: [
-            "        const i18n = createI18n({",
-            "          locale: ready.locale,",
-            "          fallbackLocale,",
-            "          compiler: icuCompiler,",
-            "          messages: ready.messages,",
-            "        }).use(catalogLoader());",
-          ].join("\n"),
-          to: "        const i18n = shared;\n        i18n.addMessages(ready.messages);",
+          from: 'import { createEffect, For, type ParentProps } from "solid-js";',
+          to: 'import { createEffect, createResource, For, type ParentProps } from "solid-js";',
+        },
+        {
+          file: "src/routes/[[locale]].tsx",
+          from: "  const i18n = i18nFor(params.locale ?? fallbackLocale);\n",
+          to:
+            "  const i18n = i18nFor(params.locale ?? fallbackLocale);\n" +
+            "  const [switched] = createResource(() => i18n.setLocale(params.locale ?? fallbackLocale), {\n" +
+            "    deferStream: true,\n" +
+            "  });\n" +
+            "  switched();\n",
         },
       ],
     },

@@ -4,8 +4,11 @@
  * A plain `{x}` prints `String(value)` for every type — a number, a Date, a string list
  * — with no Intl (owner decision R3-17, 28.10.2026), as 0.7, FormatJS, i18next and
  * vue-i18n do: `{orderId}` with 1004 prints `1004` and `{year}` with 2026 prints `2026`,
- * never `1,004` / `2,026`. A localized number or date is formatted in code with
- * `@comvi/core/format` and passed as a string. `#` in a plural sub-message is the one
+ * never `1,004` / `2,026`. A function or an object (a framework node too) prints
+ * `String(value)` as well: a plain `{x}` is always text, and markup comes only from tags
+ * through their handlers (owner decision 04.11.2026); the scanner calls `String()` itself.
+ * A localized number or date is formatted in code with `@comvi/core/format` and passed as
+ * a string. `#` in a plural sub-message is the one
  * value the compiler localizes (owner decision 11.10): {@link formatNumber}.
  *
  * There are no `{x, number|date|time}` arguments (design rev 3, R3-8).
@@ -82,19 +85,6 @@ export const formatNumber = (n: number, locale: string): string =>
 /** Plural (or ordinal) rules for the locale. */
 export const pluralRules = (locale: string, ordinal: boolean): Intl.PluralRules =>
   intl("PluralRules", locale, ordinal ? "o" : "", ordinal ? { type: "ordinal" } : undefined);
-
-/** A value a binding renders itself: a function, or an object that is not a Date. */
-const node = (v: unknown): boolean =>
-  typeof v === "function" || (typeof v === "object" && !!v && !(v instanceof Date));
-
-/**
- * The text a plain `{x}` prints for a value (R3-17): `String(value)` for a number, a Date,
- * a list of those or of strings (`[1, 2]` → `1,2`) and every other primitive, with no
- * Intl; functions, other objects (framework nodes) and a list holding one pass through
- * untouched so the binding can render them. Never re-parsed as message syntax.
- */
-export const formatValue = (value: unknown): unknown =>
-  node(value) && !(Array.isArray(value) && !value.some(node)) ? value : String(value);
 
 /** Test seam: drop every cached formatter and probe verdict. */
 export const _resetIntlCache = (): void => {

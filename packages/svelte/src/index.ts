@@ -1,70 +1,49 @@
-// THREE RULES this file exists to keep:
-//
-//   1. NAMED re-exports only, never `export *`. A star re-export is a name set
-//      webpack can only resolve by keeping the source module, and
-//      `optimization.usedExports` is off in development — that is how
-//      `@comvi/vue`'s `export * from "@comvi/core"` once kept the whole core
-//      root entry alive in webpack dev. `export type *` is erased before any
-//      bundler sees it and is therefore fine.
-//   2. ONE hop, and never through another wrapper: webpack development
-//      reconnects a single `export … from` across one `sideEffects: false`
-//      package, but not a two-package chain. So every core binding below comes
-//      straight from `@comvi/core` or one of its pure subpaths, never relayed
-//      through another `@comvi/*`.
-//   3. Relative specifiers carry the emitted `.js` extension: `svelte-package`
-//      copies them verbatim into `dist`, and `@comvi/svelte` is
-//      `"type": "module"`, so webpack (and Node's own ESM resolver) treat an
-//      extensionless request as unresolvable — "fully specified" is the rule
-//      for strict ESM.
-//
-// `@comvi/core/tags` is deliberately NOT re-exported, and nothing here imports
-// it either: it is the one side-effectful subpath, so naming it would put
-// ambient tag registration in every graph.
+/**
+ * @comvi/svelte — the Svelte 5 binding of the 0.8 core (design §3.6): `setI18n()`, `useI18n()`,
+ * `<T>` and `handover()` for a server render. `createI18n` is re-exported, so a Svelte app
+ * imports one package; `@comvi/svelte/format` adds `useFormat()`.
+ */
+import type { TComponent } from "./binding";
+import TComponentImpl from "./T.svelte";
 
 export { createI18n } from "@comvi/core";
-// `I18n` is a TYPE here: `createI18n(o)` and `new I18n(o)` build the same
-// object, so the class VALUE is `@comvi/core`'s to export, not a binding's.
-export type { I18n } from "@comvi/core";
+export { handover } from "@comvi/core/internal";
+export { setI18n } from "./context.svelte.js";
+export { useI18n } from "./binding";
 
-// Standalone formatters, for code outside a component.
-export { formatNumber, formatDate, formatCurrency, formatRelativeTime } from "@comvi/core";
+/**
+ * Renders one message; params are props. A tag renders through a function prop of its name (a
+ * handler returning text), else its entry in `components` (`components={{ b: "strong" }}`, nested
+ * tags render too), else a snippet of its name (`{#snippet link(children)}<a
+ * href="/terms">{children}</a>{/snippet}`, `children` the tag's text), else as text; a prop or
+ * an entry that is `undefined` leaves the tag to the next. Every prop but `i18nKey`,
+ * `components` and the per-call options `ns`, `locale` and `markers` is a message param. `ns` is
+ * explicit: `<T>` never takes the namespace of a `useI18n(ns)` above it; `useI18n(ns).T` is the
+ * bound one. `<T>` reads only: `useI18n("account")` in the component (or `i18n.load`, the
+ * `namespaces` option) loads it. `markers={false}` opts the message out of an in-context editor
+ * session.
+ */
+export const T = TComponentImpl as unknown as TComponent;
 
-export { setI18nContext, useI18nInstance } from "./context.js";
-export type { SetI18nContextOptions } from "./context.js";
-export { useI18n } from "./useI18n.js";
 export type {
-  SvelteRawTranslationFunction,
-  SvelteTextTranslationFunction,
-  UseI18nReturn,
-} from "./useI18n.js";
-
-// Context readers, NOT stores.
-export { useI18nLoader, useI18nPlugins } from "./capabilities.js";
-export type { UseI18nLoaderReturn, UseI18nPluginsReturn } from "./capabilities.js";
-
-export {
-  createLocaleStore,
-  createLoadingStore,
-  createInitializingStore,
-  createInitializedStore,
-  createCacheRevisionStore,
-  createDefaultParamsStore,
-  createDefaultNamespaceStore,
-} from "./stores.js";
-
-export { default as T } from "./T.svelte";
-// `ComponentHandler` (one entry of the map) stays internal, as solid's does.
-export type { ComponentMap, TProps } from "./types";
-
-// The capability toolkit. Each is a named binding under `sideEffects: false`,
-// so the subpaths an app never calls stay out of its graph. `loader(map)` /
-// `plugins()` / `devtools()` are the configured installers for `i18n.use(…)`;
-// the `attach*` functions are themselves installers, so `.use(attachLoader)`
-// works too.
-export { icuCompiler } from "@comvi/core/icu";
-export { attachLoader, loader } from "@comvi/core/loader";
-export { definePlugin, plugins } from "@comvi/core/plugins";
-export { devtools } from "@comvi/core/devtools";
-
-export type * from "@comvi/core";
-export type { DevtoolsOptions } from "@comvi/core/devtools";
+  BoundT,
+  Children,
+  TagComponent,
+  TagSnippet,
+  TComponent,
+  UntypedParams,
+  UseI18n,
+} from "./binding";
+export type { Handover } from "@comvi/core/internal";
+export type {
+  Catalog,
+  I18n,
+  I18nError,
+  I18nErrorCode,
+  I18nOptions,
+  Loader,
+  Plugin,
+  // A generated comvi.d.ts that augments @comvi/svelte imports Tag from it (typegen v2).
+  Catalogs,
+  Tag,
+} from "@comvi/core";
