@@ -155,15 +155,10 @@ the bytes first, then decide whether they ship.
 each with the binding increment cap over `core-icu-cdn`);
 per framework
 `fw-{react,solid,svelte,vue}-{default,full-composite}`, `fw-svelte-format`; `fw-next-client-default`,
-`fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-root-devtools`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
+`fw-next-server-default-loader`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
 `fw-nuxt-full-composite`, `fw-nuxt-i18n` (`platform-path-react` is replaced by `react-icu-cdn` in
 lot 1c; the `plugin-fetch-loader` and `plugin-fetch-loader-api` rows left with the package in lot 2c,
 the platform path is `core-icu-cdn`).
-
-`fw-next-server-provider` is the server graph of the `withComvi` setup: `<ComviProvider>` and
-`getI18n` with the provider's `"use client"` half and `@comvi/next/config` external, which is what
-Next keeps on the server (a client reference, and the app's own config module). Measured with the
-client half inlined instead, the row is 2737 B, so the external is what the row is about.
 
 `fw-next-plugin-node` is no pair half: `@comvi/next/plugin` runs in Node from next.config and is
 never bundled into an app, so its row only catches a runtime import creeping into the plugin.
@@ -1436,3 +1431,21 @@ pass-through and took 59–77 B off each row that compiles messages.
 Framework-row budgets are `ceil(gzip × 1.05)` of the final figure. No ceiling of a core, React or Vue
 row changed; their figures moved down: `core-icu-cdn` 5,114 → 5,050, `react-icu-cdn` 5,647 → 5,589
 (+539 over core-icu-cdn with #164, cap +544), `vue-icu-cdn` 5,830 → 5,753 (+703, cap +731).
+
+## 2026-11-06: lot 6a, Next on the 0.8 core
+
+`@comvi/next` left MIGRATION_PENDING with the 0.8 recipe (`createGetI18n` + `handover()` +
+`<I18nProvider payload>`). Measured after `TURBO_FORCE=true pnpm build`, `node --version` v24.22.1.
+No core, React, Vue, Solid or Svelte figure moved (the `/ssr` entry is imported by no core row).
+
+| row                           | 0.7 baseline | lot 6a | budget        | graph                                                          |
+| ----------------------------- | ------------ | ------ | ------------- | -------------------------------------------------------------- |
+| fw-next-client-default        | 8,209        | 6,138  | 8,620 → 6,445 | `<I18nProvider payload>` + a `@comvi/react` component          |
+| fw-next-server-default-loader | 8,329        | 5,291  | 8,746 → 5,556 | `createGetI18n` with a loader + `handover()`                   |
+| fw-next-middleware-edge       | 2,045        | 2,045  | 2,148         | unchanged                                                      |
+| fw-next-plugin-node           | 939          | 121    | 986           | `withComvi()` without the 0.7 config alias (lot 6b adds types) |
+
+`fw-next-root-composed`, `fw-next-root-devtools` and `fw-next-server-provider` are gone with the
+package root, `createNextI18n`, `.use()` and `<ComviProvider>`. The client row is the Next client
+graph of a page: against `react-icu-cdn` (5,589 B, which carries `cdn()` and no Next code) it adds the
+payload provider, React's `<I18nHandover>` chunk and the routing context, and leaves out `cdn()`.
