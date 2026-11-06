@@ -83,6 +83,25 @@ export default async function Layout(props: {
 (a static page stays static) and returns this request's instance, its catalogs loaded once per
 request. `handover(i18n)` is plain data: catalogs (a failed one as `null`), locale, zone, clock.
 
+## Typed keys
+
+Pass `types` to write the declaration that makes `t()` check keys and parameters from your JSON
+catalogs:
+
+```ts title="next.config.ts"
+import { withComvi } from "@comvi/next/plugin";
+
+export default withComvi({ types: { from: "./src/locales", sourceLocale: "en" } })({});
+```
+
+`next dev` writes `src/types/i18n.d.ts` and rewrites it on every catalog change; `next build`
+writes it once, before Next type-checks. With `types: { check: true }`, `next build` writes nothing
+and fails when the committed file is stale. The file is the same, byte for byte, as
+`comvi typegen --from`; the options are those of
+[`@comvi/vite-plugin`](https://www.npmjs.com/package/@comvi/vite-plugin) (`out`, `fileTemplate`,
+`defaultParams`, `augment`). With `types`, `withComvi(...)` returns the function form of the config,
+which is how Next passes the phase.
+
 ## Use in components
 
 A Server Component asks for the namespaces it needs (`t` reads the first; without `ns`, `default`);
