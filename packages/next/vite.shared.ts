@@ -34,9 +34,6 @@ const isWatchMode = process.argv.includes("--watch");
 const CLIENT_MODULES = [
   "client",
   "client/I18nProvider",
-  // Rendered by the server `ComviProvider`: a relative import from
-  // `server/ComviProvider.js`, which Next turns into a client reference.
-  "client/ComviClientProvider",
   "navigation",
   "routing/Link",
   "routing/hooks",
@@ -69,7 +66,6 @@ export const nextBuild = (dir: string, suffix: "" | ".dev") => ({
   emptyOutDir: suffix === "" && !isWatchMode,
   lib: {
     entry: {
-      index: resolve(dir, "src/index.ts"),
       server: resolve(dir, "src/server.ts"),
       client: resolve(dir, "src/client.ts"),
       middleware: resolve(dir, "src/middleware.ts"),
@@ -82,8 +78,6 @@ export const nextBuild = (dir: string, suffix: "" | ".dev") => ({
         ? {
             // Node only: next.config imports it, no bundle ever does.
             plugin: resolve(dir, "src/plugin.ts"),
-            // The stub `@comvi/next/config` resolves to without `withComvi`.
-            config: resolve(dir, "src/config.ts"),
           }
         : {}),
     },
@@ -104,30 +98,9 @@ export const nextBuild = (dir: string, suffix: "" | ".dev") => ({
       // the emitted `dist/server.js` keeps it verbatim for the APP's bundler to
       // resolve per condition; inlined, it would be either a throw or nothing.
       "server-only",
-      // The package's own config specifier stays a bare import, so the APP's
-      // bundler resolves it — to the user module under `withComvi`'s alias,
-      // to `dist/config.js` without it. Inlined, the alias could never apply.
-      "@comvi/next/config",
-      // `dist/plugin.js` runs in Node, from next.config.
-      "node:fs",
-      "node:module",
-      "node:path",
-      // Every `@comvi/core` specifier this package names must be external,
-      // or rolldown inlines a verbatim copy of core into `dist`. Kept in sync
-      // by hand: `@comvi/next` does not use `createLibraryBuildOptions`, so it
-      // cannot spread `COMVI_CORE_EXTERNALS` from `@comvi/vite-config`.
       "@comvi/core",
-      "@comvi/core/icu",
-      "@comvi/core/loader",
-      "@comvi/core/plugins",
-      "@comvi/core/devtools",
-      // The composed builder registers ambient tag syntax by importing this
-      // side-effectful subpath (the 0.4 root did it for us); leaving it
-      // non-external inlines core's whole tag graph into `dist`. Its pure
-      // half rides along for the same reason: `@comvi/react`'s `<T>` is what
-      // names it, and a private inlined copy could not dedupe with the app's.
-      "@comvi/core/rich-text",
-      "@comvi/core/tags",
+      "@comvi/core/internal",
+      "@comvi/core/ssr",
       // `@comvi/locale-routing` is deliberately ABSENT: it is a workspace-private
       // package, so rolldown must INLINE it. `preserveModules` keeps it a single
       // emitted module shared by the entries that import it (routing, middleware,

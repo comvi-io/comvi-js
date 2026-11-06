@@ -18,6 +18,12 @@
  * redirect, `<html lang>` or text that differs from the expectation, or an
  * installed framework of the wrong major, is a failure. Exit 1 on any.
  *
+ * The Next apps then run `next.spec.ts` in Chromium (the lot 6a scenarios, owner brief
+ * 2026-11-06 §8). Both read their catalogs from `catalog-mock.mjs` on a fixed port
+ * (`MOCK_PORT`): the browser's loader URL is inlined at `next build`, so the build and the
+ * served app must see the same mock. `test-apps/next16/src` must equal `test-apps/next/src`
+ * but for `proxy.ts` in place of `middleware.ts` (preflight).
+ *
  *   node scripts/test-apps-smoke/run.mjs [--only <app>[,<app>]] [--no-build]
  */
 import { spawn, spawnSync } from "node:child_process";
@@ -26,8 +32,18 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { activeShards, testAppNeeds } from "../../tooling/migration-pending.mjs";
+import { startCatalogMock } from "./catalog-mock.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(HERE, "../..");
+const LOCALES = path.join(ROOT, "test-apps/locales");
+const MOCK_PORT = 45811;
+const MOCK_URL = `http://127.0.0.1:${MOCK_PORT}`;
+const NEXT_ENV = {
+  COMVI_E2E_CATALOGS: MOCK_URL,
+  NEXT_PUBLIC_COMVI_E2E_CATALOGS: MOCK_URL,
+  NEXT_TELEMETRY_DISABLED: "1",
+};
 
 const EN_TITLE = "Comvi i18n Example";
 const UK_TITLE = "Приклад Comvi i18n";
@@ -85,6 +101,7 @@ const APPS = {
     // Next 16 runs `src/proxy.ts`; the redirects above come from it.
     requireFiles: ["src/proxy.ts"],
     forbidFiles: ["src/middleware.ts"],
+    sameSrcAs: "next",
     checks: commonChecks({ lang: NEXT_LANG }),
   },
   nuxt: { kind: "nuxt", framework: "nuxt", major: 3, checks: commonChecks({ lang: NUXT_LANG }) },
@@ -159,7 +176,13 @@ function startServer(app, dir, port) {
   const child = spawn(command, args, {
     cwd: dir,
     detached: true,
-    env: { ...process.env, PORT: String(port), HOST: "127.0.0.1", NODE_ENV: "production" },
+    env: {
+      ...process.env,
+      ...(app.kind === "next" ? NEXT_ENV : {}),
+      PORT: String(port),
+      HOST: "127.0.0.1",
+      NODE_ENV: "production",
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   child.stdout.on("data", (chunk) => log.push(String(chunk)));
@@ -358,7 +381,69 @@ function preflight(name, app, dir) {
     if (!fs.existsSync(path.join(dir, file))) problems.push(`${file} is missing`);
   for (const file of app.forbidFiles ?? [])
     if (fs.existsSync(path.join(dir, file))) problems.push(`${file} must not exist`);
+  if (app.sameSrcAs) problems.push(...srcDrift(path.join(ROOT, "test-apps", app.sameSrcAs), dir));
   return problems;
+}
+
+/** Files of `a/src` and `b/src` that differ, but for the middleware/proxy file convention. */
+export function srcDrift(a, b) {
+  const list = (root, dir = "") =>
+    fs
+      .readdirSync(path.join(root, dir), { withFileTypes: true })
+      .flatMap((e) =>
+        e.isDirectory() ? list(root, path.join(dir, e.name)) : [path.join(dir, e.name)],
+      );
+  const skip = new Set(["middleware.ts", "proxy.ts"]);
+  const files = new Set([...list(path.join(a, "src")), ...list(path.join(b, "src"))]);
+  const out = [];
+  for (const f of files) {
+    if (skip.has(f)) continue;
+    const [x, y] = [a, b].map((r) => path.join(r, "src", f));
+    if (!fs.existsSync(x) || !fs.existsSync(y) || !fs.readFileSync(x).equals(fs.readFileSync(y)))
+      out.push(`src/${f} differs from test-apps/${path.basename(a)}/src/${f}`);
+  }
+  return out;
+}
+
+/**
+ * `spawnSync` without blocking this process: the catalog mock answers from its event loop
+ * while `next build` and Playwright run.
+ */
+function run(command, args, options) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      ...options,
+      stdio: options.stdio === "inherit" ? "inherit" : ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (c) => (stdout += c));
+    child.stderr?.on("data", (c) => (stderr += c));
+    child.on("close", (status) => resolve({ status, stdout, stderr }));
+  });
+}
+
+/** Runs `next.spec.ts` against the served app; its output on failure. */
+async function browserScenarios(name, dir, base) {
+  const run_ = await run(
+    path.join(ROOT, "node_modules/.bin/playwright"),
+    ["test", "-c", path.join(HERE, "playwright.config.ts")],
+    {
+      cwd: ROOT,
+      env: {
+        ...process.env,
+        E2E_BASE_URL: base,
+        E2E_MOCK_URL: MOCK_URL,
+        E2E_APP_DIR: dir,
+        E2E_LOCALES_DIR: LOCALES,
+        E2E_OUTPUT_DIR: path.join(ROOT, "test-results/test-apps-smoke", name),
+      },
+    },
+  );
+  process.stdout.write(run_.stdout);
+  return run_.status === 0
+    ? []
+    : [`playwright exited ${run_.status}`, ...run_.stderr.split("\n").slice(-20)];
 }
 
 /** Starts the app's server on a free port; one retry if the port was taken in between. */
@@ -419,6 +504,11 @@ async function smoke(name) {
       }
       results.push({ name: `${check.name} (${check.path})`, problems });
     }
+    if (app.kind === "next")
+      results.push({
+        name: "next.spec.ts (lot 6a scenarios, Chromium)",
+        problems: await browserScenarios(name, dir, `http://localhost:${server.port}`),
+      });
   } finally {
     await server.stop();
   }
@@ -434,8 +524,18 @@ async function main() {
     console.log("test-apps-smoke: every requested app is MIGRATION_PENDING — nothing to run");
     return;
   }
+  let mock;
+  try {
+    mock = await startCatalogMock(LOCALES, MOCK_PORT);
+  } catch (error) {
+    throw new Error(`the catalog mock cannot listen on ${MOCK_URL}: ${error.message}`);
+  }
   if (args.build) {
-    const filters = args.only.flatMap((name) => ["--filter", `@test-apps/${name}`]);
+    // The Next apps are built below, with the mock's address; turbo builds what they need.
+    const filters = args.only.flatMap((name) => [
+      "--filter",
+      APPS[name].kind === "next" ? `@test-apps/${name}^...` : `@test-apps/${name}`,
+    ]);
     console.log(
       `test-apps-smoke: building ${args.only.join(", ")} (and the workspace packages they depend on)`,
     );
@@ -446,6 +546,19 @@ async function main() {
     if (build.status !== 0) {
       console.error(`test-apps-smoke: build failed (exit ${build.status})`);
       process.exit(1);
+    }
+    for (const name of args.only.filter((n) => APPS[n].kind === "next")) {
+      const dir = path.join(ROOT, "test-apps", name);
+      fs.rmSync(path.join(dir, ".next"), { recursive: true, force: true });
+      const next = await run(process.execPath, ["node_modules/next/dist/bin/next", "build"], {
+        cwd: dir,
+        stdio: "inherit",
+        env: { ...process.env, ...NEXT_ENV },
+      });
+      if (next.status !== 0) {
+        console.error(`test-apps-smoke: next build of ${name} failed (exit ${next.status})`);
+        process.exit(1);
+      }
     }
   }
 
@@ -460,6 +573,7 @@ async function main() {
       for (const problem of result.problems) console.log(`         ${problem}`);
     }
   }
+  await mock.close();
   if (failed > 0) {
     console.error(`\ntest-apps-smoke: ${failed} check(s) failed`);
     process.exit(1);

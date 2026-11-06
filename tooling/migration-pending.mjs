@@ -32,12 +32,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const MIGRATION_PENDING = {
-  "@comvi/next": "lot 6: Next on the new core and @comvi/react",
   "@comvi/nuxt": "lot 7: Nuxt on the new core and @comvi/vue",
   "@comvi/plugin-in-context-editor": "lot 8: editor on the internal hook v2",
   "@comvi/chrome-extension": "lot 8: depends on @comvi/plugin-in-context-editor",
-  "@test-apps/next": "lot 6: builds from @comvi/next",
-  "@test-apps/next16": "lot 6: builds from @comvi/next",
   "@test-apps/nuxt": "lot 7: builds from @comvi/nuxt",
   "@test-apps/nuxt4": "lot 7: builds from @comvi/nuxt",
 };
@@ -114,7 +111,7 @@ export const ON_08 = {
     "svelte-default",
     "svelte-format",
   ]),
-  testApps: new Set(),
+  testApps: new Set(["next", "next16"]),
 };
 
 /** The reason `dirOrName` (a package or a PENDING_CAPABILITIES id) is pending, or `undefined`. */

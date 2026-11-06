@@ -9,7 +9,7 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { FakeI18n } from "@comvi/test-utils/fakeI18n";
+import { payloadFor } from "./helpers/payload";
 
 import { I18nProvider } from "../src/client/I18nProvider";
 import { usePathname, useLocalizedRouter } from "../src/navigation";
@@ -57,20 +57,22 @@ interface HarnessOptions {
   locale?: string;
 }
 
-const renderUnderProvider = <T,>(hook: () => T, options: HarnessOptions = {}) => {
-  const { pathname = "/", routing, locale = "de" } = options;
-  nextNavigation.pathname = pathname;
+/** The locale of the payload the harness renders with; a rerender after a change hands it over. */
+const current = { locale: "de" };
 
-  const fake = new FakeI18n({ language: locale });
+const renderUnderProvider = <T,>(hook: () => T, options: HarnessOptions = {}) => {
+  const { pathname = "/", routing } = options;
+  nextNavigation.pathname = pathname;
+  current.locale = options.locale ?? "de";
   const rendered = renderHook(hook, {
     wrapper: ({ children }: { children: React.ReactNode }) => (
-      <I18nProvider i18n={fake.asI18n()} locale={locale} routing={routing} autoInit={false}>
+      <I18nProvider payload={payloadFor(current.locale)} routing={routing}>
         {children}
       </I18nProvider>
     ),
   });
 
-  return { ...rendered, fake };
+  return rendered;
 };
 
 describe("usePathname", () => {
@@ -236,15 +238,14 @@ describe("useLocalizedRouter", () => {
     expect(nextNavigation.router.refresh).toHaveBeenCalledOnce();
   });
 
-  it("follows a locale switch instead of the locale captured at mount", async () => {
-    const { result, fake } = renderUnderProvider(() => useLocalizedRouter(), {
+  it("follows a payload of another locale instead of the locale captured at mount", async () => {
+    const { result, rerender } = renderUnderProvider(() => useLocalizedRouter(), {
       routing: ROUTING,
       locale: "de",
     });
 
-    await act(async () => {
-      await fake.setLocale("en");
-    });
+    current.locale = "en";
+    await act(async () => rerender());
     result.current.push("/about");
     result.current.replace("/about");
     result.current.prefetch("/about");

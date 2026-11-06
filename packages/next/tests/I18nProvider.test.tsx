@@ -1,96 +1,89 @@
 /**
- * When `routing` is provided and `locale` is not in `routing.locales`,
- * <I18nProvider> calls `i18n.reportError` and skips the mutation. Without
- * `routing`, behavior is unchanged (no validation — defensive only).
+ * `<I18nProvider payload>` of `@comvi/next/client` (lot 6a, brief §3, C2): the instance is
+ * created once from `{ ...options, ...payload }` (data → instance → gate → content), a failed
+ * slot stays failed, and a later payload of the same mount reaches the instance through
+ * `<I18nHandover>`.
  */
+import { act, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { useI18n } from "@comvi/react";
+import type { Handover } from "@comvi/core/ssr";
+import { I18nProvider } from "../src/client";
 
-import React from "react";
-import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+const payload = (locale: string, catalogs: Handover["catalogs"]): Handover => ({
+  locale,
+  timeZone: "UTC",
+  serverNow: 0,
+  catalogs,
+});
 
-import { I18nProvider } from "../src/client/I18nProvider";
-import type { RoutingConfig } from "../src/routing/types";
-import { FakeI18n } from "@comvi/test-utils/fakeI18n";
+function Probe({ ns = "default", k }: { ns?: string; k: string }) {
+  const { t, isReady, isLoading, locale } = useI18n(ns);
+  return (
+    <p data-testid={`${ns}:${k}`} data-ready={String(isReady)} data-loading={String(isLoading)}>
+      {locale}|{t(k)}
+    </p>
+  );
+}
 
-describe("Next <I18nProvider> locale validation", () => {
-  const routing: RoutingConfig = {
-    locales: ["en", "fr", "de"],
-    defaultLocale: "en",
-  };
-
-  it("does NOT mutate i18n.locale when locale is not in routing.locales", () => {
-    const fake = new FakeI18n();
-    const i18n = fake.asI18n();
-    fake.language = "en";
-
+describe("<I18nProvider payload> of @comvi/next/client", () => {
+  it("renders the payload on the first render and asks the loader for nothing", async () => {
+    const loader = vi.fn(async () => ({}));
     render(
-      <I18nProvider i18n={i18n} locale="zz" routing={routing} autoInit={false}>
-        <div data-testid="child" />
+      <I18nProvider
+        payload={payload("uk", { default: { uk: { hi: "Привіт" }, en: { hi: "Hi" } } })}
+        options={{ fallbackLocale: "en", loader }}
+      >
+        <Probe k="hi" />
       </I18nProvider>,
     );
-
-    expect(fake.language).toBe("en");
-    // The locale sync runs both during the first render and again in
-    // useLayoutEffect, so the count is >= 1, not exactly 1.
-    expect(fake.reportError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining(`"zz" is not in routing.locales`),
-      }),
-      expect.objectContaining({ source: "init", locale: "zz" }),
-    );
-    expect(fake.reportError.mock.calls[0]![0]).toBeInstanceOf(Error);
+    expect(screen.getByTestId("default:hi").textContent).toBe("uk|Привіт");
+    await act(async () => {});
+    expect(loader).not.toHaveBeenCalled();
   });
 
-  it("DOES mutate i18n.locale when locale IS in routing.locales", () => {
-    const fake = new FakeI18n();
-    const i18n = fake.asI18n();
-    fake.language = "en";
-
+  it("a slot the server failed stays failed: the fallback renders and the loader is not asked", async () => {
+    const loader = vi.fn(async () => ({ title: "x" }));
     render(
-      <I18nProvider i18n={i18n} locale="fr" routing={routing} autoInit={false}>
-        <div data-testid="child" />
+      <I18nProvider
+        payload={payload("uk", { admin: { uk: null, en: { title: "Admin" } } })}
+        options={{ fallbackLocale: "en", loader }}
+      >
+        <Probe ns="admin" k="title" />
       </I18nProvider>,
     );
-
-    expect(fake.language).toBe("fr");
-    expect(fake.reportError).not.toHaveBeenCalled();
+    const el = screen.getByTestId("admin:title");
+    expect(el.textContent).toBe("uk|Admin");
+    expect(el.dataset.loading).toBe("false");
+    await act(async () => {});
+    expect(loader.mock.calls.filter((c) => (c as unknown[])[1] === "admin")).toEqual([]);
   });
 
-  it("does NOT validate (back-compat) when routing prop is omitted", () => {
-    const fake = new FakeI18n();
-    const i18n = fake.asI18n();
-    fake.language = "en";
-
-    // No routing config: there is no source of truth to validate against, so
-    // any locale string is accepted.
-    render(
-      <I18nProvider i18n={i18n} locale="zz" autoInit={false}>
-        <div data-testid="child" />
-      </I18nProvider>,
+  it("a later payload of the same mount renders at once and reaches the instance at commit", async () => {
+    const first = payload("uk", { admin: { uk: null, en: { title: "Admin" } } });
+    const tree = (p: Handover) => (
+      <I18nProvider payload={p} options={{ fallbackLocale: "en" }}>
+        <Probe ns="admin" k="title" />
+      </I18nProvider>
     );
-
-    expect(fake.language).toBe("zz");
-    expect(fake.reportError).not.toHaveBeenCalled();
+    const { rerender } = render(tree(first));
+    expect(screen.getByTestId("admin:title").textContent).toBe("uk|Admin");
+    // router.refresh(): the server loaded uk this time.
+    await act(async () =>
+      rerender(tree(payload("uk", { admin: { uk: { title: "Адмін" }, en: { title: "Admin" } } }))),
+    );
+    expect(screen.getByTestId("admin:title").textContent).toBe("uk|Адмін");
   });
 
-  it("validates again on subsequent renders (useLayoutEffect path)", () => {
-    const fake = new FakeI18n();
-    const i18n = fake.asI18n();
-    fake.language = "en";
-
-    const { rerender } = render(
-      <I18nProvider i18n={i18n} locale="fr" routing={routing} autoInit={false}>
-        <div data-testid="child" />
-      </I18nProvider>,
+  it("a payload of another locale switches the instance it created", async () => {
+    const cats = { default: { uk: { hi: "Привіт" }, de: { hi: "Hallo" } } };
+    const tree = (l: string) => (
+      <I18nProvider payload={payload(l, cats)}>
+        <Probe k="hi" />
+      </I18nProvider>
     );
-    expect(fake.language).toBe("fr");
-
-    rerender(
-      <I18nProvider i18n={i18n} locale="zz" routing={routing} autoInit={false}>
-        <div data-testid="child" />
-      </I18nProvider>,
-    );
-    expect(fake.language).toBe("fr"); // unchanged
-    expect(fake.reportError).toHaveBeenCalled();
+    const { rerender } = render(tree("uk"));
+    await act(async () => rerender(tree("de")));
+    expect(screen.getByTestId("default:hi").textContent).toBe("de|Hallo");
   });
 });

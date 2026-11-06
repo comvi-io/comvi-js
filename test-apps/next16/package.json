@@ -1,6 +1,6 @@
 {
   "name": "@test-apps/next16",
-  "description": "Next.js 16 copy of test-apps/next (the MANUAL setup), with Next 16's proxy.ts in place of middleware.ts. test-apps/next stays on Next 15, so between them both ends of @comvi/next's `next` peer range are built.",
+  "description": "Next.js 16 copy of test-apps/next (same src, proxy.ts in place of middleware.ts; run.mjs checks the copy). test-apps/next stays on Next 15, so between them both ends of @comvi/next's `next` peer range are built and driven in Chromium.",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -12,18 +12,19 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
+    "@comvi/core": "workspace:*",
     "@comvi/next": "workspace:*",
+    "@comvi/react": "workspace:*",
     "next": "^16.4.3",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^16.4.3",
-    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2"
   }
 }
