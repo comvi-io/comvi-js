@@ -60,4 +60,16 @@ describe("@comvi/core/ssr: a payload React Server Components can pass (lot 6a)",
     expect(Object.hasOwn(p.catalogs, "constructor")).toBe(true);
     expect(p.catalogs.constructor).toEqual({ en: { b: "B" } });
   });
+
+  it("a patch flattened into a new base (more than 256 keys added) is handed over as a plain object too", () => {
+    const i18n = createI18n({ locale: "en", timeZone: "UTC", messages: { en: { a: "A" } } });
+    const many: Record<string, string> = {};
+    for (let k = 0; k < 257; k++) many[`k${k}`] = `v${k}`;
+    i18n.add("en", many);
+    const p = ssr.handover(i18n);
+    for (const n of Object.keys(p.catalogs))
+      for (const l of Object.keys(p.catalogs[n]))
+        expect(proto(p.catalogs[n][l]!)).toBe(Object.prototype);
+    expect(p.catalogs.default.en).toMatchObject({ a: "A", k0: "v0", k256: "v256" });
+  });
 });

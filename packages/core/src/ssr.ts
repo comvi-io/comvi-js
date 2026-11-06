@@ -52,11 +52,14 @@ export const handover = (i18n: I18n): Handover => {
   const catalogs = N<Record<string, Catalog | null>>();
   // Every catalog in place, whatever its locale: an inline one a passive read rendered (no
   // consumer holds anything in a React server render), one a per-call `{ locale }` read. A
-  // patched slot is handed over as one catalog: the base with the patch on top.
+  // patched slot is handed over as one catalog: the base with the patch on top, in a plain object;
+  // so is a base the core flattened from a patch, which is prototype-free (React Server Components
+  // refuse a null-prototype prop; lot 6a review). Any other catalog is handed over as the object
+  // the instance holds: React's serializer writes a catalog two payloads of a request share once.
   for (const n in s.c)
     for (const l in s.c[n]) {
       const y = s.c[n][l]!;
-      (catalogs[n] ||= N())[l] = y.p ? { ...y.m, ...y.p } : y.m;
+      (catalogs[n] ||= N())[l] = y.p || !Object.getPrototypeOf(y.m) ? { ...y.m, ...y.p } : y.m;
     }
   // A slot whose load failed (the negative cache) is handed over as `null`, so the browser
   // renders the fallback the server rendered and does not ask for it at hydration (R3-21);
