@@ -1414,3 +1414,25 @@ refuses with a `TypeError`.
 reactive cell uses runes) and resolves with the `production` and `browser` conditions at the esbuild
 level, as a production bundler does for `esm-env` (`DEV` and `BROWSER` of `@comvi/svelte`). That leaves the
 figures of every other row as they were.
+
+## 2026-11-06: lot 5 final, ceilings accepted
+
+The owner accepted the lot 5 ceilings at `ceil(measured × 1.02)` of the final figures. Measured after
+`pnpm build` on `lot5/solid-svelte` with `next` merged in (#164, the React void-element fix, and #163,
+the development diagnostics), `node --version` v24.22.1. Between 10-31 and here a plain `{name}` became
+text in the core and every binding (`.changeset/core-08-text-params.md`), which removed the node
+pass-through and took 59–77 B off each row that compiles messages.
+
+| row                      | 10-31 | final | budget | ceiling (accepted) | over core-icu-cdn (accepted cap) |
+| ------------------------ | ----- | ----- | ------ | ------------------ | -------------------------------- |
+| solid-icu-cdn            | 5,927 | 5,861 | 5,979  | **5,979**          | +811 (**+828**)                  |
+| svelte-icu-cdn           | 6,448 | 6,379 | 6,507  | **6,507**          | +1,329 (**+1,356**)              |
+| fw-solid-default         | 5,404 | 5,342 | 5,610  | —                  | —                                |
+| fw-solid-full-composite  | 8,044 | 7,983 | 8,383  | —                  | —                                |
+| fw-svelte-default        | 5,949 | 5,875 | 6,169  | —                  | —                                |
+| fw-svelte-full-composite | 8,510 | 8,447 | 8,870  | —                  | —                                |
+| fw-svelte-format         | 5,686 | 5,627 | 5,909  | —                  | —                                |
+
+Framework-row budgets are `ceil(gzip × 1.05)` of the final figure. No ceiling of a core, React or Vue
+row changed; their figures moved down: `core-icu-cdn` 5,114 → 5,050, `react-icu-cdn` 5,647 → 5,589
+(+539 over core-icu-cdn with #164, cap +544), `vue-icu-cdn` 5,830 → 5,753 (+703, cap +731).

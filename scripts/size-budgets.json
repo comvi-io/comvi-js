@@ -215,49 +215,49 @@
       "entry": ["@comvi/solid", "@comvi/core/cdn"],
       "fixture": "framework/solid-icu-cdn.ts",
       "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 6046,
-      "ceilingBytes": 6046,
+      "gzipBudgetBytes": 5979,
+      "ceilingBytes": 5979,
       "increment": {
         "over": "core-icu-cdn",
-        "maxBytes": 830
+        "maxBytes": 828
       },
       "baseline": {
-        "minBytes": 12257,
-        "gzipBytes": 5927,
-        "measuredAt": "2026-10-31"
+        "minBytes": 12104,
+        "gzipBytes": 5861,
+        "measuredAt": "2026-11-06"
       },
-      "note": "core-icu-cdn's graph on Solid: createI18n + cdn() + <I18nProvider> + useI18n() + t({name}) + plural. Lot 5 (2026-10-31): ceiling and increment cap are ceil(measured × 1.02), PROPOSED, for the owner to accept; size-budgets.md 2026-10-31 lot 5."
+      "note": "core-icu-cdn's graph on Solid: createI18n + cdn() + <I18nProvider> + useI18n() + t({name}) + plural. Lot 5: ceiling and increment cap are ceil(measured × 1.02), accepted by the owner on 2026-11-06; size-budgets.md 2026-11-06."
     },
     {
       "name": "svelte-icu-cdn",
       "entry": ["@comvi/svelte", "@comvi/core/cdn"],
       "fixture": "framework/svelte-icu-cdn.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 6577,
-      "ceilingBytes": 6577,
+      "gzipBudgetBytes": 6507,
+      "ceilingBytes": 6507,
       "increment": {
         "over": "core-icu-cdn",
-        "maxBytes": 1361
+        "maxBytes": 1356
       },
       "baseline": {
-        "minBytes": 13896,
-        "gzipBytes": 6448,
-        "measuredAt": "2026-10-31"
+        "minBytes": 13693,
+        "gzipBytes": 6379,
+        "measuredAt": "2026-11-06"
       },
-      "note": "core-icu-cdn's graph on Svelte: createI18n + cdn() + setI18n() + useI18n() + t({name}) + plural. Lot 5 (2026-10-31): ceiling and increment cap are ceil(measured × 1.02), PROPOSED, for the owner to accept; size-budgets.md 2026-10-31 lot 5."
+      "note": "core-icu-cdn's graph on Svelte: createI18n + cdn() + setI18n() + useI18n() + t({name}) + plural. Lot 5: ceiling and increment cap are ceil(measured × 1.02), accepted by the owner on 2026-11-06; size-budgets.md 2026-11-06."
     },
     {
       "name": "fw-solid-default",
       "entry": ["@comvi/solid"],
       "fixture": "framework/solid-default.ts",
       "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 5675,
+      "gzipBudgetBytes": 5610,
       "baseline": {
-        "minBytes": 11103,
-        "gzipBytes": 5404,
-        "measuredAt": "2026-10-31"
+        "minBytes": 10950,
+        "gzipBytes": 5342,
+        "measuredAt": "2026-11-06"
       },
-      "note": "Gated Solid floor: one `@comvi/solid` specifier, bundled catalogs, the provider + useI18n() + t({name}). Re-baselined in lot 5 on the 0.8 binding (0.7: 7,036 B); size-budgets.md 2026-10-31 lot 5."
+      "note": "Gated Solid floor: one `@comvi/solid` specifier, bundled catalogs, the provider + useI18n() + t({name}). Re-baselined in lot 5 on the 0.8 binding (0.7: 7,036 B); size-budgets.md 2026-10-31 lot 5 and 2026-11-06."
     },
     {
       "name": "fw-solid-full-composite",
@@ -270,26 +270,26 @@
       ],
       "fixture": "framework/solid-full-composite.ts",
       "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 8447,
+      "gzipBudgetBytes": 8383,
       "baseline": {
-        "minBytes": 17206,
-        "gzipBytes": 8044,
-        "measuredAt": "2026-10-31"
+        "minBytes": 17053,
+        "gzipBytes": 7983,
+        "measuredAt": "2026-11-06"
       },
-      "note": "Gated Solid ceiling: every export of @comvi/solid and /format (<T>, the bound <T>, handover, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 5 on the 0.8 binding (0.7: 12,914 B); size-budgets.md 2026-10-31 lot 5."
+      "note": "Gated Solid ceiling: every export of @comvi/solid and /format (<T>, the bound <T>, handover, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 5 on the 0.8 binding (0.7: 12,914 B); size-budgets.md 2026-10-31 lot 5 and 2026-11-06."
     },
     {
       "name": "fw-svelte-default",
       "entry": ["@comvi/svelte"],
       "fixture": "framework/svelte-default.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 6247,
+      "gzipBudgetBytes": 6169,
       "baseline": {
-        "minBytes": 12746,
-        "gzipBytes": 5949,
-        "measuredAt": "2026-10-31"
+        "minBytes": 12543,
+        "gzipBytes": 5875,
+        "measuredAt": "2026-11-06"
       },
-      "note": "Gated Svelte floor: one `@comvi/svelte` specifier, bundled catalogs, setI18n() + useI18n() + t({name}). Re-baselined in lot 5 on the 0.8 binding (0.7: 7,235 B); size-budgets.md 2026-10-31 lot 5."
+      "note": "Gated Svelte floor: one `@comvi/svelte` specifier, bundled catalogs, setI18n() + useI18n() + t({name}). Re-baselined in lot 5 on the 0.8 binding (0.7: 7,235 B); size-budgets.md 2026-10-31 lot 5 and 2026-11-06."
     },
     {
       "name": "fw-svelte-full-composite",
@@ -302,26 +302,26 @@
       ],
       "fixture": "framework/svelte-full-composite.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 8936,
+      "gzipBudgetBytes": 8870,
       "baseline": {
-        "minBytes": 18829,
-        "gzipBytes": 8510,
-        "measuredAt": "2026-10-31"
+        "minBytes": 18628,
+        "gzipBytes": 8447,
+        "measuredAt": "2026-11-06"
       },
-      "note": "Gated Svelte ceiling: every export of @comvi/svelte and /format (<T>, the bound <T>, handover, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 5 on the 0.8 binding (0.7: 13,609 B); size-budgets.md 2026-10-31 lot 5."
+      "note": "Gated Svelte ceiling: every export of @comvi/svelte and /format (<T>, the bound <T>, handover, useFormat) with cdn(), detect(), persist() and devtools() on one instance. Re-baselined in lot 5 on the 0.8 binding (0.7: 13,609 B); size-budgets.md 2026-10-31 lot 5 and 2026-11-06."
     },
     {
       "name": "fw-svelte-format",
       "entry": ["@comvi/svelte/format", "@comvi/svelte", "@comvi/core"],
       "fixture": "framework/svelte-format.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 5971,
+      "gzipBudgetBytes": 5909,
       "baseline": {
-        "minBytes": 11994,
-        "gzipBytes": 5686,
-        "measuredAt": "2026-10-31"
+        "minBytes": 11841,
+        "gzipBytes": 5627,
+        "measuredAt": "2026-11-06"
       },
-      "note": "`useFormat()` of @comvi/svelte/format on a real instance through the context: the core's formatters, the relative clock, the binding's cell. Re-baselined in lot 5 (was 462 B, a formatter alone over a plain object; 0.8 formatters take a real instance); size-budgets.md 2026-10-31 lot 5."
+      "note": "`useFormat()` of @comvi/svelte/format on a real instance through the context: the core's formatters, the relative clock, the binding's cell. Re-baselined in lot 5 (was 462 B, a formatter alone over a plain object; 0.8 formatters take a real instance); size-budgets.md 2026-10-31 lot 5 and 2026-11-06."
     },
     {
       "name": "fw-vue-default",
