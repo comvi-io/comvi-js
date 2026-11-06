@@ -73,3 +73,29 @@ test("a type-only re-export of a class is no value: a runtime export of that nam
   const { failures } = await checkPackages([fixture(`${JS}export const Foo = 2;\n`, dts)]);
   assert.match(failures[0], /in the dist, not in the \.d\.ts: Foo/);
 });
+
+test("a CommonJS `require` target is read by its export names, not as one default", async () => {
+  const withPlugin = (cjs) => {
+    const dir = fixture("export const a = 1;\n", "export declare const a: number;\n");
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
+    manifest.exports["./plugin"] = {
+      types: "./dist/plugin.d.ts",
+      import: "./dist/plugin.js",
+      require: "./dist/plugin.cjs",
+    };
+    fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify(manifest));
+    fs.writeFileSync(path.join(dir, "dist", "plugin.js"), "export function p() {}\n");
+    fs.writeFileSync(path.join(dir, "dist", "plugin.d.ts"), "export declare function p(): void;\n");
+    fs.writeFileSync(path.join(dir, "dist", "plugin.cjs"), cjs);
+    return dir;
+  };
+  assert.deepEqual(
+    (await checkPackages([withPlugin("exports.p = function p() {};\n")])).failures,
+    [],
+  );
+  const wrong = await checkPackages([withPlugin("exports.q = function q() {};\n")]);
+  assert.deepEqual(
+    wrong.failures.map((f) => f.split(": ").slice(1).join(": ")),
+    ["in the dist, not in the .d.ts: q", "in the .d.ts, not in the dist: p"],
+  );
+});

@@ -24,7 +24,8 @@ by the browser. App Router only.
 ## Install
 
 ```bash
-npm install @comvi/next @comvi/react @comvi/core   # peers: next ^15.5.28 || ^16.4.3, react ^19.3.1
+npm install @comvi/next @comvi/react @comvi/core
+# Peers: next ^15.5.28 || ^16.4.3, react ^19.3.1
 ```
 
 ## Setup
@@ -136,8 +137,7 @@ import { routing } from "./i18n/routing";
 export default createMiddleware(routing);
 ```
 
-Without `locale`, `getI18n()` (a Route Handler, a Server Action) reads the locale the middleware
-set, else `defaultLocale`.
+Without `locale`, `getI18n()` reads the middleware's locale (a dynamic read), else `defaultLocale`.
 
 ## Contributing
 
