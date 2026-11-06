@@ -12,16 +12,15 @@ export { setI18n } from "./context.svelte.js";
 export { useI18n } from "./binding";
 
 /**
- * Renders one message; params are props. A tag renders through a function prop of its name (a
- * handler returning text), else its entry in `components` (`components={{ b: "strong" }}`, nested
- * tags render too), else a snippet of its name (`{#snippet link(children)}<a
- * href="/terms">{children}</a>{/snippet}`, `children` the tag's text), else as text; a prop or
- * an entry that is `undefined` leaves the tag to the next. Every prop but `i18nKey`,
- * `components` and the per-call options `ns`, `locale` and `markers` is a message param. `ns` is
- * explicit: `<T>` never takes the namespace of a `useI18n(ns)` above it; `useI18n(ns).T` is the
- * bound one. `<T>` reads only: `useI18n("account")` in the component (or `i18n.load`, the
- * `namespaces` option) loads it. `markers={false}` opts the message out of an in-context editor
- * session.
+ * Renders one message; params are props. A tag renders through its entry in `components`
+ * (`components={{ b: "strong" }}`, nested tags render too), else a snippet of its name
+ * (`{#snippet link(children)}<a href="/terms">{children}</a>{/snippet}`, `children` the tag's
+ * text), else as text; an entry that is `undefined` leaves the tag to the next. `<T>` takes no
+ * handler: a function prop is a snippet. Every prop but `i18nKey`, `components` and the per-call
+ * options `ns`, `locale` and `markers` is a message param. `ns` is explicit: `<T>` never takes
+ * the namespace of a `useI18n(ns)` above it; `useI18n(ns).T` is the bound one. `<T>` reads only:
+ * `useI18n("account")` in the component (or `i18n.load`, the `namespaces` option) loads it.
+ * `markers={false}` opts the message out of an in-context editor session.
  */
 export const T = TComponentImpl as unknown as TComponent;
 

@@ -1,9 +1,9 @@
 /**
- * Lots 4b and 4d through <T>: handler attribute → `components` → snippet of the tag's name →
- * text; a snippet's `children` is the tag's text; a void element takes no children; the bound
+ * Lots 4b and 4d through <T>: `components` → snippet of the tag's name → text (probe: no handler
+ * props); a snippet's `children` is the tag's text; a void element takes no children; the bound
  * <T> is the exported one with its namespace.
  */
-import { flushSync } from "svelte";
+import { createRawSnippet, flushSync } from "svelte";
 import { describe, expect, it } from "vitest";
 import { T } from "../src";
 import Formal from "./fixtures/Formal.svelte";
@@ -25,45 +25,32 @@ describe("<T components>", () => {
     );
   });
 
-  it("precedence: handler attribute → components → snippet; `undefined` leaves the tag to the next", () => {
+  it("precedence: components → snippet; `undefined` leaves the tag to the next", () => {
     const comps = { components: { b: "strong", i: "em" } };
-    // The fixture passes a snippet `b`, so these cover components over the snippet. A handler
-    // attribute of the same name cannot sit beside a snippet: Svelte refuses the duplicate.
+    // The fixture passes a snippet `b`, so these cover components over the snippet.
     expect(render(comps)).toBe("Read <strong>the <em>new</em> terms</strong> now.");
     expect(render({ components: { b: undefined, i: "em" } })).toBe(
       "Read <mark>the new terms</mark> now.",
     );
     expect(render({})).toContain("<mark>the new terms</mark>");
-    const { i18n } = make({ locale: "en", messages, onError() {} });
-    const html = mountWith(i18n, T, {
-      i18nKey: "m",
-      components: { b: "strong" },
-      b: (c: string) => `[${c}]`,
-      x: undefined,
-    }).html();
-    expect(html).toBe("Read [the new terms] now.");
   });
 
-  it("a handler attribute gets the tag's content, its text output renders as text, never as markup", () => {
+  it("a snippet passed as an attribute (`b={s}`) renders as `{#snippet b}` does", () => {
+    const { i18n } = make({ locale: "en", messages: { en: { m: "a <b>c</b>" } } });
+    const b = createRawSnippet((c: () => string) => ({ render: () => `<u>${c()}</u>` }));
+    expect(mountWith(i18n, T, { i18nKey: "m", b }).html()).toBe("a <u>c</u>");
+  });
+
+  it("probe: a plain function prop is no handler; it renders as a snippet, its result dropped", () => {
     const { i18n } = make({ locale: "en", messages: { en: { m: "a <b>c</b>" } } });
     const seen: unknown[] = [];
     const w = mountWith(i18n, T, {
       i18nKey: "m",
-      b: (c: string) => (seen.push(c), `<i>${c}</i>`),
+      b: (c: unknown) => (seen.push(c), `[c]`),
     });
-    expect(seen).toEqual(["c"]);
-    expect(w.target.querySelector("i")).toBe(null);
-    expect(w.text()).toBe("a <i>c</i>");
-  });
-
-  it("a handler that returns its content keeps the markup inside it", () => {
-    const { i18n } = make({ locale: "en", messages, onError() {} });
-    const html = mountWith(i18n, T, {
-      i18nKey: "m",
-      components: { i: "em" },
-      b: (c: unknown) => c,
-    }).html();
-    expect(html).toBe("Read the <em>new</em> terms now.");
+    // Svelte calls it as a snippet (an anchor node, not the text) and ignores what it returns.
+    expect(typeof seen[0]).not.toBe("string");
+    expect(w.text()).toBe("a ");
   });
 
   it("an entry `{ component, props }` renders the tag with props of its own", () => {
@@ -110,7 +97,7 @@ describe("<T components>", () => {
     }
   });
 
-  it("markup comes from a tag around the text {x}: components, a handler, a void tag", () => {
+  it("markup comes from a tag around the text {x}: components, a void tag", () => {
     const { i18n } = make({
       locale: "en",
       messages: { en: { m: "Hello, <strong>{name}</strong>!<br/>Bye" } },

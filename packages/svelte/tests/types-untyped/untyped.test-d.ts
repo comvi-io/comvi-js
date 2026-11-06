@@ -16,20 +16,13 @@ export function setup() {
   const upper: string = t("k", { b: (c: string) => c.toUpperCase() });
   return [s, r, l, listed, upper, T, B];
 }
-/**
- * `<T>` hands a handler the tag's `Children`: a list once a nested tag renders through
- * `components` (`<strong>Hi <i>you</i></strong>`), so a string-only handler throws there.
- */
+/** Probe: `<T>` takes no handler, a function prop is a snippet (its `children` the tag's text). */
 type TProps = ComponentProps<TComponent>;
-// @ts-expect-error a <T> handler's argument is Children, not a string
+// @ts-expect-error a string handler is no snippet
 export const narrow: TProps = { i18nKey: "m", strong: (c: string) => c.toUpperCase() };
-export const inline: TProps = {
-  i18nKey: "m",
-  strong: (c) => {
-    const got: Children = c;
-    return got;
-  },
-};
+// @ts-expect-error an inline handler is no snippet either
+export const inline: TProps = { i18nKey: "m", strong: (c) => `[${c}]` };
+// @ts-expect-error nor one over Children
 export const annotated: TProps = { i18nKey: "m", strong: (c: Children) => c };
 // A snippet of the tag's name keeps its text contract.
 export const snippet: TProps = { i18nKey: "m", strong: {} as Snippet<[children: string]> };
