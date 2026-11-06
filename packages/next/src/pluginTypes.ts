@@ -15,9 +15,10 @@
  *
  * Next loads the config more than once: again in the same process (`next build` of
  * Next 16), and in the server process `next dev` of Next 15 starts. One run per process
- * tree: a repeated load in this process reuses its first run, and a process whose parent
- * holds the watcher's lock starts none. Build workers get the loaded config, not a load
- * of their own. An unrelated process (a second `next dev` of the same app) is kept from
+ * tree: a repeated load in this process reuses its first run; a process whose parent
+ * holds the watcher's lock starts none (`next dev`'s server, started with the environment
+ * from before the config loaded); and `next build`'s workers, which Next 15 may let load
+ * the config again, inherit a marker in the environment and skip. An unrelated process (a second `next dev` of the same app) is kept from
  * writing by typegen's own lock: its watcher stays idle and takes over when the first
  * one stops.
  */
@@ -55,6 +56,8 @@ export interface WithComviTypes {
 }
 
 const PREFIX = "[@comvi/next]";
+/** The declaration files a `next build` of this process tree has generated, one per line. */
+const BUILT = "COMVI_NEXT_TYPES_BUILT";
 const DEV = "phase-development-server";
 const BUILD = "phase-production-build";
 
@@ -122,6 +125,8 @@ export function runTypes(phase: string, types: WithComviTypes, root: string): Pr
   if (previous?.signature === signature) return previous.done;
   // Started by the process that watches already: the server process of `next dev`.
   if (!previous && phase === DEV && lockHolder(out) === process.ppid) return Promise.resolve();
+  const built = (process.env[BUILT] ?? "").split("\n");
+  if (!previous && phase === BUILD && built.includes(out)) return Promise.resolve();
   previous?.watcher?.close();
 
   const run: Run = { signature, done: Promise.resolve() };
@@ -148,5 +153,7 @@ export function runTypes(phase: string, types: WithComviTypes, root: string): Pr
     );
   }
   runs.set(key, run);
+  if (phase === BUILD && !built.includes(out))
+    process.env[BUILT] = [...built.filter(Boolean), out].join("\n");
   return run.done;
 }
