@@ -40,6 +40,15 @@ const once = (id: string): boolean => !seen.has(id) && !!seen.add(id);
 /** Does nothing; shared so production code carries one empty function. */
 export const noop = (): void => {};
 
+/** A load failure's cause for the console: an Error's message, else the value as a string. */
+const printable = (cause: unknown): string => {
+  try {
+    return String(cause instanceof Error ? cause.message : cause);
+  } catch {
+    return "(cause not printable)";
+  }
+};
+
 /**
  * The reporter used when none is configured: development `console.error` once per
  * (code, key, param) — and per (locale, ns) for the reports that name no key (a load
@@ -61,8 +70,16 @@ export const defaultOnError: OnError = !__DEV__
         console.error(
           `[@comvi/core] ${error.code}` +
             (error.key === undefined ? "" : ` "${error.key}"`) +
-            (error.locale === undefined ? "" : ` (${error.locale})`) +
-            (error.message ? `: ${error.message}` : ""),
+            (error.locale === undefined
+              ? ""
+              : error.code == "load_failed"
+                ? ` (${error.locale}, namespace "${error.ns}")`
+                : ` (${error.locale})`) +
+            (error.code == "load_failed"
+              ? `: ${printable(error.cause)}`
+              : error.message
+                ? `: ${error.message}`
+                : ""),
         );
       }
     };

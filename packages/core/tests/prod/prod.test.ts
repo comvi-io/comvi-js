@@ -8,6 +8,7 @@
 import { describe, expect, it, vi } from "vitest";
 import icu4c from "../golden/icu4c.json";
 import { defaultOnError, devWarn } from "../../src/errors";
+import { createI18n } from "../../src/instance";
 import { BAD, fmt, revive, sink } from "../helpers";
 
 describe("production", () => {
@@ -80,5 +81,18 @@ describe("production syntax reports", () => {
     expect(env.errors).toStrictEqual([
       { code: "missing_param", key: "s", locale: "en", param: "g", message: undefined },
     ]);
+  });
+});
+
+describe("production: an unclosed <br>", () => {
+  it("renders its key and reports syntax with no message, no hint", () => {
+    const errors: { code: string; message?: string }[] = [];
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { k: "a<br>b" } },
+      onError: (e) => errors.push(e),
+    });
+    expect(i18n.t("k")).toBe("k");
+    expect(errors).toEqual([expect.objectContaining({ code: "syntax", message: undefined })]);
   });
 });
