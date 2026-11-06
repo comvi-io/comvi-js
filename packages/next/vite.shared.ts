@@ -98,6 +98,13 @@ export const nextBuild = (dir: string, suffix: "" | ".dev") => ({
       // the emitted `dist/server.js` keeps it verbatim for the APP's bundler to
       // resolve per condition; inlined, it would be either a throw or nothing.
       "server-only",
+      // `dist/plugin.js` runs in Node, from next.config: `withComvi({ types })`
+      // inlines typegen, which imports these. Not external, they would be
+      // replaced by Vite's browser stub.
+      "node:crypto",
+      "node:fs",
+      "node:os",
+      "node:path",
       "@comvi/core",
       "@comvi/core/internal",
       "@comvi/core/ssr",
