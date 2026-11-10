@@ -128,6 +128,23 @@ const UNTYPED_CASES = [
     "t('k', { link: (c: string) => c.toUpperCase() }); // U3 a handler typed for a string",
     "TS2769",
   ],
+  ["t('k', { link: (c: RichParts) => c.length });", ""],
+  // The params contract (lot 6a): text values, handlers of the parts, objects. A dictionary of
+  // text is a string; one built at run time is typed `UntypedParams`, with no cast.
+  ["declare const d1: Record<string, string | number>; const u6: string = t('k', d1);", ""],
+  ["import type { UntypedParams } from './lib';", ""],
+  [
+    "const d2: UntypedParams = { name: 'Ada' }; d2.count = 2; d2.link = (c) => c.join(''); const u7: string | RichParts = t('k', d2);",
+    "",
+  ],
+  [
+    "declare const d3: Record<string, unknown>; t('k', d3); // U4 unknown values may be any handler",
+    "TS2769",
+  ],
+  [
+    "const d4: UntypedParams = { link: (c: string) => c }; // U5 a handler typed for a string",
+    "TS2322",
+  ],
 ];
 /**
  * Helper types that must never surface in a diagnostic. `NotAKey` (the typo marker) may,
@@ -238,16 +255,16 @@ const REDS = {
   // (3) The untyped t() of lot 1, typed `string` for any params (review A6).
   "untyped t() always a string": plant("untyped string", [
     [
-      "export interface UntypedT<\n",
-      "export type UntypedT<Rich = RichParts, P = unknown> = (key: string, params?: Record<string, unknown>) => string;\ninterface Unused<\n",
+      "export interface UntypedT<Rich = RichParts, P = Readonly<UntypedParams>> {",
+      "export type UntypedT<Rich = RichParts, P = unknown> = (key: string, params?: Record<string, unknown>) => string;\ninterface Unused<Rich, P> {",
     ],
   ]),
   // (6) The untyped t() of lot 6a: any param `unknown`, so a handler's argument was an
-  // implicit `any` and one typed for a string compiled (U3).
+  // implicit `any`, one typed for a string compiled (U3, U5) and so did `unknown` values (U4).
   "untyped handler unknown": plant("untyped handler unknown", [
     [
-      "Record<string, Printed | readonly Printed[] | ((children: RichParts) => unknown) | NoHandler>",
-      "Record<string, unknown>",
+      "  Printed | readonly Printed[] | ((children: RichParts) => unknown) | NoHandler\n",
+      "  unknown\n",
     ],
   ]),
 };

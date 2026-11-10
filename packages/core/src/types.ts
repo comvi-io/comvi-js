@@ -192,6 +192,16 @@ type Printed = string | number | bigint | boolean | Date | null | undefined;
 type NoHandler = { readonly [k: string]: unknown; call?: never } | (object & { call?: never });
 
 /**
+ * The params of `t()` in a project with no generated catalogs: a value `{x}` prints as text
+ * (or a list of them), a tag handler that takes its children's parts, or an object that is no
+ * function. `unknown` is none of them: it may be a handler of another argument type.
+ */
+export type UntypedParams = Record<
+  string,
+  Printed | readonly Printed[] | ((children: RichParts) => unknown) | NoHandler
+>;
+
+/**
  * `t()` of a project with no generated catalogs: any key, any params. With params that
  * are all printed as text it returns a string; a function param may be a tag handler,
  * whose output comes back inside rich parts — so that call is typed `string | Rich`
@@ -202,12 +212,7 @@ type NoHandler = { readonly [k: string]: unknown; call?: never } | (object & { c
  * {@link Tag} does with no binding registered: an inline handler gets `RichParts`, one
  * typed for a string is refused.
  */
-export interface UntypedT<
-  Rich = RichParts,
-  P = Readonly<
-    Record<string, Printed | readonly Printed[] | ((children: RichParts) => unknown) | NoHandler>
-  >,
-> {
+export interface UntypedT<Rich = RichParts, P = Readonly<UntypedParams>> {
   (key: string, params?: Readonly<Record<string, Printed | readonly Printed[]>>): string;
   (key: string, params?: P): string | Rich;
 }

@@ -25,5 +25,6 @@ export type {
   TComponentFor,
   TFor,
   TranslateFn,
+  UntypedParams,
   UntypedT,
 } from "./types";
