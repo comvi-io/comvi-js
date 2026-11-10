@@ -1472,3 +1472,27 @@ The page provider's `default` catalogs are the same objects as the layout's (one
 `handover()` hands a catalog over as the object the instance holds), so React's serializer writes
 them once and the page payload refers to them (`"$4:props:…:catalogs:default:uk"`): the second
 provider costs its own namespace only. The whole HTML of `/uk/admin` is 16,328 B (4,766 B gzip).
+
+## 2026-11-10: lot 6a D1, nested catalogs (owner decision, option 1)
+
+Nested catalogs are normalized at the core's entry (`packages/core/src/flat.ts`: `messages`,
+`catalogs`, `add()`, a loader's result, a binding's handover), with a collision or an invalid leaf
+reported through `onError` (`syntax`) in every build. The owner accepted the growth on 2026-11-10
+(option 1): only the rows D1 pushed over their ceiling get a new one, `ceil(measured × 1.02)`;
+budget `min(ceiling, ceil(measured × 1.05))`, so the ceiling. Measured after `TURBO_FORCE=true
+pnpm build` on the finished D1 code, `node --version` v24.22.1. "Before" is `next` of lot 6a at
+173f5b40. No increment cap changed: every increment still fits.
+
+| row               | before | after | old ceiling | new ceiling | increment (cap)                   |
+| ----------------- | ------ | ----- | ----------- | ----------- | --------------------------------- |
+| core-icu          | 4,632  | 4,776 | 4,727       | 4,872       | —                                 |
+| core-icu-cdn      | 5,120  | 5,269 | 5,217       | 5,375       | —                                 |
+| core-icu-devtools | 5,090  | 5,232 | 5,189       | 5,337       | +456 over core-icu (+463)         |
+| react-icu-cdn     | 5,656  | 5,805 | 5,760       | 5,922       | +536 over core-icu-cdn (+544)     |
+| vue-icu-cdn       | 5,816  | 5,965 | 5,947       | 6,085       | +696 over core-icu-cdn (+731)     |
+| solid-icu-cdn     | 5,930  | 6,074 | 5,979       | 6,196       | +805 over core-icu-cdn (+828)     |
+| svelte-icu-cdn    | 6,402  | 6,548 | 6,507       | 6,679       | +1,279 over core-icu-cdn (+1,356) |
+
+Without the `onError` reporting an earlier version of the same code measured 5,244 B on
+`core-icu-cdn` (about −22 B): the
+diagnostics are kept. Rows that grew within their budgets keep their baselines.

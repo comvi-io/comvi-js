@@ -12,7 +12,7 @@
  * R3-14 H4), which only the `/devtools` handle sets; nothing here sets it. `handover(i18n)`
  * is what a server render gives the browser (design §2.6, R3-21).
  */
-import type { Catalog, Rendered } from "./compile/cache";
+import type { Rendered } from "./compile/cache";
 import type { Env, Params } from "./compile/scanner";
 
 /**
@@ -22,6 +22,7 @@ import type { Env, Params } from "./compile/scanner";
 export { clock } from "./clock";
 import { CORE, type Core, type I18n } from "./instance";
 import { dir } from "./locale";
+import { flat, type CatalogInput } from "./flat";
 import { layer, mk, N, type Slot, type State, type Store } from "./state";
 
 export { compile, render, recordFor, lookup, inherit } from "./compile/cache";
@@ -63,12 +64,13 @@ export const acquire = (i18n: I18n, ns: string): (() => void) => core(i18n).h(ns
  * Layered slots per (existing slot, extra catalog): a view rebuilt for the same slot and
  * the same catalog object reuses the slot, so its compiled messages survive re-renders.
  */
-const layered = new WeakMap<object, WeakMap<Catalog, Slot>>();
+const layered = new WeakMap<object, WeakMap<object, Slot>>();
 const NO_SLOT = {};
 
 /**
- * A render-local snapshot: `state` with `extra` (namespace → locale → flat catalog, or `null`
- * for a load that failed on the server: that slot is left out) layered over its catalogs, rendered in `locale` (default: the state's own; a binding's
+ * A render-local snapshot: `state` with `extra` (namespace → locale → catalog, flat or nested,
+ * or `null` for a load that failed on the server: that slot is left out) layered over its
+ * catalogs, rendered in `locale` (default: the state's own; a binding's
  * locale handover renders the target before `setLocale()` lands at commit). Nothing is
  * published and `rev`/`lrev` do not move; untouched namespaces and locales keep their
  * slots (and compiled messages), and a catalog a slot already holds as its base, in the
@@ -77,7 +79,7 @@ const NO_SLOT = {};
 export const view = (
   i18n: I18n,
   state: State,
-  extra: Readonly<Record<string, Readonly<Record<string, Catalog | null>>>>,
+  extra: Readonly<Record<string, Readonly<Record<string, CatalogInput | null>>>>,
   locale: string = state.locale,
 ): State => {
   let c: Store = state.c;
@@ -99,7 +101,8 @@ export const view = (
       let memo = layered.get(slot || NO_SLOT);
       if (!memo) layered.set(slot || NO_SLOT, (memo = new WeakMap()));
       let next = memo.get(m);
-      if (!next) memo.set(m, (next = layer(slot, m)));
+      // Keyed by the catalog as given; a nested one is flattened (flat.ts) once per object.
+      if (!next) memo.set(m, (next = layer(slot, flat(m))));
       // The catalog the slot already holds: nothing to layer, no copy of the state.
       if (next === slot) continue;
       if (c === state.c) c = N(c);

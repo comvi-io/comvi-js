@@ -49,7 +49,8 @@ loop in a dev server, one message for a broken catalog.
 - A message core refuses (`{x, number}`, a select without `other`, an unclosed tag) is reported by
   the generator and by `comvi check` as core reports it; params after the failure point are
   unknown, and the platform's extractor, which reads on, can differ there.
-- Catalogs are flat: a nested object is reported and left out, as the runtime leaves it out.
+- A nested group is flat keys (`packages/core/src/flat.ts`, lot 6a D1), as the runtime reads it; a
+  collision's later leaf and an invalid leaf are warned about and left out, as the runtime leaves them out.
 - `"ns:key"` keys, `strictParams` and the 0.7 extractor are gone; `defaultParams` replaces the one
   real use of optional params.
 

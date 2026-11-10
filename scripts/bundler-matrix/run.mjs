@@ -333,7 +333,8 @@ const BUNDLERS = ["webpack", "vite"];
 
 /** Dev-only string from the 0.8 core's instance chunk (the flat-catalog check): present
  *  iff the bundler resolved the "development" export condition. */
-const DEV_MARKER = "catalogs are flat (flatten nested objects";
+// A development-only text of core (flat.ts's collision report, lot 6a D1).
+const DEV_MARKER = "is defined both as a flat key and through nesting";
 
 const ALL_PACKAGES = [
   { name: "@comvi/core", dir: "packages/core", distProbe: "dist/comvi-core.js" },

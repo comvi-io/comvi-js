@@ -10,6 +10,7 @@ export { negotiate } from "./locale";
 export type { I18n, I18nOptions, Loader, Plugin } from "./instance";
 export type { I18nError, I18nErrorCode, OnError } from "./errors";
 export type { Catalog } from "./compile/cache";
+export type { CatalogInput } from "./flat";
 export type {
   Args,
   BoundTFor,

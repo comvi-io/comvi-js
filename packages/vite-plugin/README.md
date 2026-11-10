@@ -103,8 +103,8 @@ export {};
 
 `never` means the key takes no parameters. A plain `{name}` takes `string | number`, a `plural`
 or `selectordinal` count is a `number`, a `select` takes its options, and a tag is a `Tag` param:
-the handler that renders it. Catalogs are flat: `cart.items` is one key. A nested object is
-reported and left out, as the runtime leaves it out.
+the handler that renders it. `cart.items` is one key, written flat or nested
+(`{ "cart": { "items": … } }`), as the runtime reads it.
 
 ### How it works
 

@@ -32,6 +32,7 @@
 import { render, type Catalog, type Compiled, type Rendered } from "./compile/cache";
 import { arg, type Env, type Params } from "./compile/scanner";
 import { defaultOnError, noop, type I18nError, type OnError } from "./errors";
+import { flat, type CatalogInput } from "./flat";
 import { canonicalize, dir as dirOf, parents } from "./locale";
 import { find, mk, N, put, type Mark, type State, type Store } from "./state";
 import type { RichParts, TFor } from "./types";
@@ -39,7 +40,11 @@ import type { RichParts, TFor } from "./types";
 declare const __DEV__: boolean;
 
 /** Loads one catalog: flat keys → ICU messages. Rejects to report `load_failed`. */
-export type Loader = (locale: string, ns: string, signal: AbortSignal) => Promise<Catalog>;
+export type Loader = (
+  locale: string,
+  ns: string,
+  signal: AbortSignal,
+) => Promise<CatalogInput | Catalog>;
 
 /** A plugin: set up once by `createI18n`; the returned function runs on `destroy()`. */
 export interface Plugin {
@@ -68,14 +73,14 @@ export interface I18nOptions {
    * a `default` slot of a locale that `catalogs` also has is the `catalogs` one (a server
    * payload wins over inline messages), the other locales come from here.
    */
-  messages?: Readonly<Record<string, Catalog>>;
+  messages?: Readonly<Record<string, CatalogInput>>;
   /**
    * Flat catalogs by namespace, then locale. A `null` slot is one whose load failed on the
    * server (`handover()`): not asked for again until `load(ns)` or a switch to its locale.
    * For the `default` namespace a slot here wins over `messages` of the same locale, a
    * `null` one too; the slots are merged by locale, never key by key.
    */
-  catalogs?: Readonly<Record<string, Readonly<Record<string, Catalog | null>>>>;
+  catalogs?: Readonly<Record<string, Readonly<Record<string, CatalogInput | null>>>>;
   loader?: Loader;
   /** Namespaces loaded from the start. Default `["default"]`. */
   namespaces?: readonly string[];
@@ -182,7 +187,7 @@ export interface I18n {
    */
   load(ns: string): Promise<void>;
   /** Adds messages to (locale, ns) — by reference into an empty pair, else as a patch layer. */
-  add(locale: string, messages: Catalog, ns?: string): void;
+  add(locale: string, messages: CatalogInput, ns?: string): void;
   /**
    * Whether `key` has a message in namespace `ns` (default `default`) for `locale` (default:
    * the current one) or its fallback chain. `fallback: false` looks in `locale` alone —
@@ -397,25 +402,36 @@ export const createI18n = (o: I18nOptions): I18n => {
   };
 
   /**
-   * `c` with `m` layered at (l, n), after checking the locale (and, in development, the
-   * values); with `u` (a load landing) under what the pair holds (R3-14 H8).
+   * `c` with `m` layered at (l, n), after checking the locale and flattening the catalog
+   * (flat.ts); with `u` (a load landing) under what the pair holds (R3-14 H8).
    */
-  const ing = (c: Store, l: string, m: Catalog, n: string, u?: unknown): Store => {
-    if (__DEV__)
-      for (const k in m)
-        if (typeof m[k] != "string")
-          report({
-            code: "syntax",
-            key: k,
-            locale: l,
-            ns: n,
-            message: `the value of "${k}" is not a string; catalogs are flat (flatten nested objects, or use the \`catalogs\` option for namespaces)`,
-          });
-    return valid(l) ? put(c, n, l, m, u) : c;
-  };
+  const ing = (c: Store, l: string, m: CatalogInput, n: string, u?: unknown): Store =>
+    valid(l)
+      ? put(
+          c,
+          n,
+          l,
+          // Nested groups become flat keys (flat.ts); a collision or an invalid leaf is left out
+          // and reported, in every build.
+          flat(m, (key, x) =>
+            report({
+              code: "syntax",
+              key,
+              locale: l,
+              ns: n,
+              message: __DEV__
+                ? x < 2
+                  ? `"${key}" is defined both as a flat key and through nesting; the first one is kept`
+                  : `the value of "${key}" is not a string or a group of strings; left out`
+                : undefined,
+            }),
+          ),
+          u,
+        )
+      : c;
 
   let c0: Store = N();
-  const cats: Record<string, Readonly<Record<string, Catalog | null>>> = N(o.catalogs);
+  const cats: Record<string, Readonly<Record<string, CatalogInput | null>>> = N(o.catalogs);
   // `messages` fills the `default` slots that `catalogs` leaves out: per locale, `catalogs`
   // wins (a `null` slot too), never the whole namespace (Codex re-check HIGH B). With
   // neither, `default` is an empty record: nothing to ingest.
@@ -564,13 +580,13 @@ export const createI18n = (o: I18nOptions): I18n => {
     if (!f && load && !dead && !S.c[n]?.[l] && !bad.has(k)) {
       const a = new AbortController();
       const no = () => a.signal.aborted;
-      let y!: (m: Catalog) => void;
+      let y!: (m: CatalogInput) => void;
       let x!: (e: unknown) => void;
       fl.set(
         k,
         (f = [
           // Settles on abort even when the loader ignores its signal.
-          new Promise<Catalog>((u, v) => {
+          new Promise<CatalogInput>((u, v) => {
             y = u;
             a.signal.onabort = x = v;
           })

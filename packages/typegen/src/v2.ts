@@ -16,6 +16,8 @@ export type { EmitCatalogsOptions } from "./v2/emit";
 export { parseWireSchema, serializeWireSchema, PARAM_KINDS, WIRE_VERSION } from "./v2/wire";
 export type { ParamKind, WireKey, WireParam, WireSchema } from "./v2/wire";
 export { readMessage } from "./v2/read";
+export { flat } from "./v2/flat";
+export type { CatalogInput, FlatReport } from "./v2/flat";
 export type { ReadMessage, ReadParam } from "./v2/read";
 export { buildWireKey } from "./v2/build";
 export type { SchemaWarning } from "./v2/build";
