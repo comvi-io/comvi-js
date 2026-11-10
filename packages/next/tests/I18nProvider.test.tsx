@@ -189,6 +189,10 @@ function Show() {
   );
 }
 
+function Show2() {
+  return <p data-testid="p">{useI18n().t("p") as string}</p>;
+}
+
 describe("defaultParams from the server's settings (owner decision 2026-11-10)", () => {
   const cats = { default: { en: { hi: "Welcome to {brand}" } } };
   function Counted() {
@@ -215,6 +219,32 @@ describe("defaultParams from the server's settings (owner decision 2026-11-10)",
     expect(c()).toBe("Welcome to Comvi 2|Welcome to Explicit|1");
     await act(async () => rerender(tree()));
     expect(c()).toBe("Welcome to {brand}|Welcome to Explicit|1");
+  });
+
+  it("an own `__proto__` param of a repeated payload changes, then clears (as in @comvi/react's handover)", async () => {
+    const own = (v: string) => JSON.parse(`{"__proto__": ${JSON.stringify(v)}}`);
+    const proto = (dp: Record<string, string> | undefined) => (
+      <I18nProvider
+        payload={payload("en", { default: { en: { p: "[{__proto__}]" } } })}
+        options={dp && { defaultParams: dp }}
+      >
+        <Show2 />
+      </I18nProvider>
+    );
+    const { rerender } = render(proto(own("one")));
+    const p = () => screen.getByTestId("p").textContent;
+    expect(p()).toBe("[one]");
+    await act(async () => rerender(proto(own("two"))));
+    expect(p()).toBe("[two]");
+    await act(async () => rerender(proto(undefined)));
+    expect(p()).toBe("[{__proto__}]");
+  });
+
+  it("no server params and no client ones: the provider hands `{}`, so nothing is applied (pinning)", async () => {
+    const { rerender } = render(tree());
+    expect(screen.getByTestId("c").textContent).toBe("Welcome to {brand}|Welcome to Explicit|0");
+    await act(async () => rerender(tree()));
+    expect(screen.getByTestId("c").textContent).toBe("Welcome to {brand}|Welcome to Explicit|0");
   });
 
   it("client-only defaults (a BigInt, a tag handler) render and are never serialized", () => {
@@ -296,4 +326,48 @@ describe("defaultParams and catalogs of one payload are one snapshot (owner prob
     await act(async () => rerender(tree("Hello from {brand}", undefined, true)));
     expect(captured[0]).toBe("Hello from {brand}");
   });
+});
+
+describe("hydration with a `null` slot through the provider (the ordinary readiness template)", () => {
+  function Tpl({ ns }: { ns?: string }) {
+    const { t, isReady, isLoading } = ns ? useI18n(ns) : useI18n();
+    return isReady ? <p>{t("title")}</p> : isLoading ? <i>loading</i> : <b>unavailable</b>;
+  }
+  // Pinning: the browser instance is created from the payload, so the server HTML of the Client
+  // Component and the hydration render read the same failed pair.
+  it.each([
+    ["useI18n()", "default", undefined],
+    ["useI18n(ns)", "admin", "admin"],
+  ])(
+    "%s, no catalog at all, a client loader: same branch, no warning, no request",
+    async (_, ns, arg) => {
+      // The layout's `default` is in the payload too, so nothing loads at creation.
+      const p = payload("uk", { default: { uk: {}, en: {} }, [ns]: { uk: null, en: null } });
+      const loader = vi.fn(async () => ({ title: "x" }));
+      const ui = () => (
+        <I18nProvider payload={p} options={{ fallbackLocale: "en", loader, onError: () => {} }}>
+          <Tpl ns={arg} />
+        </I18nProvider>
+      );
+      const html = renderToString(ui());
+      expect(html).toBe("<b>unavailable</b>");
+      const el = document.createElement("div");
+      el.innerHTML = html;
+      document.body.append(el);
+      const errors: unknown[] = [];
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      let root: { unmount(): void } | undefined;
+      await act(async () => {
+        root = hydrateRoot(el, ui(), { onRecoverableError: (e) => errors.push(e) });
+      });
+      await act(async () => {});
+      expect(errors).toEqual([]);
+      expect(err).not.toHaveBeenCalled();
+      err.mockRestore();
+      expect(el.innerHTML).toBe("<b>unavailable</b>");
+      expect(loader).not.toHaveBeenCalled();
+      root!.unmount();
+      el.remove();
+    },
+  );
 });

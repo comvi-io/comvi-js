@@ -64,11 +64,18 @@ export interface I18nHandoverProps {
    */
   locale?: string;
   /**
-   * A server payload's `defaultParams` (`{}`: none), part of the same snapshot as `catalogs`: when
-   * their strings, numbers, booleans and `null` differ from what this handover last applied, the
-   * subtree renders with them at once and the instance takes them at commit
-   * (`setDefaultParams()`); any other value (a tag handler) is passed along, never compared.
-   * Absent: the instance's own.
+   * A server payload's `defaultParams`, part of the same snapshot as `catalogs`. A server hands
+   * over data only, so the prop's strings, numbers, booleans and `null` are the server's params,
+   * and any other value the instance holds (a tag handler, a BigInt) is the client's.
+   * - Not passed: the handover never changes the instance's `defaultParams`.
+   * - Passed (`{}`: the server has none): whenever its data values differ from those this
+   *   handover applied last (the first time: from the instance's own), the instance's data values
+   *   become exactly the prop's — a key it lacks is cleared, one the client set included — and the
+   *   client's other values stay, unless the prop gives that key. The subtree renders with them
+   *   at once and the instance takes them at commit (`setDefaultParams()`), no remount; a payload
+   *   with the same data values changes nothing. A non-data value in the prop is set with them,
+   *   never compared.
+   * An own key named `__proto__` is a param like any other; inherited properties are not read.
    */
   defaultParams?: Readonly<Record<string, unknown>>;
   children?: ReactNode;
@@ -76,11 +83,14 @@ export interface I18nHandoverProps {
 
 type Values = Record<string, unknown>;
 
-/** The values of `p` a server can hand over: strings, numbers, booleans, `null`. */
-const data = (p?: Readonly<Values> | null): Values => {
-  const r: Values = {};
+/**
+ * The values of `p` a server can hand over (`d`: strings, numbers, booleans, `null`) or the
+ * others (the client's), in a prototype-free object: an own `__proto__` key stays a key.
+ */
+const pick = (p: Readonly<Values> | null | undefined, d: boolean): Values => {
+  const r: Values = Object.create(null);
   for (const k in p)
-    if (p[k] === null || ["string", "number", "boolean"].includes(typeof p[k])) r[k] = p[k];
+    if ((p[k] === null || ["string", "number", "boolean"].includes(typeof p[k])) == d) r[k] = p[k];
   return r;
 };
 
@@ -118,14 +128,15 @@ export const I18nHandover = ({
   const fresh = (d = done.current) => catalogs && !(d && d[0] == i && d[1] == catalogs);
   /** The [instance, values] of `defaultParams` applied last (written at commit only). */
   const sent = useRef<readonly [I18n, Values]>(undefined);
-  const now = data(defaultParams);
-  const was = sent.current && sent.current[0] == i ? sent.current[1] : data(base.dp);
-  // Pending: the payload's params differ from what was applied (by value); rendered at once.
+  const now = pick(defaultParams, true);
+  const was = sent.current && sent.current[0] == i ? sent.current[1] : pick(base.dp, true);
+  // Pending: the payload's data values differ from what was applied (by value); rendered at
+  // once with the client's own values kept (the prop wins for a key both give).
   const dp =
     defaultParams &&
     (Object.keys(was).length != Object.keys(now).length ||
       Object.keys(now).some((k) => !Object.is(was[k], now[k])))
-      ? defaultParams
+      ? { ...pick(base.dp, false), ...defaultParams }
       : undefined;
   const v = useMemo(
     (): Ctx => [i, view(i, base, fresh() ? catalogs! : {}, loc, dp)],

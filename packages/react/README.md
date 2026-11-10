@@ -119,6 +119,13 @@ first. Server renders and hydrations are never gated; a server preloads with `i1
 slot `<I18nHandover catalogs>` hands over replaces the instance's, every time (`null`: failed on the
 server; an omitted slot is kept); with two handovers on one instance, the last payload wins per slot.
 
+`<I18nHandover defaultParams>` hands over the server's `defaultParams` with the same payload. A
+server hands over data only, so its strings, numbers, booleans and `null` are the server's params;
+any other value on the instance (a tag handler) is the client's. Not passed, the instance's
+params are never changed. Passed (`{}` when the server has none), the instance's data values
+become exactly the prop's whenever they differ from those applied last: a key the payload lacks is
+cleared, and the client's handlers stay unless the prop gives that key.
+
 Match a route, cookie or header locale against your supported locales first: `createI18n()` and
 `<I18nHandover locale>` throw a `RangeError` for an invalid tag (`t(key, { locale })`, `has()`,
 `add()` and `fallbackLocale` entries only report `invalid_locale`); a valid one with no translation falls back.

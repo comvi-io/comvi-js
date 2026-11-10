@@ -104,6 +104,19 @@ describe("defaultParams cross as data (owner decision 2026-11-10)", () => {
     });
   });
 
+  it("an own `__proto__` param crosses as an own key, and a handler under that name is refused (pinning)", () => {
+    const i18n = server(JSON.parse('{"__proto__": "P"}'));
+    const el = I18nProvider({ i18n, children: null }) as ReactElement<Record<string, unknown>>;
+    const dp = (el.props.options as { defaultParams: object }).defaultParams;
+    expect(Object.getOwnPropertyDescriptor(dp, "__proto__")?.value).toBe("P");
+    expect(Object.getPrototypeOf(dp)).toBe(Object.prototype);
+    expect(JSON.stringify(dp)).toBe('{"__proto__":"P"}');
+    const bad = server(
+      Object.defineProperty({}, "__proto__", { value: () => "x", enumerable: true }),
+    );
+    expect(() => I18nProvider({ i18n: bad, children: null })).toThrow(/defaultParams\.__proto__ /);
+  });
+
   it.each([
     ["a function (a tag handler)", () => "x"],
     ["an object", { a: 1 }],
