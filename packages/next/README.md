@@ -80,8 +80,9 @@ export default async function Layout(props: {
 `getI18n({ locale })` checks the locale against `locales` (else `notFound()`), reads no request API
 (a static page stays static) and returns this request's instance, its catalogs loaded once per
 request. The server `<I18nProvider>` hands the browser data only: `handover(i18n)` (catalogs, a
-failed one as `null`, locale, time zone, clock) and the instance's `fallbackLocale` and `formats`.
-The loader, callbacks, `defaultParams` and other options stay on the server.
+failed one as `null`, locale, time zone, clock) and the instance's `fallbackLocale`, `formats` and
+current `defaultParams`, which must be strings, numbers, booleans or `null` (a tag handler throws:
+give it in a Client Component). The loader, callbacks and other options stay on the server.
 
 ## Use in components
 

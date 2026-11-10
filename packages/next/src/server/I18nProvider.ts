@@ -11,18 +11,31 @@ import type { RoutingConfig } from "../routing/types";
 
 /**
  * The settings of the request's instance that the browser instance must share, handed over as
- * data: `fallbackLocale` and `formats`. Nothing else crosses: not the loader, credentials,
- * `onError`, `missing`, `plugins`, `defaultParams` (it may hold tag handlers), `namespaces`
- * (the server's pins), `now`; the locale, the time zone, the clock and the catalogs travel in
- * the payload (`handover()`).
+ * data: `fallbackLocale`, `formats` and the instance's CURRENT `defaultParams`, whose values
+ * must be strings, numbers, booleans or `null` (anything else, a tag handler included, is a
+ * `TypeError` here, naming the param). Nothing else crosses: not the loader, credentials,
+ * `onError`, `missing`, `plugins`, `namespaces` (the server's pins), `now`; the locale, the time
+ * zone, the clock and the catalogs travel in the payload (`handover()`).
  */
-export type ClientSettings = Pick<ClientOptions, "fallbackLocale" | "formats">;
+export type ClientSettings = Pick<ClientOptions, "fallbackLocale" | "formats"> & {
+  defaultParams?: Readonly<Record<string, string | number | boolean | null>>;
+};
 
 const settings = (i18n: I18n): ClientSettings => {
-  const { fallbackLocale, formats } = core(i18n).o;
+  const c = core(i18n);
+  const { fallbackLocale, formats } = c.o;
+  const dp = c.s().dp;
+  for (const k in dp) {
+    const v = dp[k];
+    if (v !== null && !["string", "number", "boolean"].includes(typeof v))
+      throw TypeError(
+        `[@comvi/next] defaultParams.${k} cannot cross to the browser: only strings, numbers, booleans and null are handed over (render tag handlers in a Client Component)`,
+      );
+  }
   return {
     ...(fallbackLocale !== undefined && { fallbackLocale }),
     ...(formats !== undefined && { formats }),
+    ...(dp && { defaultParams: dp as ClientSettings["defaultParams"] }),
   };
 };
 

@@ -1,6 +1,13 @@
 "use client";
 
-import { createElement, useState, type ReactElement, type ReactNode } from "react";
+import {
+  createElement,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { createI18n, I18nHandover, I18nProvider as Provider, type I18nOptions } from "@comvi/react";
 import type { Handover } from "@comvi/core/ssr";
 import { RoutingProvider } from "../routing/context";
@@ -58,6 +65,17 @@ export function I18nProvider({
   children,
 }: I18nProviderProps): ReactElement {
   const [i18n] = useState(() => createI18n({ ...options, ...payload }));
+  // `defaultParams` of a later render (the server's settings on a router.refresh()) reach the
+  // instance when they change by value, cleared too; the instance started with the first ones.
+  const dp = options?.defaultParams;
+  const key = JSON.stringify(dp);
+  const given = useRef(key);
+  useLayoutEffect(() => {
+    if (key !== given.current) {
+      given.current = key;
+      i18n.setDefaultParams(dp || {});
+    }
+  }, [i18n, key]);
   const tree = createElement(
     Provider,
     { i18n, loading, suspense },

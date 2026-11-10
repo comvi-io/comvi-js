@@ -5,6 +5,8 @@
  * `<I18nHandover>`.
  */
 import { useState } from "react";
+import { renderToString } from "react-dom/server";
+import { hydrateRoot } from "react-dom/client";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useI18n } from "@comvi/react";
@@ -175,5 +177,47 @@ describe("a repeated successful payload (lot 6a audit, finding 2)", () => {
     expect(screen.getByTestId("default:b").textContent).toBe("en|B");
     await act(async () => rerender(tree(payload("en", { default: { en: { a: "A" } } }))));
     expect(screen.getByTestId("default:b").textContent).toBe("en|b");
+  });
+});
+
+describe("defaultParams from the server's settings (owner decision 2026-11-10)", () => {
+  const cats = { default: { en: { hi: "Welcome to {brand}" } } };
+  function Counted() {
+    const [n, setN] = useState(0);
+    const { t } = useI18n();
+    return (
+      <button data-testid="c" onClick={() => setN(n + 1)}>
+        {t("hi") as string}|{t("hi", { brand: "Explicit" }) as string}|{n}
+      </button>
+    );
+  }
+  const tree = (defaultParams?: Record<string, string>) => (
+    <I18nProvider payload={payload("en", cats)} options={defaultParams && { defaultParams }}>
+      <Counted />
+    </I18nProvider>
+  );
+
+  it("a repeated payload changes, then clears them: no remount, state kept; an explicit param wins", async () => {
+    const { rerender } = render(tree({ brand: "Comvi" }));
+    const c = () => screen.getByTestId("c").textContent;
+    expect(c()).toBe("Welcome to Comvi|Welcome to Explicit|0");
+    fireEvent.click(screen.getByTestId("c"));
+    await act(async () => rerender(tree({ brand: "Comvi 2" })));
+    expect(c()).toBe("Welcome to Comvi 2|Welcome to Explicit|1");
+    await act(async () => rerender(tree()));
+    expect(c()).toBe("Welcome to {brand}|Welcome to Explicit|1");
+  });
+
+  it("hydrates the server's text with the server's params: no mismatch", async () => {
+    const html = renderToString(tree({ brand: "Comvi" }));
+    const el = document.createElement("div");
+    el.innerHTML = html;
+    document.body.append(el);
+    const errors: unknown[] = [];
+    await act(async () => {
+      hydrateRoot(el, tree({ brand: "Comvi" }), { onRecoverableError: (e) => errors.push(e) });
+    });
+    expect(errors).toEqual([]);
+    expect(el.textContent).toBe("Welcome to Comvi|Welcome to Explicit|0");
   });
 });
