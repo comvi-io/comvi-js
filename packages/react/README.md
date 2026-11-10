@@ -88,6 +88,13 @@ with a fallback locale's catalog in, it is `true`/`false` once the requests fini
 not retry, but `i18n.load("account")` does (it preloads a route too, holding nothing). `t()` and
 `<T>` only read.
 
+`useI18n()` with no namespace reads `default` (what its `t` reads) and every namespace of the
+`namespaces` option: `isReady` once each has a usable catalog (a catalog, not every key),
+`isLoading` while one of them loads, so an app root can branch on it. It is no longer
+`useI18n("default")`, which reads `default` alone. Check `isReady` first: a switch loads beside the
+text on screen. `false`/`false` means the text is unavailable and nothing is loading — a failed
+load or no loader, not necessarily an error.
+
 ## Load from Comvi
 
 ```tsx title="src/main.tsx"

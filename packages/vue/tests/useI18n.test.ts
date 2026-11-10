@@ -296,7 +296,7 @@ describe("useI18n(ns)", () => {
     let b!: UseI18n["isLoading"];
     const C = defineComponent({
       setup() {
-        a = useI18n().isLoading;
+        a = useI18n("default").isLoading;
         b = useI18n("shop").isLoading;
         return () => h("p", `${a.value}/${b.value}`);
       },

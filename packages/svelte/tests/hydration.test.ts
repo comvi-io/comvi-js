@@ -9,6 +9,7 @@ import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createI18n, handover, type Catalog } from "../src";
 import AccountApp from "./fixtures/AccountApp.svelte";
+import GlobalApp from "./fixtures/GlobalApp.svelte";
 import RichApp from "./fixtures/RichApp.svelte";
 import { manualLoader, settle, warnings } from "./helpers";
 
@@ -138,5 +139,30 @@ describe("hydration of rich <T>", () => {
     expect(after.length == before.length && after.every((n, k) => n === before[k])).toBe(true);
     expect(logged).toEqual([]);
     unmount(app!);
+  });
+});
+
+describe("hydration of useI18n()'s flags (ready/loading scope, check 9)", () => {
+  it("the server's branch at the first frame, no hydration warning, no request", async () => {
+    const OPTS = { locale: "en", timeZone: "UTC", namespaces: ["default", "nav"] };
+    const m = await vite.ssrLoadModule("/tests/fixtures/server-entry.ts");
+    const loader = async (_: string, n: string) => (n == "nav" ? {} : { hi: "Hi" });
+    const { body, payload } = (await m.serveGlobal({ ...OPTS, loader })) as {
+      body: string;
+      payload: object;
+    };
+    expect(body).toContain("<p>Hi</p>");
+    const target = document.createElement("div");
+    target.innerHTML = body;
+    const l = manualLoader();
+    const i18n = createI18n({ ...OPTS, ...payload, onError() {}, loader: l.load });
+    let app!: Record<string, unknown>;
+    const logged = await warnings(async () => {
+      app = hydrate(GlobalApp as Component<any>, { target, props: { i18n } });
+      flushSync();
+      await settle();
+    });
+    expect([target.querySelector("p")?.textContent, logged, l.requested]).toEqual(["Hi", [], []]);
+    await unmount(app);
   });
 });

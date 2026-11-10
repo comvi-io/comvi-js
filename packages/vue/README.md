@@ -85,6 +85,13 @@ does. `t()`, `$t` and `<T>` only read (development warns about a namespace nothi
 use `i18n.load()`, which holds nothing (`beforeEnter: () => i18n.load("account").catch(() => {})`
 preloads a page), or the `namespaces` option.
 
+`useI18n()` with no namespace reads `default` (what its `t` reads) and every namespace of the
+`namespaces` option: `isReady` once each has a usable catalog (a catalog, not every key),
+`isLoading` while one of them loads, so an app root can branch on it. It is no longer
+`useI18n("default")`, which reads `default` alone. Check `isReady` first: a switch loads beside the
+text on screen. `false`/`false` means the text is unavailable and nothing is loading — a failed
+load or no loader, not necessarily an error.
+
 ## Load from Comvi
 
 ```ts title="src/main.ts"

@@ -179,7 +179,7 @@ describe("useI18n(ns)", () => {
     });
     const flags: string[] = [];
     const Probe = () => {
-      const a = useI18n().isLoading;
+      const a = useI18n("default").isLoading;
       const b = useI18n("shop").isLoading;
       flags.push(`${a}/${b}`);
       return null;

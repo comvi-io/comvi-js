@@ -269,22 +269,30 @@ export interface UseI18n<NS extends string = "default"> {
   locale: Ref<string>;
   dir: ComputedRef<"ltr" | "rtl">;
   /**
-   * A catalog of this namespace is usable for the locale on screen: its own, a parent's
+   * `useI18n(ns)`: a catalog of `ns` is usable for the locale on screen: its own, a parent's
    * (`pt` for `pt-BR`) or an allowed fallback locale's — inline, cached, handed over or
    * loaded; an empty one too. Keys are not promised: a key a catalog lacks is a plain missing
    * key. During a switch it is the locale still on screen that counts; after a failed load it
    * is true when a fallback locale's catalog is in. Not the same as the `i18n.ready` promise,
    * which settles when the loads in flight settle, failed ones too.
+   * `useI18n()` (or `undefined`): true when this holds for `default` (the namespace its `t`
+   * reads) AND every namespace of the `namespaces` option — not for `default` alone, so
+   * `useI18n()` and `useI18n("default")` differ when the option names others. A usable catalog,
+   * not every key. Check it before `isLoading`: a load beside usable catalogs (a switch) must
+   * not hide the text; `false` with `isLoading` false means the text is unavailable and nothing
+   * is loading (a failed load, or no loader), not necessarily an error.
    */
   isReady: ComputedRef<boolean>;
   /**
-   * A catalog of this namespace is loading, for any locale (a switch in progress too, a
+   * `useI18n(ns)`: a catalog of `ns` is loading, for any locale (a switch in progress too, a
    * background load beside a usable catalog), or will load when the component holds the
    * namespace at mount (on a server, in setup). `false` once a load failed with nothing in
    * flight: with no usable catalog that is the "unavailable" state (`isReady` false too),
    * never an endless one; with a fallback locale's catalog in, `isReady` is true.
    * Outside a component (nothing holds), and once the component released it (unmount,
    * `KeepAlive` deactivation), it is a load in flight only.
+   * `useI18n()` (or `undefined`): true when this holds for `default` or SOME namespace of the
+   * `namespaces` option; a namespace outside them changes nothing.
    */
   isLoading: ComputedRef<boolean>;
   setLocale: (locale: string) => Promise<void>;
@@ -345,7 +353,9 @@ export const render = (
 
 /**
  * The i18n of the app (`app.use(i18n)`). `ns` (default `default`) is the namespace of `t`
- * and `T`. The component holds it from mount to unmount (`KeepAlive`: while active; a
+ * and `T`, and of `isReady` / `isLoading` when given: with no `ns` those read `default` and every
+ * namespace of the `namespaces` option, so `useI18n()` is not `useI18n("default")` there.
+ * The component holds it from mount to unmount (`KeepAlive`: while active; a
  * component hidden by `v-show` or CSS still holds it): while held it loads for the locale on
  * screen and for every locale `setLocale()` switches to; with no consumer left it stays
  * cached but a switch does not load it. On a server it is held for the request and loaded
@@ -370,6 +380,9 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
   let u = 1;
   const on = () => (r ||= x.h(n));
   const off = () => ((u = 0), r && (r(), (r = 0)));
+  // The flags' namespaces: `ns`, or with no argument `default` (what its `t` reads) and the
+  // `namespaces` option's (duplicates change nothing in `every` / `some`).
+  const a = [n, ...((ns === undefined && x.o.namespaces) || [])];
   // Outside a component (a store, a router guard, `app.runWithContext()`) there is no
   // lifecycle to release in: nothing is held there and no hook is registered (Vue warns about
   // one with no component); its reads are not a declared need and `isLoading` is a load in
@@ -403,8 +416,8 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
     dir,
     // Until the hold at mount, what the hold will load is loading already: no frame that
     // says "unavailable", no `missing_key` (lot 1d, 4c).
-    isReady: computed(() => x.r(s.value, n)),
-    isLoading: computed(() => !!x.w(s.value, n, !g || !u)),
+    isReady: computed(() => a.every((m) => x.r(s.value, m))),
+    isLoading: computed(() => a.some((m) => x.w(s.value, m, !g || !u))),
     setLocale: i.setLocale,
     i18n: i,
   };

@@ -45,14 +45,23 @@ render(Root, document.getElementById("app")!);
 ## Use in components
 
 ```tsx title="src/App.tsx"
+import { createSignal } from "solid-js";
 import { useI18n } from "@comvi/solid";
 
 export function App() {
   const { t, locale, setLocale } = useI18n();
+  const [failed, setFailed] = createSignal(false);
+  // A switch that cannot load (a network error) rejects and keeps the old locale on screen.
+  const toggle = () =>
+    setLocale(locale() == "en" ? "uk" : "en").then(
+      () => setFailed(false),
+      () => setFailed(true),
+    );
   return (
-    <button onClick={() => void setLocale(locale() == "en" ? "uk" : "en")}>
-      {t("greeting", { name: "Alice" })}
-    </button>
+    <>
+      <button onClick={toggle}>{t("greeting", { name: "Alice" })}</button>
+      {failed() && <p role="alert">Could not switch the language. Try again.</p>}
+    </>
   );
 }
 ```
@@ -80,6 +89,13 @@ skips it. `isReady`: a catalog of the locale on screen, its parent or a `fallbac
 remount does not retry, `i18n.load("account")` does. `t()` and `<T>` only read (development warns
 about a namespace nothing loads). `useFormat()` from `@comvi/solid/format` formats numbers,
 currency, dates, lists and relative time in the locale on screen, re-running on a switch.
+
+`useI18n()` with no namespace reads `default` (what its `t` reads) and every namespace of the
+`namespaces` option: `isReady` once each has a usable catalog (a catalog, not every key),
+`isLoading` while one of them loads, so an app root can branch on it. It is no longer
+`useI18n("default")`, which reads `default` alone. Check `isReady` first: a switch loads beside the
+text on screen. `false`/`false` means the text is unavailable and nothing is loading — a failed
+load or no loader, not necessarily an error.
 
 ## Load from Comvi
 
