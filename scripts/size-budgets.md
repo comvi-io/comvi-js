@@ -1577,3 +1577,32 @@ fits its current budget (core-icu 4,974 ≤ 4,977). Rows that moved:
 | fw-next-client-default        | 6,643  | 6,662 | +19   | 6,860  |
 
 Every other row measures as before.
+
+## 2026-11-10: lot 6a hydration with a `null` slot and a client loader (owner decision)
+
+Owner decision of 2026-11-10: fix the hydration mismatch and raise the ceiling it pushes over.
+Scenario: a payload whose slot failed on the server (`null`) reaches the instance only through
+`<I18nHandover catalogs>` at hydration, the instance has a client loader and no catalog of the
+namespace's chain; the server rendered the "unavailable" branch, the hydration render read
+`isLoading` true and rendered the loader (React: "Hydration failed …"). Fix: `view()` keeps the
+payload's `null` pairs on the render-local state and `coming()` skips them. Measured after
+`TURBO_FORCE=1 pnpm build`, `node --version` v24.22.1, twice with the same figures; "before" is
+f5ec46ac. Only core-icu went over its limit: ceiling `ceil(4,984 × 1.02)` = 5,084, budget
+`min(5,084, ceil(4,984 × 1.05))` = 5,084. No increment cap moved: core-icu-devtools +451 over
+core-icu (cap +463), react-icu-cdn +545 (+557), vue-icu-cdn +697 (+731), solid-icu-cdn +804
+(+828), svelte-icu-cdn +1,288 (+1,356).
+
+| row                           | before | after | limit (old → new)     |
+| ----------------------------- | ------ | ----- | --------------------- |
+| core-icu                      | 4,974  | 4,984 | ceiling 4,977 → 5,084 |
+| core-icu-cdn                  | 5,445  | 5,455 | ceiling 5,480         |
+| core-icu-devtools             | 5,425  | 5,435 | ceiling 5,443         |
+| react-icu-cdn                 | 5,989  | 6,000 | ceiling 6,037         |
+| vue-icu-cdn                   | 6,143  | 6,152 | ceiling 6,191         |
+| solid-icu-cdn                 | 6,247  | 6,259 | ceiling 6,308         |
+| svelte-icu-cdn                | 6,730  | 6,743 | ceiling 6,789         |
+| fw-next-server-default-loader | 5,704  | 5,712 | budget 5,905          |
+| fw-next-client-default        | 6,680  | 6,723 | budget 6,860          |
+
+Every other row moved by at most +41 B (fw-react-full-composite 8,636 → 8,677) within its budget
+and keeps its baseline and budget.

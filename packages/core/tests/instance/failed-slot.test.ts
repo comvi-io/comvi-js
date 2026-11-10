@@ -26,8 +26,16 @@ describe("a failed slot after creation", () => {
     expect(translate(i18n, v, "t")).toBe("Hello");
     expect(state(i18n)).toBe(s);
     expect(i18n.t("t")).toBe("Привіт");
-    // A null for a slot nobody has changes nothing.
-    expect(view(i18n, s, { admin: { uk: null } })).toBe(s);
+    // A null for a slot nobody has keeps every slot and publishes nothing; the render-local
+    // state reads the pair as failed, as the server did (`isLoading` false, no load predicted;
+    // hydration with a null slot, owner decision 2026-11-10).
+    const w = view(i18n, s, { admin: { uk: null, en: null } });
+    expect(w.c).toBe(s.c);
+    expect(state(i18n)).toBe(s);
+    expect(core(i18n).w(s, "admin")).toBe(true);
+    expect(core(i18n).w(w, "admin")).toBe(false);
+    // Only the pairs the payload failed: the fallback's load is still predicted.
+    expect(core(i18n).w(view(i18n, s, { admin: { uk: null } }), "admin")).toBe(true);
   });
 
   it("Core.f takes the catalog out, fails the pair, and only an explicit retry asks for it", async () => {

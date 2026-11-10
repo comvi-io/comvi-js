@@ -79,10 +79,14 @@ export const view = (
   dp?: State["dp"],
 ): State => {
   let c: Store = state.c;
+  const x: string[] = [];
   for (const n of Object.keys(extra))
     for (const l of Object.keys(extra[n])) {
       const slot = c[n] && c[n][l];
       const m = extra[n][l];
+      // Rendered as failed, as the server did: `isLoading` (`coming()`) skips the pair until
+      // `Core.f` fails it at commit (a hydration then reads the server's flags).
+      if (m === null) x.push(l + "\0" + n);
       // A failed slot of a server payload: the view renders without its catalog, the fallback
       // the server rendered (`Core.f` takes it out of the instance at commit). Else the slot
       // becomes the catalog, flattened through the instance (syntax reported once per object).
@@ -99,18 +103,21 @@ export const view = (
   // one, what its chain lacks is loading (`isLoading`; never requested, it is no
   // `missing_key`) by the core's own rule: the switch at commit loads it.
   const h = core(i18n).ch(locale);
-  if (c === state.c && locale == state.locale && !dp) return state;
-  return mk(
-    state.rev,
-    state.lrev,
-    locale,
-    h.o ? dir(h[0][1]) : "ltr",
-    c,
-    state.ld,
-    dp || state.dp,
-    h.o ? h[0][1] : locale,
-    // An editor session's marking hook carries over: render-local output is marked too (H4).
-    state.mk,
+  if (c === state.c && locale == state.locale && !dp && !x.length) return state;
+  return Object.assign(
+    mk(
+      state.rev,
+      state.lrev,
+      locale,
+      h.o ? dir(h[0][1]) : "ltr",
+      c,
+      state.ld,
+      dp || state.dp,
+      h.o ? h[0][1] : locale,
+      // An editor session's marking hook carries over: render-local output is marked too (H4).
+      state.mk,
+    ),
+    { x },
   );
 };
 

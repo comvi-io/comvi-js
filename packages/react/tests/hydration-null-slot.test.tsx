@@ -104,9 +104,9 @@ describe("hydration with a `null` slot (the ordinary readiness template)", () =>
   // `useI18n()` reads `default`; `useI18n(ns)` reads `admin`. Pinning tests of the documented
   // order (the first paint's payload goes to `createI18n`, as in `@comvi/next/client`): the
   // hydration render computes the server's `isReady`/`isLoading`, so the branch, the HTML and
-  // the requests match. Without a client loader the same holds for a payload that reaches the
-  // instance only through `<I18nHandover catalogs>` (with one, see `.lot1-pending-tests.md`,
-  // "Lot 6a hydration with a null slot").
+  // the requests match. The same holds for a payload that reaches the instance only through
+  // `<I18nHandover catalogs>`, with or without a client loader: the view renders a `null` pair as
+  // failed, as the server did.
   const cases = [
     { name: "useI18n()", ns: "default", noArg: true },
     { name: "useI18n(ns)", ns: "admin", noArg: false },
@@ -116,6 +116,10 @@ describe("hydration with a `null` slot (the ordinary readiness template)", () =>
       [false, false],
       [false, true],
       [true, false],
+      // Red before the fix (2026-11-10): the view left the `null` pair out and `isLoading`
+      // predicted the hold's load, so with no catalog the hydration rendered the loader where
+      // the server rendered "unavailable" (React: "Hydration failed …").
+      [true, true],
     ])
       for (const fallback of [false, true])
         it(`${c.name}, ${late ? "payload through <I18nHandover> only" : "instance from the payload"}, ${fallback ? "fallback loaded" : "no catalog at all"}, ${loader ? "with" : "without"} a client loader: same branch, no warning, no request`, async () => {

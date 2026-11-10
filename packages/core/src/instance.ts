@@ -495,7 +495,14 @@ export const createI18n = (o: I18nOptions): I18n => {
    */
   const coming = (s: State, n: string, f?: unknown): unknown =>
     s.ld.some((x) => x.endsWith(K + n)) ||
-    (!f && load && chain(s.locale).some((x) => !s.c[n]?.[x[0]] && !bad.has(x[0] + K + n)));
+    (!f &&
+      load &&
+      chain(s.locale).some(
+        (x) =>
+          !s.c[n]?.[x[0]] &&
+          !bad.has(x[0] + K + n) &&
+          !(s as { x?: string[] }).x?.includes(x[0] + K + n),
+      ));
 
   /** The message `look()` found last; copied by the caller before anything can call back. */
   let hit: Compiled;
