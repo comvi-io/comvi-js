@@ -84,9 +84,11 @@ failed one as `null`, locale, time zone, clock) and the instance's `fallbackLoca
 current `defaultParams`, which must be strings, finite numbers, booleans or `null` (a tag handler throws:
 give it in a Client Component). An app's client component that adds its own defaults passes one
 `options.defaultParams` object: for a key both set, the value in that object wins (spread
-`props.options.defaultParams` first to let yours win). A later payload (`router.refresh()`) that
-changes or drops a server param changes or clears it in the browser at once; a handler the client
-component gives stays. The loader, callbacks and other options stay on the server.
+`props.options.defaultParams` first to let yours win). Each payload's set replaces the browser's
+whole set: a later payload (`router.refresh()`) that changes or drops a server param changes or
+clears it at once, and a handler stays because the client component passes it in that object
+every time (define it once, outside the component's render). The loader, callbacks and other
+options stay on the server.
 
 ## Use in components
 

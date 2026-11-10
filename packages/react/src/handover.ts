@@ -68,34 +68,32 @@ export interface I18nHandoverProps {
    */
   locale?: string;
   /**
-   * A server payload's `defaultParams`, part of the same snapshot as `catalogs`. A server hands
-   * over data only, so the prop's strings, numbers, booleans and `null` are the server's params,
-   * and any other value the instance holds (a tag handler, a BigInt) is the client's.
+   * A server payload's `defaultParams`, part of the same snapshot as `catalogs`.
    * - Not passed: the handover never changes the instance's `defaultParams`.
-   * - Passed (`{}`: the server has none): whenever its data values differ from those this
-   *   handover applied last (the first time: from the instance's own), the instance's data values
-   *   become exactly the prop's — a key it lacks is cleared, one the client set included — and the
-   *   client's other values stay, unless the prop gives that key. The subtree renders with them
-   *   at once and the instance takes them at commit (`setDefaultParams()`), no remount; a payload
-   *   with the same data values changes nothing. A non-data value in the prop is set with them,
-   *   never compared.
-   * An own key named `__proto__` is a param like any other; inherited properties are not read.
+   * - Passed: the object REPLACES the instance's whole set (`setDefaultParams()`); `{}` clears
+   *   it. A later set may overwrite values and handlers the client set itself; to keep a client
+   *   value, put it in the object you pass. The subtree renders with it at once and the instance
+   *   takes it at commit, no remount. Applied only when it differs from the set this handover
+   *   applied last (the first time: from the instance's own), key by key with `Object.is`, so a
+   *   render with the same set leaves changes made since in place (pass a stable handler, not
+   *   one created per render). Explicit `t()` params still win.
+   * Own keys only: inherited properties are not read; an own key named `__proto__` is a param
+   * like any other.
    */
   defaultParams?: Readonly<Record<string, unknown>>;
   children?: ReactNode;
 }
 
-type Values = Record<string, unknown>;
+type Values = Readonly<Record<string, unknown>>;
 
-/**
- * The values of `p` a server can hand over (`d`: strings, numbers, booleans, `null`) or the
- * others (the client's), in a prototype-free object: an own `__proto__` key stays a key.
- */
-const pick = (p: Readonly<Values> | null | undefined, d: boolean): Values => {
-  const r: Values = Object.create(null);
-  for (const k in p)
-    if ((p[k] === null || ["string", "number", "boolean"].includes(typeof p[k])) == d) r[k] = p[k];
-  return r;
+const has = Object.prototype.hasOwnProperty;
+/** Whether two sets of `defaultParams` hold the same own keys with the same values. */
+const same = (a: Values | null | undefined, b: Values | null | undefined): boolean => {
+  const k = Object.keys(a || {});
+  return (
+    k.length == Object.keys(b || {}).length &&
+    k.every((x) => !!b && has.call(b, x) && Object.is(a![x], b[x]))
+  );
 };
 
 /**
@@ -130,25 +128,18 @@ export const I18nHandover = ({
   /** The [instance, catalogs] pair published last (written at commit only). */
   const done = useRef<readonly [I18n, HandoverCatalogs]>(undefined);
   const fresh = (d = done.current) => catalogs && !(d && d[0] == i && d[1] == catalogs);
-  /** The [instance, values] of `defaultParams` applied last (written at commit only). */
+  /** The [instance, set] of `defaultParams` applied last (written at commit only). */
   const sent = useRef<readonly [I18n, Values]>(undefined);
-  const now = pick(defaultParams, true);
-  const was = sent.current && sent.current[0] == i ? sent.current[1] : pick(base.dp, true);
-  // Pending: the payload's data values differ from what was applied (by value); rendered at
-  // once with the client's own values kept (the prop wins for a key both give).
-  const dp =
-    defaultParams &&
-    (Object.keys(was).length != Object.keys(now).length ||
-      Object.keys(now).some((k) => !Object.is(was[k], now[k])))
-      ? { ...pick(base.dp, false), ...defaultParams }
-      : undefined;
+  const was = sent.current && sent.current[0] == i ? sent.current[1] : base.dp;
+  // Pending: the payload's set differs from the one applied last; rendered at once.
+  const dp = defaultParams && !same(defaultParams, was) ? defaultParams : undefined;
   const v = useMemo(
     (): Ctx => [i, view(i, base, fresh() ? catalogs! : {}, loc, dp)],
     [i, base, catalogs, loc, dp],
   );
   useCommit(() => {
     if (dp) i.setDefaultParams(dp);
-    if (defaultParams) sent.current = [i, now];
+    if (defaultParams) sent.current = [i, defaultParams];
   });
   useCommit(() => {
     if (fresh()) {
