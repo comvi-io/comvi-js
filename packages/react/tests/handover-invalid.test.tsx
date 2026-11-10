@@ -121,7 +121,8 @@ describe("<I18nHandover> with a valid locale and no catalog", () => {
       </I18nProvider>,
     );
     expect(seen[0]).toBe("de");
-    expect(s.set).toHaveBeenCalledWith("de");
+    // The switch starts at commit (the handover's own switch, `Core.L`); de is still loading.
+    expect(s.loader).toHaveBeenCalledWith("de", "default", expect.anything());
     expect(s.i18n.locale).toBe("en");
     expect(s.onError).not.toHaveBeenCalled();
   });

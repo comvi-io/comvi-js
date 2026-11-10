@@ -74,13 +74,15 @@ const NO_SLOT = {};
  * locale handover renders the target before `setLocale()` lands at commit). Nothing is
  * published and `rev`/`lrev` do not move; untouched namespaces and locales keep their
  * slots (and compiled messages), and a catalog a slot already holds as its base, in the
- * same locale, gives back `state` itself (no copy per render).
+ * same locale, gives back `state` itself (no copy per render). `replace`: the slots that
+ * become their catalog instead of taking it as a layer (a repeated payload, `Core.f`).
  */
 export const view = (
   i18n: I18n,
   state: State,
   extra: Readonly<Record<string, Readonly<Record<string, CatalogInput | null>>>>,
   locale: string = state.locale,
+  replace?: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
 ): State => {
   let c: Store = state.c;
   for (const n of Object.keys(extra))
@@ -98,11 +100,23 @@ export const view = (
         }
         continue;
       }
-      let memo = layered.get(slot || NO_SLOT);
-      if (!memo) layered.set(slot || NO_SLOT, (memo = new WeakMap()));
+      // A slot `replace` holds too (what the same handover handed before, lot 6a audit) BECOMES
+      // the catalog: a key the server no longer has is gone. Any other is layered over the slot.
+      const r = replace && Object.hasOwn(replace, n) && Object.hasOwn(replace[n], l);
+      let memo = layered.get((!r && slot) || NO_SLOT);
+      if (!memo) layered.set((!r && slot) || NO_SLOT, (memo = new WeakMap()));
       let next = memo.get(m);
       // Keyed by the catalog as given; a nested one is flattened (flat.ts) once per object.
-      if (!next) memo.set(m, (next = layer(slot, flat(m))));
+      if (!next) memo.set(m, (next = layer(r ? undefined : slot, flat(m))));
+      // The same messages as the slot holds: the slot itself.
+      if (
+        r &&
+        slot &&
+        !slot.p &&
+        layer(slot, next.m) == slot &&
+        Object.keys(slot.m).length == Object.keys(next.m).length
+      )
+        next = slot;
       // The catalog the slot already holds: nothing to layer, no copy of the state.
       if (next === slot) continue;
       if (c === state.c) c = N(c);

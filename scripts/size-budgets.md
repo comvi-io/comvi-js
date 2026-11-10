@@ -575,7 +575,7 @@ not shipped (`<T ns>` stays). Kept: everything else above. Result, one sweep aft
 | row                     | gzip B | budget | ceiling | note                                               |
 | ----------------------- | ------ | ------ | ------- | -------------------------------------------------- |
 | react-icu-cdn           | 5,129  | 5,386  | 5,395   | **+468 B** over core-icu-cdn (cap 500)             |
-| fw-react-default        | 4,668  | 4,902  | —       | 0.7: 7,606                                         |
+| fw-react-default        | 5,142  | 4,902  | —       | 0.7: 7,606                                         |
 | fw-react-full-composite | 8,047  | 8,450  | —       | 0.7: 13,526; every export + cdn, plugins, devtools |
 
 `platform-path-react` (0.7 API: `cdnLoader` from `@comvi/plugin-fetch-loader`) is removed;
@@ -1395,11 +1395,11 @@ proposals: only the owner accepts them.** No React, Vue or core row moved.
 | ------------------------ | ------------ | ----- | ------ | ------------------ | -------------------------------- |
 | solid-icu-cdn            | —            | 5,927 | 6,046  | **6,046**          | +813 (**+830**)                  |
 | svelte-icu-cdn           | —            | 6,448 | 6,577  | **6,577**          | +1,334 (**+1,361**)              |
-| fw-solid-default         | 7,036        | 5,404 | 5,675  | —                  | —                                |
+| fw-solid-default         | 5,409        | 5,404 | 5,675  | —                  | —                                |
 | fw-solid-full-composite  | 12,914       | 8,044 | 8,447  | —                  | —                                |
 | fw-svelte-default        | 7,235        | 5,949 | 6,247  | —                  | —                                |
 | fw-svelte-full-composite | 13,609       | 8,510 | 8,936  | —                  | —                                |
-| fw-svelte-format         | 462          | 5,686 | 5,971  | —                  | —                                |
+| fw-svelte-format         | 5,692        | 5,686 | 5,971  | —                  | —                                |
 
 For comparison, the increment is +533 on React and +716 on Vue. `fw-svelte-format` measures a real
 instance, the context and `useFormat()`: the 462 B was one formatter over a plain object, which 0.8
@@ -1473,26 +1473,38 @@ The page provider's `default` catalogs are the same objects as the layout's (one
 them once and the page payload refers to them (`"$4:props:…:catalogs:default:uk"`): the second
 provider costs its own namespace only. The whole HTML of `/uk/admin` is 16,328 B (4,766 B gzip).
 
-## 2026-11-10: lot 6a D1, nested catalogs (owner decision, option 1)
+## 2026-11-10: lot 6a D1 nested catalogs and the audit fixes of the repeated payload (owner decisions)
 
-Nested catalogs are normalized at the core's entry (`packages/core/src/flat.ts`: `messages`,
-`catalogs`, `add()`, a loader's result, a binding's handover), with a collision or an invalid leaf
-reported through `onError` (`syntax`) in every build. The owner accepted the growth on 2026-11-10
-(option 1): only the rows D1 pushed over their ceiling get a new one, `ceil(measured × 1.02)`;
-budget `min(ceiling, ceil(measured × 1.05))`, so the ceiling. Measured after `TURBO_FORCE=true
-pnpm build` on the finished D1 code, `node --version` v24.22.1. "Before" is `next` of lot 6a at
-173f5b40. No increment cap changed: every increment still fits.
+Two owner decisions of 2026-11-10, measured after `TURBO_FORCE=true pnpm build`, `node --version`
+v24.22.1. "Before" is lot 6a at 173f5b40. **A**: D1 alone, nested catalogs normalized at the core's
+entry (`packages/core/src/flat.ts`) with a collision or an invalid leaf reported through `onError`
+in every build (option 1: the ceilings it pushes over move). **B**: A plus the four audit fixes of
+the repeated payload (a vanilla `Tag` typed as the rich parts — types only; a slot a handover handed
+before is replaced; a `null` aborts a load of the pair in flight; a handover's locale switch keeps
+the payload's failures). The owner accepted B: every affected ceiling is `ceil(B × 1.02)`, the React
+increment cap `ceil(546 × 1.02)`; budgets `min(ceiling, ceil(B × 1.05))`. No other increment cap
+moved: every other increment fits.
 
-| row               | before | after | old ceiling | new ceiling | increment (cap)                   |
-| ----------------- | ------ | ----- | ----------- | ----------- | --------------------------------- |
-| core-icu          | 4,632  | 4,776 | 4,727       | 4,872       | —                                 |
-| core-icu-cdn      | 5,120  | 5,269 | 5,217       | 5,375       | —                                 |
-| core-icu-devtools | 5,090  | 5,232 | 5,189       | 5,337       | +456 over core-icu (+463)         |
-| react-icu-cdn     | 5,656  | 5,805 | 5,760       | 5,922       | +536 over core-icu-cdn (+544)     |
-| vue-icu-cdn       | 5,816  | 5,965 | 5,947       | 6,085       | +696 over core-icu-cdn (+731)     |
-| solid-icu-cdn     | 5,930  | 6,074 | 5,979       | 6,196       | +805 over core-icu-cdn (+828)     |
-| svelte-icu-cdn    | 6,402  | 6,548 | 6,507       | 6,679       | +1,279 over core-icu-cdn (+1,356) |
+| row               | before | A     | B     | old ceiling | new ceiling | increment A / B (cap old → new)  |
+| ----------------- | ------ | ----- | ----- | ----------- | ----------- | -------------------------------- |
+| core-icu          | 4,632  | 4,776 | 4,879 | 4,727       | 4,977       | —                                |
+| core-icu-cdn      | 5,120  | 5,269 | 5,372 | 5,217       | 5,480       | —                                |
+| core-icu-devtools | 5,090  | 5,232 | 5,336 | 5,189       | 5,443       | +456 / +457 over core-icu (+463) |
+| react-icu-cdn     | 5,656  | 5,805 | 5,918 | 5,760       | 6,037       | +536 / +546 (+544 → +557)        |
+| vue-icu-cdn       | 5,816  | 5,965 | 6,069 | 5,947       | 6,191       | +696 / +697 (+731)               |
+| solid-icu-cdn     | 5,930  | 6,074 | 6,184 | 5,979       | 6,308       | +805 / +812 (+828)               |
+| svelte-icu-cdn    | 6,402  | 6,548 | 6,655 | 6,507       | 6,789       | +1,279 / +1,283 (+1,356)         |
 
-Without the `onError` reporting an earlier version of the same code measured 5,244 B on
-`core-icu-cdn` (about −22 B): the
-diagnostics are kept. Rows that grew within their budgets keep their baselines.
+The rows without a ceiling that B pushed over their budget are re-baselined to B, budget
+`ceil(B × 1.05)`:
+
+| row                           | before | A     | B     | old budget | new budget |
+| ----------------------------- | ------ | ----- | ----- | ---------- | ---------- |
+| fw-react-default              | 5,142  | 5,290 | 5,395 | 5,394      | 5,665      |
+| fw-solid-default              | 5,409  | 5,552 | 5,659 | 5,610      | 5,942      |
+| fw-svelte-format              | 5,692  | 5,842 | 5,946 | 5,909      | 6,244      |
+| fw-next-server-default-loader | 5,373  | 5,519 | 5,623 | 5,556      | 5,905      |
+| fw-next-client-default        | 6,190  | 6,338 | 6,533 | 6,445      | 6,860      |
+
+Every other row grew within its budget and keeps its baseline. Of A over before, about +124 B is
+the normalization itself and about +22 B its reporting (measured once without the `onError` report).

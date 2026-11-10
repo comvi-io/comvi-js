@@ -163,3 +163,17 @@ describe("a later payload means what the first one meant (lot 6a, owner decision
     expect(loader.mock.calls.filter((c) => c[1] === "admin")).toEqual([]);
   });
 });
+
+describe("a repeated successful payload (lot 6a audit, finding 2)", () => {
+  it("a key the server no longer has renders missing on the client too", async () => {
+    const tree = (p: Handover) => (
+      <I18nProvider payload={p}>
+        <Probe k="b" />
+      </I18nProvider>
+    );
+    const { rerender } = render(tree(payload("en", { default: { en: { a: "A", b: "B" } } })));
+    expect(screen.getByTestId("default:b").textContent).toBe("en|B");
+    await act(async () => rerender(tree(payload("en", { default: { en: { a: "A" } } }))));
+    expect(screen.getByTestId("default:b").textContent).toBe("en|b");
+  });
+});
