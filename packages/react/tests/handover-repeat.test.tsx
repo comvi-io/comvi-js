@@ -129,3 +129,56 @@ describe("a null slot with a locale change (finding 4)", () => {
     expect(m.requested.filter((r) => r === "uk:admin")).toEqual(["uk:admin"]);
   });
 });
+
+describe("re-review of lot 6a (2026-11-10)", () => {
+  it("a slot handed before stays replaced after a payload that omitted it (item 1)", async () => {
+    const first = { default: { en: { a: "A", b: "B" } } };
+    const i18n = createI18n({ locale: "en", catalogs: first, onError: () => {} });
+    const { rerender } = render(tree(i18n, first, ["a", "b"]));
+    // An omitted slot is not deleted.
+    await act(async () => rerender(tree(i18n, { other: { en: { x: "X" } } }, ["a", "b"])));
+    expect([text("a"), text("b")]).toEqual(["en|A", "en|B"]);
+    // It comes back: replaced, not merged.
+    await act(async () => rerender(tree(i18n, { default: { en: { a: "A2" } } }, ["a", "b"])));
+    expect([text("a"), text("b")]).toEqual(["en|A2", "en|b"]);
+    await act(async () => rerender(tree(i18n, { other: { en: { x: "X" } } }, ["a", "b"])));
+    await act(async () => rerender(tree(i18n, { default: { en: {} } }, ["a", "b"])));
+    expect([text("a"), text("b")]).toEqual(["en|a", "en|b"]);
+  });
+
+  it("a later payload in a locale whose own catalog failed lands there, like a first one (item 2)", async () => {
+    const payload = { default: { en: { title: "Hello" }, de: null } };
+    const fresh = createI18n({
+      locale: "de",
+      fallbackLocale: "en",
+      catalogs: payload,
+      onError: () => {},
+    });
+    render(tree(fresh, payload, ["title"], "default", "de"));
+    await settle();
+    const expected = text("title");
+    expect(expected).toBe("de|Hello");
+
+    document.body.innerHTML = "";
+    const i18n = createI18n({
+      locale: "fr",
+      fallbackLocale: "en",
+      catalogs: { default: { fr: { title: "Bonjour" }, en: { title: "Hello" } } },
+      onError: () => {},
+    });
+    const { rerender } = render(
+      tree(
+        i18n,
+        { default: { fr: { title: "Bonjour" }, en: { title: "Hello" } } },
+        ["title"],
+        "default",
+        "fr",
+      ),
+    );
+    expect(text("title")).toBe("fr|Bonjour");
+    await act(async () => rerender(tree(i18n, payload, ["title"], "default", "de")));
+    await settle();
+    expect(text("title")).toBe(expected);
+    expect(i18n.locale).toBe("de");
+  });
+});

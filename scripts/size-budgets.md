@@ -1508,3 +1508,34 @@ The rows without a ceiling that B pushed over their budget are re-baselined to B
 
 Every other row grew within its budget and keeps its baseline. Of A over before, about +124 B is
 the normalization itself and about +22 B its reporting (measured once without the `onError` report).
+
+## 2026-11-10: lot 6a re-review fixes (owner decision)
+
+Owner decision of 2026-11-10, measured after `TURBO_FORCE=true pnpm build`, `node --version`
+v24.22.1. "Before" is B above (e47da916); "after" adds the four fixes of the re-review of f62c6d7d:
+a handover remembers every slot it handed on the instance; its switch lands on the payload's locale
+when the target's own catalog failed on the server; a payload's `null` caches a per-pair `Error`
+(what an aborted `load(ns)` rejects with); `view()` flattens through the instance, which reports
+`syntax` once per catalog object. The core grows about +83 B (core-icu 4,879 → 4,962). Measured by
+taking each part out: the switch rule about 16 B, the once-per-object report cache about 26 B, the
+rest the per-pair `Error` (with its marking) and the seam's `view()` call. A shared `Error` instead
+saved about 23 B and still did not fit; the owner kept the fixes as built.
+
+The ceilings and caps of the entry above do not change: every row with a ceiling fits (core-icu
+4,962 ≤ 4,977; core-icu-cdn 5,456 ≤ 5,480; core-icu-devtools 5,418 ≤ 5,443, +456 over core-icu ≤
++463; react-icu-cdn 5,996 ≤ 6,037, +540 ≤ +557; vue-icu-cdn 6,150 ≤ 6,191; solid-icu-cdn 6,257 ≤
+6,308; svelte-icu-cdn 6,736 ≤ 6,789). The rows without a ceiling that no longer fit are re-baselined
+to the measurement, budget `ceil(after × 1.05)`:
+
+| row                     | before | after | old budget | new budget |
+| ----------------------- | ------ | ----- | ---------- | ---------- |
+| core-icu-cdn-store      | 5,544  | 5,624 | 5,547      | 5,906      |
+| core-icu-api            | 5,900  | 5,977 | 5,920      | 6,276      |
+| core-format             | 5,547  | 5,628 | 5,553      | 5,910      |
+| core-plugins            | 5,468  | 5,549 | 5,478      | 5,827      |
+| fw-react-full-composite | 8,523  | 8,642 | 8,539      | 9,075      |
+| fw-solid-full-composite | 8,333  | 8,406 | 8,383      | 8,827      |
+| fw-svelte-default       | 6,149  | 6,230 | 6,169      | 6,542      |
+| fw-vue-default          | 5,552  | 5,630 | 5,575      | 5,912      |
+
+Every other row grew within its budget and keeps its baseline and budget.

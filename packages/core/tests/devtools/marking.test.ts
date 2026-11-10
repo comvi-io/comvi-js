@@ -230,6 +230,8 @@ describe("no session, no devtools", () => {
       "f",
       "h",
       "k",
+      // A catalog as the instance accepts it, for a render-local entry (lot 6a); no hook.
+      "n",
       "o",
       // Development only: a render's declaration before its hold (diagnostic marker only).
       "p",

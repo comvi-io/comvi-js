@@ -22,7 +22,7 @@ import type { Env, Params } from "./compile/scanner";
 export { clock } from "./clock";
 import { CORE, type Core, type I18n } from "./instance";
 import { dir } from "./locale";
-import { flat, type CatalogInput } from "./flat";
+import type { CatalogInput } from "./flat";
 import { layer, mk, N, type Slot, type State, type Store } from "./state";
 
 export { compile, render, recordFor, lookup, inherit } from "./compile/cache";
@@ -107,7 +107,7 @@ export const view = (
       if (!memo) layered.set((!r && slot) || NO_SLOT, (memo = new WeakMap()));
       let next = memo.get(m);
       // Keyed by the catalog as given; a nested one is flattened (flat.ts) once per object.
-      if (!next) memo.set(m, (next = layer(r ? undefined : slot, flat(m))));
+      if (!next) memo.set(m, (next = layer(r ? undefined : slot, core(i18n).n(l, n, m))));
       // The same messages as the slot holds: the slot itself.
       if (
         r &&

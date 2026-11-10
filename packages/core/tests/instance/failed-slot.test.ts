@@ -58,3 +58,44 @@ describe("a failed slot after creation", () => {
     expect(core(i18n).b.has("uk\0admin")).toBe(true);
   });
 });
+
+describe("re-review of lot 6a (2026-11-10)", () => {
+  it("a load(ns) whose flight a payload's null aborts rejects with an Error (item 3)", async () => {
+    let answer!: (c: Record<string, string>) => void;
+    const i18n = createI18n({
+      locale: "uk",
+      fallbackLocale: "en",
+      catalogs: { default: { uk: {}, en: {} } },
+      loader: (l, n) =>
+        l === "uk" && n === "admin"
+          ? new Promise((y) => (answer = y))
+          : Promise.resolve({ title: "Admin" }),
+      onError: () => {},
+    });
+    const waiting = i18n.load("admin");
+    await Promise.resolve();
+    core(i18n).f("uk", "admin");
+    answer({ title: "late" });
+    const e = await waiting.then(
+      () => "resolved",
+      (x: unknown) => x,
+    );
+    expect(e).toBeInstanceOf(Error);
+    expect(i18n.t("title", { ns: "admin" })).toBe("Admin");
+  });
+
+  it("view() reports a nested catalog's collision and invalid leaf, once per catalog object (item 4)", () => {
+    const errors: { code: string; key?: string }[] = [];
+    const i18n = createI18n({ locale: "en", onError: (e) => errors.push(e) });
+    const m = { a: { b: "first" }, "a.b": "second", invalid: 42 } as never;
+    const v = view(i18n, state(i18n), { default: { en: m } });
+    expect(translate(i18n, v, "a.b")).toBe("first");
+    view(i18n, state(i18n), { default: { en: m } });
+    const syntax = () => errors.filter((e) => e.code === "syntax").map((e) => e.key);
+    // A server render commits nothing: the render-local entry reports.
+    expect(syntax()).toEqual(["a.b", "invalid"]);
+    // The commit of the same catalog object reports nothing again.
+    i18n.add("en", m);
+    expect(syntax()).toEqual(["a.b", "invalid"]);
+  });
+});

@@ -19,7 +19,7 @@ import {
   type ReactNode,
 } from "react";
 import type { I18n } from "@comvi/core";
-import { canonicalize, core, view } from "@comvi/core/internal";
+import { canonicalize, core, N, view } from "@comvi/core/internal";
 import type { Catalog } from "@comvi/core";
 import { provide, useCtx, type Ctx } from "./binding";
 
@@ -83,8 +83,12 @@ export const I18nHandover = ({
   /** The [instance, catalogs] pair published last (written at commit only). */
   const done = useRef<readonly [I18n, HandoverCatalogs]>(undefined);
   const fresh = (d = done.current) => catalogs && !(d && d[0] == i && d[1] == catalogs);
-  /** What this handover committed before for this instance: its slots are replaced, not layered. */
-  const prev = (d = done.current) => (d && d[0] == i ? d[1] : undefined);
+  /**
+   * Every slot this handover committed for this instance, a payload that omitted one in between
+   * included: those slots are replaced, not layered (lot 6a re-review).
+   */
+  const handed = useRef<readonly [I18n, Record<string, Record<string, 1>>]>(undefined);
+  const prev = (d = handed.current) => (d && d[0] == i ? d[1] : undefined);
   const v = useMemo(
     (): Ctx => [i, view(i, base, fresh() ? catalogs! : {}, loc, prev())],
     [i, base, catalogs, loc],
@@ -96,13 +100,16 @@ export const I18nHandover = ({
       // this handover handed before BECOMES the new catalog (a repeated server payload: a key
       // the server no longer has is gone); a `null` fails the pair; a slot handed for the first
       // time is layered over the instance's (`add()`).
+      const all = N<Record<string, 1>>(p);
       for (const n of Object.keys(catalogs!))
         for (const l of Object.keys(catalogs![n])) {
           const m = catalogs![n][l];
           if (m && !(p && Object.hasOwn(p, n) && Object.hasOwn(p[n], l))) i.add(l, m, n);
           else core(i).f(l, n, m);
+          (all[n] = N(all[n]))[l] = 1;
         }
       done.current = [i, catalogs!];
+      handed.current = [i, all];
     }
   }, [i, catalogs]);
   // The locale is committed when the instance or the target changes — never on a catalogs

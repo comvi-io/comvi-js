@@ -267,6 +267,11 @@ export interface Core {
    * payload's `null` slots), where the public `setLocale()` asks for them again.
    */
   L(locale: string): Promise<void>;
+  /**
+   * A catalog as the instance accepts it (flat.ts), for a binding's render-local entry
+   * (`view()`): flattened once per catalog object, a collision or an invalid leaf reported once.
+   */
+  n(locale: string, ns: string, catalog: CatalogInput): Catalog;
 }
 
 /** Instance → its internal seam; read by `@comvi/core/internal` only. */
@@ -418,20 +423,38 @@ export const createI18n = (o: I18nOptions): I18n => {
    * `m` as a flat catalog (flat.ts): nested groups become flat keys; a collision or an invalid
    * leaf is left out and reported, in every build.
    */
-  const fm = (l: string, m: CatalogInput, n: string) =>
-    flat(m, (key, x) =>
-      report({
-        code: "syntax",
-        key,
-        locale: l,
-        ns: n,
-        message: __DEV__
-          ? x < 2
-            ? `"${key}" is defined both as a flat key and through nesting; the first one is kept`
-            : `the value of "${key}" is not a string or a group of strings; left out`
-          : undefined,
-      }),
-    );
+  /** Catalogs flattened before, by the object given: a catalog is reported once, not per entry. */
+  const fc = new WeakMap<object, Catalog>();
+  const fm = (l: string, m: CatalogInput, n: string): Catalog => {
+    let x = fc.get(m);
+    if (!x) {
+      x = flat(m, (key, k) =>
+        report({
+          code: "syntax",
+          key,
+          locale: l,
+          ns: n,
+          message: __DEV__
+            ? k < 2
+              ? `"${key}" is defined both as a flat key and through nesting; the first one is kept`
+              : `the value of "${key}" is not a string or a group of strings; left out`
+            : undefined,
+        }),
+      );
+      if (x != m) fc.set(m, x);
+    }
+    return x;
+  };
+  /**
+   * What the negative cache holds for a pair a server payload handed over as `null`: the error a
+   * `load(ns)` waiting on the pair rejects with (a payload's `null` aborted its flight).
+   */
+  const sv = new WeakSet<object>();
+  const sf = (
+    l: string,
+    n: string,
+    e = Error(__DEV__ ? `[@comvi/core] the server could not load "${n}" in "${l}"` : l + K + n),
+  ) => (sv.add(e), e);
   const ing = (c: Store, l: string, m: CatalogInput, n: string, u?: unknown): Store =>
     valid(l) ? put(c, n, l, fm(l, m, n), u) : c;
 
@@ -444,12 +467,12 @@ export const createI18n = (o: I18nOptions): I18n => {
   // A `null` slot failed to load on the server (`handover()`): it starts in the negative
   // cache, so the browser asks for it only on an explicit retry (`load(ns)`, a switch to
   // its locale), and a consumer of it is not loading at hydration (a known result, as on
-  // the server). The cached value is never read: a switch clears its target's failures
-  // before it could throw one, `load(ns)` its namespace's.
+  // the server). Its cached value, an Error (`sf`), is what a `load(ns)` that waits on the pair
+  // rejects with; a switch clears its target's failures first, `load(ns)` its namespace's.
   for (const n in cats)
     for (const l in cats[n])
       if (cats[n][l]) c0 = ing(c0, l, cats[n][l]!, n);
-      else bad.set(l + K + n, (cnt[n] |= 0));
+      else bad.set(l + K + n, ((cnt[n] |= 0), sf(l, n)));
   S = st(0, 0, start, c0, own(o.defaultParams));
 
   /**
@@ -700,7 +723,13 @@ export const createI18n = (o: I18nOptions): I18n => {
         // itself failed AND no catalog of its own chain (`de-AT` → `de`) is in place. The
         // locale kept on screen gets back what this switch's start aborted. Stale after that
         // recovery's publish: it resolves, like any superseded call.
-        if (ns.length && ns.every((n) => lost(n, l, ch))) {
+        // A handover's switch (`keep`) lands where the server rendered, through the fallbacks the
+        // payload brought (lot 6a re-review): a failure the payload handed over (`sf`) is the
+        // server's result, not a reason to stay; a load that failed here still is.
+        if (
+          ns.length &&
+          ns.every((n) => lost(n, l, ch) && !(keep && sv.has(bad.get(l + K + n) as object)))
+        ) {
           ensure(S.locale, act());
           if (my == seq) throw bad.get(l + K + ns[0]);
           return;
@@ -823,13 +852,14 @@ export const createI18n = (o: I18nOptions): I18n => {
         if (!(y && !y.p && layer(y, z) == y && Object.keys(y.m).length == Object.keys(z).length))
           pub(S.locale, N(S.c, { [n]: N(x, { [l]: layer(undefined, z) }) }));
       } else if (y || !bad.has(k)) {
-        bad.set(k, (cnt[n] |= 0));
+        bad.set(k, ((cnt[n] |= 0), sf(l, n)));
         const z = N(x);
         delete z[l];
         pub(S.locale, N(S.c, { [n]: z }));
       }
     },
     L: (l) => sw(l, 1),
+    n: (l, n, m) => fm(l, m, n),
   };
   if (__DEV__) c.p = (n) => void (cnt[n] || idle.add(K + n));
   CORE.set(i18n, c);
