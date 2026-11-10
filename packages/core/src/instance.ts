@@ -258,8 +258,9 @@ export interface Core {
    * (or none) means what `createI18n({ catalogs })` gives it — the pair joins the negative cache
    * (asked for again only by `load(ns)` or a switch to its locale) and a catalog in place for it
    * leaves, so the fallback the server rendered renders. Either way a load of the pair in flight
-   * is aborted: the server's result wins over its late answer. Publishes only when something
-   * changed.
+   * is aborted and its late answer ignored: a `load(ns)` waiting on it RESOLVES when the server
+   * handed a catalog (`{}` too: the pair is loaded, by the server) and rejects with an Error only
+   * for a `null`. Publishes only when something changed.
    */
   f(locale: string, ns: string, catalog?: CatalogInput | null): void;
   /**

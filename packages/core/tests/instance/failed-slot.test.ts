@@ -84,6 +84,29 @@ describe("re-review of lot 6a (2026-11-10)", () => {
     expect(i18n.t("title", { ns: "admin" })).toBe("Admin");
   });
 
+  it("a load(ns) whose pair the server then hands as a catalog (or {}) resolves: loaded by the server (F2)", async () => {
+    const cases: [Record<string, string>, string][] = [
+      [{ title: "Server" }, "Server"],
+      [{}, "title"],
+    ];
+    for (const [given, shown] of cases) {
+      let answer!: (c: Record<string, string>) => void;
+      const i18n = createI18n({
+        locale: "uk",
+        catalogs: { default: { uk: {} } },
+        loader: () => new Promise((y) => (answer = y)),
+        onError: () => {},
+      });
+      const waiting = i18n.load("admin");
+      await Promise.resolve();
+      core(i18n).f("uk", "admin", given);
+      answer({ title: "late" });
+      await expect(waiting).resolves.toBeUndefined();
+      expect(i18n.t("title", { ns: "admin" })).toBe(shown);
+      expect(core(i18n).w(core(i18n).s(), "admin")).toBeFalsy();
+    }
+  });
+
   it("view() reports a nested catalog's collision and invalid leaf, once per catalog object (item 4)", () => {
     const errors: { code: string; key?: string }[] = [];
     const i18n = createI18n({ locale: "en", onError: (e) => errors.push(e) });
