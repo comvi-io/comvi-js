@@ -121,6 +121,13 @@ const UNTYPED_CASES = [
     "const u4: string = t('k', { node: { a: 1 } }); // U2 an object param may come back as is",
     "TS2322",
   ],
+  // The core passes a handler its children's parts (an array), as on the generated path (E25):
+  // an unannotated handler gets the parts, one typed for a string is refused.
+  ["const u5: string | RichParts = t('k', { link: (c) => c.join('') });", ""],
+  [
+    "t('k', { link: (c: string) => c.toUpperCase() }); // U3 a handler typed for a string",
+    "TS2769",
+  ],
 ];
 /**
  * Helper types that must never surface in a diagnostic. `NotAKey` (the typo marker) may,
@@ -231,8 +238,16 @@ const REDS = {
   // (3) The untyped t() of lot 1, typed `string` for any params (review A6).
   "untyped t() always a string": plant("untyped string", [
     [
-      "export interface UntypedT<Rich = RichParts, P = Readonly<Record<string, unknown>>> {",
-      "export type UntypedT<Rich = RichParts, P = Readonly<Record<string, unknown>>> = (key: string, params?: Record<string, unknown>) => string;\ninterface Unused<Rich, P> {",
+      "export interface UntypedT<\n",
+      "export type UntypedT<Rich = RichParts, P = unknown> = (key: string, params?: Record<string, unknown>) => string;\ninterface Unused<\n",
+    ],
+  ]),
+  // (6) The untyped t() of lot 6a: any param `unknown`, so a handler's argument was an
+  // implicit `any` and one typed for a string compiled (U3).
+  "untyped handler unknown": plant("untyped handler unknown", [
+    [
+      "Record<string, Printed | readonly Printed[] | ((children: RichParts) => unknown) | NoHandler>",
+      "Record<string, unknown>",
     ],
   ]),
 };
