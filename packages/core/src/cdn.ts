@@ -75,12 +75,17 @@
  */
 
 import type { Catalog } from "./compile/cache";
+import type { CatalogInput } from "./flat";
 import { N } from "./state";
 import type { Loader } from "./instance";
 
-/** What a `fallback` entry returns: a catalog, or a JSON module (`{ default: catalog }`). */
+/**
+ * What a `fallback` entry returns: a flat catalog, or a JSON module (`{ default: catalog }`, the
+ * catalog flat or nested). A nested catalog returned as is waits for the owner's rule on a
+ * top-level group named `default` (lot 6a): wrap it, `{ default: catalog }`.
+ */
 export type CdnFallback = () =>
-  Catalog | { default: Catalog } | Promise<Catalog | { default: Catalog }>;
+  Catalog | { default: CatalogInput } | Promise<Catalog | { default: CatalogInput }>;
 
 /**
  * What one fetch brought: the catalog and the response (a 304 rejects, as any non-2xx).
@@ -229,7 +234,7 @@ const mk = (
       if (signal?.aborted) throw e;
       const x = fb[l + ":" + n] || (n === root && fb[l]);
       if (!x) throw e;
-      const m = (await x()) as Catalog | { default: Catalog };
+      const m = (await x()) as Catalog | { default: CatalogInput };
       // A module namespace (`import("./de.json")`) — but a catalog may have a key `default`.
       return m.default && typeof m.default == "object" ? m.default : (m as Catalog);
     }

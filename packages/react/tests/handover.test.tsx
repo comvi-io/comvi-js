@@ -690,6 +690,21 @@ describe("handed-over catalogs (0.7 target-locale messages)", () => {
     expect(i18n.t("b")).toBe("b2");
   });
 
+  it("a nested catalog is accepted as given (CatalogInput) and read by its flat keys", async () => {
+    const i18n = createI18n({ locale: "en" });
+    const Nested = () => <p>{useI18n().t("account.greeting") as string}</p>;
+    const view = render(
+      <I18nProvider i18n={i18n}>
+        <I18nHandover catalogs={{ default: { en: { account: { greeting: "Hi" } } } }}>
+          <Nested />
+        </I18nHandover>
+      </I18nProvider>,
+    );
+    expect(view.container.textContent).toBe("Hi");
+    await settle();
+    expect(i18n.t("account.greeting")).toBe("Hi");
+  });
+
   it("an Object.prototype name is a missing key; a __proto__ key is translatable", () => {
     const i18n = createI18n({ locale: "en", onError: () => {} });
     const cat = JSON.parse('{"__proto__":"P","x":"X"}');

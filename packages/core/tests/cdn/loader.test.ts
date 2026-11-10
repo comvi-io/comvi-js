@@ -4,6 +4,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cdn } from "../../src/cdn";
+import { createI18n } from "../../src";
 import type { Loader } from "../../src/instance";
 
 const stub = (body: unknown) =>
@@ -63,6 +64,17 @@ describe("cdn() details", () => {
     const s = new AbortController().signal;
     await expect(load("de", "default", s)).resolves.toBe(plain);
     await expect(load("en", "default", s)).resolves.toBe(mod.default);
+  });
+
+  it("a JSON module fallback may hold a nested catalog: typed as CatalogInput, flattened at ingest", async () => {
+    vi.stubGlobal("fetch", async () => ({ ok: false, status: 404, json: async () => ({}) }));
+    const mod = { default: { navigation: { home: "Додому" }, title: "Головна" } };
+    const i18n = createI18n({
+      locale: "uk",
+      loader: cdn("https://cdn.example", { fallback: { uk: async () => mod } }),
+    });
+    await i18n.load("default");
+    expect([i18n.t("navigation.home"), i18n.t("title")]).toEqual(["Додому", "Головна"]);
   });
 
   it("without a store the caller's abort cancels the request (its signal aborts)", async () => {

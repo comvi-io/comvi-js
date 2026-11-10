@@ -20,7 +20,7 @@ import {
 } from "react";
 import type { I18n } from "@comvi/core";
 import { canonicalize, core, view } from "@comvi/core/internal";
-import type { Catalog } from "@comvi/core";
+import type { CatalogInput } from "@comvi/core";
 import { provide, useCtx, type Ctx } from "./binding";
 
 declare const __DEV__: boolean;
@@ -30,9 +30,12 @@ const useCommit = typeof document < "u" ? useLayoutEffect : useEffect;
 
 /**
  * Catalogs by namespace, then locale, as a server payload carries them (`handover()` of
- * `@comvi/core/ssr`): `null` is a load that failed on the server.
+ * `@comvi/core/ssr`, flat) or as an app writes them (flat or nested, as `createI18n({ catalogs })`
+ * takes them): `null` is a load that failed on the server.
  */
-export type HandoverCatalogs = Readonly<Record<string, Readonly<Record<string, Catalog | null>>>>;
+export type HandoverCatalogs = Readonly<
+  Record<string, Readonly<Record<string, CatalogInput | null>>>
+>;
 
 export interface I18nHandoverProps {
   /**
