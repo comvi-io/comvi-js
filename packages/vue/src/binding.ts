@@ -354,8 +354,8 @@ export const render = (
 /**
  * The i18n of the app (`app.use(i18n)`). `ns` (default `default`) is the namespace of `t`
  * and `T`, and of `isReady` / `isLoading` when given: with no `ns` those read `default` and every
- * namespace of the `namespaces` option, so `useI18n()` is not `useI18n("default")` there.
- * The component holds it from mount to unmount (`KeepAlive`: while active; a
+ * namespace of the `namespaces` option (a server render waits for them too), so `useI18n()` is
+ * not `useI18n("default")` there. The component holds it from mount to unmount (`KeepAlive`: while active; a
  * component hidden by `v-show` or CSS still holds it): while held it loads for the locale on
  * screen and for every locale `setLocale()` switches to; with no consumer left it stays
  * cached but a switch does not load it. On a server it is held for the request and loaded
@@ -383,6 +383,7 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
   // The flags' namespaces: `ns`, or with no argument `default` (what its `t` reads) and the
   // `namespaces` option's (duplicates change nothing in `every` / `some`).
   const a = [n, ...((ns === undefined && x.o.namespaces) || [])];
+  const isLoading = computed(() => a.some((m) => x.w(s.value, m, !g || !u)));
   // Outside a component (a store, a router guard, `app.runWithContext()`) there is no
   // lifecycle to release in: nothing is held there and no hook is registered (Vue warns about
   // one with no component); its reads are not a declared need and `isLoading` is a load in
@@ -398,7 +399,9 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
     // a namespace in place costs it no async step.
     if (inject(ssrContextKey, null)) {
       on();
-      if (x.w(s.value, n)) onServerPrefetch(() => i.ready);
+      // The render waits while what its flags cover loads (`a` holds `n`): else a no-argument
+      // `useI18n()` renders the loading branch the browser, handed the catalog, does not.
+      if (isLoading.value) onServerPrefetch(() => i.ready);
     }
     onMounted(on);
     onActivated(on);
@@ -417,7 +420,7 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
     // Until the hold at mount, what the hold will load is loading already: no frame that
     // says "unavailable", no `missing_key` (lot 1d, 4c).
     isReady: computed(() => a.every((m) => x.r(s.value, m))),
-    isLoading: computed(() => a.some((m) => x.w(s.value, m, !g || !u))),
+    isLoading,
     setLocale: i.setLocale,
     i18n: i,
   };

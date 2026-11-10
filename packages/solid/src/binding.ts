@@ -264,11 +264,11 @@ const Ts = N<(p: object) => JSX.Element>();
 /**
  * The i18n of the nearest `<I18nProvider>`. `ns` (default `default`) is the namespace of `t` and
  * `T`, and of `isReady` / `isLoading` when given: with no `ns` those read `default` and every
- * namespace of the `namespaces` option, so `useI18n()` is not `useI18n("default")` there.
- * The component holds it from its mount to its cleanup: while held it loads for the locale on
- * screen and for every locale `setLocale()` switches to; with no consumer left it stays cached
- * but a switch does not load it. A failed load of it is not asked again by a remount —
- * `i18n.load(ns)` retries.
+ * namespace of the `namespaces` option (a server render waits for them too), so `useI18n()` is
+ * not `useI18n("default")` there. The component holds it from its mount to its cleanup: while
+ * held it loads for the locale on screen and for every locale `setLocale()` switches to; with no
+ * consumer left it stays cached but a switch does not load it. A failed load of it is not asked
+ * again by a remount — `i18n.load(ns)` retries.
  * On a server it is held for the request, and the nearest `<Suspense>` waits for its load.
  */
 export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => {
@@ -283,9 +283,12 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
   // The flags' namespaces: `ns`, or with no argument `default` (what its `t` reads) and the
   // `namespaces` option's (duplicates change nothing in `every` / `some`).
   const a = [n, ...((ns === undefined && x.o.namespaces) || [])];
+  const isLoading = () => a.some((m) => x.w(s(), m, u));
   if (isServer) {
     x.h(n);
-    if (x.w(x.s(), n)) {
+    // The render waits while what its flags cover loads (`a` holds `n`): else a no-argument
+    // `useI18n()` renders the loading branch the browser, handed the catalog, does not.
+    if (isLoading()) {
       // Under an id of its own, the namespace's: no hydration key of this component moves, the
       // browser (which has nothing to wait for) sees the same counts, and a second pass of the
       // boundary finds this resource.
@@ -309,7 +312,7 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
     // Until the hold at mount, what the hold will load is loading already: no frame that says
     // "unavailable", no `missing_key` (lot 1d, 4c).
     isReady: () => a.every((m) => x.r(s(), m)),
-    isLoading: () => a.some((m) => x.w(s(), m, u)),
+    isLoading,
     setLocale: i.setLocale,
     i18n: i,
   };

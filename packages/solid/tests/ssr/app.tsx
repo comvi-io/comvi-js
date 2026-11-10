@@ -8,6 +8,12 @@ export const Account = () => {
   return <p>{isReady() ? (t("title") as string) : isLoading() ? "loading" : "unavailable"}</p>;
 };
 
+/** `useI18n()`: its flags read the configured namespaces (owner brief 2026-11-10). */
+export const Global = () => {
+  const { t, isReady, isLoading } = useI18n();
+  return <p>{isReady() ? (t("hi") as string) : isLoading() ? "loading" : "unavailable"}</p>;
+};
+
 /** A component with keys after its useI18n: a server-only id would shift them. */
 export const Keyed = () => {
   const { t } = useI18n("account");
