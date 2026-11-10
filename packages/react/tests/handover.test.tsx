@@ -40,7 +40,7 @@ const NaiveHandover: Handover = ({ catalogs, locale, children }) => {
   const { i18n } = useI18n();
   if (catalogs && !added.has(catalogs)) {
     added.add(catalogs);
-    for (const n in catalogs) for (const l in catalogs[n]) i18n.add(l, catalogs[n][l], n);
+    for (const n in catalogs) for (const l in catalogs[n]) i18n.add(l, catalogs[n][l]!, n);
   }
   return <I18nHandover locale={locale}>{children}</I18nHandover>;
 };

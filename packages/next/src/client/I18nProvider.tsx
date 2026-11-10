@@ -1,14 +1,7 @@
 "use client";
 
-import { createElement, useMemo, useState, type ReactElement, type ReactNode } from "react";
-import {
-  createI18n,
-  I18nHandover,
-  I18nProvider as Provider,
-  type Catalog,
-  type I18nOptions,
-  type ProviderCatalogs,
-} from "@comvi/react";
+import { createElement, useState, type ReactElement, type ReactNode } from "react";
+import { createI18n, I18nHandover, I18nProvider as Provider, type I18nOptions } from "@comvi/react";
 import type { Handover } from "@comvi/core/ssr";
 import { RoutingProvider } from "../routing/context";
 import type { RoutingConfig } from "../routing/types";
@@ -34,22 +27,6 @@ export interface I18nProviderProps {
   children?: ReactNode;
 }
 
-/** A prototype-free map: any name (`__proto__`, `constructor`) is an own key of it. */
-const map = <T,>(): Record<string, T> => Object.create(null);
-
-/**
- * The payload's catalogs without its failed (`null`) slots, the shape `<I18nHandover>` takes.
- * Own keys only, into prototype-free maps: a namespace or locale named `__proto__` or
- * `constructor` is a slot like any other, never `Object.prototype`.
- */
-const present = (catalogs: Handover["catalogs"]): ProviderCatalogs => {
-  const out = map<Record<string, Catalog>>();
-  for (const n of Object.keys(catalogs))
-    for (const l of Object.keys(catalogs[n]))
-      if (catalogs[n][l]) (out[n] ||= map())[l] = catalogs[n][l]!;
-  return out;
-};
-
 /**
  * The browser side of a server boundary: renders a Server Component's payload for its Client
  * Components.
@@ -58,9 +35,10 @@ const present = (catalogs: Handover["catalogs"]): ProviderCatalogs => {
  * `{ ...options, ...payload }` — a slot that failed on the server stays failed (`null`), so
  * nothing is asked for again until an explicit retry — then `<I18nProvider>` of
  * `@comvi/react` gates and renders. A later payload of the same mount (`router.refresh()`, a
- * layout rendered again, another locale) reaches the instance through `<I18nHandover>`: its
- * subtree renders with it at once, the instance takes it at commit. A page that needs more
- * namespaces than its layout renders its own `<I18nProvider payload>`.
+ * layout rendered again, another locale) reaches the instance through `<I18nHandover>` with the
+ * same meaning, `null` slots included: its subtree renders with it at once (a slot that failed
+ * now renders the server's fallback), the instance takes it at commit, nothing remounts. A page
+ * that needs more namespaces than its layout renders its own `<I18nProvider payload>`.
  *
  * @example
  * ```tsx
@@ -80,11 +58,10 @@ export function I18nProvider({
   children,
 }: I18nProviderProps): ReactElement {
   const [i18n] = useState(() => createI18n({ ...options, ...payload }));
-  const catalogs = useMemo(() => present(payload.catalogs), [payload.catalogs]);
   const tree = createElement(
     Provider,
     { i18n, loading, suspense },
-    createElement(I18nHandover, { catalogs, locale: payload.locale }, children),
+    createElement(I18nHandover, { catalogs: payload.catalogs, locale: payload.locale }, children),
   );
   return routing
     ? createElement(RoutingProvider, { routing, locale: payload.locale, children: tree })

@@ -67,8 +67,8 @@ const layered = new WeakMap<object, WeakMap<Catalog, Slot>>();
 const NO_SLOT = {};
 
 /**
- * A render-local snapshot: `state` with `extra` (namespace → locale → flat catalog)
- * layered over its catalogs, rendered in `locale` (default: the state's own; a binding's
+ * A render-local snapshot: `state` with `extra` (namespace → locale → flat catalog, or `null`
+ * for a load that failed on the server: that slot is left out) layered over its catalogs, rendered in `locale` (default: the state's own; a binding's
  * locale handover renders the target before `setLocale()` lands at commit). Nothing is
  * published and `rev`/`lrev` do not move; untouched namespaces and locales keep their
  * slots (and compiled messages), and a catalog a slot already holds as its base, in the
@@ -77,7 +77,7 @@ const NO_SLOT = {};
 export const view = (
   i18n: I18n,
   state: State,
-  extra: Readonly<Record<string, Readonly<Record<string, Catalog>>>>,
+  extra: Readonly<Record<string, Readonly<Record<string, Catalog | null>>>>,
   locale: string = state.locale,
 ): State => {
   let c: Store = state.c;
@@ -85,6 +85,17 @@ export const view = (
     for (const l of Object.keys(extra[n])) {
       const slot = c[n] && c[n][l];
       const m = extra[n][l];
+      // A failed slot of a server payload (lot 6a): the view renders without its catalog, the
+      // fallback the server rendered (`Core.f` takes it out of the instance at commit).
+      if (!m) {
+        if (slot) {
+          if (c === state.c) c = N(c);
+          const y = N<Slot>(c[n]);
+          delete y[l];
+          (c as Record<string, Store[string]>)[n] = y;
+        }
+        continue;
+      }
       let memo = layered.get(slot || NO_SLOT);
       if (!memo) layered.set(slot || NO_SLOT, (memo = new WeakMap()));
       let next = memo.get(m);

@@ -246,6 +246,13 @@ export interface Core {
   w(state: State, ns: string, f?: unknown): unknown;
   /** `isReady` of namespace `ns` in `state` (see `usable` in createI18n). */
   r(state: State, ns: string): boolean;
+  /**
+   * A server payload's `null` slot handed over after creation (a binding's handover, lot 6a):
+   * the same meaning as `createI18n({ catalogs })` gives it — the pair joins the negative cache
+   * (asked for again only by `load(ns)` or a switch to its locale) and a catalog in place for it
+   * leaves, so the fallback the server rendered renders. Publishes only when something changed.
+   */
+  f(locale: string, ns: string): void;
 }
 
 /** Instance → its internal seam; read by `@comvi/core/internal` only. */
@@ -776,6 +783,16 @@ export const createI18n = (o: I18nOptions): I18n => {
     },
     w: coming,
     r: usable,
+    f: (l, n, k = l + K + n, x = S.c[n]) => {
+      if (!dead && !(bad.has(k) && !x?.[l])) {
+        bad.set(k, (cnt[n] |= 0));
+        if (x?.[l]) {
+          const y = N(x);
+          delete y[l];
+          pub(S.locale, N(S.c, { [n]: y }));
+        } else pub();
+      }
+    },
   };
   if (__DEV__) c.p = (n) => void (cnt[n] || idle.add(K + n));
   CORE.set(i18n, c);

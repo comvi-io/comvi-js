@@ -4,7 +4,8 @@
  * slot stays failed, and a later payload of the same mount reaches the instance through
  * `<I18nHandover>`.
  */
-import { act, render, screen } from "@testing-library/react";
+import { useState } from "react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useI18n } from "@comvi/react";
 import type { Handover } from "@comvi/core/ssr";
@@ -106,5 +107,59 @@ describe("a payload's namespace and locale names are own keys (review of lot 6a)
     expect(({} as Record<string, unknown>).en).toBeUndefined();
     expect(screen.getByTestId("__proto__:p").textContent).toBe("en|Proto");
     expect(screen.getByTestId("constructor:c").textContent).toBe("en|Ctor");
+  });
+});
+
+describe("a later payload means what the first one meant (lot 6a, owner decision)", () => {
+  function Counter({ ns }: { ns: string }) {
+    const { t, isLoading } = useI18n(ns);
+    const [n, setN] = useState(0);
+    return (
+      <button data-testid="counter" data-loading={String(isLoading)} onClick={() => setN(n + 1)}>
+        {t("title")}|{n}
+      </button>
+    );
+  }
+  const tree = (p: Handover, ns: string, loader?: (l: string, n: string) => Promise<{}>) => (
+    <I18nProvider payload={p} options={{ fallbackLocale: "en", loader }}>
+      <Counter ns={ns} />
+    </I18nProvider>
+  );
+
+  it("a catalog that loaded, then failed on router.refresh(): the server's fallback, state kept", async () => {
+    const loader = vi.fn(async (_l: string, _n: string) => ({ title: "x" }));
+    const ok = payload("uk", { admin: { uk: { title: "Адмін" }, en: { title: "Admin" } } });
+    const { rerender } = render(tree(ok, "admin", loader));
+    expect(screen.getByTestId("counter").textContent).toBe("Адмін|0");
+    fireEvent.click(screen.getByTestId("counter"));
+    await act(async () =>
+      rerender(
+        tree(payload("uk", { admin: { uk: null, en: { title: "Admin" } } }), "admin", loader),
+      ),
+    );
+    expect(screen.getByTestId("counter").textContent).toBe("Admin|1");
+    await act(async () => {});
+    expect(loader.mock.calls.filter((c) => c[1] === "admin")).toEqual([]);
+  });
+
+  it("a namespace first handed over as null in a later payload: no request until a retry", async () => {
+    const loader = vi.fn(async (_l: string, _n: string) => ({ title: "Адмін" }));
+    const first = payload("uk", { default: { uk: {}, en: {} } });
+    const { rerender } = render(tree(first, "default", loader));
+    await act(async () =>
+      rerender(
+        tree(
+          payload("uk", {
+            default: { uk: {}, en: {} },
+            admin: { uk: null, en: { title: "Admin" } },
+          }),
+          "admin",
+          loader,
+        ),
+      ),
+    );
+    expect(screen.getByTestId("counter").textContent).toBe("Admin|0");
+    await act(async () => {});
+    expect(loader.mock.calls.filter((c) => c[1] === "admin")).toEqual([]);
   });
 });

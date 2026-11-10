@@ -160,6 +160,41 @@ test("3: a failed catalog renders the fallback on both sides, stays failed, and 
   expect(log.filter((e) => e.from === "browser")).toEqual([]);
 });
 
+test("3b: a catalog that loaded fails on router.refresh(): the client shows the server's fallback, its state kept", async ({
+  page,
+}) => {
+  await page.goto("/uk/admin");
+  await hydrated(page);
+  await expect(text(page, "admin-title")).toHaveText(UK_ADMIN["welcome_admin"]);
+  await text(page, "admin-count").click();
+  await expect(text(page, "admin-count")).toHaveText("1");
+  await mock.mode({ fail: ["uk:admin"] });
+  await text(page, "retry-refresh").click();
+  await expect(text(page, "admin-title")).toHaveText(EN_ADMIN["welcome_admin"]);
+  await expect(text(page, "admin-server")).toHaveText(EN_ADMIN["dashboard"]);
+  // The same mount: no remount lost the counter.
+  await expect(text(page, "admin-count")).toHaveText("1");
+  await page.waitForLoadState("networkidle");
+  await expect(text(page, "admin-client")).toHaveAttribute("data-loading", "false");
+  expect(await browserAsked()).toEqual([]);
+});
+
+test("3c: a namespace a later payload brings as failed is not asked for by the browser loader", async ({
+  page,
+}) => {
+  await page.goto("/uk/later");
+  await hydrated(page);
+  await expect(text(page, "later-title")).toHaveText(UK["home.title"]);
+  await text(page, "later-count").click();
+  await mock.mode({ fail: ["uk:admin"] });
+  await text(page, "later-more").click();
+  await expect(text(page, "later-admin")).toHaveText(EN_ADMIN["welcome_admin"]);
+  await expect(text(page, "later-count")).toHaveText("1");
+  await page.waitForLoadState("networkidle");
+  await expect(text(page, "later-admin")).toHaveAttribute("data-loading", "false");
+  expect(await browserAsked()).toEqual([]);
+});
+
 for (const first of ["de", "uk"] as const) {
   test(`4: two parallel requests in uk and de, ${first} answered first, each in its own locale`, async ({
     request,

@@ -19,22 +19,32 @@ import {
   type ReactNode,
 } from "react";
 import type { I18n } from "@comvi/core";
-import { canonicalize, view } from "@comvi/core/internal";
-import { provide, useCtx, type Ctx, type ProviderCatalogs } from "./binding";
+import { canonicalize, core, view } from "@comvi/core/internal";
+import type { Catalog } from "@comvi/core";
+import { provide, useCtx, type Ctx } from "./binding";
 
 declare const __DEV__: boolean;
 
 // React 18 warns about useLayoutEffect in a server render; the server runs no effects.
 const useCommit = typeof document < "u" ? useLayoutEffect : useEffect;
 
+/**
+ * Catalogs by namespace, then locale, as a server payload carries them (`handover()` of
+ * `@comvi/core/ssr`): `null` is a load that failed on the server.
+ */
+export type HandoverCatalogs = Readonly<Record<string, Readonly<Record<string, Catalog | null>>>>;
+
 export interface I18nHandoverProps {
   /**
    * Catalogs to render with before the instance holds them (an SSR or RSC payload). They
    * are added to the instance at commit, once per object; a new literal with the same
    * messages on every parent render publishes nothing (the core compares values), but a
-   * STABLE object skips that comparison.
+   * STABLE object skips that comparison. A `null` slot means what it means in
+   * `createI18n({ catalogs })`: the load failed on the server — the subtree renders without
+   * it (the fallback the server rendered), and at commit the instance drops a catalog it held
+   * for it and does not ask for it until `i18n.load(ns)` or a switch to its locale.
    */
-  catalogs?: ProviderCatalogs;
+  catalogs?: HandoverCatalogs;
   /**
    * The locale to render in (a route parameter, matched against the supported locales first).
    * The subtree renders in it at once and the instance switches at commit; a later
@@ -71,7 +81,7 @@ export const I18nHandover = ({
   if (h[0] != i || h[1] != target) setH((h = [i, target, base.locale, base.lrev]));
   const loc = target && target != h[2] && h[3] == base.lrev ? target : base.locale;
   /** The [instance, catalogs] pair published last (written at commit only). */
-  const done = useRef<readonly [I18n, ProviderCatalogs]>(undefined);
+  const done = useRef<readonly [I18n, HandoverCatalogs]>(undefined);
   const fresh = (d = done.current) => catalogs && !(d && d[0] == i && d[1] == catalogs);
   const v = useMemo(
     (): Ctx => [i, view(i, base, fresh() ? catalogs! : {}, loc)],
@@ -81,7 +91,11 @@ export const I18nHandover = ({
     if (fresh()) {
       // Own keys only, as view() renders them: an inherited catalog is never committed.
       for (const n of Object.keys(catalogs!))
-        for (const l of Object.keys(catalogs![n])) i.add(l, catalogs![n][l], n);
+        for (const l of Object.keys(catalogs![n])) {
+          const m = catalogs![n][l];
+          if (m) i.add(l, m, n);
+          else core(i).f(l, n);
+        }
       done.current = [i, catalogs!];
     }
   }, [i, catalogs]);

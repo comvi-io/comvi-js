@@ -224,6 +224,8 @@ describe("no session, no devtools", () => {
     expect(Object.keys(internal.core(i18n)).sort()).toEqual([
       "b",
       "ch",
+      // A server payload's failed slot handed over after creation (lot 6a); no hook.
+      "f",
       "h",
       "k",
       "o",
