@@ -453,6 +453,23 @@ for (const version of VERSIONS) {
       );
     });
 
+    // One generation per `next build` process (the contract of `types`): two builds from a
+    // shell are two processes, and the second one sees what changed between them. The
+    // marker the first build leaves in its own environment reaches its workers, not the
+    // next command (this runner never has it).
+    it("a second next build, after a catalog change, writes the new declaration", () => {
+      assert.equal(process.env.COMVI_NEXT_TYPES_BUILT, undefined);
+      const a = app(version);
+      const first = nextBuild(a);
+      assert.equal(first.status, 0, `${first.stdout}${first.stderr}`);
+      assert.doesNotMatch(readOut(a.dir), /"added"/);
+
+      write(a.dir, "src/locales/en.json", JSON.stringify({ ...EN, added: "New {fresh}" }));
+      const second = nextBuild(a);
+      assert.equal(second.status, 0, `${second.stdout}${second.stderr}`);
+      assert.match(readOut(a.dir), /"added": \{ "fresh": string \| number \};/);
+    });
+
     it("types.check fails the build on a stale file and writes nothing", () => {
       const a = app(version);
       const fresh = nextBuild(a);

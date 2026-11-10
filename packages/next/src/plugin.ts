@@ -16,7 +16,9 @@ export interface WithComviOptions {
    * Writes the typed-translations declaration from the app's JSON catalogs: on
    * `next dev` (and on every change), once on `next build`. The same bytes as
    * `comvi typegen --from`. With it, `withComvi(...)` always returns the function
-   * form of next.config: Next passes the phase only to that form.
+   * form of next.config: Next passes the phase only to that form. It generates once per
+   * `next build` process: two builds are two commands; a second build started inside the
+   * same Node process reuses the first one's result and is not supported.
    * @example { from: "./src/locales", sourceLocale: "en" }
    */
   types?: WithComviTypes;

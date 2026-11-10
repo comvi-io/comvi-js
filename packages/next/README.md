@@ -102,7 +102,9 @@ and fails when the committed file is stale. The file is the same, byte for byte,
 `comvi typegen --from`; the options are those of
 [`@comvi/vite-plugin`](https://www.npmjs.com/package/@comvi/vite-plugin) (`out`, `fileTemplate`,
 `defaultParams`, `augment`). With `types`, `withComvi(...)` returns the function form of the config,
-which is how Next passes the phase.
+which is how Next passes the phase. It generates once per `next build` process: run each build as
+its own command, as a shell or CI does; a second build started inside the same Node process reuses
+the first one's result.
 
 ## Use in components
 
