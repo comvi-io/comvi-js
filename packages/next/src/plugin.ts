@@ -61,7 +61,7 @@ export type WithComviMaybeTypes = (
  */
 export function withComvi(options: WithComviOptions & { types: WithComviTypes }): WithComviAndTypes;
 export function withComvi(options?: WithComviOptions & { types?: undefined }): WithComvi;
-export function withComvi(options: WithComviOptions): WithComviMaybeTypes;
+export function withComvi(options: WithComviOptions | undefined): WithComviMaybeTypes;
 export function withComvi(
   options: WithComviOptions = {},
 ): WithComvi | WithComviAndTypes | WithComviMaybeTypes {

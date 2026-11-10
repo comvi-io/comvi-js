@@ -28,4 +28,11 @@ objectPlugin(plain);
 const typed = withComvi({ types: { from: "./src/locales" } })({ reactStrictMode: true });
 type _typed = Expect<Equal<typeof typed, NextConfigFn>>;
 
-export { asObject, literal, typed };
+// An optional options value passed through (a config helper): accepted, maybe-function result.
+function configure(options?: WithComviOptions) {
+  return withComvi(options);
+}
+const helped = configure()({ reactStrictMode: true });
+type _helped = Expect<Equal<typeof helped, NextConfig | NextConfigFn>>;
+
+export { asObject, helped, literal, typed };
