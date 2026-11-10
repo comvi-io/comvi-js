@@ -40,6 +40,14 @@ export interface WithComvi {
 export type WithComviAndTypes = (nextConfig?: NextConfig | NextConfigFn) => NextConfigFn;
 
 /**
+ * What `withComvi(options)` returns when the type of `options` does not say whether `types` is
+ * there (a `WithComviOptions` value): the function form with `types`, else the config's shape.
+ */
+export type WithComviMaybeTypes = (
+  nextConfig?: NextConfig | NextConfigFn,
+) => NextConfig | NextConfigFn;
+
+/**
  * Wrap the app's next.config. It wraps an object or a function config and keeps every
  * option of it.
  *
@@ -52,8 +60,11 @@ export type WithComviAndTypes = (nextConfig?: NextConfig | NextConfigFn) => Next
  * ```
  */
 export function withComvi(options: WithComviOptions & { types: WithComviTypes }): WithComviAndTypes;
-export function withComvi(options?: WithComviOptions): WithComvi;
-export function withComvi(options: WithComviOptions = {}): WithComvi | WithComviAndTypes {
+export function withComvi(options?: WithComviOptions & { types?: undefined }): WithComvi;
+export function withComvi(options: WithComviOptions): WithComviMaybeTypes;
+export function withComvi(
+  options: WithComviOptions = {},
+): WithComvi | WithComviAndTypes | WithComviMaybeTypes {
   const root = process.cwd();
   const { types } = options;
   if (types) validateTypes(types);
