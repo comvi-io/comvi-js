@@ -609,6 +609,14 @@ test("k2: CDN down — the bundled fallback imports serve the catalogs", async (
       failed.length,
       `no failed request to ${CDN_URL} — was the CDN ever tried?`,
     ).toBeGreaterThan(0);
+  } else {
+    // Next's server hands the browser the catalogs it holds: they must be the fallback's
+    // catalog, not a JSON module ingested as one (whose `default` export would add a
+    // `default.` copy of every key; webpack's named exports hide the rest of the damage).
+    const html = await (await page.request.get(page.url())).text();
+    expect(html, "the handed-over catalog holds a module's `default` export").not.toContain(
+      "default.app.title",
+    );
   }
 });
 
