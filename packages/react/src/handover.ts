@@ -51,7 +51,9 @@ export interface I18nHandoverProps {
    * core compares values), but a STABLE object skips that comparison. A `null` slot means what it means in
    * `createI18n({ catalogs })`: the load failed on the server — the subtree renders without
    * it (the fallback the server rendered), and at commit the instance drops a catalog it held
-   * for it and does not ask for it until `i18n.load(ns)` or a switch to its locale.
+   * for it and does not ask for it until `i18n.load(ns)` or a switch to its locale. A render
+   * with that payload knows the load failed: translation, `isReady` and `isLoading` read the pair
+   * as failed, as the server did (a hydration takes the server's branch), and predict no load.
    */
   catalogs?: HandoverCatalogs;
   /**

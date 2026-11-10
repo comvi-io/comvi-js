@@ -491,7 +491,8 @@ export const createI18n = (o: I18nOptions): I18n => {
    * instance has a loader and a pair of the chain of the state's locale is neither in place
    * nor failed — the load a consumer's hold makes (React holds at commit, Vue at mount, after
    * the render). A failed pair is a known result, so no catalog and nothing in flight is never
-   * an endless loading state.
+   * an endless loading state; so is a pair a render-local state carries as a server's `null`
+   * (`x`, `view()`).
    */
   const coming = (s: State, n: string, f?: unknown): unknown =>
     s.ld.some((x) => x.endsWith(K + n)) ||

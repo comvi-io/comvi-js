@@ -51,9 +51,9 @@ async function hydrate(o: {
   });
   await server.load(o.ns).catch(() => {});
   const payload = handover(server);
-  const ui = (i: I18n) => (
+  const ui = (i: I18n, catalogs = payload.catalogs) => (
     <I18nProvider i18n={i}>
-      <I18nHandover catalogs={payload.catalogs}>
+      <I18nHandover catalogs={catalogs}>
         <Tpl ns={o.noArg ? undefined : o.ns} />
       </I18nHandover>
     </I18nProvider>
@@ -61,7 +61,14 @@ async function hydrate(o: {
   seen.length = 0;
   const html = renderToString(ui(server));
   const serverFlags = seen.splice(0);
-  const loader = vi.fn(async (l: string, n: string) => ({ title: `client ${l}:${n}` }));
+  // A client load answers when the test releases it (`release()`), so its flight is observable.
+  const gates: (() => void)[] = [];
+  const loader = vi.fn(
+    (l: string, n: string) =>
+      new Promise<Record<string, string>>((ok) =>
+        gates.push(() => ok({ title: `client ${l}:${n}` })),
+      ),
+  );
   const client = createI18n({
     fallbackLocale: "en",
     ...(o.loader && { loader }),
@@ -82,8 +89,9 @@ async function hydrate(o: {
   document.body.append(el);
   const recoverable: unknown[] = [];
   const err = vi.spyOn(console, "error").mockImplementation(() => {});
+  const root = hydrateRoot(el, ui(client), { onRecoverableError: (e) => recoverable.push(e) });
   await act(async () => {
-    roots.push(hydrateRoot(el, ui(client), { onRecoverableError: (e) => recoverable.push(e) }));
+    roots.push(root);
   });
   await act(async () => {});
   const errors = err.mock.calls.map((c) => String(c[0]));
@@ -97,6 +105,17 @@ async function hydrate(o: {
     recoverable,
     errors,
     loads: loader.mock.calls.map((c) => c.join(":")),
+    client,
+    el,
+    /** The pairs the client loader was asked for. */
+    asked: () => loader.mock.calls.map((c) => `${c[0]}:${c[1]}`),
+    release: async () => {
+      await act(async () => gates.splice(0).forEach((g) => g()));
+    },
+    /** The next payload of the same mount (a `router.refresh()`). */
+    rerender: async (catalogs: typeof payload.catalogs) => {
+      await act(async () => root.render(ui(client, catalogs)));
+    },
   };
 }
 
@@ -135,4 +154,56 @@ describe("hydration with a `null` slot (the ordinary readiness template)", () =>
           expect(r.after).toBe(r.html);
           expect(r.loads).toEqual([]);
         });
+});
+
+describe("after such a hydration (payload through <I18nHandover> only, a client loader)", () => {
+  const cases = [
+    { name: "useI18n()", ns: "default", noArg: true },
+    { name: "useI18n(ns)", ns: "admin", noArg: false },
+  ];
+  const opts = { fallback: false, loader: true, late: true };
+  for (const c of cases) {
+    it(`${c.name}: an explicit load(ns) asks for the pair, isLoading follows it and it settles`, async () => {
+      const r = await hydrate({ ...c, ...opts });
+      expect(r.el.innerHTML).toBe("<b>unavailable</b>");
+      expect(r.asked()).toEqual([]);
+      let done = false;
+      const p = r.client.load(c.ns).then(() => (done = true));
+      await act(async () => {});
+      expect(r.asked()).toContain(`uk:${c.ns}`);
+      expect(seen.at(-1)).toBe("false/true");
+      expect(r.el.innerHTML).toBe("<i>loading</i>");
+      await r.release();
+      await act(() => p);
+      expect(done).toBe(true);
+      expect(seen.at(-1)).toBe("true/false");
+      expect(r.el.innerHTML).toBe(`<p>client uk:${c.ns}</p>`);
+    });
+
+    it(`${c.name}: an explicit setLocale() to the fallback asks for its pair and settles`, async () => {
+      const r = await hydrate({ ...c, ...opts });
+      const p = r.client.setLocale("en");
+      await act(async () => {});
+      expect(r.asked()).toContain(`en:${c.ns}`);
+      expect(seen.at(-1)?.endsWith("/true")).toBe(true);
+      await r.release();
+      await act(() => p);
+      expect(r.client.locale).toBe("en");
+      expect(seen.at(-1)).toBe("true/false");
+      expect(r.el.innerHTML).toBe(`<p>client en:${c.ns}</p>`);
+    });
+
+    it(`${c.name}: the next payload with a catalog for the pair ends the failed state`, async () => {
+      const r = await hydrate({ ...c, ...opts });
+      await r.rerender({ [c.ns]: { uk: { title: `server uk:${c.ns}` } } });
+      expect(r.el.innerHTML).toBe(`<p>server uk:${c.ns}</p>`);
+      expect(seen.at(-1)).toBe("true/false");
+      expect(r.client.t("title", { ns: c.ns })).toBe(`server uk:${c.ns}`);
+      expect(r.asked()).toEqual([]);
+      // A later render of the same payload keeps it (the view holds no earlier `null`).
+      await r.rerender({ [c.ns]: { uk: { title: `server uk:${c.ns}` } } });
+      expect(seen.at(-1)).toBe("true/false");
+      expect(r.asked()).toEqual([]);
+    });
+  }
 });

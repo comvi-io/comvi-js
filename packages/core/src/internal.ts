@@ -62,7 +62,8 @@ export const acquire = (i18n: I18n, ns: string): (() => void) => core(i18n).h(ns
 
 /**
  * A render-local snapshot: `state` with `extra` (namespace → locale → catalog, flat or nested,
- * or `null` for a load that failed on the server: that slot is left out) in place of its
+ * or `null` for a load that failed on the server: that slot is left out and the pair reads
+ * as failed in this snapshot, so `isLoading` predicts no load for it) in place of its
  * slots, rendered in `locale` (default: the state's own; a binding's
  * locale handover renders the target before `setLocale()` lands at commit). A handed slot
  * IS its catalog (lot 6a, one rule): a key the catalog lacks is gone, `{}` is empty. Nothing
