@@ -1,6 +1,6 @@
-import { handover } from "@comvi/core/ssr";
 import { getI18n } from "@/i18n/server";
-import { Provider } from "@/i18n/client";
+import { I18nProvider } from "@comvi/next/server";
+import { WithBrowserOptions } from "@/i18n/client";
 import { routing } from "@/i18n/routing";
 import { NameProvider } from "./NameProvider";
 import "./styles.css";
@@ -28,9 +28,9 @@ export default async function LocaleLayout({
       <body>
         {/* Hands this request's catalogs to the client components as data, so they
             render translated on the first paint and the browser fetches nothing. */}
-        <Provider payload={handover(i18n)}>
+        <I18nProvider i18n={i18n} routing={routing} client={WithBrowserOptions}>
           <NameProvider>{children}</NameProvider>
-        </Provider>
+        </I18nProvider>
       </body>
     </html>
   );

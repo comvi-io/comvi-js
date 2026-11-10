@@ -1,9 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { devtools } from "@comvi/core/devtools";
 import { I18nProvider, type I18nProviderProps } from "@comvi/next/client";
-import { options, routing } from "./routing";
 
 /** A tiny store for the demo's own counter, read with useSyncExternalStore. */
 function store<T>(initial: T) {
@@ -26,20 +24,16 @@ function store<T>(initial: T) {
 export const missingKeys = store<ReadonlySet<string>>(new Set());
 
 /**
- * The browser side of a page: the payload the server rendered with, and the
- * options a server cannot send (functions). The browser has no loader: every
- * catalog it shows came with a payload.
+ * The browser options a server cannot send (functions), added to the settings the server's
+ * `<I18nProvider client={WithBrowserOptions}>` hands over (`props.options`: the fallback
+ * locale). The browser has no loader: every catalog it shows came with a payload.
  */
-export function Provider({
-  payload,
-  children,
-}: Pick<I18nProviderProps, "payload"> & { children: ReactNode }) {
+export function WithBrowserOptions(props: I18nProviderProps) {
   return (
     <I18nProvider
-      payload={payload}
-      routing={routing}
+      {...props}
       options={{
-        ...options,
+        ...props.options,
         // Makes the instance visible to the Comvi browser extension.
         plugins: [devtools()],
         // t() never throws: every problem is reported here.
@@ -51,8 +45,6 @@ export function Provider({
           });
         },
       }}
-    >
-      {children}
-    </I18nProvider>
+    />
   );
 }

@@ -1,7 +1,7 @@
-import { handover } from "@comvi/core/ssr";
 import { Link } from "@comvi/next/navigation";
 import { getI18n } from "@/i18n/server";
-import { Provider } from "@/i18n/client";
+import { I18nProvider } from "@comvi/next/server";
+import { WithBrowserOptions } from "@/i18n/client";
 import { Footer } from "../Footer";
 import { Header } from "../Header";
 import { Namespaces } from "../cards/Namespaces";
@@ -30,9 +30,9 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
         <p className="widget" data-testid="account-devices">
           {account.t("profile.devices", { count: 3 })}
         </p>
-        <Provider payload={handover(account.i18n)}>
+        <I18nProvider i18n={account.i18n} client={WithBrowserOptions}>
           <Account />
-        </Provider>
+        </I18nProvider>
         <p className="widget">
           <Link data-testid="nav-home" href="/features">
             {t("nav.home")}

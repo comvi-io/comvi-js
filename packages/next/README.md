@@ -29,24 +29,23 @@ npm install @comvi/next @comvi/react @comvi/core
 
 ## Setup
 
-Plain data the middleware, the server and the browser share, in `src/i18n/routing.ts`:
+The locales, in `src/i18n/routing.ts` (plain data: the middleware imports it too):
 
 ```ts title="src/i18n/routing.ts" check=group=next-1
 import { defineRouting } from "@comvi/next/routing";
 
 export const routing = defineRouting({ locales: ["en", "uk"], defaultLocale: "en" });
-export const options = { fallbackLocale: "en" };
 ```
 
-The server helper, in `src/i18n/server.ts` (server only: the entry imports `server-only`):
+The one place for the settings, in `src/i18n/server.ts` (server only: the entry imports `server-only`):
 
 ```ts title="src/i18n/server.ts" check=group=next-1
 import { createGetI18n } from "@comvi/next/server";
-import { options, routing } from "./routing";
+import { routing } from "./routing";
 
 export const getI18n = createGetI18n({
   ...routing,
-  ...options,
+  fallbackLocale: "en",
   timeZone: "UTC",
   loader: async (locale, ns) =>
     (await import(`../locales/${ns === "default" ? locale : `${ns}/${locale}`}.json`)).default,
@@ -56,10 +55,9 @@ export const getI18n = createGetI18n({
 The layout hands the request's catalogs to the browser, in `src/app/[locale]/layout.tsx`:
 
 ```tsx title="src/app/[locale]/layout.tsx" check=group=next-1
-import { handover } from "@comvi/core/ssr";
-import { I18nProvider } from "@comvi/next/client";
+import { I18nProvider } from "@comvi/next/server";
 import { getI18n } from "@/i18n/server";
-import { options, routing } from "@/i18n/routing";
+import { routing } from "@/i18n/routing";
 
 export default async function Layout(props: {
   children: React.ReactNode;
@@ -70,7 +68,7 @@ export default async function Layout(props: {
   return (
     <html lang={locale} dir={dir}>
       <body>
-        <I18nProvider payload={handover(i18n)} options={options} routing={routing}>
+        <I18nProvider i18n={i18n} routing={routing}>
           {props.children}
         </I18nProvider>
       </body>
@@ -81,7 +79,9 @@ export default async function Layout(props: {
 
 `getI18n({ locale })` checks the locale against `locales` (else `notFound()`), reads no request API
 (a static page stays static) and returns this request's instance, its catalogs loaded once per
-request. `handover(i18n)` is plain data: catalogs (a failed one as `null`), locale, zone, clock.
+request. The server `<I18nProvider>` hands the browser data only: `handover(i18n)` (catalogs, a
+failed one as `null`, locale, time zone, clock) and the instance's `fallbackLocale` and `formats`.
+The loader, callbacks, `defaultParams` and other options stay on the server.
 
 ## Use in components
 
@@ -89,17 +89,15 @@ A Server Component asks for the namespaces it needs (`t` reads the first; withou
 a page that needs more than its layout hands its own payload over, in `src/app/[locale]/account/page.tsx`:
 
 ```tsx title="src/app/[locale]/account/page.tsx" check=group=next-1
-import { handover } from "@comvi/core/ssr";
-import { I18nProvider } from "@comvi/next/client";
+import { I18nProvider } from "@comvi/next/server";
 import { getI18n } from "@/i18n/server";
-import { options } from "@/i18n/routing";
 import { Profile } from "./Profile";
 
 export default async function Account({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const { t, i18n } = await getI18n({ locale, ns: "account" });
   return (
-    <I18nProvider payload={handover(i18n)} options={options}>
+    <I18nProvider i18n={i18n}>
       <h1>{t("title")}</h1> <Profile />
     </I18nProvider>
   );
@@ -119,9 +117,10 @@ export function Profile() {
 }
 ```
 
-With no `loader` in `options` the browser loads nothing; a catalog the server failed to load
-renders its fallback on both sides, and `router.refresh()` renders the route again. A `loader`
-(from a `"use client"` module) loads only what no payload brought; `i18n.load(ns)` retries.
+The browser loads nothing; a catalog the server failed to load renders its fallback on both sides,
+and `router.refresh()` renders the route again. For a browser `loader`, pass `client={Mine}`: a
+`"use client"` component that renders `<I18nProvider>` of `@comvi/next/client` with
+`{ ...props.options, loader }`; it loads only what no payload brought, `i18n.load(ns)` retries.
 A later payload of the same provider (`router.refresh()`) means what the first one meant, a failed
 catalog included: the server's fallback renders, client state is kept, nothing remounts.
 
