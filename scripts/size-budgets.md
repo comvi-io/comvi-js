@@ -1669,3 +1669,8 @@ Other rows the change touches (information; each within its ceiling, cap and bud
 | fw-next-client-default   | 6,662  | 6,685 | 6,860                           |
 
 Every other row measures as before.
+
+Re-measured after the rebase onto lot 6a 6454408d (the null-slot fix: core-icu 4,984 B), same
+Node: react-icu-cdn 6,024 (+569 ≤ +579), solid-icu-cdn 6,286 (+831 ≤ +847), vue-icu-cdn 6,177
+(+722 ≤ +731), svelte-icu-cdn 6,763 (+1,308 ≤ +1,356), fw-next-client-default 6,750 (≤ 6,860). No
+cap, ceiling or budget changed.
