@@ -15,6 +15,7 @@ export type {
   Args,
   BoundTFor,
   Catalogs,
+  CoreUntypedParams,
   KeysOf,
   NsOf,
   OutOf,
@@ -25,6 +26,5 @@ export type {
   TComponentFor,
   TFor,
   TranslateFn,
-  UntypedParams,
   UntypedT,
 } from "./types";

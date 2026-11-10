@@ -196,7 +196,7 @@ type NoHandler = { readonly [k: string]: unknown; call?: never } | (object & { c
  * (or a list of them), a tag handler that takes its children's parts, or an object that is no
  * function. `unknown` is none of them: it may be a handler of another argument type.
  */
-export type UntypedParams = Record<
+export type CoreUntypedParams = Record<
   string,
   Printed | readonly Printed[] | ((children: RichParts) => unknown) | NoHandler
 >;
@@ -212,7 +212,7 @@ export type UntypedParams = Record<
  * {@link Tag} does with no binding registered: an inline handler gets `RichParts`, one
  * typed for a string is refused.
  */
-export interface UntypedT<Rich = RichParts, P = Readonly<UntypedParams>> {
+export interface UntypedT<Rich = RichParts, P = Readonly<CoreUntypedParams>> {
   (key: string, params?: Readonly<Record<string, Printed | readonly Printed[]>>): string;
   (key: string, params?: P): string | Rich;
 }

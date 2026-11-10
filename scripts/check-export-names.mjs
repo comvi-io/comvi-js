@@ -125,6 +125,63 @@ export function compareNames(runtime, declared) {
   ];
 }
 
+/** The bindings an app's barrel may `export *` next to `@comvi/core`. */
+export const BARREL_BINDINGS = ["@comvi/react", "@comvi/vue", "@comvi/solid", "@comvi/svelte"];
+
+/**
+ * Clashes a barrel of core and a binding has on purpose: `@comvi/vue`'s `createI18n()` returns a
+ * Vue plugin, not the core instance. Such a barrel names the one it means.
+ */
+export const BARREL_CLASHES = { "@comvi/vue": ["createI18n"] };
+
+/**
+ * Compiles `export * from "@comvi/core"; export * from "<binding>";` for each binding over the
+ * built declarations; returns one line per diagnostic. A name both export as different
+ * declarations is TS2308 in such a barrel; that is why the core's params type is
+ * `CoreUntypedParams`, and each binding's own `UntypedParams`.
+ */
+export function barrelDiagnostics(bindings = BARREL_BINDINGS, root = ROOT) {
+  const files = new Map(
+    bindings.map((b) => [
+      path.join(root, `__barrel-${b.split("/").pop()}.ts`).replaceAll("\\", "/"),
+      `export * from "@comvi/core";\nexport * from "${b}";\n`,
+    ]),
+  );
+  const options = {
+    noEmit: true,
+    strict: true,
+    skipLibCheck: true,
+    target: ts.ScriptTarget.ES2022,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    types: [],
+  };
+  const host = ts.createCompilerHost(options);
+  const { fileExists, readFile, getSourceFile } = host;
+  host.fileExists = (f) => files.has(f) || fileExists(f);
+  host.readFile = (f) => files.get(f) ?? readFile(f);
+  host.getSourceFile = (f, ...rest) =>
+    files.has(f)
+      ? ts.createSourceFile(f, files.get(f), ts.ScriptTarget.ES2022)
+      : getSourceFile(f, ...rest);
+  const program = ts.createProgram([...files.keys()], options, host);
+  return [...files.keys()].flatMap((f, i) =>
+    ts
+      .getPreEmitDiagnostics(program, program.getSourceFile(f))
+      .filter(
+        (d) =>
+          d.code !== 2308 ||
+          !(BARREL_CLASHES[bindings[i]] ?? []).some((n) =>
+            ts.flattenDiagnosticMessageText(d.messageText, " ").includes(`member named '${n}'`),
+          ),
+      )
+      .map(
+        (d) =>
+          `barrel core + ${bindings[i]}: TS${d.code} ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`,
+      ),
+  );
+}
+
 /** Checks `pkgDirs`; returns `{ failures, checked, skipped }`. */
 export async function checkPackages(pkgDirs) {
   const failures = [];
@@ -171,9 +228,17 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     console.error("check-export-names: FAIL — run `pnpm build` first");
     process.exit(1);
   }
+  const built = ["core", ...BARREL_BINDINGS.map((b) => b.split("/").pop())].every((d) =>
+    fs.existsSync(path.join(ROOT, "packages", d, "dist/index.d.ts")),
+  );
+  if (built) failures.push(...barrelDiagnostics());
+  else console.log("check-export-names: no dist for the barrel check");
   if (failures.length > 0) {
     for (const failure of failures) console.error(`check-export-names: FAIL ${failure}`);
     process.exit(1);
   }
-  console.log(`check-export-names: ${checked} built entries match their declarations`);
+  console.log(
+    `check-export-names: ${checked} built entries match their declarations` +
+      (built ? `; \`export *\` of core with each of ${BARREL_BINDINGS.join(", ")} compiles` : ""),
+  );
 }

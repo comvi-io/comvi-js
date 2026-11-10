@@ -130,19 +130,23 @@ const UNTYPED_CASES = [
   ],
   ["t('k', { link: (c: RichParts) => c.length });", ""],
   // The params contract (lot 6a): text values, handlers of the parts, objects. A dictionary of
-  // text is a string; one built at run time is typed `UntypedParams`, with no cast.
+  // text is a string; one built at run time is typed `CoreUntypedParams`, with no cast.
   ["declare const d1: Record<string, string | number>; const u6: string = t('k', d1);", ""],
-  ["import type { UntypedParams } from './lib';", ""],
+  ["import type { CoreUntypedParams } from './lib';", ""],
   [
-    "const d2: UntypedParams = { name: 'Ada' }; d2.count = 2; d2.link = (c) => c.join(''); const u7: string | RichParts = t('k', d2);",
+    "const d2: CoreUntypedParams = { name: 'Ada' }; d2.count = 2; d2.link = (c) => c.join(''); const u7: string | RichParts = t('k', d2);",
     "",
+  ],
+  [
+    "const u8: string = t('k', d2); // U6 a CoreUntypedParams dictionary may hold a tag handler",
+    "TS2322",
   ],
   [
     "declare const d3: Record<string, unknown>; t('k', d3); // U4 unknown values may be any handler",
     "TS2769",
   ],
   [
-    "const d4: UntypedParams = { link: (c: string) => c }; // U5 a handler typed for a string",
+    "const d4: CoreUntypedParams = { link: (c: string) => c }; // U5 a handler typed for a string",
     "TS2322",
   ],
 ];
@@ -255,7 +259,7 @@ const REDS = {
   // (3) The untyped t() of lot 1, typed `string` for any params (review A6).
   "untyped t() always a string": plant("untyped string", [
     [
-      "export interface UntypedT<Rich = RichParts, P = Readonly<UntypedParams>> {",
+      "export interface UntypedT<Rich = RichParts, P = Readonly<CoreUntypedParams>> {",
       "export type UntypedT<Rich = RichParts, P = unknown> = (key: string, params?: Record<string, unknown>) => string;\ninterface Unused<Rich, P> {",
     ],
   ]),

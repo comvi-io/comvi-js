@@ -62,14 +62,15 @@ Without generated catalogs, a param value of `t()` is one of: text (a `string`, 
 the tag's children as `RichParts`, or an object that is not a function. A
 `Record<string, string | number>` passes as is. A `Record<string, unknown>` does not: an
 `unknown` value may be a handler that expects a string, and the core calls a handler with an
-array. Type a dictionary you build at run time as `UntypedParams`:
+array. Type a dictionary you build at run time as `CoreUntypedParams`; with it, the result is
+typed `string | RichParts`, because the dictionary may hold a tag handler:
 
 ```ts title="src/params.ts" check=group=vanilla-2
-import type { UntypedParams } from "@comvi/core";
+import type { CoreUntypedParams } from "@comvi/core";
 import { i18n } from "./i18n";
 
 const user = { name: "Alice", admin: true };
-const params: UntypedParams = { name: user.name };
+const params: CoreUntypedParams = { name: user.name };
 if (user.admin) params.role = "admin";
 
 i18n.t("greeting", params);
