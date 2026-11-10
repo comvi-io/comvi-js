@@ -1637,3 +1637,35 @@ ceiling is set from this final measurement, by the owner's word of 2026-11-10:
 | fw-next-plugin-node | 121 (b. 939) | 11,720 (29,614 m) | — → 11,955 (ceil(11,720×1.02)) | 986 → 11,955 (min(ceiling, ceil(11,720×1.05))) |
 
 No other row's ceiling or budget changed.
+
+## 2026-11-10: readiness scope of `useI18n()` — owner accepts the growth (two increment caps)
+
+Owner decision 2026-11-10: the readiness-scope change (`useI18n()` flags cover `default` and the
+`namespaces` option; a Vue/Solid server render of `useI18n()` waits for that set) keeps both of
+its commits, and the two increment caps it overshoots are raised by the rule for owner-accepted
+growth, `ceil(increment × 1.02)`, from the final measurement. No ceiling, budget or baseline moves.
+Measured after `TURBO_FORCE=true pnpm build`, `node --version` v24.22.1; "before" is 0e26dde0 (lot
+6a), "after" is `feat/ready-loading-scope` with both commits.
+
+| row           | before         | after          | old cap | new cap                   |
+| ------------- | -------------- | -------------- | ------- | ------------------------- |
+| react-icu-cdn | 5,989 (+544 B) | 6,012 (+567 B) | +557 B  | +579 B (ceil(567 × 1.02)) |
+| solid-icu-cdn | 6,247 (+802 B) | 6,275 (+830 B) | +828 B  | +847 B (ceil(830 × 1.02)) |
+
+Other rows the change touches (information; each within its ceiling, cap and budget):
+
+| row                      | before | after | budget / ceiling / cap          |
+| ------------------------ | ------ | ----- | ------------------------------- |
+| vue-icu-cdn              | 6,143  | 6,168 | 6,191 / 6,191 / +731 (+723)     |
+| svelte-icu-cdn           | 6,730  | 6,749 | 6,789 / 6,789 / +1,356 (+1,304) |
+| fw-react-default         | 5,486  | 5,511 | 5,665                           |
+| fw-react-full-composite  | 8,618  | 8,643 | 9,075                           |
+| fw-vue-default           | 5,641  | 5,670 | 5,912                           |
+| fw-vue-full-composite    | 8,360  | 8,388 | 8,406                           |
+| fw-solid-default         | 5,750  | 5,773 | 5,942                           |
+| fw-solid-full-composite  | 8,396  | 8,425 | 8,827                           |
+| fw-svelte-default        | 6,236  | 6,259 | 6,542                           |
+| fw-svelte-full-composite | 8,824  | 8,846 | 8,870                           |
+| fw-next-client-default   | 6,662  | 6,685 | 6,860                           |
+
+Every other row measures as before.
