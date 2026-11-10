@@ -12,7 +12,7 @@ import type { RoutingConfig } from "../routing/types";
 /**
  * The settings of the request's instance that the browser instance must share, handed over as
  * data: `fallbackLocale`, `formats` and the instance's CURRENT `defaultParams`, whose values
- * must be strings, numbers, booleans or `null` (anything else, a tag handler included, is a
+ * must be strings, finite numbers, booleans or `null` (anything else, a tag handler included, is a
  * `TypeError` here, naming the param). Nothing else crosses: not the loader, credentials,
  * `onError`, `missing`, `plugins`, `namespaces` (the server's pins), `now`; the locale, the time
  * zone, the clock and the catalogs travel in the payload (`handover()`).
@@ -27,9 +27,9 @@ const settings = (i18n: I18n): ClientSettings => {
   const dp = c.s().dp;
   for (const k in dp) {
     const v = dp[k];
-    if (v !== null && !["string", "number", "boolean"].includes(typeof v))
+    if (v !== null && !["string", "boolean"].includes(typeof v) && !Number.isFinite(v))
       throw TypeError(
-        `[@comvi/next] defaultParams.${k} cannot cross to the browser: only strings, numbers, booleans and null are handed over (render tag handlers in a Client Component)`,
+        `[@comvi/next] defaultParams.${k} cannot cross to the browser: only strings, finite numbers, booleans and null are handed over (render tag handlers in a Client Component)`,
       );
   }
   return {

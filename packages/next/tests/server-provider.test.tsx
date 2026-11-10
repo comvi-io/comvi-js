@@ -96,16 +96,27 @@ describe("defaultParams cross as data (owner decision 2026-11-10)", () => {
     expect(renderToString(el)).toBe(`<p>${i18n.t("hi")}</p>`);
   });
 
+  it("finite numbers cross unchanged", () => {
+    const i18n = server({ brand: "B", n: -1.5, ok: false, none: 0 });
+    const el = I18nProvider({ i18n, children: null }) as ReactElement<Record<string, unknown>>;
+    expect(el.props.options).toEqual({
+      defaultParams: { brand: "B", n: -1.5, ok: false, none: 0 },
+    });
+  });
+
   it.each([
     ["a function (a tag handler)", () => "x"],
     ["an object", { a: 1 }],
     ["an array", ["a"]],
     ["a Date", new Date(0)],
     ["undefined", undefined],
+    ["Infinity", Infinity],
+    ["-Infinity", -Infinity],
+    ["NaN", NaN],
   ])("%s is refused at the server boundary, naming the param", (_, v) => {
     const i18n = server({ brand: "Comvi", link: v });
     expect(() => I18nProvider({ i18n, children: null })).toThrow(
-      /defaultParams\.link .*strings, numbers, booleans and null/,
+      /defaultParams\.link .*strings, finite numbers, booleans and null/,
     );
   });
 });
