@@ -52,14 +52,18 @@ const VERSIONS = [
   { label: "Next 16", from: "test-apps/next16", webpack: ["--webpack"], turbopack: [] },
 ];
 
+// `nav` is nested: typegen flattens it to `nav.home` by core's rule, and the CLI parity below
+// covers it.
 const EN = {
   hello: "Hello {name}",
   title: "Title",
+  nav: { home: "Home of {site}" },
 };
-const DE = { hello: "Hallo {name}", title: "Titel" };
+const DE = { hello: "Hallo {name}", title: "Titel", nav: { home: "Start von {site}" } };
 
 /** Calls that must type-check, and two that must not. */
-const GOOD = 'i18n.t("hello", { name: "Ada" });\ni18n.t("title");\n';
+const GOOD =
+  'i18n.t("hello", { name: "Ada" });\ni18n.t("title");\ni18n.t("nav.home", { site: "x" });\n';
 const WRONG_KEY = 'i18n.t("helo", { name: "Ada" });\n';
 const WRONG_PARAM = 'i18n.t("hello", { nam: "Ada" });\n';
 const ADDED = 'i18n.t("added", { fresh: 1 });\n';
@@ -415,6 +419,7 @@ for (const version of VERSIONS) {
       const r = nextBuild(a);
       assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
       assert.match(readOut(a.dir), /"hello": \{ "name": string \| number \};/);
+      assert.match(readOut(a.dir), /"nav\.home": \{ "site": string \| number \};/);
       // Generated once: the catalogs were read by one process, however many loaded the config.
       const lines = trace(a.dir);
       const readers = new Set(lines.filter((l) => l.what.startsWith("read ")).map((l) => l.pid));

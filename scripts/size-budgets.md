@@ -1621,8 +1621,10 @@ every other row −69…−90 B or unchanged. Limits unchanged: the owner decide
 
 `withComvi({ types })` writes the typed-translations declaration while next.config loads, through
 the workspace-private typegen, which the plugin inlines and imports statically. `fw-next-plugin-node`
-measures that whole graph: 121 B (lot 6a, no typegen) → **11,557 B min+gz, 29,228 B min**, measured
-with `pnpm size` under `node --version` v24.22.1 (the CI Node). No other row moved.
+measures that whole graph: 121 B (lot 6a, no typegen) → **11,720 B min+gz, 29,614 B min**, measured
+with `pnpm size` under `node --version` v24.22.1 (the CI Node) after `TURBO_FORCE=true pnpm build`
+on lot 6a at e47da916. The first measurement, before lot 6a's nested-catalog rule reached typegen,
+was 11,557 B min+gz / 29,228 B min (ceiling 11,789); the difference, 163 B, came with that change. No other row moved.
 
 The row is Node tooling, never shipped to a browser: the plugin runs from next.config and no app
 or browser bundle imports it. The owner accepted the weight of a Node tool on 2026-11-10 and ruled
@@ -1632,6 +1634,6 @@ ceiling is set from this final measurement, by the owner's word of 2026-11-10:
 
 | row                 | before       | lot 6b            | ceiling                        | budget                                         |
 | ------------------- | ------------ | ----------------- | ------------------------------ | ---------------------------------------------- |
-| fw-next-plugin-node | 121 (b. 939) | 11,557 (29,228 m) | — → 11,789 (ceil(11,557×1.02)) | 986 → 11,789 (min(ceiling, ceil(11,557×1.05))) |
+| fw-next-plugin-node | 121 (b. 939) | 11,720 (29,614 m) | — → 11,955 (ceil(11,720×1.02)) | 986 → 11,955 (min(ceiling, ceil(11,720×1.05))) |
 
 No other row's ceiling or budget changed.

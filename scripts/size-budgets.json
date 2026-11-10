@@ -386,14 +386,14 @@
       "entry": ["@comvi/next/plugin"],
       "fixture": "framework/next-plugin-node.ts",
       "external": ["next", "next/*", "node:*"],
-      "gzipBudgetBytes": 11789,
-      "ceilingBytes": 11789,
+      "gzipBudgetBytes": 11955,
+      "ceilingBytes": 11955,
       "baseline": {
-        "minBytes": 29228,
-        "gzipBytes": 11557,
+        "minBytes": 29614,
+        "gzipBytes": 11720,
         "measuredAt": "2026-11-10"
       },
-      "note": "Node tooling, not shipped to a browser: `withComvi` from `@comvi/next/plugin` runs from next.config and is never bundled into an app; the graph is the whole plugin with the inlined typegen of `withComvi({ types })`, and the row guards against an accidental core or React import. Lot 6b owner decision (2026-11-10): the weight of a Node tool is accepted, no code splitting for the row; ceiling = ceil(11,557 × 1.02) = 11,789 from the final measurement under Node v24.22.1, budget = min(ceiling, ceil(11,557 × 1.05)) = 11,789; size-budgets.md 2026-11-10 lot 6b."
+      "note": "Node tooling, not shipped to a browser: `withComvi` from `@comvi/next/plugin` runs from next.config and is never bundled into an app; the graph is the whole plugin with the inlined typegen of `withComvi({ types })`, and the row guards against an accidental core or React import. Lot 6b owner decision (2026-11-10): the weight of a Node tool is accepted, no code splitting for the row; ceiling = ceil(11,720 × 1.02) = 11,955 from the final measurement under Node v24.22.1 (on lot 6a's nested-catalog typegen; 11,557 → ceiling 11,789 before it), budget = min(ceiling, ceil(11,720 × 1.05)) = 11,955; size-budgets.md 2026-11-10 lot 6b."
     },
     {
       "name": "fw-next-middleware-edge",
