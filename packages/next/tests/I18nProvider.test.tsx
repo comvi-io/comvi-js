@@ -4,7 +4,7 @@
  * slot stays failed, and a later payload of the same mount reaches the instance through
  * `<I18nHandover>`.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import { act, fireEvent, render, screen } from "@testing-library/react";
@@ -180,6 +180,15 @@ describe("a repeated successful payload (lot 6a audit, finding 2)", () => {
   });
 });
 
+function Show() {
+  const { t } = useI18n();
+  return (
+    <p data-testid="show">
+      {t("v") as string}|{t("r") as ReactNode}
+    </p>
+  );
+}
+
 describe("defaultParams from the server's settings (owner decision 2026-11-10)", () => {
   const cats = { default: { en: { hi: "Welcome to {brand}" } } };
   function Counted() {
@@ -206,6 +215,36 @@ describe("defaultParams from the server's settings (owner decision 2026-11-10)",
     expect(c()).toBe("Welcome to Comvi 2|Welcome to Explicit|1");
     await act(async () => rerender(tree()));
     expect(c()).toBe("Welcome to {brand}|Welcome to Explicit|1");
+  });
+
+  it("client-only defaults (a BigInt, a tag handler) render and are never serialized", () => {
+    const b = <T,>(c: T) => <b>{c as ReactNode}</b>;
+    render(
+      <I18nProvider
+        payload={payload("en", { default: { en: { v: "{v}", r: "<b>bold</b>" } } })}
+        options={{ defaultParams: { v: 1n, b } }}
+      >
+        <Show />
+      </I18nProvider>,
+    );
+    expect(screen.getByTestId("show").innerHTML).toBe("1|<b>bold</b>");
+  });
+
+  it("server-handed params merged with a client handler: a later payload changes and clears them, the handler stays", async () => {
+    const b = <T,>(c: T) => <b>{c as ReactNode}</b>;
+    const cats2 = { default: { en: { v: "{v}", r: "<b>{v}</b>" } } };
+    const merged = (server?: Record<string, string>) => (
+      <I18nProvider payload={payload("en", cats2)} options={{ defaultParams: { ...server, b } }}>
+        <Show />
+      </I18nProvider>
+    );
+    const { rerender } = render(merged({ v: "one" }));
+    const show = () => screen.getByTestId("show").innerHTML;
+    expect(show()).toBe("one|<b>one</b>");
+    await act(async () => rerender(merged({ v: "two" })));
+    expect(show()).toBe("two|<b>two</b>");
+    await act(async () => rerender(merged()));
+    expect(show()).toBe("{v}|<b>{v}</b>");
   });
 
   it("hydrates the server's text with the server's params: no mismatch", async () => {

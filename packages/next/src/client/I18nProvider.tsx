@@ -13,6 +13,14 @@ import type { Handover } from "@comvi/core/ssr";
 import { RoutingProvider } from "../routing/context";
 import type { RoutingConfig } from "../routing/types";
 
+/** The values of `p` a server can hand over (`ClientSettings`): strings, numbers, booleans, `null`. */
+const data = (p?: Readonly<Record<string, unknown>>): Record<string, unknown> => {
+  const r: Record<string, unknown> = {};
+  for (const k in p)
+    if (p[k] === null || ["string", "number", "boolean"].includes(typeof p[k])) r[k] = p[k];
+  return r;
+};
+
 /**
  * The browser instance's options; the payload gives the locale, the time zone, the server's
  * clock and the catalogs. `fallbackLocale` must be the server's. A `loader` is optional: it
@@ -66,16 +74,21 @@ export function I18nProvider({
 }: I18nProviderProps): ReactElement {
   const [i18n] = useState(() => createI18n({ ...options, ...payload }));
   // `defaultParams` of a later render (the server's settings on a router.refresh()) reach the
-  // instance when they change by value, cleared too; the instance started with the first ones.
+  // instance when the values a server hands over (strings, numbers, booleans, `null`) change,
+  // cleared too; nothing else is compared or serialized, so a client-only value (a tag handler,
+  // a BigInt) is the instance's from its creation. The instance started with the first ones.
   const dp = options?.defaultParams;
-  const key = JSON.stringify(dp);
-  const given = useRef(key);
+  const now = data(dp);
+  const given = useRef(now);
   useLayoutEffect(() => {
-    if (key !== given.current) {
-      given.current = key;
+    const was = given.current;
+    given.current = now;
+    if (
+      Object.keys(was).length != Object.keys(now).length ||
+      Object.keys(now).some((k) => !Object.is(was[k], now[k]))
+    )
       i18n.setDefaultParams(dp || {});
-    }
-  }, [i18n, key]);
+  });
   const tree = createElement(
     Provider,
     { i18n, loading, suspense },
