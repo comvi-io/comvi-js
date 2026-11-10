@@ -46,6 +46,13 @@ const CASES = [
     "const e24: RichParts = s('s0.k7', { link: () => 'terms' }); // E24 a rich key may render a string",
     "TS2322",
   ],
+  // Lot 6a audit: with no binding registered the core passes a handler its children's parts (an
+  // array), so a handler typed for a string is refused; an unannotated one gets the parts.
+  [
+    "s('s0.k7', { link: (children: string) => children.toUpperCase() }); // E25 a handler typed for a string",
+    "TS2322",
+  ],
+  ["rich.push(s('s0.k7', { link: (c) => c.length }));", ""],
   ["s(cond ? 's0.k0' : 's0.k1', { count: 1 }); // E9 union key, incomplete params", "TS2345"],
   ["s('s0.k12', { brand: 'B' }); // E10 defaulted param given, required one missing", "TS2345"],
   ["t('s0.k3', { g: 1 }); // E11 select param of the wrong type", "TS2322"],

@@ -30,8 +30,8 @@ export interface Catalogs {}
  * What a tag handler receives as its children, registered by the binding that joins them
  * (lot 3): `@comvi/react` declares `interface TagChildren { react: ReactNode }`, so a
  * generated `{ link: Tag }` gives an inline `(chunks) => <a>{chunks}</a>` a `ReactNode`
- * argument with no annotation. With no binding registered it is `any` (the core's own
- * `t()` passes rich parts, `RichParts`). One program registers one binding; the type is
+ * argument with no annotation. With no binding registered it is `RichParts`, what the core's
+ * own `t()` passes (lot 6a audit: `any` let `(children: string) => …` through). One program registers one binding; the type is
  * resolved once per program, never per call.
  */
 export interface TagChildren {}
@@ -41,7 +41,7 @@ export interface TagChildren {}
  * Its argument is the tag's children as the binding delivers them ({@link TagChildren}).
  */
 export type Tag = (
-  chunks: [keyof TagChildren] extends [never] ? any : TagChildren[keyof TagChildren],
+  chunks: [keyof TagChildren] extends [never] ? RichParts : TagChildren[keyof TagChildren],
 ) => unknown;
 
 /** What a rich message renders: strings and whatever the tag handlers returned. */
