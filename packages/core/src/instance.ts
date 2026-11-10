@@ -492,17 +492,14 @@ export const createI18n = (o: I18nOptions): I18n => {
    * nor failed — the load a consumer's hold makes (React holds at commit, Vue at mount, after
    * the render). A failed pair is a known result, so no catalog and nothing in flight is never
    * an endless loading state; so is a pair a render-local state carries as a server's `null`
-   * (`x`, `view()`).
+   * (`x`, `view()`), even with a load of it in flight (the commit's `Core.f` aborts that load).
    */
   const coming = (s: State, n: string, f?: unknown): unknown =>
-    s.ld.some((x) => x.endsWith(K + n)) ||
+    s.ld.some((x) => x.endsWith(K + n) && !s.x?.includes(x)) ||
     (!f &&
       load &&
       chain(s.locale).some(
-        (x) =>
-          !s.c[n]?.[x[0]] &&
-          !bad.has(x[0] + K + n) &&
-          !(s as { x?: string[] }).x?.includes(x[0] + K + n),
+        (x) => !s.c[n]?.[x[0]] && !bad.has(x[0] + K + n) && !s.x?.includes(x[0] + K + n),
       ));
 
   /** The message `look()` found last; copied by the caller before anything can call back. */

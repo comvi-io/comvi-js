@@ -80,14 +80,19 @@ export const view = (
   dp?: State["dp"],
 ): State => {
   let c: Store = state.c;
-  const x: string[] = [];
+  // The failed pairs this snapshot carries: an outer handover's (a nested handover renders over
+  // the outer one's view), then this payload's — a `null` adds its pair, a catalog removes it.
+  const x = [...(state.x || [])];
+  let xc: unknown;
   for (const n of Object.keys(extra))
     for (const l of Object.keys(extra[n])) {
       const slot = c[n] && c[n][l];
       const m = extra[n][l];
       // Rendered as failed, as the server did: `isLoading` (`coming()`) skips the pair until
       // `Core.f` fails it at commit (a hydration then reads the server's flags).
-      if (m === null) x.push(l + "\0" + n);
+      const k = l + "\0" + n;
+      const at = x.indexOf(k);
+      if (m === null ? at < 0 && x.push(k) : at >= 0 && x.splice(at, 1)) xc = 1;
       // A failed slot of a server payload: the view renders without its catalog, the fallback
       // the server rendered (`Core.f` takes it out of the instance at commit). Else the slot
       // becomes the catalog, flattened through the instance (syntax reported once per object).
@@ -104,7 +109,7 @@ export const view = (
   // one, what its chain lacks is loading (`isLoading`; never requested, it is no
   // `missing_key`) by the core's own rule: the switch at commit loads it.
   const h = core(i18n).ch(locale);
-  if (c === state.c && locale == state.locale && !dp && !x.length) return state;
+  if (c === state.c && locale == state.locale && !dp && !xc) return state;
   return Object.assign(
     mk(
       state.rev,

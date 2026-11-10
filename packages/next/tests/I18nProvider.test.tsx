@@ -329,10 +329,11 @@ describe("defaultParams and catalogs of one payload are one snapshot (owner prob
 });
 
 describe("hydration with a `null` slot through the provider (the ordinary readiness template)", () => {
-  function Tpl({ ns }: { ns?: string }) {
-    const { t, isReady, isLoading } = ns ? useI18n(ns) : useI18n();
-    return isReady ? <p>{t("title")}</p> : isLoading ? <i>loading</i> : <b>unavailable</b>;
-  }
+  const branch = ({ t, isReady, isLoading }: ReturnType<typeof useI18n>) =>
+    isReady ? <p>{t("title")}</p> : isLoading ? <i>loading</i> : <b>unavailable</b>;
+  const TplDefault = () => branch(useI18n());
+  const TplNs = ({ ns }: { ns: string }) => branch(useI18n(ns));
+
   // Pinning: the browser instance is created from the payload, so the server HTML of the Client
   // Component and the hydration render read the same failed pair.
   it.each([
@@ -346,7 +347,7 @@ describe("hydration with a `null` slot through the provider (the ordinary readin
       const loader = vi.fn(async () => ({ title: "x" }));
       const ui = () => (
         <I18nProvider payload={p} options={{ fallbackLocale: "en", loader, onError: () => {} }}>
-          <Tpl ns={arg} />
+          {arg ? <TplNs ns={arg} /> : <TplDefault />}
         </I18nProvider>
       );
       const html = renderToString(ui());

@@ -60,6 +60,11 @@ export interface State {
   readonly c: Store;
   /** Catalog loads in flight, as `locale + "\0" + ns`. */
   readonly ld: readonly string[];
+  /**
+   * Only on a render-local state (`view()`): the pairs its payload hands over as `null`, as
+   * `locale + "\0" + ns` — read as failed (no load predicted or shown) until `Core.f` at commit.
+   */
+  readonly x?: readonly string[];
   /** Primary record: default namespace at `locale`, when that slot has no patch. */
   readonly pr: CompiledRecord | undefined;
   /** The canonical tag of `locale` (what Intl receives on the fast path). */

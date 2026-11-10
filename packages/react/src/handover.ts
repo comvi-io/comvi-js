@@ -53,7 +53,9 @@ export interface I18nHandoverProps {
    * it (the fallback the server rendered), and at commit the instance drops a catalog it held
    * for it and does not ask for it until `i18n.load(ns)` or a switch to its locale. A render
    * with that payload knows the load failed: translation, `isReady` and `isLoading` read the pair
-   * as failed, as the server did (a hydration takes the server's branch), and predict no load.
+   * as failed, as the server did (a hydration takes the server's branch) — no load predicted, a
+   * client load of it already in flight not shown (the commit aborts it), and the same in a
+   * nested handover whose payload does not mention the pair. An explicit retry shows its flight.
    */
   catalogs?: HandoverCatalogs;
   /**

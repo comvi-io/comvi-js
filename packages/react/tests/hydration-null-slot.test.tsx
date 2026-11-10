@@ -10,14 +10,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { handover } from "@comvi/core/ssr";
 import { createI18n, I18nHandover, I18nProvider, useI18n, type I18n } from "../src";
 
-type Flags = [boolean, boolean];
 const seen: string[] = [];
-function Tpl({ ns }: { ns?: string }) {
-  const { t, isReady, isLoading } = ns ? useI18n(ns) : useI18n();
-  const f: Flags = [isReady, isLoading];
-  seen.push(f.join("/"));
+type Flags = { t: (k: string) => unknown; isReady: boolean; isLoading: boolean };
+const branch = ({ t, isReady, isLoading }: Flags) => {
+  seen.push(`${isReady}/${isLoading}`);
   return isReady ? <p>{t("title") as string}</p> : isLoading ? <i>loading</i> : <b>unavailable</b>;
-}
+};
+/** The template through `useI18n()` (namespace `default`). */
+const TplDefault = () => branch(useI18n());
+/** The template through `useI18n(ns)`. */
+const TplNs = ({ ns }: { ns: string }) => branch(useI18n(ns));
 
 let roots: { unmount(): void }[] = [];
 afterEach(() => {
@@ -54,7 +56,7 @@ async function hydrate(o: {
   const ui = (i: I18n, catalogs = payload.catalogs) => (
     <I18nProvider i18n={i}>
       <I18nHandover catalogs={catalogs}>
-        <Tpl ns={o.noArg ? undefined : o.ns} />
+        {o.noArg ? <TplDefault /> : <TplNs ns={o.ns} />}
       </I18nHandover>
     </I18nProvider>
   );
@@ -206,4 +208,120 @@ describe("after such a hydration (payload through <I18nHandover> only, a client 
       expect(r.asked()).toEqual([]);
     });
   }
+});
+
+describe("a load of the pair already in flight on the client at hydration (review F1)", () => {
+  // The client instance starts loading the namespace at creation (`default`: it has no catalog
+  // of it; `admin`: the `namespaces` option) with a loader that never answers; the payload that
+  // fails the pair reaches it only through `<I18nHandover catalogs>`.
+  const cases = [
+    { name: "useI18n()", ns: "default", el: <TplDefault /> },
+    { name: "useI18n(ns)", ns: "admin", el: <TplNs ns="admin" /> },
+  ];
+  for (const c of cases)
+    it(`${c.name}: the hydration reads the server's flags; an explicit retry still shows the flight`, async () => {
+      const catalogs = {
+        [c.ns]: { uk: null, en: null },
+        ...(c.ns !== "default" && { default: { uk: { x: "x" }, en: { x: "x" } } }),
+      };
+      const server = createI18n({
+        locale: "uk",
+        fallbackLocale: "en",
+        timeZone: "UTC",
+        catalogs,
+        onError: () => {},
+      });
+      const ui = (i: I18n) => (
+        <I18nProvider i18n={i}>
+          <I18nHandover catalogs={catalogs}>{c.el}</I18nHandover>
+        </I18nProvider>
+      );
+      seen.length = 0;
+      const html = renderToString(ui(server));
+      expect(html).toBe("<b>unavailable</b>");
+      expect(seen.splice(0)).toEqual(["false/false"]);
+      const loader = vi.fn(
+        (_l: string, _n: string) => new Promise<Record<string, string>>(() => {}),
+      );
+      const client = createI18n({
+        locale: "uk",
+        fallbackLocale: "en",
+        timeZone: "UTC",
+        loader,
+        onError: () => {},
+        ...(c.ns !== "default" && {
+          namespaces: [c.ns],
+          catalogs: { default: { uk: { x: "x" }, en: { x: "x" } } },
+        }),
+      });
+      // The creation's own load of the pair is in flight before any render.
+      expect(loader.mock.calls.map((x) => `${x[0]}:${x[1]}`)).toContain(`uk:${c.ns}`);
+      const el = document.createElement("div");
+      el.innerHTML = html;
+      document.body.append(el);
+      const recoverable: unknown[] = [];
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      await act(async () => {
+        roots.push(hydrateRoot(el, ui(client), { onRecoverableError: (e) => recoverable.push(e) }));
+      });
+      await act(async () => {});
+      const errors = err.mock.calls.map((x) => String(x[0]));
+      err.mockRestore();
+      expect(seen.every((f) => f === "false/false")).toBe(true);
+      expect(recoverable).toEqual([]);
+      expect(errors).toEqual([]);
+      expect(el.innerHTML).toBe(html);
+      // An explicit retry after the commit: the new flight shows.
+      const calls = loader.mock.calls.length;
+      void client.load(c.ns).catch(() => {});
+      await act(async () => {});
+      expect(loader.mock.calls.length).toBeGreaterThan(calls);
+      expect(seen.at(-1)).toBe("false/true");
+      expect(el.innerHTML).toBe("<i>loading</i>");
+    });
+});
+
+describe("nested handovers (review F2)", () => {
+  it("an inner handover with an unrelated payload keeps the outer one's failed pair", async () => {
+    const outer = { admin: { en: null } };
+    const inner = { default: { en: { x: "x" } } };
+    const server = createI18n({
+      locale: "en",
+      timeZone: "UTC",
+      catalogs: { ...outer, ...inner },
+      onError: () => {},
+    });
+    const ui = (i: I18n, innerCatalogs: typeof inner | { admin: { en: { title: string } } }) => (
+      <I18nProvider i18n={i}>
+        <I18nHandover catalogs={outer}>
+          <I18nHandover catalogs={innerCatalogs}>
+            <TplNs ns="admin" />
+          </I18nHandover>
+        </I18nHandover>
+      </I18nProvider>
+    );
+    seen.length = 0;
+    const html = renderToString(ui(server, inner));
+    expect(html).toBe("<b>unavailable</b>");
+    expect(seen.splice(0)).toEqual(["false/false"]);
+    const loader = vi.fn(async (_l: string, _n: string) => ({ title: "client" }));
+    const client = createI18n({ locale: "en", timeZone: "UTC", loader, onError: () => {} });
+    const el = document.createElement("div");
+    el.innerHTML = html;
+    document.body.append(el);
+    const recoverable: unknown[] = [];
+    const root = hydrateRoot(el, ui(client, inner), {
+      onRecoverableError: (e) => recoverable.push(e),
+    });
+    roots.push(root);
+    await act(async () => {});
+    expect(seen.every((f) => f === "false/false")).toBe(true);
+    expect(recoverable).toEqual([]);
+    expect(el.innerHTML).toBe(html);
+    expect(loader.mock.calls.filter((c) => c[1] === "admin")).toEqual([]);
+    // An inner payload that hands a catalog for the pair ends the failed state below it.
+    await act(async () => root.render(ui(client, { admin: { en: { title: "inner" } } })));
+    expect(el.innerHTML).toBe("<p>inner</p>");
+    expect(seen.at(-1)).toBe("true/false");
+  });
 });
