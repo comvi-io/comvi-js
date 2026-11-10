@@ -37,6 +37,9 @@ export type HandoverCatalogs = Readonly<
   Record<string, Readonly<Record<string, CatalogInput | null>>>
 >;
 
+/** The handover's target as given (see `I18nHandover`). */
+type Given = readonly [I18n, string | undefined, string, number, HandoverCatalogs | undefined | 0];
+
 export interface I18nHandoverProps {
   /**
    * Catalogs to render with before the instance holds them (an SSR or RSC payload). Each slot
@@ -81,10 +84,15 @@ export const I18nHandover = ({
   const [i, base] = useCtx();
   // Locale handover as DERIVED state, never a render-time write: render the target while
   // the published locale has not moved since the prop was given (`lrev`), then follow it.
-  const [given, setH] = useState(() => [i, target, base.locale, base.lrev] as const);
+  // [instance, target, locale and `lrev` when the target was given, the payload a failed switch
+  // gave the target up for (0: none)].
+  const [given, setH] = useState<Given>(() => [i, target, base.locale, base.lrev, 0]);
   let h = given;
-  if (h[0] != i || h[1] != target) setH((h = [i, target, base.locale, base.lrev]));
-  const loc = target && target != h[2] && h[3] == base.lrev ? target : base.locale;
+  if (h[0] != i || h[1] != target) setH((h = [i, target, base.locale, base.lrev, 0]));
+  // The target is pursued until the published locale moves (it lands, or an explicit
+  // `setLocale()` wins); a failed switch gives it up for the payload it was decided on only.
+  const go = target && target != h[2] && h[3] == base.lrev;
+  const loc = go && h[4] !== catalogs ? target : base.locale;
   /** The [instance, catalogs] pair published last (written at commit only). */
   const done = useRef<readonly [I18n, HandoverCatalogs]>(undefined);
   const fresh = (d = done.current) => catalogs && !(d && d[0] == i && d[1] == catalogs);
@@ -102,21 +110,21 @@ export const I18nHandover = ({
       done.current = [i, catalogs!];
     }
   }, [i, catalogs]);
-  // The locale is committed when the instance or the target changes — never on a catalogs
-  // refresh, which would undo a setLocale() made since. Runs after the catalogs effect, so
-  // the switch finds the handed-over catalogs in place.
+  // The locale is decided when the instance, the target or the payload changes, by the CURRENT
+  // payload — while the target is still pursued: a new payload never undoes a setLocale() made
+  // since. Runs after the catalogs effect, so the switch finds the handed-over catalogs in place.
   useCommit(() => {
     // The core's switch of a handover: a pair the current payload carries as `null` is the
     // server's result (not asked for again, no reason to stay), where `setLocale()` retries it.
-    if (target && target != i.locale)
+    if (go && target != i.locale)
       core(i)
         .L(target, catalogs)
         .catch(() =>
           // Reported through onError already (load_failed; the render refused an invalid tag):
-          // give the target up, so the subtree renders the instance's locale instead of keys in
-          // the target.
-          setH((h) => (h[0] == i && h[1] == target ? [i, target, target, h[3]] : h)),
+          // give the target up for this payload, so the subtree renders the instance's locale
+          // instead of keys in the target.
+          setH((h) => (h[0] == i && h[1] == target ? [i, target, h[2], h[3], catalogs] : h)),
         );
-  }, [i, target]);
+  }, [i, target, catalogs]);
   return provide(v, children);
 };

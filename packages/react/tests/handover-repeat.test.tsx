@@ -247,3 +247,101 @@ describe("re-review of lot 6a (2026-11-10)", () => {
     expect([text("title"), i18n.locale]).toEqual(["en|Hello", "en"]);
   });
 });
+
+describe("model A review F1: the locale decision follows the current payload", () => {
+  const base = { default: { en: { title: "Hello" } } };
+  const start = () => {
+    const m = manualLoader();
+    const i18n = createI18n({
+      locale: "en",
+      fallbackLocale: "en",
+      loader: m.load,
+      catalogs: base,
+      onError: () => {},
+    });
+    return { m, i18n };
+  };
+
+  it("a failed switch is retried by a new payload with the same target: its null lands", async () => {
+    const { m, i18n } = start();
+    const { rerender } = render(tree(i18n, base, ["title"]));
+    await act(async () => rerender(tree(i18n, { ...base }, ["title"], "default", "de")));
+    await m.fail("de:default");
+    await settle();
+    expect([text("title"), i18n.locale]).toEqual(["en|Hello", "en"]);
+    // router.refresh(): the same target, now with the server's null for `de`.
+    await act(async () =>
+      rerender(
+        tree(i18n, { default: { en: { title: "Hello" }, de: null } }, ["title"], "default", "de"),
+      ),
+    );
+    await settle();
+    expect([text("title"), i18n.locale]).toEqual(["de|Hello", "de"]);
+  });
+
+  it("after a failed switch, a payload with the target's catalog lands", async () => {
+    const { m, i18n } = start();
+    const { rerender } = render(tree(i18n, base, ["title"]));
+    await act(async () => rerender(tree(i18n, { ...base }, ["title"], "default", "de")));
+    await m.fail("de:default");
+    await settle();
+    expect(i18n.locale).toBe("en");
+    await act(async () =>
+      rerender(
+        tree(
+          i18n,
+          { default: { en: { title: "Hello" }, de: { title: "Hallo" } } },
+          ["title"],
+          "default",
+          "de",
+        ),
+      ),
+    );
+    await settle();
+    expect([text("title"), i18n.locale]).toEqual(["de|Hallo", "de"]);
+  });
+
+  it("a pending switch decides by the newer payload: one that drops the null retries the pair", async () => {
+    const { m, i18n } = start();
+    const { rerender } = render(tree(i18n, base, ["title"]));
+    // Two namespaces active: `admin` loads for `de` while the switch waits.
+    render(
+      <I18nProvider i18n={i18n}>
+        <Probe ns="admin" k="admin" />
+      </I18nProvider>,
+    );
+    await m.answer("en:admin", { admin: "Admin" });
+    await settle();
+    await act(async () =>
+      rerender(
+        tree(i18n, { default: { en: { title: "Hello" }, de: null } }, ["title"], "default", "de"),
+      ),
+    );
+    expect(m.requested).toContain("de:admin");
+    // The next payload keeps the target but no longer carries `de` for `default`.
+    await act(async () => rerender(tree(i18n, { ...base }, ["title"], "default", "de")));
+    await m.fail("de:admin");
+    await settle();
+    expect(m.requested).toContain("de:default");
+    await m.fail("de:default");
+    await settle();
+    expect(i18n.locale).toBe("en");
+  });
+
+  it("a new payload with the same target does not undo an explicit setLocale()", async () => {
+    const { m, i18n } = start();
+    const p = {
+      default: { en: { title: "Hello" }, de: { title: "Hallo" }, fr: { title: "Bonjour" } },
+    };
+    const { rerender } = render(tree(i18n, p, ["title"], "default", "de"));
+    await settle();
+    expect(i18n.locale).toBe("de");
+    await act(() => i18n.setLocale("fr"));
+    expect(i18n.locale).toBe("fr");
+    // router.refresh(): a new payload object, the same target.
+    await act(async () => rerender(tree(i18n, { ...p }, ["title"], "default", "de")));
+    await settle();
+    expect([text("title"), i18n.locale]).toEqual(["fr|Bonjour", "fr"]);
+    expect(m.requested).toEqual([]);
+  });
+});
