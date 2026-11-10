@@ -140,6 +140,19 @@ export const layer = (slot: Slot | undefined, msgs: Catalog, u?: unknown): Slot 
 };
 
 /**
+ * A slot that IS `msgs` (a server payload's slot, lot 6a: a key the server no longer has is
+ * gone): `slot` itself when it renders exactly these messages without a patch (its compiled
+ * messages stay), else a new slot of `msgs` alone.
+ */
+export const whole = (slot: Slot | undefined, msgs: Catalog): Slot =>
+  slot &&
+  !slot.p &&
+  layer(slot, msgs) == slot &&
+  Object.keys(slot.m).length == Object.keys(msgs).length
+    ? slot
+    : layer(undefined, msgs);
+
+/**
  * The compiled message for `key` in a slot: the patch first, then the base. An empty
  * string is a translation nobody wrote yet — what the platform publishes for an
  * untranslated key — and counts as missing.

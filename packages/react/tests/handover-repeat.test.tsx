@@ -1,10 +1,10 @@
 /**
- * A repeated server payload through `<I18nHandover catalogs locale>` (lot 6a audit, owner
- * instruction 2026-11-10): what a later catalogs object of the same handover hands over for a
- * slot it handed before is the slot's content, as the server holds it — a key the server no
- * longer has is gone, an empty catalog empties the slot; a `null` wins over a load in flight;
- * the handover's own locale switch keeps the failures it was handed. A slot the handover hands
- * for the first time still merges over what the instance had, and `add()` stays a patch.
+ * A server payload through `<I18nHandover catalogs locale>`, model A (owner decision
+ * 2026-11-10): a slot the server hands over fully replaces the matching client slot, the first
+ * time and every later time — a key the server no longer has is gone, `{}` is empty, `null` is
+ * a failed server result; a slot the payload omits is not changed; `add()` stays a patch. A
+ * `null` wins over a load in flight; the handover's locale switch decides from the CURRENT
+ * payload only. Two handovers on one instance: the last payload applied wins per slot.
  */
 import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -56,13 +56,34 @@ describe("a repeated payload replaces what the handover handed before (finding 2
     expect([text("a"), text("b")]).toEqual(["uk|a", "uk|b"]);
   });
 
-  it("a slot handed for the first time merges over the instance's; add() stays a patch", async () => {
-    const i18n = createI18n({ locale: "en", messages: { en: { a: "A", b: "B" } } });
+  it("a slot handed for the first time replaces the instance's too (model A); add() stays a patch", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { a: "A", b: "B" } },
+      onError: () => {},
+    });
     render(tree(i18n, { default: { en: { b: "b2" } } }, ["a", "b"]));
+    expect([text("a"), text("b")]).toEqual(["en|a", "en|b2"]);
     await settle();
-    expect([text("a"), text("b")]).toEqual(["en|A", "en|b2"]);
+    expect([text("a"), text("b")]).toEqual(["en|a", "en|b2"]);
     i18n.add("en", { c: "C" });
-    expect(i18n.t("a")).toBe("A");
+    expect([i18n.t("b"), i18n.t("c")]).toEqual(["b2", "C"]);
+  });
+
+  it("null → success → null: each payload is the slot's state", async () => {
+    const i18n = createI18n({
+      locale: "uk",
+      fallbackLocale: "en",
+      catalogs: { default: { uk: null, en: { a: "A" } } },
+      onError: () => {},
+    });
+    const p = (uk: Record<string, string> | null) => ({ default: { uk, en: { a: "A" } } });
+    const { rerender } = render(tree(i18n, p(null), ["a"]));
+    expect(text("a")).toBe("uk|A");
+    await act(async () => rerender(tree(i18n, p({ a: "А" }), ["a"])));
+    expect([text("a"), i18n.t("a")]).toEqual(["uk|А", "А"]);
+    await act(async () => rerender(tree(i18n, p(null), ["a"])));
+    expect([text("a"), i18n.t("a")]).toEqual(["uk|A", "A"]);
   });
 });
 
@@ -180,5 +201,49 @@ describe("re-review of lot 6a (2026-11-10)", () => {
     await settle();
     expect(text("title")).toBe(expected);
     expect(i18n.locale).toBe("de");
+  });
+
+  it("a browser failure, then the server's null for the same pair: the server's result lands", async () => {
+    const m = manualLoader();
+    const i18n = createI18n({
+      locale: "fr",
+      fallbackLocale: "en",
+      loader: m.load,
+      catalogs: { default: { fr: { title: "Bonjour" }, en: { title: "Hello" } } },
+      onError: () => {},
+    });
+    const first = { default: { fr: { title: "Bonjour" }, en: { title: "Hello" } } };
+    const { rerender } = render(tree(i18n, first, ["title"], "default", "fr"));
+    const sw = i18n.setLocale("de").catch(() => {});
+    await m.fail("de:default");
+    await act(() => sw);
+    expect(i18n.locale).toBe("fr");
+    const payload = { default: { en: { title: "Hello" }, de: null } };
+    await act(async () => rerender(tree(i18n, payload, ["title"], "default", "de")));
+    await settle();
+    expect([text("title"), i18n.locale]).toEqual(["de|Hello", "de"]);
+    expect(m.requested).toEqual(["de:default"]);
+  });
+
+  it("a payload that does not vouch for a locale: an earlier payload's null is retried, not trusted", async () => {
+    const m = manualLoader();
+    const i18n = createI18n({
+      locale: "en",
+      fallbackLocale: "en",
+      loader: m.load,
+      catalogs: { default: { en: { title: "Hello" }, de: null } },
+      onError: () => {},
+    });
+    const { rerender } = render(
+      tree(i18n, { default: { en: { title: "Hello" }, de: null } }, ["title"]),
+    );
+    // A later payload for `de` that carries nothing of `de`: the switch asks, as setLocale() does.
+    await act(async () =>
+      rerender(tree(i18n, { default: { en: { title: "Hello" } } }, ["title"], "default", "de")),
+    );
+    expect(m.requested).toEqual(["de:default"]);
+    await m.fail("de:default");
+    await settle();
+    expect([text("title"), i18n.locale]).toEqual(["en|Hello", "en"]);
   });
 });

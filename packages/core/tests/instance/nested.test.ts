@@ -96,8 +96,10 @@ describe("a nested catalog reads like its flat form through every entry", () => 
     const i18n = createI18n({ locale: "uk", fallbackLocale: "en", messages: { en: EN } });
     const v = view(i18n, state(i18n), { default: { uk: NESTED } });
     expect(translate(i18n, v, "account.greeting", { name: "Олена" })).toBe("Привіт, Олена!");
-    // The same catalog object gives the same layered slot on the next render.
-    expect(view(i18n, state(i18n), { default: { uk: NESTED } }).c.default.uk).toBe(v.c.default.uk);
+    // The same catalog object gives the same flattened catalog and compiled record on the next render.
+    const w = view(i18n, state(i18n), { default: { uk: NESTED } }).c.default.uk;
+    expect(w.m).toBe(v.c.default.uk.m);
+    expect(w.c).toBe(v.c.default.uk.c);
   });
 });
 

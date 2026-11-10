@@ -105,18 +105,18 @@ describe("destroy()", () => {
 });
 
 describe("view() internals", () => {
-  it("layers one extra catalog over two different slots without mixing them up", () => {
+  it("one extra catalog object for two different slots: each slot becomes it (model A)", () => {
     const { i18n } = make({ locale: "en", messages: { en: { a: "A1", b: "B1" } } });
     const extra = { a: "view" };
-    // A view onto a pair with no slot yet, layering the same catalog object first.
+    // A view onto a pair with no slot yet, the same catalog object first.
     expect(
       translate(i18n, view(i18n, state(i18n), { shop: { en: extra } }), "a", { ns: "shop" }),
     ).toBe("view");
     const v1 = view(i18n, state(i18n), { default: { en: extra } });
-    expect(translate(i18n, v1, "b")).toBe("B1");
+    expect([translate(i18n, v1, "a"), translate(i18n, v1, "b")]).toEqual(["view", "b"]);
     i18n.add("en", { b: "B2" });
     const v2 = view(i18n, state(i18n), { default: { en: extra } });
-    expect([translate(i18n, v2, "a"), translate(i18n, v2, "b")]).toEqual(["view", "B2"]);
+    expect([translate(i18n, v2, "a"), translate(i18n, v2, "b")]).toEqual(["view", "b"]);
   });
 
   it("in the published locale adds no loading entry for a fallback still missing", () => {

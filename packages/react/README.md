@@ -115,7 +115,9 @@ createRoot(document.getElementById("root")!).render(
 With `suspense`, the provider suspends to the nearest `<Suspense>` instead. Both gate the first
 paint only, while a namespace being loaded is not `isReady` (another locale's catalog does not
 count), before the children render: an `<I18nHandover>` under a shut gate waits, so pass the data
-first. Server renders and hydrations are never gated; a server preloads with `i18n.load()`.
+first. Server renders and hydrations are never gated; a server preloads with `i18n.load()`. Each
+slot `<I18nHandover catalogs>` hands over replaces the instance's, every time (`null`: failed on the
+server; an omitted slot is kept); with two handovers on one instance, the last payload wins per slot.
 
 Match a route, cookie or header locale against your supported locales first: `createI18n()` and
 `<I18nHandover locale>` throw a `RangeError` for an invalid tag (`t(key, { locale })`, `has()`,

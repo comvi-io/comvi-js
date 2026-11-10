@@ -107,11 +107,11 @@ describe("view() — render-local catalogs (R4-15; 0.7 withMessages)", () => {
       catalogs: { default: { en: { a: "cached-a", b: "cached-b" } }, shop: { en: { s: "S" } } },
     });
 
-  it("reads the extra catalogs first, key by key over the published ones", () => {
+  it("an extra catalog replaces the published slot (model A): a key it lacks is gone", () => {
     const { i18n } = setup();
     const v = view(i18n, state(i18n), { default: { en: { a: "view-a" } } });
     expect(translate(i18n, v, "a")).toBe("view-a");
-    expect(translate(i18n, v, "b")).toBe("cached-b");
+    expect(translate(i18n, v, "b")).toBe("b");
   });
 
   it("reads another locale and namespace from the extra catalogs, interpolating as usual", () => {
@@ -132,14 +132,14 @@ describe("view() — render-local catalogs (R4-15; 0.7 withMessages)", () => {
     expect(i18n.t("a")).toBe("cached-a");
   });
 
-  it("is stable: the same state and catalog give back the same slots and compiled messages", () => {
+  it("is stable: the same state and catalog give back the same compiled messages", () => {
     const { i18n } = setup();
     const extra = { default: { en: { a: "view {x}" } } };
     const v1 = view(i18n, state(i18n), extra);
     translate(i18n, v1, "a", { x: 1 });
     i18n.add("de", { z: "Z" }); // a publish elsewhere
     const v2 = view(i18n, state(i18n), extra);
-    expect(v2.c.default.en).toBe(v1.c.default.en);
+    expect(v2.c.default.en.c).toBe(v1.c.default.en.c);
     expect(v2.c.shop).toBe(state(i18n).c.shop);
   });
 

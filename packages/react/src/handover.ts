@@ -19,7 +19,7 @@ import {
   type ReactNode,
 } from "react";
 import type { I18n } from "@comvi/core";
-import { canonicalize, core, N, view } from "@comvi/core/internal";
+import { canonicalize, core, view } from "@comvi/core/internal";
 import type { Catalog } from "@comvi/core";
 import { provide, useCtx, type Ctx } from "./binding";
 
@@ -36,10 +36,12 @@ export type HandoverCatalogs = Readonly<Record<string, Readonly<Record<string, C
 
 export interface I18nHandoverProps {
   /**
-   * Catalogs to render with before the instance holds them (an SSR or RSC payload). They
-   * are added to the instance at commit, once per object; a new literal with the same
-   * messages on every parent render publishes nothing (the core compares values), but a
-   * STABLE object skips that comparison. A `null` slot means what it means in
+   * Catalogs to render with before the instance holds them (an SSR or RSC payload). Each slot
+   * FULLY REPLACES the instance's slot, the first time and every later time: a key it lacks is
+   * gone, `{}` is an empty catalog; a slot it omits is not changed; with two handovers on one
+   * instance the last payload applied wins per slot. `add()` stays a patch. Committed once per
+   * object; a new literal with the same messages on every parent render publishes nothing (the
+   * core compares values), but a STABLE object skips that comparison. A `null` slot means what it means in
    * `createI18n({ catalogs })`: the load failed on the server — the subtree renders without
    * it (the fallback the server rendered), and at commit the instance drops a catalog it held
    * for it and does not ask for it until `i18n.load(ns)` or a switch to its locale.
@@ -83,44 +85,29 @@ export const I18nHandover = ({
   /** The [instance, catalogs] pair published last (written at commit only). */
   const done = useRef<readonly [I18n, HandoverCatalogs]>(undefined);
   const fresh = (d = done.current) => catalogs && !(d && d[0] == i && d[1] == catalogs);
-  /**
-   * Every slot this handover committed for this instance, a payload that omitted one in between
-   * included: those slots are replaced, not layered (lot 6a re-review).
-   */
-  const handed = useRef<readonly [I18n, Record<string, Record<string, 1>>]>(undefined);
-  const prev = (d = handed.current) => (d && d[0] == i ? d[1] : undefined);
   const v = useMemo(
-    (): Ctx => [i, view(i, base, fresh() ? catalogs! : {}, loc, prev())],
+    (): Ctx => [i, view(i, base, fresh() ? catalogs! : {}, loc)],
     [i, base, catalogs, loc],
   );
   useCommit(() => {
     if (fresh()) {
-      const p = prev();
-      // Own keys only, as view() renders them: an inherited catalog is never committed. A slot
-      // this handover handed before BECOMES the new catalog (a repeated server payload: a key
-      // the server no longer has is gone); a `null` fails the pair; a slot handed for the first
-      // time is layered over the instance's (`add()`).
-      const all = N<Record<string, 1>>(p);
+      // Own keys only, as view() renders them: an inherited catalog is never committed. Each
+      // slot fully replaces the instance's (a key the server no longer has is gone, `{}` is
+      // empty, `null` fails the pair); a slot the payload omits is not changed.
       for (const n of Object.keys(catalogs!))
-        for (const l of Object.keys(catalogs![n])) {
-          const m = catalogs![n][l];
-          if (m && !(p && Object.hasOwn(p, n) && Object.hasOwn(p[n], l))) i.add(l, m, n);
-          else core(i).f(l, n, m);
-          (all[n] = N(all[n]))[l] = 1;
-        }
+        for (const l of Object.keys(catalogs![n])) core(i).f(l, n, catalogs![n][l]);
       done.current = [i, catalogs!];
-      handed.current = [i, all];
     }
   }, [i, catalogs]);
   // The locale is committed when the instance or the target changes — never on a catalogs
   // refresh, which would undo a setLocale() made since. Runs after the catalogs effect, so
   // the switch finds the handed-over catalogs in place.
   useCommit(() => {
-    // The core's switch of a handover: the failures the payload brought stay failed (a
-    // `null` is a known result), where `setLocale()` would ask for them again.
+    // The core's switch of a handover: a pair the current payload carries as `null` is the
+    // server's result (not asked for again, no reason to stay), where `setLocale()` retries it.
     if (target && target != i.locale)
       core(i)
-        .L(target)
+        .L(target, catalogs)
         .catch(() =>
           // Reported through onError already (load_failed; the render refused an invalid tag):
           // give the target up, so the subtree renders the instance's locale instead of keys in

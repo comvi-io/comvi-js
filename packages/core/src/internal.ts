@@ -23,7 +23,7 @@ export { clock } from "./clock";
 import { CORE, type Core, type I18n } from "./instance";
 import { dir } from "./locale";
 import type { CatalogInput } from "./flat";
-import { layer, mk, N, type Slot, type State, type Store } from "./state";
+import { mk, N, whole, type Slot, type State, type Store } from "./state";
 
 export { compile, render, recordFor, lookup, inherit } from "./compile/cache";
 /** A prototype-free object with the own properties of its arguments copied in (state.ts). */
@@ -61,66 +61,36 @@ export const state = (i18n: I18n): State => core(i18n).s();
 export const acquire = (i18n: I18n, ns: string): (() => void) => core(i18n).h(ns);
 
 /**
- * Layered slots per (existing slot, extra catalog): a view rebuilt for the same slot and
- * the same catalog object reuses the slot, so its compiled messages survive re-renders.
- */
-const layered = new WeakMap<object, WeakMap<object, Slot>>();
-const NO_SLOT = {};
-
-/**
  * A render-local snapshot: `state` with `extra` (namespace → locale → catalog, flat or nested,
- * or `null` for a load that failed on the server: that slot is left out) layered over its
- * catalogs, rendered in `locale` (default: the state's own; a binding's
- * locale handover renders the target before `setLocale()` lands at commit). Nothing is
- * published and `rev`/`lrev` do not move; untouched namespaces and locales keep their
- * slots (and compiled messages), and a catalog a slot already holds as its base, in the
- * same locale, gives back `state` itself (no copy per render). `replace`: the slots that
- * become their catalog instead of taking it as a layer (a repeated payload, `Core.f`).
+ * or `null` for a load that failed on the server: that slot is left out) in place of its
+ * slots, rendered in `locale` (default: the state's own; a binding's
+ * locale handover renders the target before `setLocale()` lands at commit). A handed slot
+ * IS its catalog (lot 6a, one rule): a key the catalog lacks is gone, `{}` is empty. Nothing
+ * is published and `rev`/`lrev` do not move; untouched namespaces and locales keep their
+ * slots (and compiled messages), and a slot that already holds exactly the catalog's messages,
+ * in the same locale, gives back `state` itself (no copy per render).
  */
 export const view = (
   i18n: I18n,
   state: State,
   extra: Readonly<Record<string, Readonly<Record<string, CatalogInput | null>>>>,
   locale: string = state.locale,
-  replace?: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
 ): State => {
   let c: Store = state.c;
   for (const n of Object.keys(extra))
     for (const l of Object.keys(extra[n])) {
       const slot = c[n] && c[n][l];
       const m = extra[n][l];
-      // A failed slot of a server payload (lot 6a): the view renders without its catalog, the
-      // fallback the server rendered (`Core.f` takes it out of the instance at commit).
-      if (!m) {
-        if (slot) {
-          if (c === state.c) c = N(c);
-          const y = N<Slot>(c[n]);
-          delete y[l];
-          (c as Record<string, Store[string]>)[n] = y;
-        }
-        continue;
-      }
-      // A slot `replace` holds too (what the same handover handed before, lot 6a audit) BECOMES
-      // the catalog: a key the server no longer has is gone. Any other is layered over the slot.
-      const r = replace && Object.hasOwn(replace, n) && Object.hasOwn(replace[n], l);
-      let memo = layered.get((!r && slot) || NO_SLOT);
-      if (!memo) layered.set((!r && slot) || NO_SLOT, (memo = new WeakMap()));
-      let next = memo.get(m);
-      // Keyed by the catalog as given; a nested one is flattened (flat.ts) once per object.
-      if (!next) memo.set(m, (next = layer(r ? undefined : slot, core(i18n).n(l, n, m))));
-      // The same messages as the slot holds: the slot itself.
-      if (
-        r &&
-        slot &&
-        !slot.p &&
-        layer(slot, next.m) == slot &&
-        Object.keys(slot.m).length == Object.keys(next.m).length
-      )
-        next = slot;
-      // The catalog the slot already holds: nothing to layer, no copy of the state.
-      if (next === slot) continue;
+      // A failed slot of a server payload: the view renders without its catalog, the fallback
+      // the server rendered (`Core.f` takes it out of the instance at commit). Else the slot
+      // becomes the catalog, flattened through the instance (syntax reported once per object).
+      const next = m && whole(slot, core(i18n).n(l, n, m));
+      if (next === slot || !(next || slot)) continue;
       if (c === state.c) c = N(c);
-      (c as Record<string, Store[string]>)[n] = N(c[n], { [l]: next });
+      const y = N<Slot>(c[n]);
+      if (next) y[l] = next;
+      else delete y[l];
+      (c as Record<string, Store[string]>)[n] = y;
     }
   // The chain gives the locale's direction and canonical tag (an invalid one, which this seam
   // can be handed, renders through its fallbacks). In another locale than the published
