@@ -111,7 +111,7 @@ describe("cdn() against the CDN v1 worker", () => {
     const { i18n } = mk({
       loader: cdn(base(), {
         fallback: {
-          fr: () => Promise.resolve({ default: { hello: "Bonjour, {name}!" } }),
+          fr: () => Promise.resolve({ hello: "Bonjour, {name}!" }),
           "fr:shop": () => ({ "cart.title": "Panier" }),
         },
       }),

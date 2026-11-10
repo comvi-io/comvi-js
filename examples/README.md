@@ -78,15 +78,15 @@ import { devtools } from "@comvi/core/devtools";
 import { detect, persist } from "@comvi/core/plugins";
 
 const bundled = {
-  en: () => import("./locales/en.json"),
-  uk: () => import("./locales/uk.json"),
-  "en:account": () => import("./locales/account/en.json"),
+  en: () => import("./locales/en.json").then((m) => m.default),
+  uk: () => import("./locales/uk.json").then((m) => m.default),
+  "en:account": () => import("./locales/account/en.json").then((m) => m.default),
 };
 
 const fromBundle: Loader = async (locale, ns) => {
   const load = bundled[(ns === "default" ? locale : `${locale}:${ns}`) as keyof typeof bundled];
   if (!load) throw new Error(`No bundled catalog for ${locale}/${ns}`);
-  return (await load()).default;
+  return load();
 };
 
 const cdnUrl: string | undefined = import.meta.env.VITE_COMVI_CDN_URL;
