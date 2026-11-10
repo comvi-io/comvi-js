@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
-import { handover } from "@comvi/core/ssr";
 import { getI18n } from "@/i18n/server";
-import { Provider } from "@/i18n/client";
+import { I18nProvider } from "@comvi/next/server";
+import { WithLoader } from "@/i18n/client";
 import { LaterCard } from "./LaterCard";
 
 // Dynamic: what the page loads depends on a cookie, so `router.refresh()` can bring a
@@ -13,8 +13,8 @@ export default async function LaterPage({ params }: { params: Promise<{ locale: 
   const more = (await cookies()).get("e2e-more")?.value === "1";
   const { i18n } = await getI18n({ locale, ns: more ? ["default", "admin"] : "default" });
   return (
-    <Provider payload={handover(i18n)}>
+    <I18nProvider i18n={i18n} client={WithLoader}>
       <LaterCard more={more} />
-    </Provider>
+    </I18nProvider>
   );
 }

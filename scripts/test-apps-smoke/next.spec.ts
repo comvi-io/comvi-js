@@ -322,3 +322,26 @@ test("10: the client bundle carries no server code and no server secret", async 
   ])
     expect(client.includes(secret), `${secret} in a client chunk`).toBe(false);
 });
+
+test("10b: the server provider hands the browser data only: the payload and the defined settings", async ({
+  request,
+}) => {
+  for (const path of ["/uk", "/uk/admin"]) {
+    const html = await (await request.get(path)).text();
+    let flight = "";
+    for (const m of html.matchAll(/self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)/g))
+      flight += JSON.parse(m[1]) as string;
+    // Every provider of the page: its `options` are exactly the instance's fallbackLocale.
+    const options = [...flight.matchAll(/"options":(\{[^{}]*\})/g)].map((m) => JSON.parse(m[1]));
+    expect(options.length, `${path}: providers in the RSC payload`).toBe(path === "/uk" ? 1 : 2);
+    for (const o of options) expect(o).toEqual({ fallbackLocale: "en" });
+    expect(flight).toContain('"payload":{"locale":"uk"');
+    for (const name of [
+      'Pacific/Kiritimati","locales',
+      "comvi-e2e-server-secret",
+      '"loader"',
+      '"onError"',
+    ])
+      expect(flight.includes(name), `${name} in the RSC payload of ${path}`).toBe(false);
+  }
+});

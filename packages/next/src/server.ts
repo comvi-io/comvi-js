@@ -7,4 +7,6 @@
 import "server-only";
 
 export { createGetI18n } from "./server/getI18n";
+export { I18nProvider } from "./server/I18nProvider";
+export type { ClientSettings, ServerI18nProviderProps } from "./server/I18nProvider";
 export type { GetI18n, GetI18nOptions, NextI18nOptions, ServerI18n } from "./server/getI18n";

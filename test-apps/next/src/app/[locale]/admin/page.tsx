@@ -1,6 +1,6 @@
-import { handover } from "@comvi/core/ssr";
 import { getI18n } from "@/i18n/server";
-import { Provider } from "@/i18n/client";
+import { I18nProvider } from "@comvi/next/server";
+import { WithLoader } from "@/i18n/client";
 import { AdminCard } from "./AdminCard";
 
 // Dynamic: rendered per request, so the e2e controls each request's catalog loads.
@@ -13,9 +13,9 @@ export default async function AdminPage({ params }: { params: Promise<{ locale: 
   return (
     <section>
       <h1 data-testid="admin-server">{t("dashboard")}</h1>
-      <Provider payload={handover(i18n)}>
+      <I18nProvider i18n={i18n} client={WithLoader}>
         <AdminCard />
-      </Provider>
+      </I18nProvider>
     </section>
   );
 }

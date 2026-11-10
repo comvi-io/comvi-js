@@ -2,7 +2,6 @@
 
 import { I18nProvider, type I18nProviderProps } from "@comvi/next/client";
 import type { Loader } from "@comvi/core";
-import { options } from "./routing";
 
 /**
  * The optional browser loader (C2): a public source the browser may ask for a catalog no
@@ -16,6 +15,10 @@ const loader: Loader = async (locale, ns, signal) => {
   return res.json();
 };
 
-export function Provider(props: Omit<I18nProviderProps, "options">) {
-  return <I18nProvider {...props} options={{ ...options, loader }} />;
+/**
+ * The client provider the server `<I18nProvider client={WithLoader}>` renders: the settings the
+ * server handed over (`props.options`), plus the browser loader.
+ */
+export function WithLoader(props: I18nProviderProps) {
+  return <I18nProvider {...props} options={{ ...props.options, loader }} />;
 }

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { handover } from "@comvi/core/ssr";
 import { getI18n } from "@/i18n/server";
-import { Provider } from "@/i18n/client";
+import { I18nProvider } from "@comvi/next/server";
+import { WithLoader } from "@/i18n/client";
 import { routing } from "@/i18n/routing";
 import { Navigation } from "./Navigation";
 
@@ -18,10 +18,10 @@ export default async function LocaleLayout({
   return (
     <html lang={locale} dir={dir}>
       <body>
-        <Provider payload={handover(i18n)} routing={routing}>
+        <I18nProvider i18n={i18n} routing={routing} client={WithLoader}>
           <Navigation />
           <main>{children}</main>
-        </Provider>
+        </I18nProvider>
       </body>
     </html>
   );

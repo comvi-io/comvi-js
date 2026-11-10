@@ -209,12 +209,14 @@ const CASES = [
   // The 0.7 cases below run again when their binding's lot moves them to 0.8
   // (`fixtures-08`, tooling/migration-pending.mjs).
   {
-    // The 0.8 server recipe under `react-server`: `createGetI18n` and `handover()`. Next's
-    // client half and the core subpaths the app does not name stay out.
+    // The 0.8 server recipe under `react-server`: `createGetI18n` and `handover()`. The core
+    // subpaths the app does not name stay out. The server `<I18nProvider>` renders the client
+    // provider: that module is in the graph only as a client reference (client-references.mjs,
+    // what Next's flight loader makes of it), never with its React imports.
     name: "next-server-on-default",
     conditions: ["react-server"],
     sentinels: "absent",
-    absentModules: [...CORE_SUBPATHS_08, `@comvi${path.sep}next${path.sep}dist${path.sep}client`],
+    absentModules: [...CORE_SUBPATHS_08, REACT_FORMAT_08],
     presentModules: [coreEntry08("ssr"), coreEntry08("internal")],
     packages: ["@comvi/core", "@comvi/react", "@comvi/next"],
     deps: ["react", "next"],
