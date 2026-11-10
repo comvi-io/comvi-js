@@ -31,7 +31,8 @@ const useCommit = typeof document < "u" ? useLayoutEffect : useEffect;
 /**
  * Catalogs by namespace, then locale, as a server payload carries them (`handover()` of
  * `@comvi/core/ssr`, flat) or as an app writes them (flat or nested, as `createI18n({ catalogs })`
- * takes them): `null` is a load that failed on the server.
+ * takes them): `null` is a load that failed on the server. Plain data objects, read by their OWN
+ * keys; what inherited properties do is not defined.
  */
 export type HandoverCatalogs = Readonly<
   Record<string, Readonly<Record<string, CatalogInput | null>>>

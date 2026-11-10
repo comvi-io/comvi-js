@@ -75,10 +75,11 @@ export interface I18nOptions {
    */
   messages?: Readonly<Record<string, CatalogInput>>;
   /**
-   * Flat catalogs by namespace, then locale. A `null` slot is one whose load failed on the
-   * server (`handover()`): not asked for again until `load(ns)` or a switch to its locale.
+   * Catalogs (flat or nested) by namespace, then locale. A `null` slot is one whose load failed
+   * on the server (`handover()`): not asked for again until `load(ns)` or a switch to its locale.
    * For the `default` namespace a slot here wins over `messages` of the same locale, a
-   * `null` one too; the slots are merged by locale, never key by key.
+   * `null` one too; the slots are merged by locale, never key by key. Catalogs and payloads are
+   * plain data objects, read by their OWN keys; what inherited properties do is not defined.
    */
   catalogs?: Readonly<Record<string, Readonly<Record<string, CatalogInput | null>>>>;
   loader?: Loader;

@@ -1539,3 +1539,41 @@ to the measurement, budget `ceil(after × 1.05)`:
 | fw-vue-default          | 5,552  | 5,630 | 5,575      | 5,912      |
 
 Every other row grew within its budget and keeps its baseline and budget.
+
+## 2026-11-10: lot 6a model A, the CDN fallback contract, `defaultParams` (information only)
+
+Measured after `TURBO_FORCE=true pnpm build`, `node --version` v24.22.1. "Before" is da2ebeeb (the
+re-review entry above); "after" is `feat/lot6a-payload-owner`: one ownership rule for a server
+payload's slots (model A: the handed-slot history, the first-time merge and the layered-slot memo
+removed; the handover's locale decision by the current payload), a CDN `fallback` that returns the
+catalog itself (the `.default` unwrap removed), and the Next client provider applying the
+`defaultParams` the server hands over. Ceilings, budgets and baselines are unchanged: every row
+fits its current budget (core-icu 4,974 ≤ 4,977). Rows that moved:
+
+| row                           | before | after | delta | budget |
+| ----------------------------- | ------ | ----- | ----- | ------ |
+| core-compile                  | 1,790  | 1,791 | +1    | 1,956  |
+| core-icu                      | 4,962  | 4,974 | +12   | 4,977  |
+| core-icu-cdn                  | 5,456  | 5,445 | -11   | 5,480  |
+| core-icu-cdn-store            | 5,624  | 5,614 | -10   | 5,906  |
+| core-icu-api                  | 5,977  | 5,967 | -10   | 6,276  |
+| core-icu-devtools             | 5,418  | 5,425 | +7    | 5,443  |
+| core-format                   | 5,628  | 5,637 | +9    | 5,910  |
+| core-plugins                  | 5,549  | 5,552 | +3    | 5,827  |
+| react-icu-cdn                 | 5,996  | 5,989 | -7    | 6,037  |
+| fw-react-default              | 5,468  | 5,486 | +18   | 5,665  |
+| fw-react-full-composite       | 8,642  | 8,471 | -171  | 9,075  |
+| vue-icu-cdn                   | 6,150  | 6,143 | -7    | 6,191  |
+| solid-icu-cdn                 | 6,257  | 6,247 | -10   | 6,308  |
+| svelte-icu-cdn                | 6,736  | 6,730 | -6    | 6,789  |
+| fw-solid-default              | 5,733  | 5,750 | +17   | 5,942  |
+| fw-solid-full-composite       | 8,406  | 8,396 | -10   | 8,827  |
+| fw-svelte-default             | 6,230  | 6,236 | +6    | 6,542  |
+| fw-svelte-full-composite      | 8,837  | 8,824 | -13   | 8,870  |
+| fw-svelte-format              | 6,020  | 6,025 | +5    | 6,244  |
+| fw-vue-default                | 5,630  | 5,641 | +11   | 5,912  |
+| fw-vue-full-composite         | 8,370  | 8,360 | -10   | 8,406  |
+| fw-next-server-default-loader | 5,698  | 5,704 | +6    | 5,905  |
+| fw-next-client-default        | 6,643  | 6,624 | -19   | 6,860  |
+
+Every other row measures as before.
