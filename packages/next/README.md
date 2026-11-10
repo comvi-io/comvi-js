@@ -122,9 +122,8 @@ export function Profile() {
 With no `loader` in `options` the browser loads nothing; a catalog the server failed to load
 renders its fallback on both sides, and `router.refresh()` renders the route again. A `loader`
 (from a `"use client"` module) loads only what no payload brought; `i18n.load(ns)` retries.
-A route or locale change remounts the provider and is exact; a later payload of the same mount
-(`router.refresh()`) hands over its loaded catalogs only: a namespace first seen there as failed may
-be asked once by a `loader`, and one that fails there after loading keeps the earlier catalog.
+A later payload of the same provider (`router.refresh()`) means what the first one meant, a failed
+catalog included: the server's fallback renders, client state is kept, nothing remounts.
 
 ## Locale routing
 
