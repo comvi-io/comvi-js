@@ -104,6 +104,7 @@ import {
   declaredComviDeps,
   exampleDirs,
   exampleKind,
+  isolatedCache,
   tempInstallEnv,
   withOverrides,
 } from "../examples-verify.mjs";
@@ -479,6 +480,93 @@ function keepDiagnostics(result, target, cdn) {
   return out;
 }
 
+/**
+ * `@comvi/next` takes `@comvi/core` and `@comvi/react` as PEERS (lot 6a, owner decision): the
+ * app installs them, and one copy of each serves the app, the server helper and the provider —
+ * `handover()` finds the instance only in the core that created it, and `useI18n()` reads only
+ * the provider of its own React binding (the browser scenario proves both on this install).
+ * Checked on the packed install:
+ *   - the packed `@comvi/next` names both as peers, neither as a dependency;
+ *   - the install holds exactly one copy of each;
+ *   - an app whose `@comvi/core` is outside the peer range does NOT install (strict peers): a
+ *     copy of this app asks a registry that serves core at an incompatible version, and pnpm
+ *     must refuse it naming `@comvi/next`, instead of resolving a second, silent copy.
+ */
+async function nextPeerProof(target, packages, log) {
+  const next = JSON.parse(
+    fs.readFileSync(path.join(target, "node_modules/@comvi/next/package.json"), "utf8"),
+  );
+  for (const name of ["@comvi/core", "@comvi/react"]) {
+    if (!next.peerDependencies?.[name] || next.dependencies?.[name])
+      throw new Error(`packed @comvi/next must name ${name} as a peer, not a dependency`);
+  }
+  const copies = (name) => {
+    const found = [];
+    const walk = (dir, depth) => {
+      if (depth > 6 || !fs.existsSync(dir)) return;
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isDirectory() || entry.name === ".pnpm-cache") continue;
+        const full = path.join(dir, entry.name);
+        if (full.endsWith(path.join("node_modules", ...name.split("/")))) found.push(full);
+        walk(full, depth + 1);
+      }
+    };
+    walk(path.join(target, "node_modules"), 0);
+    return found;
+  };
+  for (const name of ["@comvi/core", "@comvi/react"]) {
+    const found = copies(name);
+    if (found.length !== 1)
+      throw new Error(`${name}: ${found.length} copies installed: ${found.join(", ")}`);
+  }
+  // The negative probe: core repacked at a version outside @comvi/next's peer range.
+  const probe = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-e2e-peer-probe-"));
+  try {
+    const core = packages.find((pkg) => pkg.name === "@comvi/core");
+    const unpacked = path.join(probe, "core");
+    fs.mkdirSync(unpacked);
+    await runOrThrow("tar", ["-xzf", core.tarball, "-C", unpacked]);
+    const manifestPath = path.join(unpacked, "package", "package.json");
+    const coreManifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    coreManifest.version = "0.0.1-peer-probe";
+    fs.writeFileSync(manifestPath, JSON.stringify(coreManifest, null, 2));
+    const badCore = path.join(probe, "comvi-core-0.0.1-peer-probe.tgz");
+    await runOrThrow("tar", ["-czf", badCore, "-C", unpacked, "package"]);
+    // The candidate's core stays (`@comvi/react` depends on it); the app asks for the probe.
+    const registry = await startCandidateRegistry([...packages.map((pkg) => pkg.tarball), badCore]);
+    try {
+      const app = path.join(probe, "app");
+      fs.mkdirSync(app);
+      const manifest = JSON.parse(fs.readFileSync(path.join(target, "package.json"), "utf8"));
+      manifest.dependencies["@comvi/core"] = "0.0.1-peer-probe";
+      for (const key of Object.keys(manifest.pnpm?.overrides ?? {}))
+        if (key.startsWith("@comvi/core@")) delete manifest.pnpm.overrides[key];
+      fs.writeFileSync(path.join(app, "package.json"), JSON.stringify(manifest, null, 2));
+      fs.writeFileSync(
+        path.join(app, ".npmrc"),
+        EXAMPLE_NPMRC + isolatedCache(app) + scopeRegistryLine(registry.url),
+      );
+      const { status, output } = await run(
+        "pnpm",
+        ["install", "--lockfile-only", "--no-frozen-lockfile", "--ignore-workspace"],
+        { cwd: app, env: childEnv("next") },
+      );
+      if (status === 0 || !/@comvi\/next/.test(output) || !/@comvi\/core/.test(output))
+        throw new Error(
+          `an @comvi/core outside @comvi/next's peer range installed (exit ${status}); ` +
+            `strict peers must refuse it\n${tail(output, 30)}`,
+        );
+      log(
+        `peer proof: one @comvi/core and @comvi/react; a core outside the range is refused (${firstLine(output.split("\n").find((l) => /peer/i.test(l)) ?? "")})`,
+      );
+    } finally {
+      await registry.close();
+    }
+  } finally {
+    fs.rmSync(probe, { recursive: true, force: true });
+  }
+}
+
 async function e2eExample(example, packages, options, cdn) {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), `comvi-e2e-${example.name}-`));
   // A previous run's diagnostics for this example would read as this run's.
@@ -503,7 +591,7 @@ async function e2eExample(example, packages, options, cdn) {
     // (candidate-registry.mjs says why the overrides alone are not enough).
     fs.writeFileSync(
       path.join(target, ".npmrc"),
-      EXAMPLE_NPMRC + scopeRegistryLine(options.registryUrl),
+      EXAMPLE_NPMRC + isolatedCache(target) + scopeRegistryLine(options.registryUrl),
     );
     assertPinnedPnpm(target, { env: childEnv(kind) });
     const ctx = {
@@ -528,6 +616,7 @@ async function e2eExample(example, packages, options, cdn) {
         packages,
       });
       result.resolved = [...new Set(entries.map((entry) => entry.name))].sort();
+      if (kind === "next") await nextPeerProof(target, packages, log);
     } catch (error) {
       result.build = { status: "fail", message: firstLine(error.message) };
       console.error(`\n${example.name}: ${tail(error.message, 60)}\n`);

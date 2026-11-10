@@ -239,19 +239,19 @@ importers:
 
   packages/next:
     dependencies:
-      '@comvi/core':
-        specifier: workspace:*
-        version: link:../core
-      '@comvi/react':
-        specifier: workspace:*
-        version: link:../react
       server-only:
         specifier: ^0.0.1
         version: 0.0.1
     devDependencies:
+      '@comvi/core':
+        specifier: workspace:*
+        version: link:../core
       '@comvi/locale-routing':
         specifier: workspace:*
         version: link:../locale-routing
+      '@comvi/react':
+        specifier: workspace:*
+        version: link:../react
       '@comvi/test-utils':
         specifier: workspace:*
         version: link:../../tooling/test-utils

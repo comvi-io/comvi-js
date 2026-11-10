@@ -45,16 +45,22 @@ export function packedManifest(tarball) {
  * every lookup as `{ path, status }`.
  */
 export async function startCandidateRegistry(tarballs, { host = "127.0.0.1" } = {}) {
+  // Name → its tarballs, the first one `latest` (a second version of a name serves a probe:
+  // examples-e2e's peer check of @comvi/next).
   const byName = new Map();
+  const files = [];
   for (const tarball of tarballs) {
     const manifest = packedManifest(tarball);
     const bytes = fs.readFileSync(tarball);
-    byName.set(manifest.name, {
+    const item = {
       manifest,
       tarball,
       file: path.basename(tarball),
       integrity: `sha512-${crypto.createHash("sha512").update(bytes).digest("base64")}`,
-    });
+    };
+    files.push(item);
+    if (!byName.has(manifest.name)) byName.set(manifest.name, []);
+    byName.get(manifest.name).push(item);
   }
   const requests = [];
   let base = "";
@@ -72,24 +78,26 @@ export async function startCandidateRegistry(tarballs, { host = "127.0.0.1" } = 
       res.writeHead(status, { "content-type": type }).end(body);
     };
     if (pathname.startsWith("/-/tarballs/")) {
-      const entry = [...byName.values()].find((item) => item.file === path.basename(pathname));
+      const entry = files.find((item) => item.file === path.basename(pathname));
       if (entry) return reply(200, fs.readFileSync(entry.tarball), "application/octet-stream");
       return reply(404, "{}");
     }
-    const entry = byName.get(pathname.slice(1));
-    if (!entry) return reply(404, JSON.stringify({ error: "not in the candidate" }));
-    const { version } = entry.manifest;
+    const entries = byName.get(pathname.slice(1));
+    if (!entries) return reply(404, JSON.stringify({ error: "not in the candidate" }));
     return reply(
       200,
       JSON.stringify({
-        name: entry.manifest.name,
-        "dist-tags": { latest: version },
-        versions: {
-          [version]: {
-            ...entry.manifest,
-            dist: { tarball: `${base}/-/tarballs/${entry.file}`, integrity: entry.integrity },
-          },
-        },
+        name: entries[0].manifest.name,
+        "dist-tags": { latest: entries[0].manifest.version },
+        versions: Object.fromEntries(
+          entries.map((entry) => [
+            entry.manifest.version,
+            {
+              ...entry.manifest,
+              dist: { tarball: `${base}/-/tarballs/${entry.file}`, integrity: entry.integrity },
+            },
+          ]),
+        ),
       }),
     );
   });

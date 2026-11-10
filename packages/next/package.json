@@ -94,16 +94,18 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@comvi/core": "workspace:*",
-    "@comvi/react": "workspace:*",
     "server-only": "^0.0.1"
   },
   "peerDependencies": {
+    "@comvi/core": "^0.7.0",
+    "@comvi/react": "^0.7.0",
     "next": "^15.5.28 || ^16.4.3",
     "react": "^19.3.1"
   },
   "devDependencies": {
+    "@comvi/core": "workspace:*",
     "@comvi/locale-routing": "workspace:*",
+    "@comvi/react": "workspace:*",
     "@comvi/test-utils": "workspace:*",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^22.20.5",
