@@ -68,13 +68,15 @@ export const acquire = (i18n: I18n, ns: string): (() => void) => core(i18n).h(ns
  * IS its catalog (lot 6a, one rule): a key the catalog lacks is gone, `{}` is empty. Nothing
  * is published and `rev`/`lrev` do not move; untouched namespaces and locales keep their
  * slots (and compiled messages), and a slot that already holds exactly the catalog's messages,
- * in the same locale, gives back `state` itself (no copy per render).
+ * in the same locale, gives back `state` itself (no copy per render). `dp`: the `defaultParams` to
+ * render with instead of the state's (a payload's, before `setDefaultParams()` at commit).
  */
 export const view = (
   i18n: I18n,
   state: State,
   extra: Readonly<Record<string, Readonly<Record<string, CatalogInput | null>>>>,
   locale: string = state.locale,
+  dp?: State["dp"],
 ): State => {
   let c: Store = state.c;
   for (const n of Object.keys(extra))
@@ -97,7 +99,7 @@ export const view = (
   // one, what its chain lacks is loading (`isLoading`; never requested, it is no
   // `missing_key`) by the core's own rule: the switch at commit loads it.
   const h = core(i18n).ch(locale);
-  if (c === state.c && locale == state.locale) return state;
+  if (c === state.c && locale == state.locale && !dp) return state;
   return mk(
     state.rev,
     state.lrev,
@@ -105,7 +107,7 @@ export const view = (
     h.o ? dir(h[0][1]) : "ltr",
     c,
     state.ld,
-    state.dp,
+    dp || state.dp,
     h.o ? h[0][1] : locale,
     // An editor session's marking hook carries over: render-local output is marked too (H4).
     state.mk,

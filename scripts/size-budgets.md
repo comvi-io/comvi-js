@@ -1547,7 +1547,7 @@ re-review entry above); "after" is `feat/lot6a-payload-owner`: one ownership rul
 payload's slots (model A: the handed-slot history, the first-time merge and the layered-slot memo
 removed; the handover's locale decision by the current payload), a CDN `fallback` that returns the
 catalog itself (the `.default` unwrap removed), and the Next client provider applying the
-`defaultParams` the server hands over. Ceilings, budgets and baselines are unchanged: every row
+`defaultParams` the server hands over in the same snapshot as its catalogs (`<I18nHandover defaultParams>`). Ceilings, budgets and baselines are unchanged: every row
 fits its current budget (core-icu 4,974 ≤ 4,977). Rows that moved:
 
 | row                           | before | after | delta | budget |
@@ -1562,7 +1562,7 @@ fits its current budget (core-icu 4,974 ≤ 4,977). Rows that moved:
 | core-plugins                  | 5,549  | 5,552 | +3    | 5,827  |
 | react-icu-cdn                 | 5,996  | 5,989 | -7    | 6,037  |
 | fw-react-default              | 5,468  | 5,486 | +18   | 5,665  |
-| fw-react-full-composite       | 8,642  | 8,471 | -171  | 9,075  |
+| fw-react-full-composite       | 8,642  | 8,618 | -24   | 9,075  |
 | vue-icu-cdn                   | 6,150  | 6,143 | -7    | 6,191  |
 | solid-icu-cdn                 | 6,257  | 6,247 | -10   | 6,308  |
 | svelte-icu-cdn                | 6,736  | 6,730 | -6    | 6,789  |
@@ -1574,6 +1574,6 @@ fits its current budget (core-icu 4,974 ≤ 4,977). Rows that moved:
 | fw-vue-default                | 5,630  | 5,641 | +11   | 5,912  |
 | fw-vue-full-composite         | 8,370  | 8,360 | -10   | 8,406  |
 | fw-next-server-default-loader | 5,698  | 5,704 | +6    | 5,905  |
-| fw-next-client-default        | 6,643  | 6,624 | -19   | 6,860  |
+| fw-next-client-default        | 6,643  | 6,662 | +19   | 6,860  |
 
 Every other row measures as before.

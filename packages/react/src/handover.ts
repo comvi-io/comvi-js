@@ -63,8 +63,26 @@ export interface I18nHandoverProps {
    * the children render, and nothing reaches the instance. Absent: no target.
    */
   locale?: string;
+  /**
+   * A server payload's `defaultParams` (`{}`: none), part of the same snapshot as `catalogs`: when
+   * their strings, numbers, booleans and `null` differ from what this handover last applied, the
+   * subtree renders with them at once and the instance takes them at commit
+   * (`setDefaultParams()`); any other value (a tag handler) is passed along, never compared.
+   * Absent: the instance's own.
+   */
+  defaultParams?: Readonly<Record<string, unknown>>;
   children?: ReactNode;
 }
+
+type Values = Record<string, unknown>;
+
+/** The values of `p` a server can hand over: strings, numbers, booleans, `null`. */
+const data = (p?: Readonly<Values> | null): Values => {
+  const r: Values = {};
+  for (const k in p)
+    if (p[k] === null || ["string", "number", "boolean"].includes(typeof p[k])) r[k] = p[k];
+  return r;
+};
 
 /**
  * Renders its subtree with `catalogs` and in `locale` before the instance has them, and
@@ -78,6 +96,7 @@ export interface I18nHandoverProps {
 export const I18nHandover = ({
   catalogs,
   locale: target,
+  defaultParams,
   children,
 }: I18nHandoverProps): ReactElement => {
   if (target !== undefined && !canonicalize(target))
@@ -97,10 +116,25 @@ export const I18nHandover = ({
   /** The [instance, catalogs] pair published last (written at commit only). */
   const done = useRef<readonly [I18n, HandoverCatalogs]>(undefined);
   const fresh = (d = done.current) => catalogs && !(d && d[0] == i && d[1] == catalogs);
+  /** The [instance, values] of `defaultParams` applied last (written at commit only). */
+  const sent = useRef<readonly [I18n, Values]>(undefined);
+  const now = data(defaultParams);
+  const was = sent.current && sent.current[0] == i ? sent.current[1] : data(base.dp);
+  // Pending: the payload's params differ from what was applied (by value); rendered at once.
+  const dp =
+    defaultParams &&
+    (Object.keys(was).length != Object.keys(now).length ||
+      Object.keys(now).some((k) => !Object.is(was[k], now[k])))
+      ? defaultParams
+      : undefined;
   const v = useMemo(
-    (): Ctx => [i, view(i, base, fresh() ? catalogs! : {}, loc)],
-    [i, base, catalogs, loc],
+    (): Ctx => [i, view(i, base, fresh() ? catalogs! : {}, loc, dp)],
+    [i, base, catalogs, loc, dp],
   );
+  useCommit(() => {
+    if (dp) i.setDefaultParams(dp);
+    if (defaultParams) sent.current = [i, now];
+  });
   useCommit(() => {
     if (fresh()) {
       // Own keys only, as view() renders them: an inherited catalog is never committed. Each

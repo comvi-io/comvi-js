@@ -260,3 +260,40 @@ describe("defaultParams from the server's settings (owner decision 2026-11-10)",
     expect(el.textContent).toBe("Welcome to Comvi|Welcome to Explicit|0");
   });
 });
+
+describe("defaultParams and catalogs of one payload are one snapshot (owner probe 2026-11-10)", () => {
+  const captured: string[] = [];
+  function Draft() {
+    const { t } = useI18n();
+    const [draft] = useState(() => t("welcome") as string);
+    captured.push(draft);
+    return <p data-testid="draft">{draft}</p>;
+  }
+  const tree = (
+    welcome: string,
+    defaultParams: Record<string, string> | undefined,
+    draft: boolean,
+  ) => (
+    <I18nProvider
+      payload={payload("en", { default: { en: { welcome } } })}
+      options={defaultParams && { defaultParams }}
+    >
+      {draft && <Draft />}
+    </I18nProvider>
+  );
+
+  it("a component mounted with a payload that changes a param captures the new text with the new param", async () => {
+    captured.length = 0;
+    const { rerender } = render(tree("Welcome to {brand}", { brand: "A" }, false));
+    await act(async () => rerender(tree("Hello from {brand}", { brand: "B" }, true)));
+    expect(captured[0]).toBe("Hello from B");
+    expect(screen.getByTestId("draft").textContent).toBe("Hello from B");
+  });
+
+  it("the same with the params cleared", async () => {
+    captured.length = 0;
+    const { rerender } = render(tree("Welcome to {brand}", { brand: "A" }, false));
+    await act(async () => rerender(tree("Hello from {brand}", undefined, true)));
+    expect(captured[0]).toBe("Hello from {brand}");
+  });
+});

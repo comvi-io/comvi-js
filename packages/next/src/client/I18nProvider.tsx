@@ -1,25 +1,10 @@
 "use client";
 
-import {
-  createElement,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactElement,
-  type ReactNode,
-} from "react";
+import { createElement, useState, type ReactElement, type ReactNode } from "react";
 import { createI18n, I18nHandover, I18nProvider as Provider, type I18nOptions } from "@comvi/react";
 import type { Handover } from "@comvi/core/ssr";
 import { RoutingProvider } from "../routing/context";
 import type { RoutingConfig } from "../routing/types";
-
-/** The values of `p` a server can hand over (`ClientSettings`): strings, numbers, booleans, `null`. */
-const data = (p?: Readonly<Record<string, unknown>>): Record<string, unknown> => {
-  const r: Record<string, unknown> = {};
-  for (const k in p)
-    if (p[k] === null || ["string", "number", "boolean"].includes(typeof p[k])) r[k] = p[k];
-  return r;
-};
 
 /**
  * The browser instance's options; the payload gives the locale, the time zone, the server's
@@ -73,26 +58,19 @@ export function I18nProvider({
   children,
 }: I18nProviderProps): ReactElement {
   const [i18n] = useState(() => createI18n({ ...options, ...payload }));
-  // `defaultParams` of a later render (the server's settings on a router.refresh()) reach the
-  // instance when the values a server hands over (strings, numbers, booleans, `null`) change,
-  // cleared too; nothing else is compared or serialized, so a client-only value (a tag handler,
-  // a BigInt) is the instance's from its creation. The instance started with the first ones.
-  const dp = options?.defaultParams;
-  const now = data(dp);
-  const given = useRef(now);
-  useLayoutEffect(() => {
-    const was = given.current;
-    given.current = now;
-    if (
-      Object.keys(was).length != Object.keys(now).length ||
-      Object.keys(now).some((k) => !Object.is(was[k], now[k]))
-    )
-      i18n.setDefaultParams(dp || {});
-  });
   const tree = createElement(
     Provider,
     { i18n, loading, suspense },
-    createElement(I18nHandover, { catalogs: payload.catalogs, locale: payload.locale }, children),
+    // The server's `defaultParams` travel with its catalogs: one snapshot per payload (`{}`: none).
+    createElement(
+      I18nHandover,
+      {
+        catalogs: payload.catalogs,
+        locale: payload.locale,
+        defaultParams: options?.defaultParams || {},
+      },
+      children,
+    ),
   );
   return routing
     ? createElement(RoutingProvider, { routing, locale: payload.locale, children: tree })
