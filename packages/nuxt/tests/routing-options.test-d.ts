@@ -14,20 +14,19 @@ import type { NuxtI18nOptions } from "../src/types";
  * takes `LocaleObject` entries (next gains them in 0.6).
  */
 describe("nuxt's routing options are the shared schema", () => {
-  it("takes the same localeCookie, localeDetection, localePrefix and ns", () => {
+  it("takes the same localeCookie, localeDetection and localePrefix", () => {
     expectTypeOf<NuxtI18nOptions["localeCookie"]>().toEqualTypeOf<LocaleCookieConfig | undefined>();
     expectTypeOf<NuxtI18nOptions["localeDetection"]>().toEqualTypeOf<
       false | LocaleDetectionConfig | undefined
     >();
     expectTypeOf<NuxtI18nOptions["localePrefix"]>().toEqualTypeOf<RoutingOptions["localePrefix"]>();
-    expectTypeOf<NuxtI18nOptions["ns"]>().toEqualTypeOf<RoutingOptions["ns"]>();
     expectTypeOf<NuxtI18nOptions["defaultLocale"]>().toEqualTypeOf<
       RoutingOptions["defaultLocale"]
     >();
   });
 
   it("rejects the spellings 0.5 does not have", () => {
-    const base = { locales: ["en"], defaultLocale: "en" };
+    const base = { locales: ["en"], defaultLocale: "en", timeZone: "UTC" };
     // @ts-expect-error -- `detectBrowserLanguage` is not an option: `localeCookie` and `localeDetection`.
     const removed: NuxtI18nOptions = { ...base, detectBrowserLanguage: false };
     // @ts-expect-error -- `fallbackLanguage` is not an option: `fallbackLocale`.

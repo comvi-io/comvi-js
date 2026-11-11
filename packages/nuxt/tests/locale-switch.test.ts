@@ -17,10 +17,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createApp, h, type Component } from "vue";
 
-vi.mock("../src/runtime/utils/runtime", () => ({
-  isServer: vi.fn(() => false),
-}));
-
 import middleware from "../src/runtime/middleware/i18n.global";
 import { useSwitchLocalePath } from "../src/runtime/composables/useSwitchLocalePath";
 import NuxtLinkLocale from "../src/runtime/components/NuxtLinkLocale";
@@ -31,21 +27,18 @@ import {
   setMockRoute,
   setLocaleOptions,
   mockRuntimeConfig,
+  fakeInstance,
+  getMockCookieOptions,
+  getMockCookieWrites,
 } from "./mocks/nuxt-app";
-import { useCookie, useState } from "#app";
+import { useCookie, useNuxtApp } from "#app";
 
 const route = (fullPath: string) => ({ params: {}, path: fullPath, fullPath });
 
 /** The page the user is on: its route, the locale it rendered in, its cookie. */
 const standOn = (fullPath: string, locale: string) => {
   setMockRoute({ path: fullPath, fullPath });
-  const active = { value: locale };
-  setMockI18n({
-    locale: active,
-    setLocale: async (next: string) => {
-      active.value = next;
-    },
-  });
+  setMockI18n(fakeInstance(locale));
   setMockCookie("i18n_locale", locale);
 };
 
@@ -80,6 +73,7 @@ const clickLink = (props: Record<string, unknown>) => {
 
 beforeEach(() => {
   resetMocks();
+  setMockI18n(fakeInstance("en"));
   mockRuntimeConfig.public.comvi.localePrefix = "as-needed";
 });
 
@@ -98,7 +92,7 @@ describe("switchLocalePath(defaultLocale) under as-needed", () => {
 
     expect(target).toBe("/");
     expect(result).toBeUndefined();
-    expect(useState<string>("i18n-locale").value).toBe("en");
+    expect((useNuxtApp().$i18n as { locale: string }).locale).toBe("en");
   });
 
   it("from /de to / → the cookie records en", async () => {
@@ -139,7 +133,7 @@ describe("a clicked <NuxtLinkLocale locale>", () => {
 
     expect(useCookie("i18n_locale").value).toBe("en");
     expect(result).toBeUndefined();
-    expect(useState<string>("i18n-locale").value).toBe("en");
+    expect((useNuxtApp().$i18n as { locale: string }).locale).toBe("en");
   });
 
   it("under never, locale='de' from an en page → the cookie records de and the page serves de", async () => {
@@ -150,17 +144,17 @@ describe("a clicked <NuxtLinkLocale locale>", () => {
     const result = await middleware(route("/about"), route("/"));
 
     expect(result).toBeUndefined();
-    expect(useState<string>("i18n-locale").value).toBe("de");
+    expect((useNuxtApp().$i18n as { locale: string }).locale).toBe("de");
   });
 
-  it("writes the cookie the middleware reads: name and attributes from localeCookie", () => {
+  it("writes the cookie the middleware reads, through the module's one cookie ref: name and attributes from localeCookie", () => {
     setLocaleOptions({ localeCookie: { name: "LANG", maxAge: 60 } });
     standOn("/de/about", "de");
-    const written = vi.spyOn(document, "cookie", "set");
 
     clickLink({ to: "/", locale: "en" });
 
-    expect(written).toHaveBeenCalledWith("LANG=en; Path=/; Max-Age=60; SameSite=Lax");
+    expect(getMockCookieWrites("LANG")).toEqual(["en"]);
+    expect(getMockCookieOptions("LANG")).toMatchObject({ maxAge: 60, path: "/", sameSite: "lax" });
   });
 
   it("without a locale prop → no cookie is written", () => {
@@ -168,7 +162,7 @@ describe("a clicked <NuxtLinkLocale locale>", () => {
 
     clickLink({ to: "/contact" });
 
-    expect(readDocumentCookies()).toEqual({});
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["de"]);
   });
 
   it("with localeCookie: false → no cookie is written", () => {
@@ -178,6 +172,7 @@ describe("a clicked <NuxtLinkLocale locale>", () => {
     clickLink({ to: "/", locale: "en" });
 
     expect(readDocumentCookies()).toEqual({});
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["de"]);
   });
 
   it("keeps the app's own click handler", () => {
@@ -197,7 +192,7 @@ describe("navigations that are not a switch behave as before", () => {
     const result = await middleware(route("/contact"), route("/de/about"));
 
     expect(result).toBeUndefined();
-    expect(useState<string>("i18n-locale").value).toBe("en");
+    expect((useNuxtApp().$i18n as { locale: string }).locale).toBe("en");
     expect(useCookie("i18n_locale").value).toBe("de");
   });
 

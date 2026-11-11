@@ -2,7 +2,6 @@ import { ref, reactive, computed, customRef } from "vue";
 import type {
   LocaleCookieConfig,
   LocaleDetectionConfig,
-  NuxtI18nPrivateRuntimeConfig,
   NuxtI18nRuntimeConfig,
 } from "../../src/types";
 import { runtimeLocaleKeys } from "./locale-options";
@@ -16,7 +15,7 @@ const stateStore = new Map<string, any>();
  */
 const defaultRuntimeConfig: {
   public: { comvi: NuxtI18nRuntimeConfig["comvi"] };
-  comvi: NuxtI18nPrivateRuntimeConfig["comvi"];
+  app: { baseURL: string };
 } = {
   public: {
     comvi: {
@@ -28,15 +27,10 @@ const defaultRuntimeConfig: {
       },
       defaultLocale: "en",
       localePrefix: "as-needed",
-      defaultNs: "default",
-      fallbackLocale: "en",
-      basicHtmlTags: ["strong", "em"],
       ...runtimeLocaleKeys(),
     },
   },
-  comvi: {
-    apiKey: undefined,
-  },
+  app: { baseURL: "/" },
 };
 
 const cloneRuntimeConfig = () => structuredClone(defaultRuntimeConfig);
@@ -97,6 +91,17 @@ export function useNuxtApp() {
 
 export function setMockI18n(i18n: any) {
   mockNuxtApp.$i18n = i18n;
+}
+
+/** A stand-in instance for the route middleware: its locale and a `setLocale()` that switches. */
+export function fakeInstance(locale: string) {
+  const instance = {
+    locale,
+    setLocale: async (next: string) => {
+      instance.locale = next;
+    },
+  };
+  return instance;
 }
 
 export function useState<T>(key: string, init?: () => T) {
@@ -260,6 +265,9 @@ function resetRuntimeConfig() {
 export function resetMocks() {
   stateStore.clear();
   mockNuxtApp.$i18n = null;
+  // What the module's runtime keeps on the app: its one cookie ref, the navigation count.
+  for (const key of ["_comviLocaleCookie", "_comviNavigating", "_comviNavigation", "payload"])
+    delete (mockNuxtApp as Record<string, unknown>)[key];
   cookieStore.clear();
   cookieOptions.clear();
   cookieWrites.clear();

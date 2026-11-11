@@ -2,7 +2,7 @@ import { defineComponent, h, computed, type PropType } from "vue";
 import { NuxtLink } from "#components";
 import { useRuntimeConfig } from "#app";
 import { useLocalePath } from "../composables/useLocalePath";
-import { serializeLocaleCookie } from "../utils/locale-path";
+import { useLocaleCookie } from "../utils/cookie";
 
 /**
  * Prefixes the `to` prop with the current or specified locale, following the
@@ -37,24 +37,17 @@ export default defineComponent({
 
   setup(props, { slots, attrs }) {
     const localePath = useLocalePath();
-    const { localeCookie, locales } = useRuntimeConfig().public.comvi;
+    const { locales } = useRuntimeConfig().public.comvi;
+    const cookie = useLocaleCookie();
 
-    // A link that names a locale is a locale switch, and the cookie is the
-    // record of the user's choice: the click writes it BEFORE the navigation.
-    // The route middleware resolves a URL that names no locale (the default
-    // locale's under `as-needed`, every URL under `never`) from this cookie,
-    // and would otherwise answer with the locale being switched away from.
-    // Written straight to `document.cookie`: a `useCookie()` ref is flushed
-    // asynchronously, and the middleware reads the document's value.
+    // A link that names a locale is a locale switch, and the cookie is the record of the
+    // user's choice: the click writes it BEFORE the navigation, through the module's one
+    // cookie ref. The route middleware resolves a URL that names no locale (the root under
+    // `as-needed`, every URL under `never`) from it, and would otherwise answer with the
+    // locale being switched away from.
     const recordLocale = () => {
       const { locale } = props;
-      if (!locale || !localeCookie || !locales.includes(locale)) return;
-      document.cookie = serializeLocaleCookie(
-        localeCookie,
-        locale,
-        // A browser drops a `Secure` cookie set from a plain-HTTP page.
-        localeCookie.secure && location.protocol === "https:",
-      );
+      if (cookie && locale && locales.includes(locale)) cookie.value = locale;
     };
 
     const localizedTo = computed(() => {

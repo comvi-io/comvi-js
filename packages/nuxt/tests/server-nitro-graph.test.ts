@@ -53,13 +53,9 @@ function reachableSpecifiers(entry: string): Array<{ specifier: string; from: st
 describe("the Nitro graph of src/runtime/server", () => {
   const entries = listFiles(SERVER_DIR);
 
-  it("walks the server utilities, their internals and the server plugin", () => {
+  it("walks the server utility and the server plugin", () => {
     expect(entries.map((file) => relative(SERVER_DIR, file)).sort()).toEqual([
-      "internal/request-hosts.ts",
-      "plugins/request-cleanup.ts",
-      "utils/loadMessages.ts",
-      "utils/request-i18n.ts",
-      "utils/runtime-config.ts",
+      "plugins/comvi.ts",
       "utils/useTranslation.ts",
     ]);
   });
@@ -83,8 +79,7 @@ describe("the Nitro graph of src/runtime/server", () => {
 
     expect([...new Set(specifiers)].sort()).toEqual([
       "#comvi/detection",
-      "#comvi/i18n",
-      "#comvi/setup",
+      "#comvi/options",
       "#imports",
     ]);
   });

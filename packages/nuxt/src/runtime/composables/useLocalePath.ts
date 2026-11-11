@@ -1,5 +1,5 @@
 import { useRuntimeConfig, useRouter } from "#app";
-import { useLocaleState } from "../utils/locale-state";
+import { useLocale } from "../utils/locale";
 import type { RouteLocationRaw } from "vue-router";
 import {
   stripLocalePrefix,
@@ -119,12 +119,12 @@ const appendQueryAndHash = (
 export function useLocalePath() {
   const config = useRuntimeConfig();
   const { locales, defaultLocale, localePrefix } = config.public.comvi;
-  const localeState = useLocaleState();
+  const current = useLocale();
   const router = useRouter();
 
   /** @param locale - defaults to the current locale. */
   function localePath(path: RouteLocationRaw, locale?: string): string {
-    const targetLocale = locale || localeState.value || defaultLocale;
+    const targetLocale = locale || current.value || defaultLocale;
 
     // Only an app-internal path is localized, and the check runs BEFORE the
     // router: vue-router resolves `{ path: "https://example.com/a" }` as a

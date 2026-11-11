@@ -1,15 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp, defineComponent, h, nextTick, watch, type App } from "vue";
-import { createI18n as createVueI18n, useI18n } from "@comvi/vue";
+import { createI18n as createVueI18n, useI18n, type VueI18n } from "@comvi/vue";
 import * as nuxtAppMocks from "./mocks/nuxt-app";
 import { resetMocks, setMockI18n, setMockRoute } from "./mocks/nuxt-app";
 import { useLocaleHead } from "../src/runtime/composables/useLocaleHead";
 
-const createComviI18n = vi.fn();
+import { setComviOptions } from "./mocks/comvi-options";
 
-vi.mock("#build/comvi.i18n", () => ({
-  createComviI18n,
-}));
+// The real locale source: the binding's `locale` slice of the plugin's instance.
+vi.unmock("../src/runtime/utils/locale");
 
 /**
  * The client head renderer as Nuxt ships it: `@unhead/vue/client` patches the
@@ -45,24 +44,22 @@ const catalog = {
 
 let app: App | undefined;
 
-/** The client plugin on a real `@comvi/vue` instance, provided as `$i18n`. */
-async function setupPlugin() {
-  createComviI18n.mockImplementation((options: Record<string, unknown>) =>
-    createVueI18n({ ...options, messages: catalog, exposeGlobal: false } as never),
-  );
-  const plugin = (await import("../src/runtime/plugin")).default;
-  const { provide } = (await plugin.setup({
-    vueApp: { use: vi.fn() },
+/** The client plugin (no server payload) on `app`, its instance provided as `$i18n`. */
+async function setupPlugin(target: App): Promise<VueI18n> {
+  setComviOptions({ messages: catalog });
+  const nuxtApp = Object.assign(nuxtAppMocks.useNuxtApp(), {
+    vueApp: target,
+    payload: {},
     hook: vi.fn(),
-  } as never)) as { provide: { i18n: any } };
+  });
+  const plugin = (await import("../src/runtime/plugin")).default;
+  const { provide } = (await plugin.setup(nuxtApp as never)) as { provide: { i18n: VueI18n } };
   setMockI18n(provide.i18n);
   return provide.i18n;
 }
 
 /** A page that calls `useLocaleHead()` and renders a key. */
 async function mountPage() {
-  const i18n = await setupPlugin();
-
   const Page = defineComponent({
     setup() {
       useLocaleHead({ addAlternateLinks: false, addCanonical: false, addOgLocale: false });
@@ -74,7 +71,7 @@ async function mountPage() {
   const host = document.createElement("div");
   document.body.appendChild(host);
   app = createApp(Page);
-  app.use(i18n);
+  const i18n = await setupPlugin(app);
   app.mount(host);
   // Server-rendered state: the SSR head already wrote the attributes.
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -150,7 +147,7 @@ describe("useLocaleHead: <html lang/dir> follow the rendered text in the same co
   it("adds no DOM write on the server, so the SSR head stays the head renderer's alone", async () => {
     vi.stubGlobal("__COMVI_TEST_SERVER__", true);
     vi.spyOn(nuxtAppMocks, "useHead").mockImplementation((input: any) => input);
-    const localeState = nuxtAppMocks.useState<string>("i18n-locale", () => "en");
+    const i18n = createVueI18n({ locale: "en", messages: catalog, timeZone: "UTC" });
     const Page = defineComponent({
       setup() {
         useLocaleHead({ addAlternateLinks: false, addCanonical: false });
@@ -158,9 +155,10 @@ describe("useLocaleHead: <html lang/dir> follow the rendered text in the same co
       },
     });
     app = createApp(Page);
+    app.use(i18n);
     app.mount(document.createElement("div"));
 
-    localeState.value = "ar";
+    await i18n.setLocale("ar");
     await nextTick();
 
     expect(document.documentElement.hasAttribute("lang")).toBe(false);
@@ -185,7 +183,6 @@ describe("useLocaleHead: <html lang/dir> follow the rendered text in the same co
     // The plugin's own `comvi.head` entry would write both; this case is about
     // the composable's options alone.
     nuxtAppMocks.mockRuntimeConfig.public.comvi.head = false;
-    const i18n = await setupPlugin();
     const Page = defineComponent({
       setup() {
         useLocaleHead({ addDir: false, addLang: false });
@@ -193,7 +190,7 @@ describe("useLocaleHead: <html lang/dir> follow the rendered text in the same co
       },
     });
     app = createApp(Page);
-    app.use(i18n);
+    const i18n = await setupPlugin(app);
     app.mount(document.createElement("div"));
 
     await i18n.setLocale("ar");

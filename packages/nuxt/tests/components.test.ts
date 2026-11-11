@@ -24,12 +24,12 @@ async function renderLink(props: Record<string, unknown>): Promise<HTMLAnchorEle
 }
 
 describe("T component", () => {
-  it("is a valid Vue component re-exported from @comvi/vue", async () => {
-    const { T } = await import("../src/runtime/components/T");
+  it("is @comvi/vue's own <T>, re-exported as it is", async () => {
+    const mod = await import("../src/runtime/components/T");
     const { T: VueT } = await import("@comvi/vue");
 
-    expect(T.name).toBe("T");
-    expect(T).toBe(VueT);
+    expect(mod.T).toBe(VueT);
+    expect(mod.default).toBe(VueT);
   });
 });
 
