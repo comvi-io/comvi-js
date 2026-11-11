@@ -169,10 +169,10 @@ a catalog the server failed included (it renders the fallback the server rendere
 After it, every new namespace comes from the browser's loader. `useNuxtApp().$i18n` is the instance
 outside a component. In a Nitro route, `const { t } = await useTranslation(event, { ns?, locale? })`
 gives `{ t, locale, dir, i18n }` on the same options. Every server instance ends with its request:
-after the response, when the handler throws, or when the client goes away. Not supported:
-`routeRules` with `swr` (the stale-while-revalidate re-render runs after the response has ended its
-instance, and caches raw keys); `isr`, `ssrStreaming`, non-Node presets and `nuxt generate` are
-unverified.
+after the response, when the handler throws, or when the client goes away. `routeRules` with `swr`
+are excluded for pages rendered with Comvi: the stale-while-revalidate re-render runs after the
+response has ended its instance, and the cache stores raw keys. `isr`, `ssrStreaming`, non-Node
+presets and `nuxt generate` are unverified (neither supported nor excluded).
 
 ## Routing
 
