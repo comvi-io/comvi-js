@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement, useState, type ReactElement, type ReactNode } from "react";
+import { createElement, useMemo, useState, type ReactElement, type ReactNode } from "react";
 import {
   createI18n,
   I18nHandover,
@@ -31,9 +31,6 @@ export type ClientOptions = Omit<
    */
   defaultParams?: HandoverParams;
 };
-
-/** The set when the server hands none: one object, so a rerender with the same payload is a no-op. */
-const none = {};
 
 export interface I18nProviderProps {
   /** `handover(i18n)` of the request's instance (`@comvi/core/ssr`). */
@@ -78,7 +75,10 @@ export function I18nProvider({
   suspense,
   children,
 }: I18nProviderProps): ReactElement {
-  const dp = plain(options?.defaultParams || none, "[@comvi/next]");
+  // No server set: an empty one whose identity follows the payload, so a rerender with the same
+  // payload is a no-op and a new payload clears what the browser set since.
+  const empty = useMemo(() => ({}), [payload]);
+  const dp = plain(options?.defaultParams || empty, "[@comvi/next]");
   const [i18n] = useState(() => createI18n({ ...options, ...payload }));
   const tree = createElement(
     Provider,

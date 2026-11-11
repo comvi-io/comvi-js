@@ -423,4 +423,25 @@ describe("the same payload is a no-op for defaultParams (owner decision 2026-11-
     await act(async () => fireEvent.click(screen.getByTestId("n")));
     expect(screen.getByTestId("w").textContent).toBe("Welcome to Client");
   });
+
+  it("a NEW payload without a server set clears a client setDefaultParams() change", async () => {
+    const cats = { default: { en: { hi: "Welcome to {brand}" } } };
+    let i18nRef: ReturnType<typeof useI18n>["i18n"] | undefined;
+    function Read() {
+      const { t, i18n } = useI18n();
+      i18nRef = i18n;
+      return <p data-testid="w">{t("hi") as string}</p>;
+    }
+    const ui = (p: Handover) => (
+      <I18nProvider payload={p}>
+        <Read />
+      </I18nProvider>
+    );
+    const { rerender } = render(ui(payload("en", cats)));
+    await act(async () => i18nRef!.setDefaultParams({ brand: "Client" }));
+    expect(screen.getByTestId("w").textContent).toBe("Welcome to Client");
+    // `router.refresh()`: a new payload, again without defaults.
+    await act(async () => rerender(ui(payload("en", cats))));
+    expect(screen.getByTestId("w").textContent).toBe("Welcome to {brand}");
+  });
 });

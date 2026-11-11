@@ -346,3 +346,63 @@ describe("6. server data only (owner decision 2026-11-11)", () => {
     expect(run(() => ({ brand: "Comvi", n: 1.5, ok: false, none: null }))).toBe("rendered");
   });
 });
+
+describe("7. two stable handovers on one instance (owner 2026-11-11)", () => {
+  // Each set is applied once per object at its handover's commit; there is one set per
+  // instance, so the handover committed last wins (an inner one commits before its outer one,
+  // siblings in tree order). Separate defaults per subtree need separate instances.
+  const outer = { brand: "Outer" };
+  const inner = { brand: "Inner" };
+  const left = { brand: "Left" };
+  const right = { brand: "Right" };
+  const count = (i18n: I18n) => {
+    const pubs: number[] = [];
+    i18n.on(() => pubs.push(i18n.rev()));
+    return pubs;
+  };
+
+  it("nested: settles after one publication each, the outer set wins", async () => {
+    const i18n = make();
+    const pubs = count(i18n);
+    let renders = 0;
+    function Read() {
+      renders++;
+      return <p data-testid="n">{useI18n().t("hi") as string}</p>;
+    }
+    render(
+      <I18nProvider i18n={i18n}>
+        <I18nHandover defaultParams={outer}>
+          <I18nHandover defaultParams={inner}>
+            <Read />
+          </I18nHandover>
+        </I18nHandover>
+      </I18nProvider>,
+    );
+    await act(async () => {});
+    expect(pubs.length).toBe(2);
+    expect(renders).toBeLessThanOrEqual(4);
+    expect(state(i18n).dp).toEqual({ brand: "Outer" });
+    expect(screen.getByTestId("n").textContent).toBe("Welcome to Outer");
+  });
+
+  it("siblings: settle after one publication each, the later sibling wins", async () => {
+    const i18n = make();
+    const pubs = count(i18n);
+    const Read = ({ id }: { id: string }) => <p data-testid={id}>{useI18n().t("hi") as string}</p>;
+    render(
+      <I18nProvider i18n={i18n}>
+        <I18nHandover defaultParams={left}>
+          <Read id="l" />
+        </I18nHandover>
+        <I18nHandover defaultParams={right}>
+          <Read id="r" />
+        </I18nHandover>
+      </I18nProvider>,
+    );
+    await act(async () => {});
+    expect(pubs.length).toBe(2);
+    expect(state(i18n).dp).toEqual({ brand: "Right" });
+    expect(screen.getByTestId("l").textContent).toBe("Welcome to Right");
+    expect(screen.getByTestId("r").textContent).toBe("Welcome to Right");
+  });
+});

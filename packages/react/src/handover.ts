@@ -41,7 +41,11 @@ export type HandoverCatalogs = Readonly<
 /** The handover's target as given (see `I18nHandover`). */
 type Given = readonly [I18n, string | undefined, string, number, HandoverCatalogs | undefined | 0];
 
-/** `defaultParams` a server hands over: strings, finite numbers, booleans and `null`. */
+/**
+ * `defaultParams` a server hands over: strings, finite numbers, booleans and `null`. The type
+ * accepts any `number`; a non-finite one (`NaN`, `Infinity`) is refused at run time, a
+ * `TypeError` naming the param.
+ */
 export type HandoverParams = Readonly<Record<string, string | number | boolean | null>>;
 
 export interface I18nHandoverProps {
@@ -73,21 +77,13 @@ export interface I18nHandoverProps {
    */
   locale?: string;
   /**
-   * A server payload's `defaultParams`, part of the same snapshot as `catalogs`: server DATA
-   * only — strings, finite numbers, booleans and `null`, as a server can hand them over. Any
-   * other value (a tag handler, a `Date`, an array, an object) is a type error, and a
-   * `TypeError` naming the key at render; give a tag handler with the translation's params or
-   * `components` (the core's own `defaultParams` and `setDefaultParams()` take any value).
-   * - Not passed: the handover never changes the instance's `defaultParams`.
-   * - Passed: the object REPLACES the instance's whole set (`setDefaultParams()`); `{}` clears
-   *   it. The subtree renders with it at once and the instance takes it at commit, no remount.
-   * - The same object again (a rerender with the same payload) does nothing, so changes the
-   *   client made since stay. A new object is a new payload: it overwrites the client's changes,
-   *   even with the values of the earlier one; one with the same own keys and values
-   *   (`Object.is`) as the instance's current set publishes nothing, so an inline literal is
-   *   fine.
-   * Explicit `t()` params still win. Own keys only: inherited properties are not read; an own key
-   * named `__proto__` is a param like any other.
+   * The payload's set of plain values: strings, finite numbers, booleans and `null` (anything
+   * else is a type error and a `TypeError` naming the param; pass tag handlers with the
+   * translation or through `components`). It follows the `catalogs` rule: applied once per
+   * object, it replaces the instance's whole set (`{}` clears it), and a set equal to the current
+   * one publishes nothing. Omit it to leave the instance's set alone. Two handovers on one
+   * instance do not give their subtrees separate defaults (the one applied last wins): use
+   * separate instances for that. Explicit `t()` params win.
    */
   defaultParams?: HandoverParams;
   children?: ReactNode;

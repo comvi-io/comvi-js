@@ -81,14 +81,13 @@ export default async function Layout(props: {
 (a static page stays static) and returns this request's instance, its catalogs loaded once per
 request. The server `<I18nProvider>` hands the browser data only: `handover(i18n)` (catalogs, a
 failed one as `null`, locale, time zone, clock) and the instance's `fallbackLocale`, `formats` and
-current `defaultParams`. `defaultParams` in the server configuration and in the client `options`
-hold strings, finite numbers, booleans and `null` only: anything else (a tag handler, a `Date`,
-an array) is a type error and a `TypeError` naming the key. A tag handler goes with the
-translation: its params (`t("terms", { link })`) or `components` of `<T>`, on the server and in
-the browser alike (below). Each payload's set replaces the browser's whole set: a later payload
-(`router.refresh()`) that changes or drops a param changes or clears it at once, overwriting a
-`setDefaultParams()` made in the browser; a rerender with the same payload changes nothing, and a
-set equal to the browser's current one publishes nothing. The loader, callbacks and other options stay on the server.
+current `defaultParams`. `defaultParams` of the server instance cross to the browser with every
+payload, so Server and Client Components render the same text. Values must be strings, finite
+numbers, booleans or `null`; anything else throws, naming the param (the types accept any
+number: a non-finite one is refused at run time). Pass tag handlers with the
+translation (params) or through `components` (below). A new payload (`router.refresh()`) replaces
+the browser's whole set in the same render as its catalogs, without a remount; an empty set clears
+it, and an unchanged one re-renders nothing. Explicit `t()` params win. The loader, callbacks and other options stay on the server.
 
 ## Use in components
 

@@ -22,6 +22,10 @@ export const array = <I18nHandover defaultParams={{ d: ["a"] }} />;
 // @ts-expect-error a nested object is not server data
 export const nested = <I18nHandover defaultParams={{ d: { a: 1 } }} />;
 
+// The types accept any number: `NaN` and `Infinity` compile and are refused at run time (a
+// TypeError naming the param, `handover-default-params.test.tsx` "6.").
+export const nan = <I18nHandover defaultParams={{ n: NaN, i: Infinity }}>{null}</I18nHandover>;
+
 // The core is not narrowed.
 export const core = createI18n({
   locale: "en",

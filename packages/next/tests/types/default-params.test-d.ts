@@ -25,3 +25,7 @@ export const clientHandler: ClientOptions = { defaultParams: { link: (c: string)
 export const clientArray: ClientOptions = { defaultParams: { d: ["a"] } };
 // @ts-expect-error an object is not server data
 export const clientObject: ClientOptions = { defaultParams: { d: { a: 1 } } };
+// The types accept any number: a non-finite one compiles and is refused at run time
+// (`getI18n.test.tsx`, `I18nProvider.test.tsx`).
+export const serverNaN: NextI18nOptions = { ...base, defaultParams: { n: NaN } };
+export const clientInfinity: ClientOptions = { defaultParams: { n: Infinity } };

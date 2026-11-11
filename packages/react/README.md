@@ -119,13 +119,13 @@ first. Server renders and hydrations are never gated; a server preloads with `i1
 slot `<I18nHandover catalogs>` hands over replaces the instance's, every time (`null`: failed on the
 server; an omitted slot is kept); with two handovers on one instance, the last payload wins per slot.
 
-`<I18nHandover defaultParams>` hands over the server's `defaultParams` with the same payload:
-strings, finite numbers, booleans and `null` only (anything else is a type error and a `TypeError`
-naming the key; give a tag handler with the translation's params or `components`). Not passed, the
-instance's set is never changed. Passed, the object replaces the whole set (`{}` clears it), what
-the client set included. The same object again changes nothing; a new object overwrites what the
-client set since, and one equal to the current set publishes nothing, so an inline literal is
-fine. Explicit `t()` params still win. Pass `catalogs` as a stable object too.
+`<I18nHandover defaultParams>` is the payload's set of plain values (strings, finite numbers,
+booleans, `null`; anything else throws, naming the param — the types accept any number, a
+non-finite one is refused at run time). It follows the `catalogs` rule: applied
+once per object, it replaces the instance's whole set (`{}` clears it), and a set equal to the
+current one publishes nothing. Omit it to leave the instance's set alone. Two handovers on one
+instance do not give their subtrees separate defaults (the one applied last wins): use separate
+instances for that. Pass `catalogs` as a stable object too.
 
 Match a route, cookie or header locale against your supported locales first: `createI18n()` and
 `<I18nHandover locale>` throw a `RangeError` for an invalid tag (`t(key, { locale })`, `has()`,

@@ -89,6 +89,8 @@ describe("createGetI18n: defaultParams are server data (owner decision 2026-11-1
     ["a tag handler", { link: (c: unknown) => c }],
     ["a Date", { link: new Date(0) }],
     ["an array", { link: ["a"] }],
+    ["NaN (the types accept any number)", { link: NaN }],
+    ["Infinity (the types accept any number)", { link: Infinity }],
   ])("%s in the server configuration is a clear TypeError naming the key", (_, dp) => {
     expect(() =>
       createGetI18n({ ...base, defaultParams: dp as unknown as Record<string, string> }),
