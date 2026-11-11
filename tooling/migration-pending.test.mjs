@@ -9,26 +9,17 @@ import {
   bundlerCaseNeeds,
   exampleNeeds,
   MIGRATION_PENDING,
-  PENDING_CAPABILITIES,
   TEST_APPS,
   testAppNeeds,
 } from "./migration-pending.mjs";
 
-/** Runs `fn` with `names` removed from the pending lists, then restores them. */
-function landed(names, fn) {
-  const saved = [];
-  for (const name of names) {
-    for (const list of [MIGRATION_PENDING, PENDING_CAPABILITIES]) {
-      if (name in list) {
-        saved.push([list, name, list[name]]);
-        delete list[name];
-      }
-    }
-  }
+/** Runs `fn` with `names` added to MIGRATION_PENDING, then removes them. */
+function pendingFor(names, fn) {
+  for (const name of names) MIGRATION_PENDING[name] = "a test";
   try {
     return fn();
   } finally {
-    for (const [list, name, reason] of saved) list[name] = reason;
+    for (const name of names) delete MIGRATION_PENDING[name];
   }
 }
 
@@ -38,34 +29,8 @@ const activeExamples = () =>
     (e) => activeShards([e.framework], exampleNeeds, "examples-e2e", quiet).length === 1,
   ).map((e) => `${e.framework}/${e.mode}`);
 
-test("after lot 6a the React, Next, Vue, Svelte, Solid and vanilla examples, both SSR recipes and the Next test apps run; the Nuxt apps are pending, and the skip says why", () => {
+test("after lot 7 every example, both SSR recipes and every test app run", () => {
   assert.deepEqual(activeExamples(), [
-    "react/default",
-    "react/cdn",
-    "next/default",
-    "next/cdn",
-    "vue/default",
-    "vue/cdn",
-    "svelte/default",
-    "svelte/cdn",
-    "solid/default",
-    "solid/cdn",
-    "vanilla/default",
-    "vanilla/cdn",
-    "sveltekit/default",
-    "solidstart/default",
-  ]);
-  const lines = [];
-  assert.deepEqual(
-    activeShards(TEST_APPS, testAppNeeds, "test-apps-smoke", (l) => lines.push(l)),
-    ["next", "next16"],
-  );
-  assert.ok(lines.some((l) => l.includes("fixtures-08") && l.includes("lot 7")));
-});
-
-test("Nuxt landing re-enables the Nuxt shards", () => {
-  const got = landed(["fixtures-08", "@comvi/nuxt"], activeExamples);
-  assert.deepEqual(got, [
     "react/default",
     "react/cdn",
     "next/default",
@@ -83,6 +48,12 @@ test("Nuxt landing re-enables the Nuxt shards", () => {
     "sveltekit/default",
     "solidstart/default",
   ]);
+  assert.deepEqual(activeShards(TEST_APPS, testAppNeeds, "test-apps-smoke", quiet), [
+    "next",
+    "next16",
+    "nuxt",
+    "nuxt4",
+  ]);
 });
 
 test("a rewritten example or bundler case does not need fixtures-08; the others do", () => {
@@ -90,17 +61,19 @@ test("a rewritten example or bundler case does not need fixtures-08; the others 
   assert.deepEqual(bundlerCaseNeeds("react-default", ["@comvi/core"]), ["@comvi/core"]);
   assert.deepEqual(bundlerCaseNeeds("vue-default", ["@comvi/vue"]), ["@comvi/vue"]);
   assert.deepEqual(bundlerCaseNeeds("next-client-default", ["@comvi/next"]), ["@comvi/next"]);
-  assert.deepEqual(bundlerCaseNeeds("nuxt-default", ["@comvi/nuxt"]), [
+  assert.deepEqual(bundlerCaseNeeds("editor-production", ["@comvi/plugin-in-context-editor"]), [
     "fixtures-08",
-    "@comvi/nuxt",
+    "@comvi/plugin-in-context-editor",
   ]);
 });
 
-test("a test app runs once it and the core instance are active, independently of the others", () => {
-  const got = landed(["fixtures-08", "@test-apps/nuxt4"], () =>
-    activeShards(TEST_APPS, testAppNeeds, "test-apps-smoke", quiet),
+test("a test app runs once it is active, independently of the others", () => {
+  const lines = [];
+  const got = pendingFor(["@test-apps/nuxt"], () =>
+    activeShards(TEST_APPS, testAppNeeds, "test-apps-smoke", (l) => lines.push(l)),
   );
   assert.deepEqual(got, ["next", "next16", "nuxt4"]);
+  assert.ok(lines.some((l) => l.includes("@test-apps/nuxt is MIGRATION_PENDING")));
 });
 
 test("example needs come from the example's own package.json", () => {
