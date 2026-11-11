@@ -86,6 +86,20 @@ describe("the plugin on the server", () => {
     expect((await run({ event: { context: {} }, url: "/appuk" })).i18n.locale).toBe("en");
   });
 
+  it("a page render that carries the catalog request's header (the request reached no route) answers 404 and starts no load", async () => {
+    const event = { context: {}, headers: new Headers({ "x-comvi-catalog": "1" }) };
+    await expect(run({ event, url: "/api/i18n/en/default" })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    expect(event.context).toEqual({});
+  });
+
+  it("an ordinary page render (no catalog header) is unchanged", async () => {
+    const event = { context: {}, headers: new Headers({ accept: "text/html" }) };
+    const { calls } = await run({ event, url: "/" });
+    expect(calls).toEqual(["en:default"]);
+  });
+
   it("keeps a stored preference on a path-implied default (as-needed)", async () => {
     setMockCookie("i18n_locale", "uk");
     const { i18n } = await run({ event: { context: {} }, url: "/admin" });

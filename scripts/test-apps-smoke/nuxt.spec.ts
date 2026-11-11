@@ -59,7 +59,9 @@ const test = base.extend<{ errors: string[]; asked: string[] }>({
         // A failed catalog request is the scenario itself (the browser logs every non-2xx
         // response); its report is the app's `onError`.
         if (
-          /^Failed to load resource: the server responded with a status of (500|401)/.test(m.text())
+          /^Failed to load resource: the server responded with a status of (500|401|404)/.test(
+            m.text(),
+          )
         )
           return;
         if (m.type() === "error" || m.type() === "warning") errors.push(`${m.type()}: ${m.text()}`);
@@ -645,4 +647,63 @@ test("16: request end: every server instance is destroyed with its request, load
   p = await settled();
   expect(p.created).toBeGreaterThanOrEqual(30);
   expect(p.destroyed).toBe(p.created);
+});
+
+test("17: the whole catalog route missing (under /api and outside it): the marked catalog request fails the load; the process stays up", async ({
+  page,
+  request,
+  asked,
+}) => {
+  for (const where of ["api", "out"]) {
+    const html = await (await get(request, "/", { cookie: `e2e-missing=${where}` })).text();
+    // No catalog in the chain: the keys, rendered; the load failed (`load_failed`).
+    expect(testText(html, "title"), where).toBe("home.title");
+    // The server is still up and serves an ordinary page.
+    const ok = await get(request, "/", { cookie: "" });
+    expect(ok.status(), where).toBe(200);
+    expect(testText(await ok.text(), "title"), where).toBe(EN["home.title"]);
+  }
+  await page.context().addCookies([{ name: "e2e-missing", value: "api", url: BASE }]);
+  await page.goto("/");
+  await hydrated(page);
+  await page.waitForLoadState("networkidle");
+  await expect(id(page, "title")).toHaveText("home.title");
+  // The browser's loader asks `/api/i18n/…` (the route exists there): the server's null is
+  // kept, so hydration asks for nothing.
+  expect(asked).toEqual([]);
+});
+
+test("18: a translated error page is unchanged; an outside request carrying the catalog header gets a 404 and leaves a swr page intact", async ({
+  page,
+  request,
+}) => {
+  for (const [url, locale] of [
+    ["/boom", "en"],
+    ["/uk/boom", "uk"],
+    ["/xx/nope", "en"],
+  ] as const) {
+    const r = await get(request, url, { accept: "text/html" });
+    expect(testText(await r.text(), "error-title"), url).toBe(catalog(locale)["home.title"]);
+  }
+  await page.goto("/xx/nope");
+  await hydrated(page);
+  await expect(id(page, "error-title")).toHaveText(EN["home.title"]);
+  // An ordinary page asked with the header: the 404 of a catalog request with no route.
+  expect((await get(request, "/", { "x-comvi-catalog": "1" })).status()).toBe(404);
+  // `/cached` (`swr`): Nitro renders it for the cache with only the headers it varies on, so
+  // the header never reaches the render: the request that carries it gets the page too, and
+  // so does everyone after. `/uk/cached` is an UNCACHED control: `isr` on node-server renders
+  // per request, so the marked request gets its 404 and the next ones get the page (a real
+  // ISR platform is unverified).
+  for (const [url, locale, marked] of [
+    ["/cached", "en", 200],
+    ["/uk/cached", "uk", 404],
+  ] as const) {
+    expect((await get(request, url, { "x-comvi-catalog": "1" })).status(), url).toBe(marked);
+    for (let i = 0; i < 2; i++) {
+      const r = await get(request, url);
+      expect(r.status(), url).toBe(200);
+      expect(testText(await r.text(), "title"), url).toBe(catalog(locale)["home.title"]);
+    }
+  }
 });

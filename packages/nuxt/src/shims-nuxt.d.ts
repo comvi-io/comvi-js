@@ -87,6 +87,11 @@ declare module "#app" {
     resolve(to: import("vue-router").RouteLocationRaw): import("vue-router").RouteLocationResolved;
   };
   export function useHead(input: unknown): void;
+  export function createError(input: {
+    statusCode: number;
+    statusMessage?: string;
+    fatal?: boolean;
+  }): Error;
   export function useRequestURL(): URL;
 }
 

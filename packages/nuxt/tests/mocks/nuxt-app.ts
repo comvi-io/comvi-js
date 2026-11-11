@@ -251,6 +251,14 @@ export function useHead(config: any) {
   return computed(() => config.value || config);
 }
 
+export function createError(input: {
+  statusCode: number;
+  statusMessage?: string;
+  fatal?: boolean;
+}) {
+  return Object.assign(new Error(input.statusMessage), input);
+}
+
 export function navigateTo(path: string, options?: any) {
   return { path, ...options };
 }

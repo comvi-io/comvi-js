@@ -11,6 +11,9 @@ export default defineNuxtConfig({
   modules: ["@comvi/nuxt"],
   css: ["~/assets/css/main.css"],
   sourcemap: false,
+  // A page one render serves to everyone (the e2e checks that a request carrying the
+  // catalog header cannot store its 404 there).
+  routeRules: { "/cached": { swr: 60 }, "/uk/cached": { isr: 60 } },
   vite: {
     plugins: [tailwindVitePlugin],
   },

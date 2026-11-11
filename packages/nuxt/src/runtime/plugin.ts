@@ -1,4 +1,4 @@
-import { defineNuxtPlugin, useRequestHeaders, useRuntimeConfig } from "#app";
+import { createError, defineNuxtPlugin, useRequestHeaders, useRuntimeConfig } from "#app";
 import { createI18n, useI18n, type VueI18n } from "@comvi/vue";
 import { handover, type Handover } from "@comvi/core/ssr";
 import { config, options } from "#build/comvi.options";
@@ -31,6 +31,14 @@ export default defineNuxtPlugin({
     const cookie = useLocaleCookie();
     const payload = nuxtApp.payload.comvi as Handover | undefined;
     const event = import.meta.server ? nuxtApp.ssrContext?.event : undefined;
+    // A catalog request of the recipe's loader (it sends `x-comvi-catalog`) that reached no
+    // server route: Nuxt renders it as a page, whose loader would ask for the same URL again,
+    // without end. It answers 404 instead, before any instance or load, so the loader that
+    // asked fails (`load_failed`). Observed: an HTML request gets the 404 with an empty shell
+    // (Nuxt's error render carries the header and stops here too); a JSON request gets Nitro's
+    // JSON error, no error render. It ends there either way.
+    if (import.meta.server && event?.headers?.get("x-comvi-catalog"))
+      throw createError({ statusCode: 404, statusMessage: "No catalog route" });
 
     let locale = payload?.locale;
     if (!locale) {

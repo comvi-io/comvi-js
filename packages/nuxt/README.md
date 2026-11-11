@@ -139,16 +139,25 @@ export default defineI18nOptions((event) => {
   // in-process. In the browser `event` is undefined and `$fetch` sends them itself.
   const fetch = event?.$fetch ?? $fetch;
   return {
-    loader: (locale, ns, signal) => fetch(`/api/i18n/${locale}/${ns}`, { signal, retry: 0 }),
+    loader: (locale, ns, signal) =>
+      fetch(`/api/i18n/${locale}/${ns}`, {
+        signal,
+        retry: 0,
+        // Marks the catalog request: if no route answers it, the module answers it 404.
+        headers: { "x-comvi-catalog": "1" },
+      }),
   };
 });
 ```
 
 `retry: 0` applies to any loader built on `$fetch` where one attempt is wanted: `$fetch` repeats a
 failed GET once otherwise, and the retry belongs to `i18n.load(ns)`. A protected route also needs the
-request forwarded through `event.$fetch`. The key stays in the server build. The route must exist:
-Nuxt renders a URL with no server route as a page (under `/api` or elsewhere), and that page's
-server render calls the same URL again, without end, until the server process runs out of memory.
+request forwarded through `event.$fetch`. The key stays in the server build. `x-comvi-catalog`
+marks the catalog request: Nuxt renders a URL with no server route as a page, so a missing route
+would render a page whose loader asks for the same URL again, without end. The module answers a
+page render that carries the header with a 404 instead, and the load fails (`load_failed`). A
+loader that sends no such header to a missing route still recurses until the process runs out of
+memory: the route must exist. The header is reserved: any request that carries it to a page URL gets that 404.
 
 ### How it works
 
