@@ -38,6 +38,7 @@ async function serve(handler: Parameters<typeof eventHandler>[0]) {
     hooks: { hook: (name: string, fn: any) => void (hooks[name] ||= []).push(fn) },
   } as never);
   const app = createApp({
+    onRequest: (event) => hooks.request!.forEach((fn) => fn(event)),
     onAfterResponse: (event) => hooks.afterResponse!.forEach((fn) => fn(event)),
     onError: (error, event) => hooks.error!.forEach((fn) => fn(error, { event })),
   });
@@ -129,6 +130,23 @@ describe("the request-end plugin", () => {
     expect(await (await fetch(url)).text()).toBe("ok");
     await expect.poll(() => state.destroyed).toBe(2);
     expect(state.aborted).toBe(2);
+    await close();
+  });
+
+  it("when the client goes away while the handler still waits for a load: destroyed at the close", async () => {
+    const state = { aborted: 0, destroyed: 0 };
+    const { url, close } = await serve(async (e) => {
+      hanging(e, state);
+      await new Promise(() => {});
+    });
+    const gone = new AbortController();
+    const pending = fetch(url, { signal: gone.signal }).catch(() => "aborted");
+    await expect.poll(() => state.destroyed === 0).toBe(true);
+    await new Promise((r) => setTimeout(r, 50));
+    gone.abort();
+    expect(await pending).toBe("aborted");
+    await expect.poll(() => state.destroyed).toBe(1);
+    expect(state.aborted).toBe(1);
     await close();
   });
 
