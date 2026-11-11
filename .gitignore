@@ -108,3 +108,6 @@ release-candidate/
 
 # Review and build-proof artifacts live in .omc/reviews (ignored); docs/design holds the ADRs.
 docs/reviews/
+
+# scripts/typegen-e2e/next.test.mjs: throwaway Next apps (inside the repo, so Next finds the workspace root)
+scripts/typegen-e2e/.next-apps

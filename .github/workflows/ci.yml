@@ -212,7 +212,9 @@ jobs:
       # Typegen end to end on the built CLI, Vite plugin and Node API (R3-18): one output
       # from every input (byte for byte), `comvi typegen --watch` on a fixture app (a new
       # key reaches tsc, broken JSON keeps the file, an unchanged declaration is not
-      # rewritten, two watchers of one file write it from one process).
+      # rewritten, two watchers of one file write it from one process), and
+      # `withComvi({ types })` under real `next dev` / `next build` on Next 15 and 16,
+      # webpack and Turbopack.
       - name: Typegen e2e (built artifacts)
         run: pnpm typegen:e2e
 

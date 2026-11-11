@@ -26,7 +26,7 @@
     "test:release": "pnpm test:release-tools && pnpm test:pr && pnpm audit:package-contracts && pnpm check:publint && pnpm check:types-exports && pnpm check:inlined-version && pnpm check:snippets:types && pnpm check:strict-consumer && pnpm typegen:e2e && pnpm check:node-entries && pnpm --filter @comvi/vue test:e2e && pnpm examples:e2e:all",
     "size": "node scripts/size-check.mjs",
     "check:strict-consumer": "node scripts/unless-pending.mjs check:strict-consumer @comvi/vite-plugin,@comvi/typegen -- node scripts/strict-consumer/run.mjs",
-    "typegen:e2e": "node --test scripts/typegen-e2e/run.test.mjs",
+    "typegen:e2e": "node --test scripts/typegen-e2e/run.test.mjs scripts/typegen-e2e/next.test.mjs",
     "check:node-entries": "node scripts/node-entries/run.mjs",
     "check:export-names": "node scripts/check-export-names.mjs --require-dist",
     "check:snippets": "node scripts/check-snippets.mjs --readmes",

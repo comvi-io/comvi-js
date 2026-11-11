@@ -160,10 +160,10 @@ per framework
 lot 1c; the `plugin-fetch-loader` and `plugin-fetch-loader-api` rows left with the package in lot 2c,
 the platform path is `core-icu-cdn`).
 
-`fw-next-plugin-node` is no pair half: `@comvi/next/plugin` runs in Node from next.config and is
-never bundled into an app, so its row only catches a runtime import creeping into the plugin.
-Re-baselined 2026-10-04 to 937 B (budget 984 B, +5 %): the bytes re-apply the alias to the config
-a user's webpack hook returns. The row catches an accidental core import; it does not pin bytes.
+`fw-next-plugin-node` is no pair half and no browser row: it is Node tooling. `@comvi/next/plugin`
+runs in Node from next.config and is never bundled into an app, so its row only catches a runtime
+import creeping into the plugin. Since lot 6b its graph includes the typegen that
+`withComvi({ types })` inlines, and its ceiling is the owner's (2026-11-10 lot 6b below).
 
 Each framework pair is a floor (one specifier, base host) and a ceiling (every capability composed
 through that same specifier). The pair is the measurement — adding or removing one half turns the
@@ -1616,3 +1616,24 @@ react-icu-cdn 6,004 → 5,922 (−82), vue-icu-cdn 6,156 → 6,077 (−79), soli
 (−86), svelte-icu-cdn 6,744 → 6,664 (−80), fw-react-full-composite 8,736 → 8,470 (−266),
 fw-next-server-default-loader 5,800 → 5,639 (−161), fw-next-client-default 6,811 → 6,496 (−315);
 every other row −69…−90 B or unchanged. Limits unchanged: the owner decides whether to lower them.
+
+## 2026-11-10: lot 6b, `withComvi({ types })` — the plugin row is Node tooling
+
+`withComvi({ types })` writes the typed-translations declaration while next.config loads, through
+the workspace-private typegen, which the plugin inlines and imports statically. `fw-next-plugin-node`
+measures that whole graph: 121 B (lot 6a, no typegen) → **11,720 B min+gz, 29,614 B min**, measured
+with `pnpm size` under `node --version` v24.22.1 (the CI Node) after `TURBO_FORCE=true pnpm build`
+on lot 6a at e47da916. The first measurement, before lot 6a's nested-catalog rule reached typegen,
+was 11,557 B min+gz / 29,228 B min (ceiling 11,789); the difference, 163 B, came with that change. No other row moved.
+
+The row is Node tooling, never shipped to a browser: the plugin runs from next.config and no app
+or browser bundle imports it. The owner accepted the weight of a Node tool on 2026-11-10 and ruled
+out code splitting for the sake of the row (measured for the decision: a dynamic `import()` reads
+11,814 B in this harness, which bundles without splitting). By the owner-accepted growth rule the
+ceiling is set from this final measurement, by the owner's word of 2026-11-10:
+
+| row                 | before       | lot 6b            | ceiling                        | budget                                         |
+| ------------------- | ------------ | ----------------- | ------------------------------ | ---------------------------------------------- |
+| fw-next-plugin-node | 121 (b. 939) | 11,720 (29,614 m) | — → 11,955 (ceil(11,720×1.02)) | 986 → 11,955 (min(ceiling, ceil(11,720×1.05))) |
+
+No other row's ceiling or budget changed.
