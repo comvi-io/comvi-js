@@ -5,6 +5,9 @@ the server request contract; `createNextI18n` stops defaulting the compiler, 14.
 Amended 2026-10-12: the Edge figures below were re-measured once on 0.6.0, after `createNextI18n`
 stopped composing discovery (COM-140); the earlier figure, 30.3 KB across 25 modules, was taken
 when the config module's graph still composed `@comvi/core/devtools`.
+Amended 2026-11-11: not current for 0.8. This record describes the 0.7 `createNextI18n` design,
+superseded by lot 6 (`createGetI18n` and the server and client `<I18nProvider>`, see
+`packages/next/README.md`); kept as history.
 
 ## Context
 

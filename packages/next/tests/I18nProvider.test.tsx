@@ -287,3 +287,64 @@ describe("hydration with a `null` slot through the provider (the ordinary readin
     },
   );
 });
+
+describe("the payload is the server snapshot: an explicit retry after a hydration with a `null` slot (owner, 2026-11-11)", () => {
+  it("ordinary re-renders (the retry's publication, a parent state change) keep the retry; a new payload fails the pair again", async () => {
+    const gates: (() => void)[] = [];
+    const loader = vi.fn(
+      (_l: string, _n: string) =>
+        new Promise<Record<string, string>>((ok) => gates.push(() => ok({ title: "Admin" }))),
+    );
+    const first = payload("en", { default: { en: {} }, admin: { en: null } });
+    let retry!: () => Promise<void>;
+    function Tpl() {
+      const { t, isReady, isLoading, i18n } = useI18n("admin");
+      retry = () => i18n.load("admin");
+      return isReady ? <p>{t("title")}</p> : isLoading ? <i>loading</i> : <b>unavailable</b>;
+    }
+    let bump!: () => void;
+    function Layout({ p }: { p: Handover }) {
+      const [n, setN] = useState(0);
+      bump = () => setN(n + 1);
+      return (
+        <I18nProvider payload={p} options={{ loader, onError: () => {} }}>
+          <Tpl />
+        </I18nProvider>
+      );
+    }
+    const html = renderToString(<Layout p={first} />);
+    expect(html).toBe("<b>unavailable</b>");
+    const el = document.createElement("div");
+    el.innerHTML = html;
+    document.body.append(el);
+    const errors: unknown[] = [];
+    let root!: ReturnType<typeof hydrateRoot>;
+    await act(async () => {
+      root = hydrateRoot(el, <Layout p={first} />, { onRecoverableError: (e) => errors.push(e) });
+    });
+    expect(errors).toEqual([]);
+    expect(loader).not.toHaveBeenCalled();
+    let outcome = "";
+    await act(async () => {
+      void retry().then(
+        () => (outcome = "resolved"),
+        () => (outcome = "rejected"),
+      );
+    });
+    expect(el.innerHTML).toBe("<i>loading</i>");
+    await act(async () => bump());
+    expect(el.innerHTML).toBe("<i>loading</i>");
+    await act(async () => gates.splice(0).forEach((g) => g()));
+    await act(async () => {});
+    expect(outcome).toBe("resolved");
+    expect(el.innerHTML).toBe("<p>Admin</p>");
+    expect(loader).toHaveBeenCalledTimes(1);
+    // `router.refresh()`: a new payload object in which the server failed the pair again.
+    await act(async () =>
+      root.render(<Layout p={payload("en", { default: { en: {} }, admin: { en: null } })} />),
+    );
+    expect(el.innerHTML).toBe("<b>unavailable</b>");
+    root.unmount();
+    el.remove();
+  });
+});

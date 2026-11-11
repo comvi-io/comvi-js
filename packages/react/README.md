@@ -118,7 +118,10 @@ count), before the children render: an `<I18nHandover>` under a shut gate waits,
 first. Server renders and hydrations are never gated; a server preloads with `i18n.load()`. Each
 slot `<I18nHandover catalogs>` hands over replaces the instance's, every time (`null`: failed on the
 server; an omitted slot is kept); with two handovers on one instance, the last payload wins per slot.
-Pass `catalogs` as a stable object.
+`catalogs` is the server's snapshot, and its identity is the result's: a new object is a new
+result and is applied again. Hold it once — read `window.__I18N__` at module scope as above,
+`useState(() => …)`, or a prop from the server — not an inline literal, which re-applies on every
+render (a `null` slot then aborts an explicit retry, and an `add()` patch to a handed slot is lost).
 
 Match a route, cookie or header locale against your supported locales first: `createI18n()` and
 `<I18nHandover locale>` throw a `RangeError` for an invalid tag (`t(key, { locale })`, `has()`,

@@ -47,10 +47,14 @@ export interface I18nHandoverProps {
    * FULLY REPLACES the instance's slot, the first time and every later time: a key it lacks is
    * gone, `{}` is an empty catalog; a slot it omits is not changed; with two handovers on one
    * instance the last payload applied wins per slot. `add()` stays a patch. Committed once per
-   * object; a new literal with the same messages on every parent render publishes nothing (the
-   * core compares values), but a STABLE object skips that comparison. A new object is a new
-   * payload: an inline literal with a `null` fails that pair again on every parent render (and
-   * aborts an explicit retry in flight), so pass a stable object. A `null` slot means what it means in
+   * object. The object IS the server's snapshot: a re-render passes the same object, a new server
+   * result comes as a new object (even with the same content), and a new object is applied again.
+   * Hold it once — module scope, `useState(() => …)`, or a prop from the server (as
+   * `@comvi/next/client` passes it) — never an inline literal: re-created on every render under a
+   * parent that reads `useI18n()`, a `null` slot fails its pair again and aborts an explicit
+   * retry, and a catalog replaces an `add()` patch to its slot. Sibling handovers on one instance: a `null` one hands is marked in its own
+   * subtree only until its commit, so create the instance from the first paint's payload (as
+   * `@comvi/next/client` does) for every subtree to take the server's branch at hydration. A `null` slot means what it means in
    * `createI18n({ catalogs })`: the load failed on the server — the subtree renders without
    * it (the fallback the server rendered), and at commit the instance drops a catalog it held
    * for it and does not ask for it until `i18n.load(ns)` or a switch to its locale. A render
