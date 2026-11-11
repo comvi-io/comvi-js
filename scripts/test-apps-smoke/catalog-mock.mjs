@@ -1,10 +1,12 @@
 /**
- * The catalog source of the Next test apps (`COMVI_E2E_CATALOGS`): serves `test-apps/locales`
+ * The catalog source of the Next and Nuxt test apps (Next: `COMVI_E2E_CATALOGS`; Nuxt: the app's
+ * catalog route, `NUXT_COMVI_SOURCE`): serves `test-apps/locales`
  * (`/<ns>/<locale>.json`; `default` is `<locale>.json`, any other namespace `<ns>/<locale>.json`)
  * and lets the e2e steer each (locale, namespace) pair, so a test waits on concrete states
  * instead of time:
  *
- *   POST /__mode    {"hold": ["uk:admin"], "fail": ["uk:admin"]} — replaces the modes
+ *   POST /__mode    {"hold": ["uk:admin"], "fail": ["uk:admin"], "empty": ["uk:admin"]} — replaces
+ *                   the modes (`empty`: answers `{}`)
  *   POST /__release {"pair": "uk:admin"} — answers the held requests of the pair
  *   GET  /__log     every request so far: {pair, from: "server" | "browser", status}
  *   GET  /__held    the pairs with a request held now
@@ -18,7 +20,7 @@ import http from "node:http";
 import path from "node:path";
 
 export function startCatalogMock(dir, port = 0) {
-  let mode = { hold: [], fail: [] };
+  let mode = { hold: [], fail: [], empty: [] };
   let log = [];
   /** Held requests: [pair, answer()]. */
   let held = [];
@@ -46,7 +48,7 @@ export function startCatalogMock(dir, port = 0) {
     const url = new URL(req.url, "http://x");
     if (req.method === "OPTIONS") return json(res, 204, {});
     if (url.pathname === "/__mode")
-      return json(res, 200, (mode = { hold: [], fail: [], ...(await readBody(req)) }));
+      return json(res, 200, (mode = { hold: [], fail: [], empty: [], ...(await readBody(req)) }));
     if (url.pathname === "/__release") return json(res, 200, release((await readBody(req)).pair));
     if (url.pathname === "/__log") return json(res, 200, log);
     if (url.pathname === "/__held")
@@ -56,7 +58,7 @@ export function startCatalogMock(dir, port = 0) {
         held.map(([p]) => p),
       );
     if (url.pathname === "/__reset") {
-      mode = { hold: [], fail: [] };
+      mode = { hold: [], fail: [], empty: [] };
       log = [];
       release();
       return json(res, 200, {});
@@ -71,7 +73,7 @@ export function startCatalogMock(dir, port = 0) {
       const file = path.join(dir, ns === "default" ? `${locale}.json` : `${ns}/${locale}.json`);
       entry.status = mode.fail.includes(pair) ? 500 : fs.existsSync(file) ? 200 : 404;
       if (entry.status !== 200) return json(res, entry.status, {});
-      json(res, 200, JSON.parse(fs.readFileSync(file, "utf8")));
+      json(res, 200, mode.empty.includes(pair) ? {} : JSON.parse(fs.readFileSync(file, "utf8")));
     };
     if (mode.hold.includes(pair)) held.push([pair, answer]);
     else answer();

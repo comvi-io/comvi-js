@@ -12,10 +12,18 @@ export default defineNuxtConfig({
     plugins: [tailwindVitePlugin],
   },
 
+  // The catalog source and its credential: private, server only (`NUXT_COMVI_SOURCE`
+  // points it at the e2e's catalog mock). The e2e checks neither reaches the client build.
+  runtimeConfig: {
+    comviSource: "http://127.0.0.1:45811",
+    comviToken: "comvi-e2e-server-secret-5d1c9f",
+  },
+
   comvi: {
     locales: [
       { code: "en", name: "English", iso: "en-US" },
       { code: "de", name: "Deutsch", iso: "de-DE" },
+      { code: "de-AT", name: "Deutsch (Österreich)", iso: "de-AT" },
       { code: "fr", name: "Francais", iso: "fr-FR" },
       { code: "es", name: "Espanol", iso: "es-ES" },
       { code: "uk", name: "Ukrainska", iso: "uk-UA" },
@@ -23,18 +31,15 @@ export default defineNuxtConfig({
     ],
     defaultLocale: "en",
     localePrefix: "as-needed",
-    defaultNs: "default",
-    // No `i18nModule`: `app/comvi.i18n.ts` is picked up by convention (srcDir,
-    // then rootDir) and the module logs the path it resolved at build time.
-    // The nuxt 3 test app names it explicitly, so both paths stay exercised.
-    // Its host file keeps the `satisfies NuxtInstanceFactory` form; the nuxt 3 test
-    // app uses `defineComviI18n`, so both typings stay exercised too.
     fallbackLocale: "en",
-    localeCookie: "i18n_locale",
-    basicHtmlTags: ["strong", "em", "a", "br"],
+    // The server's zone; the e2e's browser runs in UTC.
+    timeZone: "Pacific/Kiritimati",
+    // No `i18nModule`: `app/comvi.i18n.ts` is picked up by convention (srcDir, then
+    // rootDir). The Nuxt 3 test app names it explicitly, so both paths stay exercised.
   },
 
-  devtools: { enabled: true },
+  devtools: { enabled: false },
+  telemetry: false,
 
   // Types from this app's own Nuxt 4: @nuxt/devtools-kit (shared with the
   // Nuxt 3 test app, no dependency on nuxt) imports `nuxt/app` and
