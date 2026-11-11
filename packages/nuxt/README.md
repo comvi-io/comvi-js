@@ -17,7 +17,7 @@
 
 ---
 
-Nuxt 3.21+ on Node 22.20+; Nuxt 4.6+ on the Node it requires (verified on 24.x).
+Nuxt 3.21+ on Node 22.20+; Nuxt 4.6+ on the Node it requires (verified on 22.22.3 and 24.x).
 
 `@comvi/nuxt` is the Comvi i18n module for Nuxt 3 and 4: it creates one i18n instance per request,
 renders the page's translations on the server, starts the browser from that render, and clones your
