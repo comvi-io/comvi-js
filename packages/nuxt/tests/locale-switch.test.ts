@@ -191,12 +191,23 @@ describe("a clicked <NuxtLinkLocale locale>", () => {
     expect(getMockCookieWrites("i18n_locale")).toEqual(["de"]);
   });
 
-  it("a link with target=_blank opens another tab: this tab's preference is not written", () => {
+  it.each(["_blank", "preview"])(
+    "a link with target=%s opens elsewhere: this tab's preference is not written",
+    (target) => {
+      standOn("/de/about", "de");
+
+      clickLink({ to: "/", locale: "en", target });
+
+      expect(getMockCookieWrites("i18n_locale")).toEqual(["de"]);
+    },
+  );
+
+  it("a link with target=_self is this window: the choice is recorded", () => {
     standOn("/de/about", "de");
 
-    clickLink({ to: "/", locale: "en", target: "_blank" });
+    clickLink({ to: "/", locale: "en", target: "_self" });
 
-    expect(getMockCookieWrites("i18n_locale")).toEqual(["de"]);
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["de", "en"]);
   });
 
   it("keeps the app's own click handler", () => {

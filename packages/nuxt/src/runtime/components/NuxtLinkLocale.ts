@@ -65,10 +65,11 @@ export default defineComponent({
             onClick?.(event);
             // No `defaultPrevented` check: `RouterLink` has already called
             // `preventDefault()` on every click it turns into a navigation. A modified or
-            // non-primary click, or a `target="_blank"` link, opens another tab (RouterLink's
-            // own guard): this tab's preference stays.
+            // non-primary click, or a link with a `target` other than this window's, opens
+            // elsewhere: this tab's preference stays.
             const { button, metaKey, ctrlKey, shiftKey, altKey } = event;
-            const blank = /\b_blank\b/i.test(String((rest as { target?: string }).target ?? ""));
+            const target = (rest as { target?: string }).target;
+            const blank = !!target && !/^_(self|parent|top)$/i.test(target);
             if (!button && !metaKey && !ctrlKey && !shiftKey && !altKey && !blank) recordLocale();
           },
         },
