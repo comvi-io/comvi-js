@@ -76,8 +76,8 @@ Switching the language is a navigation: the URL, the text, the cookie and `<html
 together, and the old text stays until the new catalogs are in. `setLocale()` changes the instance
 only (the text and the cookie, not the URL; the next navigation applies the URL's locale): use it as
 the switch with `localePrefix: "never"`. A switch whose catalogs all fail keeps the locale on screen
-and its URL. Navigate with `<NuxtLink>` or `router.push`: while a switch loads, Nuxt answers a
-`navigateTo()` called from a click with the location only.
+and its URL. Navigate with `<NuxtLink>` or `router.push`: a `navigateTo()` called while a language
+switch is pending is ignored (Nuxt returns the location without navigating).
 
 For a two-line start, `comvi.messages: { en: { … }, uk: { … } }` in `nuxt.config.ts` gives the
 `default` namespace without files; those catalogs are compiled into the app bundle, and no page payload carries them again.
@@ -154,8 +154,12 @@ page, and writes one snapshot into the Nuxt payload after the render. The browse
 instance from that snapshot before any component renders, so hydration asks the loader for nothing,
 a catalog the server failed included (it renders the fallback the server rendered until a retry).
 After it, every new namespace comes from the browser's loader. `useNuxtApp().$i18n` is the instance
-outside a component. In a Nitro route, `useTranslation(event, { ns?, locale? })` returns
-`{ t, locale, dir, i18n }` on the same options; every server instance ends with its request.
+outside a component. In a Nitro route, `const { t } = await useTranslation(event, { ns?, locale? })`
+gives `{ t, locale, dir, i18n }` on the same options. Every server instance ends with its request:
+after the response, when the handler throws, or when the client goes away. Not supported:
+`routeRules` with `swr` (the stale-while-revalidate re-render runs after the response has ended its
+instance, and caches raw keys); `isr`, `ssrStreaming`, non-Node presets and `nuxt generate` are
+unverified.
 
 ## Routing
 
