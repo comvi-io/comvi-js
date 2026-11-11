@@ -135,14 +135,18 @@ describe("the request-end plugin", () => {
 
   it("when the client goes away while the handler still waits for a load: destroyed at the close", async () => {
     const state = { aborted: 0, destroyed: 0 };
+    let started!: () => void;
+    const handling = new Promise<void>((resolve) => (started = resolve));
     const { url, close } = await serve(async (e) => {
       hanging(e, state);
+      started();
       await new Promise(() => {});
     });
     const gone = new AbortController();
     const pending = fetch(url, { signal: gone.signal }).catch(() => "aborted");
-    await expect.poll(() => state.destroyed === 0).toBe(true);
-    await new Promise((r) => setTimeout(r, 50));
+    // The handler holds its instance and waits for the load: the client goes away now.
+    await handling;
+    expect(state.destroyed).toBe(0);
     gone.abort();
     expect(await pending).toBe("aborted");
     await expect.poll(() => state.destroyed).toBe(1);

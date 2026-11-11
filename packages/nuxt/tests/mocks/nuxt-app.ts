@@ -94,32 +94,28 @@ export function setMockI18n(i18n: any) {
 }
 
 /**
- * A stand-in instance whose `setLocale()` stays pending until the test settles it: the
- * last call wins, as in the core (an earlier pending switch resolves without switching).
+ * A stand-in instance whose `setLocale()` calls stay pending until the test settles each
+ * one: `land(i)` shows call i's locale and resolves it, `fail(i)` rejects it (the locale on
+ * screen stays), `resolve(i)` resolves it without switching (a superseded call in the core).
  */
 export function deferredInstance(locale: string) {
-  const calls: string[] = [];
-  let pending: { target: string; resolve: () => void; reject: (e: Error) => void } | undefined;
+  const calls: Array<{ target: string; resolve: () => void; reject: (e: Error) => void }> = [];
   const instance = {
     locale,
-    calls,
-    setLocale: (target: string) => {
-      calls.push(target);
-      pending?.resolve();
-      return new Promise<void>((resolve, reject) => {
-        pending = { target, resolve, reject };
-      });
+    get targets() {
+      return calls.map((c) => c.target);
     },
-    /** Lands the last switch: the instance shows its locale. */
-    land() {
-      instance.locale = pending!.target;
-      pending!.resolve();
-      pending = undefined;
+    setLocale: (target: string) =>
+      new Promise<void>((resolve, reject) => void calls.push({ target, resolve, reject })),
+    land(i: number) {
+      instance.locale = calls[i]!.target;
+      calls[i]!.resolve();
     },
-    /** Fails the last switch: the locale on screen stays. */
-    fail() {
-      pending!.reject(new Error("load_failed"));
-      pending = undefined;
+    resolve(i: number) {
+      calls[i]!.resolve();
+    },
+    fail(i: number) {
+      calls[i]!.reject(new Error("load_failed"));
     },
   };
   return instance;

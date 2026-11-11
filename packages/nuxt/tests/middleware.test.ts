@@ -918,6 +918,7 @@ describe("i18n middleware: a pending switch and the navigations after it", () =>
     resetMocks();
     setServerMode(false);
   });
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
   it("a navigation in the locale on screen supersedes a pending switch: it asks for that locale, the stale run records nothing", async () => {
     const i18n = deferredInstance("en");
@@ -925,13 +926,14 @@ describe("i18n middleware: a pending switch and the navigations after it", () =>
     setMockCookie("i18n_locale", "en");
 
     const first = runMiddleware({ path: "/uk/admin", fullPath: "/uk/admin" });
-    await Promise.resolve();
-    expect(i18n.calls).toEqual(["uk"]);
+    await tick();
+    expect(i18n.targets).toEqual(["uk"]);
     const second = runMiddleware({ path: "/plurals", fullPath: "/plurals" });
-    await Promise.resolve();
+    await tick();
     // The newer navigation asks for the locale on screen, which ends uk's pending switch.
-    expect(i18n.calls).toEqual(["uk", "en"]);
-    i18n.land();
+    expect(i18n.targets).toEqual(["uk", "en"]);
+    i18n.resolve(0);
+    i18n.land(1);
 
     expect(await first).toBeUndefined();
     expect(await second).toBeUndefined();
@@ -945,26 +947,28 @@ describe("i18n middleware: a pending switch and the navigations after it", () =>
     setMockCookie("i18n_locale", "en");
 
     const run = runMiddleware({ path: "/uk/admin", fullPath: "/uk/admin?x=1" });
-    await Promise.resolve();
-    i18n.fail();
+    await tick();
+    i18n.fail(0);
 
     expect(await run).toEqual({ path: "/admin?x=1", redirectCode: 302 });
     expect(useCookie("i18n_locale").value).toBe("en");
     expect(getMockCookieWrites("i18n_locale")).toEqual(["en"]);
   });
 
-  it("a superseded switch that fails afterwards redirects nothing", async () => {
+  it("a superseded switch that FAILS after a navigation in the locale on screen redirects and records nothing", async () => {
     const i18n = deferredInstance("en");
     setMockI18n(i18n);
+    setMockCookie("i18n_locale", "en");
 
     const first = runMiddleware({ path: "/uk/admin", fullPath: "/uk/admin" });
-    await Promise.resolve();
-    const second = runMiddleware({ path: "/de/admin", fullPath: "/de/admin" });
-    await Promise.resolve();
-    i18n.land();
-
+    await tick();
+    const second = runMiddleware({ path: "/plurals", fullPath: "/plurals" });
+    await tick();
+    // uk's switch rejects after the newer navigation: the stale run must not redirect.
+    i18n.fail(0);
     expect(await first).toBeUndefined();
+    i18n.land(1);
     expect(await second).toBeUndefined();
-    expect(i18n.locale).toBe("de");
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["en"]);
   });
 });
