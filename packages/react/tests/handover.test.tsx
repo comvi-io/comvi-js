@@ -794,7 +794,7 @@ describe("a fresh catalogs literal on every render", () => {
     // Counted: the first render, the published add(), the switch — never dozens.
     expect(renders).toBeLessThan(10);
     const rev = i18n.rev();
-    act(() => i18n.setDefaultParams({ x: "1" }));
+    act(() => i18n.add("de", { x: "1" }, "other"));
     await settle();
     expect(i18n.rev()).toBe(rev + 1);
   });

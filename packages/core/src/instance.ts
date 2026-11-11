@@ -85,12 +85,6 @@ export interface I18nOptions {
   loader?: Loader;
   /** Namespaces loaded from the start. Default `["default"]`. */
   namespaces?: readonly string[];
-  /**
-   * Params every `t()` call gets unless the call passes its own value. Copied: a later
-   * mutation of the object changes nothing (`setDefaultParams` replaces them). `ns`,
-   * `locale` and `markers` are reserved: they are per-call options, never message params.
-   */
-  defaultParams?: Readonly<Record<string, unknown>>;
   plugins?: readonly Plugin[];
   /**
    * IANA time zone of the Date formatters of `@comvi/core/format` (SSR bindings pass the
@@ -201,7 +195,6 @@ export interface I18n {
   rev(): number;
   /** Aborts every load, runs plugin teardowns, drops subscribers. Idempotent. */
   destroy(): void;
-  setDefaultParams(params: Readonly<Record<string, unknown>>): void;
 }
 
 /** A locale's lookup chain: [catalog key as spelled, canonical tag] pairs, nearest first. */
@@ -313,13 +306,6 @@ const safe = (f: void | (() => void)) => {
 /** A load in flight: its promise, its abort, and whose parent it is now (see `get()`). */
 type Flight = [Promise<unknown>, AbortController, (string | 0 | false)?];
 
-/**
- * A shallow own copy of a params object; `null` for none or an empty one (so `pub()`'s
- * default does not apply, and `{}` keeps the `t()` fast path).
- */
-const own = (v?: Readonly<Record<string, unknown>>) =>
-  v && Object.keys(v).length ? { ...v } : null;
-
 export const createI18n = (o: I18nOptions): I18n => {
   // Before anything runs: a failed creation leaves nothing behind.
   // Read once: an option getter cannot hand the state a second answer.
@@ -407,17 +393,17 @@ export const createI18n = (o: I18nOptions): I18n => {
   };
 
   /** A state for locale `l`, a valid tag: `createI18n()` and `setLocale()` refuse any other. */
-  const st = (rev: number, lrev: number, l: string, c: Store, dp: State["dp"]) => {
+  const st = (rev: number, lrev: number, l: string, c: Store) => {
     const h = chain(l);
-    return mk(rev, lrev, l, dirOf(h[0][1]), c, [...fl.keys()], dp, h[0][1], mf);
+    return mk(rev, lrev, l, dirOf(h[0][1]), c, [...fl.keys()], h[0][1], mf);
   };
 
   /**
    * Replaces the state (its loads in flight are `fl`'s keys), aborts `a` when a flight left it,
    * and tells the subscribers; a throwing subscriber does not stop the rest.
    */
-  const pub = (l = S.locale, c = S.c, dp = S.dp, a?: AbortController) => {
-    S = st(S.rev + 1, S.lrev + +(l != S.locale), l, c, dp);
+  const pub = (l = S.locale, c = S.c, a?: AbortController) => {
+    S = st(S.rev + 1, S.lrev + +(l != S.locale), l, c);
     a?.abort();
     subs.forEach(safe);
   };
@@ -476,7 +462,7 @@ export const createI18n = (o: I18nOptions): I18n => {
     for (const l in cats[n])
       if (cats[n][l]) c0 = ing(c0, l, cats[n][l]!, n);
       else bad.set(l + K + n, ((cnt[n] |= 0), sf(l, n)));
-  S = st(0, 0, start, c0, own(o.defaultParams));
+  S = st(0, 0, start, c0);
 
   /**
    * `isReady` (lot 4c): a catalog of namespace `n` from the chain of the state's locale (the
@@ -528,8 +514,6 @@ export const createI18n = (o: I18nOptions): I18n => {
     }
     // An empty namespace is the default one (`i18n.ns("")`, `useI18n("")` and its `<T>`).
     n ||= D;
-    // The state's own copy of defaultParams (R4-12: an older snapshot keeps its own).
-    if (s.dp) p = N(s.dp, p);
     const ch = chain(l);
     const i = look(s, key, n, ch);
     if (i >= 0) {
@@ -598,7 +582,7 @@ export const createI18n = (o: I18nOptions): I18n => {
     if (fl.get(k) == f) {
       fl.delete(k);
       rd = 0;
-      pub(S.locale, c, undefined, a);
+      pub(S.locale, c, a);
     }
   };
 
@@ -781,12 +765,10 @@ export const createI18n = (o: I18nOptions): I18n => {
       return fl.size ? rd || (rd = Promise.all([...fl.values()].map((f) => f[0])).then(noop)) : R;
     },
     // Fast path (R4-1d): a message already compiled in the primary record (default
-    // namespace at the locale), called without per-call options or defaultParams. An empty
+    // namespace at the locale), called without per-call options. An empty
     // string is untranslated and takes the full path (the fallback chain).
     t: ((key: string, p?: Params, f = S.pr?.[key]) =>
-      f && !(p && (p.ns || p.locale)) && !S.dp
-        ? render(f, p, S.tg, env)
-        : tr(S, key, p)) as I18n["t"],
+      f && !(p && (p.ns || p.locale)) ? render(f, p, S.tg, env) : tr(S, key, p)) as I18n["t"],
     ns: ((n: string) => (key: string, p?: Params) => tr(S, key, p, n)) as I18n["ns"],
     setLocale: (l) => sw(l),
     load(n) {
@@ -833,10 +815,6 @@ export const createI18n = (o: I18nOptions): I18n => {
         // Every teardown runs, last plugin first, even when one throws.
         downs.reverse().forEach(safe);
       }
-    },
-    setDefaultParams(v) {
-      // A copy, published as part of the next state; after destroy() nothing changes.
-      if (!dead) pub(S.locale, S.c, own(v));
     },
   };
 

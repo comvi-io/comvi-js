@@ -226,15 +226,15 @@ describe("useI18n(ns)", () => {
     expect(container.textContent).toBe("Shop");
   });
 
-  it("default tag handlers get their children as ONE node too (constructor and setDefaultParams)", async () => {
+  it("tag handlers shared by the app (one object passed to t()) get their children as ONE node", async () => {
     // Children.only() throws on an array: the handler sees exactly one node.
     const only = (c: ReactNode) => <b>{Children.only(c)}</b>;
     const { i18n, errors } = make({
       locale: "en",
       messages: { en: { a: "<x>one <y>two</y></x>" } },
-      defaultParams: { x: only, y: only },
     });
-    const Probe = () => <div>{useI18n().t("a") as ReactNode}</div>;
+    let handlers: Record<string, (c: ReactNode) => ReactNode> = { x: only, y: only };
+    const Probe = () => <div>{useI18n().t("a", handlers) as ReactNode}</div>;
     const warnings = await reactWarnings(() => {
       const { container } = render(
         <I18nProvider i18n={i18n}>
@@ -242,7 +242,8 @@ describe("useI18n(ns)", () => {
         </I18nProvider>,
       );
       expect(container.innerHTML).toBe("<div><b>one <b>two</b></b></div>");
-      act(() => i18n.setDefaultParams({ x: (c: ReactNode) => <i>{Children.only(c)}</i>, y: only }));
+      handlers = { x: (c: ReactNode) => <i>{Children.only(c)}</i>, y: only };
+      act(() => i18n.add("en", { b: "x" }));
       expect(container.innerHTML).toBe("<div><i>one <b>two</b></i></div>");
     });
     expect(warnings).toEqual([]);

@@ -167,11 +167,11 @@ describe("opt-out (H9)", () => {
     expect(i18n.t("hi", { markers: true })).toBe("[default|hi|Hi]");
   });
 
-  it("with defaultParams the opt-out still holds", () => {
+  it("with explicit params the opt-out still holds", () => {
     const mk = bracket();
-    const { i18n, x } = make({ defaultParams: { n: "Z" } });
+    const { i18n, x } = make();
     x.mark(mk);
-    expect(i18n.t("name", { markers: false })).toBe("Hi Z");
+    expect(i18n.t("name", { n: "Z", markers: false })).toBe("Hi Z");
     expect(mk).not.toHaveBeenCalled();
   });
 });
@@ -212,8 +212,6 @@ describe("no session, no devtools", () => {
         "lookup",
         "negotiate",
         "parents",
-        // Validates server-data defaultParams (lot 6a, owner 2026-11-11); sets nothing.
-        "plain",
         "pluralRules",
         "recordFor",
         "render",

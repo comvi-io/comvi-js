@@ -51,8 +51,9 @@ loop in a dev server, one message for a broken catalog.
   unknown, and the platform's extractor, which reads on, can differ there.
 - A nested group is flat keys (`packages/core/src/flat.ts`, lot 6a D1), as the runtime reads it; a
   collision's later leaf and an invalid leaf are warned about and left out, as the runtime leaves them out.
-- `"ns:key"` keys, `strictParams` and the 0.7 extractor are gone; `defaultParams` replaces the one
-  real use of optional params.
+- `"ns:key"` keys, `strictParams` and the 0.7 extractor are gone. Every param a message uses is
+  required in `t()`: `defaultParams` (and the generator option that made its names optional) was
+  removed from 0.8 (owner decision 2026-11-11).
 
 ## Alternatives rejected
 

@@ -31,14 +31,13 @@ const MEMBERS = [
   "on",
   "rev",
   "destroy",
-  "setDefaultParams",
 ];
 
 describe("the instance", () => {
-  it("has exactly 13 own members: 12 + setDefaultParams", () => {
+  it("has exactly 12 own members (setDefaultParams removed, owner decision 2026-11-11)", () => {
     const i18n = createI18n({ locale: "en" });
     expect(Object.keys(i18n).sort()).toEqual([...MEMBERS].sort());
-    expect(Object.getOwnPropertyNames(i18n)).toHaveLength(13);
+    expect(Object.getOwnPropertyNames(i18n)).toHaveLength(12);
     expect(Object.getOwnPropertySymbols(i18n)).toEqual([]);
     expect(Object.getPrototypeOf(i18n)).toBe(Object.prototype);
   });

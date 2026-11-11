@@ -2,7 +2,7 @@
 /**
  * The SERVER `<I18nProvider i18n routing>` of `@comvi/next/server` (lot 6a, D2/D3): it hands
  * the client provider the existing `handover()` and a DEFINED set of serializable settings
- * from the request's instance — `fallbackLocale`, `formats`, data-only `defaultParams` — and nothing else: no loader,
+ * from the request's instance — `fallbackLocale`, `formats` — and nothing else: no loader,
  * no callback, no credential, no other option. The client provider can be replaced by an app's
  * own client component (the place for a client loader).
  */
@@ -22,7 +22,6 @@ const instance = () =>
     fallbackLocale: ["en"],
     timeZone: "UTC",
     formats: { number: { price: { style: "currency", currency: "EUR" } } },
-    defaultParams: { brand: "Comvi" },
     namespaces: ["default"],
     catalogs: { default: { uk: { hi: "Привіт" }, en: { hi: "Hi" } } },
     loader: async () => ({ secret: "server only" }),
@@ -45,7 +44,6 @@ describe("server <I18nProvider i18n routing>", () => {
     expect(el.props.options).toEqual({
       fallbackLocale: ["en"],
       formats: { number: { price: { style: "currency", currency: "EUR" } } },
-      defaultParams: { brand: "Comvi" },
     });
     expect(el.props.routing).toBe(routing);
     expect(el.props.children).toBe("x");
@@ -72,64 +70,18 @@ describe("server <I18nProvider i18n routing>", () => {
   });
 });
 
-describe("defaultParams cross as data (owner decision 2026-11-10)", () => {
-  const server = (defaultParams?: Record<string, unknown>) =>
-    createI18n({
+describe("explicit params (defaultParams removed, owner decision 2026-11-11)", () => {
+  it("Server and Client Components render the same text with the params each call passes", () => {
+    const i18n = createI18n({
       locale: "en",
       timeZone: "UTC",
-      defaultParams,
-      catalogs: { default: { en: { hi: "Welcome to {brand}, {n} {ok} {none}" } } },
-      onError: () => {},
+      catalogs: { default: { en: { hi: "Welcome to {brand}" } } },
     });
-  const Client = () => <p>{useI18n().t("hi") as string}</p>;
-
-  it("the instance's ACTUAL values: Server and Client Components render the same text", () => {
-    const i18n = server({ brand: "Old" });
-    i18n.setDefaultParams({ brand: "Comvi", n: 3, ok: true, none: null });
+    const Client = () => <p>{useI18n().t("hi", { brand: "Comvi" }) as string}</p>;
     const el = I18nProvider({ i18n, children: <Client /> }) as ReactElement<
       Record<string, unknown>
     >;
-    expect(el.props.options).toEqual({
-      defaultParams: { brand: "Comvi", n: 3, ok: true, none: null },
-    });
-    expect(json(el.props.options)).toEqual(el.props.options);
-    expect(renderToString(el)).toBe(`<p>${i18n.t("hi")}</p>`);
-  });
-
-  it("finite numbers cross unchanged", () => {
-    const i18n = server({ brand: "B", n: -1.5, ok: false, none: 0 });
-    const el = I18nProvider({ i18n, children: null }) as ReactElement<Record<string, unknown>>;
-    expect(el.props.options).toEqual({
-      defaultParams: { brand: "B", n: -1.5, ok: false, none: 0 },
-    });
-  });
-
-  it("an own `__proto__` param crosses as an own key, and a handler under that name is refused (pinning)", () => {
-    const i18n = server(JSON.parse('{"__proto__": "P"}'));
-    const el = I18nProvider({ i18n, children: null }) as ReactElement<Record<string, unknown>>;
-    const dp = (el.props.options as { defaultParams: object }).defaultParams;
-    expect(Object.getOwnPropertyDescriptor(dp, "__proto__")?.value).toBe("P");
-    expect(Object.getPrototypeOf(dp)).toBe(Object.prototype);
-    expect(JSON.stringify(dp)).toBe('{"__proto__":"P"}');
-    const bad = server(
-      Object.defineProperty({}, "__proto__", { value: () => "x", enumerable: true }),
-    );
-    expect(() => I18nProvider({ i18n: bad, children: null })).toThrow(/defaultParams\.__proto__ /);
-  });
-
-  it.each([
-    ["a function (a tag handler)", () => "x"],
-    ["an object", { a: 1 }],
-    ["an array", ["a"]],
-    ["a Date", new Date(0)],
-    ["undefined", undefined],
-    ["Infinity", Infinity],
-    ["-Infinity", -Infinity],
-    ["NaN", NaN],
-  ])("%s is refused at the server boundary, naming the param", (_, v) => {
-    const i18n = server({ brand: "Comvi", link: v });
-    expect(() => I18nProvider({ i18n, children: null })).toThrow(
-      /defaultParams\.link .*strings, finite numbers, booleans and null/,
-    );
+    expect(el.props.options).toEqual({});
+    expect(renderToString(el)).toBe(`<p>${i18n.t("hi", { brand: "Comvi" })}</p>`);
   });
 });

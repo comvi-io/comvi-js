@@ -83,7 +83,6 @@ describe("the commit→subscribe window (0.7 store-revision-race)", () => {
       // Layout effects run before the provider's passive subscription.
       useLayoutEffect(() => {
         i18n.add("en", { g: "Hi {who}" });
-        i18n.setDefaultParams({ who: "Ann" });
       }, []);
       return null;
     };

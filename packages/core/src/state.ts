@@ -69,8 +69,6 @@ export interface State {
   readonly pr: CompiledRecord | undefined;
   /** The canonical tag of `locale` (what Intl receives on the fast path). */
   readonly tg: string;
-  /** The instance's `defaultParams` as of this state (an own copy, never the caller's object). */
-  readonly dp: Readonly<Record<string, unknown>> | null | undefined;
   /**
    * The marking hook of an in-context editor session (R3-14 H4), set only by the
    * `/devtools` handle; a state that has one has no `pr`, so the fast path is skipped.
@@ -96,7 +94,6 @@ export const mk = (
   dir: "ltr" | "rtl",
   c: Store,
   ld: readonly string[],
-  dp: State["dp"],
   tg: string,
   m?: Mark | null,
   s = c.default?.[locale],
@@ -107,7 +104,6 @@ export const mk = (
   dir,
   c,
   ld,
-  dp,
   tg,
   mk: m,
   pr: m || s?.p ? undefined : s?.c,

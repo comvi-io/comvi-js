@@ -180,173 +180,66 @@ describe("a repeated successful payload (lot 6a audit, finding 2)", () => {
   });
 });
 
-function Show() {
-  const { t } = useI18n();
-  return (
-    <p data-testid="show">
-      {t("v") as string}|{t("r") as ReactNode}
-    </p>
-  );
-}
-
-function Show2() {
-  return <p data-testid="p">{useI18n().t("p") as string}</p>;
-}
-
-describe("defaultParams from the server's settings (owner decision 2026-11-10)", () => {
-  const cats = { default: { en: { hi: "Welcome to {brand}" } } };
-  function Counted() {
-    const [n, setN] = useState(0);
-    const { t } = useI18n();
-    return (
-      <button data-testid="c" onClick={() => setN(n + 1)}>
-        {t("hi") as string}|{t("hi", { brand: "Explicit" }) as string}|{n}
-      </button>
-    );
-  }
-  const tree = (defaultParams?: Record<string, string>) => (
-    <I18nProvider payload={payload("en", cats)} options={defaultParams && { defaultParams }}>
-      <Counted />
-    </I18nProvider>
-  );
-
-  it("a repeated payload changes, then clears them: no remount, state kept; an explicit param wins", async () => {
-    const { rerender } = render(tree({ brand: "Comvi" }));
-    const c = () => screen.getByTestId("c").textContent;
-    expect(c()).toBe("Welcome to Comvi|Welcome to Explicit|0");
-    fireEvent.click(screen.getByTestId("c"));
-    await act(async () => rerender(tree({ brand: "Comvi 2" })));
-    expect(c()).toBe("Welcome to Comvi 2|Welcome to Explicit|1");
-    await act(async () => rerender(tree()));
-    expect(c()).toBe("Welcome to {brand}|Welcome to Explicit|1");
-  });
-
-  it("an own `__proto__` param of a repeated payload changes, then clears (as in @comvi/react's handover)", async () => {
-    const own = (v: string) => JSON.parse(`{"__proto__": ${JSON.stringify(v)}}`);
-    const proto = (dp: Record<string, string> | undefined) => (
-      <I18nProvider
-        payload={payload("en", { default: { en: { p: "[{__proto__}]" } } })}
-        options={dp && { defaultParams: dp }}
-      >
-        <Show2 />
-      </I18nProvider>
-    );
-    const { rerender } = render(proto(own("one")));
-    const p = () => screen.getByTestId("p").textContent;
-    expect(p()).toBe("[one]");
-    await act(async () => rerender(proto(own("two"))));
-    expect(p()).toBe("[two]");
-    await act(async () => rerender(proto(undefined)));
-    expect(p()).toBe("[{__proto__}]");
-  });
-
-  it("no server params and no client ones: the provider hands `{}`, so nothing is applied (pinning)", async () => {
-    const { rerender } = render(tree());
-    expect(screen.getByTestId("c").textContent).toBe("Welcome to {brand}|Welcome to Explicit|0");
-    await act(async () => rerender(tree()));
-    expect(screen.getByTestId("c").textContent).toBe("Welcome to {brand}|Welcome to Explicit|0");
-  });
-
-  it.each([
-    ["a tag handler", { b: (c: unknown) => <b>{c as ReactNode}</b> }],
-    ["a BigInt", { v: 1n }],
-    ["a Date", { v: new Date(0) }],
-  ])(
-    "client options with %s throw a clear TypeError naming the key (owner decision 2026-11-11)",
-    (_, dp) => {
-      const err = vi.spyOn(console, "error").mockImplementation(() => {});
-      try {
-        expect(() =>
-          render(
-            <I18nProvider
-              payload={payload("en", { default: { en: { v: "{v}", r: "<b>bold</b>" } } })}
-              options={{ defaultParams: dp as unknown as Record<string, string> }}
-            >
-              <Show />
-            </I18nProvider>,
-          ),
-        ).toThrow(
-          /^\[@comvi\/next\] defaultParams\.[bv] .*strings, finite numbers, booleans and null/,
-        );
-      } finally {
-        err.mockRestore();
-      }
-    },
-  );
-
-  it("rich text: a handler goes with the translation's params or `components` (README); later payloads change and clear the server's set", async () => {
-    const cats2 = { default: { en: { v: "{v}", r: "<b>{v}</b>" } } };
+describe("explicit params and rich text through payloads (defaultParams removed, owner decision 2026-11-11)", () => {
+  it("rich text: a handler in the translation's params or `components`; a later payload's text renders at once, state kept", async () => {
     function Rich() {
       const { t } = useI18n();
+      const [n, setN] = useState(0);
       return (
-        <p data-testid="rich">
-          {t("r", { b: (c) => <b>{c}</b> }) as ReactNode}|
-          <T i18nKey="r" components={{ b: "strong" }} />
+        <p data-testid="rich" onClick={() => setN(n + 1)}>
+          {t("r", { v: "one", b: (c) => <b>{c}</b> }) as ReactNode}|
+          <T i18nKey="r" v="two" components={{ b: "strong" }} />|{n}
         </p>
       );
     }
-    const ui = (server?: Record<string, string>) => (
-      <I18nProvider payload={payload("en", cats2)} options={server && { defaultParams: server }}>
+    const ui = (r: string) => (
+      <I18nProvider payload={payload("en", { default: { en: { r } } })}>
         <Rich />
       </I18nProvider>
     );
-    const { rerender } = render(ui({ v: "one" }));
+    const { rerender } = render(ui("<b>{v}</b>"));
     const rich = () => screen.getByTestId("rich").innerHTML;
-    expect(rich()).toBe("<b>one</b>|<strong>one</strong>");
-    await act(async () => rerender(ui({ v: "two" })));
-    expect(rich()).toBe("<b>two</b>|<strong>two</strong>");
-    await act(async () => rerender(ui()));
-    expect(rich()).toBe("<b>{v}</b>|<strong>{v}</strong>");
+    expect(rich()).toBe("<b>one</b>|<strong>two</strong>|0");
+    fireEvent.click(screen.getByTestId("rich"));
+    await act(async () => rerender(ui("<b>{v}!</b>")));
+    expect(rich()).toBe("<b>one!</b>|<strong>two!</strong>|1");
   });
 
-  it("hydrates the server's text with the server's params: no mismatch", async () => {
-    const html = renderToString(tree({ brand: "Comvi" }));
+  it("hydrates the server's text with an explicit param: no mismatch", async () => {
+    const Show = () => <p>{useI18n().t("hi", { brand: "Comvi" }) as string}</p>;
+    const ui = () => (
+      <I18nProvider payload={payload("en", { default: { en: { hi: "Welcome to {brand}" } } })}>
+        <Show />
+      </I18nProvider>
+    );
+    const html = renderToString(ui());
     const el = document.createElement("div");
     el.innerHTML = html;
     document.body.append(el);
     const errors: unknown[] = [];
     await act(async () => {
-      hydrateRoot(el, tree({ brand: "Comvi" }), { onRecoverableError: (e) => errors.push(e) });
+      hydrateRoot(el, ui(), { onRecoverableError: (e) => errors.push(e) });
     });
     expect(errors).toEqual([]);
-    expect(el.textContent).toBe("Welcome to Comvi|Welcome to Explicit|0");
+    expect(el.textContent).toBe("Welcome to Comvi");
   });
-});
 
-describe("defaultParams and catalogs of one payload are one snapshot (owner probe 2026-11-10)", () => {
-  const captured: string[] = [];
-  function Draft() {
-    const { t } = useI18n();
-    const [draft] = useState(() => t("welcome") as string);
-    captured.push(draft);
-    return <p data-testid="draft">{draft}</p>;
-  }
-  const tree = (
-    welcome: string,
-    defaultParams: Record<string, string> | undefined,
-    draft: boolean,
-  ) => (
-    <I18nProvider
-      payload={payload("en", { default: { en: { welcome } } })}
-      options={defaultParams && { defaultParams }}
-    >
-      {draft && <Draft />}
-    </I18nProvider>
-  );
-
-  it("a component mounted with a payload that changes a param captures the new text with the new param", async () => {
-    captured.length = 0;
-    const { rerender } = render(tree("Welcome to {brand}", { brand: "A" }, false));
-    await act(async () => rerender(tree("Hello from {brand}", { brand: "B" }, true)));
+  it("a component mounted with a later payload captures that payload's text in its render", async () => {
+    const captured: string[] = [];
+    function Draft() {
+      const { t } = useI18n();
+      const [draft] = useState(() => t("welcome", { brand: "B" }) as string);
+      captured.push(draft);
+      return <p data-testid="draft">{draft}</p>;
+    }
+    const tree = (welcome: string, draft: boolean) => (
+      <I18nProvider payload={payload("en", { default: { en: { welcome } } })}>
+        {draft && <Draft />}
+      </I18nProvider>
+    );
+    const { rerender } = render(tree("Welcome to {brand}", false));
+    await act(async () => rerender(tree("Hello from {brand}", true)));
     expect(captured[0]).toBe("Hello from B");
-    expect(screen.getByTestId("draft").textContent).toBe("Hello from B");
-  });
-
-  it("the same with the params cleared", async () => {
-    captured.length = 0;
-    const { rerender } = render(tree("Welcome to {brand}", { brand: "A" }, false));
-    await act(async () => rerender(tree("Hello from {brand}", undefined, true)));
-    expect(captured[0]).toBe("Hello from {brand}");
   });
 });
 
@@ -393,55 +286,4 @@ describe("hydration with a `null` slot through the provider (the ordinary readin
       el.remove();
     },
   );
-});
-
-describe("the same payload is a no-op for defaultParams (owner decision 2026-11-11)", () => {
-  it("a rerender of the provider with the same payload keeps a client setDefaultParams() change, with no server set", async () => {
-    const p = payload("en", { default: { en: { hi: "Welcome to {brand}" } } });
-    let i18nRef: ReturnType<typeof useI18n>["i18n"] | undefined;
-    function Read() {
-      const { t, i18n } = useI18n();
-      i18nRef = i18n;
-      return <p data-testid="w">{t("hi") as string}</p>;
-    }
-    function App() {
-      const [n, setN] = useState(0);
-      return (
-        <>
-          <button data-testid="n" onClick={() => setN(n + 1)}>
-            {n}
-          </button>
-          <I18nProvider payload={p}>
-            <Read />
-          </I18nProvider>
-        </>
-      );
-    }
-    render(<App />);
-    await act(async () => i18nRef!.setDefaultParams({ brand: "Client" }));
-    expect(screen.getByTestId("w").textContent).toBe("Welcome to Client");
-    await act(async () => fireEvent.click(screen.getByTestId("n")));
-    expect(screen.getByTestId("w").textContent).toBe("Welcome to Client");
-  });
-
-  it("a NEW payload without a server set clears a client setDefaultParams() change", async () => {
-    const cats = { default: { en: { hi: "Welcome to {brand}" } } };
-    let i18nRef: ReturnType<typeof useI18n>["i18n"] | undefined;
-    function Read() {
-      const { t, i18n } = useI18n();
-      i18nRef = i18n;
-      return <p data-testid="w">{t("hi") as string}</p>;
-    }
-    const ui = (p: Handover) => (
-      <I18nProvider payload={p}>
-        <Read />
-      </I18nProvider>
-    );
-    const { rerender } = render(ui(payload("en", cats)));
-    await act(async () => i18nRef!.setDefaultParams({ brand: "Client" }));
-    expect(screen.getByTestId("w").textContent).toBe("Welcome to Client");
-    // `router.refresh()`: a new payload, again without defaults.
-    await act(async () => rerender(ui(payload("en", cats))));
-    expect(screen.getByTestId("w").textContent).toBe("Welcome to {brand}");
-  });
 });

@@ -5366,15 +5366,6 @@
       "package": "packages/core",
       "file": "src/instance.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "if (s.dp) p = N(s.dp, p);",
-      "lineHint": 329,
-      "kind": "equivalent",
-      "reason": "`if (s.dp)` -> true: with no defaultParams the params are copied into a prototype-free object anyway (N(null, p)); rendering reads own properties only (arg()), and `p.markers`/`p.ns`/`p.locale` were read before the copy, so only an allocation differs. Hand-applied 28.10.2026: core suite green."
-    },
-    {
-      "package": "packages/core",
-      "file": "src/instance.ts",
-      "mutators": ["ConditionalExpression"],
       "snippet": "r = render(m, p, ch[i][1], j ? (ej.j == j ? ej : (ej = { ...env, j })) : env);",
       "lineHint": 336,
       "kind": "equivalent",

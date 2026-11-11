@@ -229,8 +229,8 @@ const prefixOf = (ns) => (ns === "default" ? "s" : ns === "shop" ? "p" : `n${ns.
 const PARAM = {
   plural: "count: 2",
   rich: "link: tag",
-  dp: "name: 'x'",
-  dpOnly: "",
+  nameBrand: "name: 'x', brand: 'b'",
+  brand: "brand: 'b'",
   name: "name: 'x'",
   select: "g: 'male'",
   plain: "",
@@ -265,8 +265,8 @@ function project(dir, total, nsCount) {
     namespaces[ns] = Object.fromEntries(
       Object.entries(proto).map(([k, v]) => [prefixOf(ns) + k.slice(1), v]),
     );
-  // One key whose only param has a default, at every size (gen.mjs's own dpOnly keys
-  // need 900 keys per namespace): the (a4) site.
+  // One key with one param, at every size (gen.mjs's own `brand` keys need 900 keys per
+  // namespace): the (a4) site, completing its param names.
   namespaces.default["opt.brand"] = { params: { brand: { kind: "string" } } };
   const schema = { v: 2, sourceLocale: "en", namespaces };
   const dts = emit(schema);

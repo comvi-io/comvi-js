@@ -1,8 +1,7 @@
 import { createElement, type ComponentType, type ReactElement, type ReactNode } from "react";
 import type { I18n } from "@comvi/core";
 import { handover } from "@comvi/core/ssr";
-import { core, plain } from "@comvi/core/internal";
-import type { HandoverParams } from "@comvi/react";
+import { core } from "@comvi/core/internal";
 import {
   I18nProvider as ClientProvider,
   type ClientOptions,
@@ -10,27 +9,21 @@ import {
 } from "../client/I18nProvider";
 import type { RoutingConfig } from "../routing/types";
 
-declare const __DEV__: boolean;
-
 /**
  * The settings of the request's instance that the browser instance must share, handed over as
- * data: `fallbackLocale`, `formats` and the instance's CURRENT `defaultParams`, whose values
- * must be strings, finite numbers, booleans or `null` (anything else, a tag handler included, is a
- * `TypeError` here, naming the param: a handler goes with the translation's params or
- * `components`). Nothing else crosses: not the loader, credentials, `onError`, `missing`,
- * `plugins`, `namespaces` (the server's pins), `now`; the locale, the time zone, the clock and
- * the catalogs travel in the payload (`handover()`).
+ * data: `fallbackLocale` and `formats`. Nothing else crosses: not the loader, credentials,
+ * `onError`, `missing`, `plugins`, `namespaces` (the server's pins), `now`; the locale, the time
+ * zone, the clock and the catalogs travel in the payload (`handover()`). Translation params are
+ * passed to `t()`; server data reaches Client Components as ordinary props.
  */
-export type ClientSettings = Pick<ClientOptions, "fallbackLocale" | "formats" | "defaultParams">;
+export type ClientSettings = Pick<ClientOptions, "fallbackLocale" | "formats">;
 
 const settings = (i18n: I18n): ClientSettings => {
   const c = core(i18n);
   const { fallbackLocale, formats } = c.o;
-  const dp = c.s().dp as HandoverParams | null | undefined;
   return {
     ...(fallbackLocale !== undefined && { fallbackLocale }),
     ...(formats !== undefined && { formats }),
-    ...(dp && { defaultParams: plain(dp, __DEV__ ? "[@comvi/next]" : "") }),
   };
 };
 

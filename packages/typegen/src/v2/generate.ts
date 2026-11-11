@@ -44,8 +44,6 @@ export interface GenerateOptions {
   fileTemplate?: string;
   /** The module to augment; by default the Comvi package the app's package.json declares. */
   augment?: string;
-  /** The keys of `createI18n({ defaultParams })`: optional in every key's params. */
-  defaultParams?: readonly string[];
   /** Write nothing; report whether the file on disk is stale. */
   check?: boolean;
   /** Warnings and notices. @default prints each distinct line once to the console */
@@ -142,10 +140,7 @@ function finish(
   read: SchemaWarning[],
   mayWrite: () => boolean = () => true,
 ): GenerateResult {
-  const content = emitCatalogs(schema, {
-    augment: ctx.augment,
-    defaultParams: ctx.options.defaultParams,
-  });
+  const content = emitCatalogs(schema, { augment: ctx.augment });
   const warnings = [
     ...read,
     ...selectsWithoutOptions(schema).map(([namespace, key, param]) => ({

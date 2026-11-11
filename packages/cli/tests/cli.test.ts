@@ -15,7 +15,6 @@ describe("ConfigLoader.create() on the real filesystem", () => {
         apiKey: "test-key",
         apiBaseUrl: "https://api.custom.com",
         outputPath: "custom/types/i18n.d.ts",
-        defaultParams: ["brand"],
       },
       outputPath,
     );

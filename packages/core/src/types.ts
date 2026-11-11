@@ -6,7 +6,7 @@
  *
  *   declare module "@comvi/core" { interface Catalogs { default: {
  *     "cart.items": { count: number };
- *     "hello":      { name: string | number; brand?: string };  // `brand` is in defaultParams → optional
+ *     "hello":      { name: string | number };
  *     "terms":      { link: Tag };                                // a Tag-typed param marks the key as rich
  *     "title":      never;                                        // no params
  *   } } }
@@ -95,7 +95,7 @@ export type Args<N, P> = [P] extends [never] // no params; tested FIRST: never e
   ? [params?: { ns?: N; locale?: string; markers?: boolean }]
   : [P] extends [NotAKey]
     ? [params?: { ns?: NsOf; locale?: string; markers?: boolean } & Record<string, unknown>]
-    : {} extends P // every param has a default (defaultParams)
+    : {} extends P // every param is optional (a hand-written augmentation)
       ? [params?: P & { ns?: N; locale?: string; markers?: boolean }]
       : [params: P & { ns?: N; locale?: string; markers?: boolean }];
 

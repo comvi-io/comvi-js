@@ -69,15 +69,13 @@ export const acquire = (i18n: I18n, ns: string): (() => void) => core(i18n).h(ns
  * IS its catalog (lot 6a, one rule): a key the catalog lacks is gone, `{}` is empty. Nothing
  * is published and `rev`/`lrev` do not move; untouched namespaces and locales keep their
  * slots (and compiled messages), and a slot that already holds exactly the catalog's messages,
- * in the same locale, gives back `state` itself (no copy per render). `dp`: the `defaultParams` to
- * render with instead of the state's (a payload's, before `setDefaultParams()` at commit).
+ * in the same locale, gives back `state` itself (no copy per render).
  */
 export const view = (
   i18n: I18n,
   state: State,
   extra: Readonly<Record<string, Readonly<Record<string, CatalogInput | null>>>>,
   locale: string = state.locale,
-  dp?: State["dp"],
 ): State => {
   let c: Store = state.c;
   // The failed pairs this snapshot carries: an outer handover's (a nested handover renders over
@@ -109,7 +107,7 @@ export const view = (
   // one, what its chain lacks is loading (`isLoading`; never requested, it is no
   // `missing_key`) by the core's own rule: the switch at commit loads it.
   const h = core(i18n).ch(locale);
-  if (c === state.c && locale == state.locale && !dp && !xc) return state;
+  if (c === state.c && locale == state.locale && !xc) return state;
   return Object.assign(
     mk(
       state.rev,
@@ -118,7 +116,6 @@ export const view = (
       h.o ? dir(h[0][1]) : "ltr",
       c,
       state.ld,
-      dp || state.dp,
       h.o ? h[0][1] : locale,
       // An editor session's marking hook carries over: render-local output is marked too (H4).
       state.mk,
@@ -129,7 +126,7 @@ export const view = (
 
 /**
  * `t()` of `i18n` against `state` (a published state or a view). `join` makes what a tag
- * handler receives from its children's parts — every handler's, `defaultParams` ones too.
+ * handler receives from its children's parts — every handler's.
  */
 export const translate = (
   i18n: I18n,
@@ -160,22 +157,3 @@ export const loading = (state: State, ns?: string): boolean =>
 
 /** What a server render hands the browser: public since lot 6a as `@comvi/core/ssr`. */
 export { handover, type Handover } from "./ssr";
-
-/**
- * The `defaultParams` a server can hand over: strings, finite numbers, booleans and `null`, own
- * keys only. Anything else (a tag handler, a `Date`, an array, an object, `undefined`, `NaN`)
- * throws a `TypeError` naming the key; `who` prefixes the development message (production:
- * `defaultParams.<key>` only).
- */
-export const plain = <T extends object>(p: T, who: string): T => {
-  for (const k of Object.keys(p)) {
-    const v = (p as Record<string, unknown>)[k];
-    if (v !== null && !["string", "boolean"].includes(typeof v) && !Number.isFinite(v))
-      throw TypeError(
-        __DEV__
-          ? `${who} defaultParams.${k} is not server data: only strings, finite numbers, booleans and null are handed over (pass a tag handler with the translation's params or components)`
-          : `defaultParams.${k}`,
-      );
-  }
-  return p;
-};

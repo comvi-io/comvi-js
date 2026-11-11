@@ -176,17 +176,18 @@ describe("generate()", () => {
     expect(fs.existsSync(path.join(root, "comvi.d.ts"))).toBe(false);
   });
 
-  it("defaultParams make a param optional; nested groups are flat keys (lot 6a, D1)", async () => {
+  it("every param is required, the removed `defaultParams` option included; nested groups are flat keys (lot 6a, D1; owner decision 2026-11-11)", async () => {
     const root = app({ "en.json": { hello: "Hi {name} from {brand}", nested: { a: "x {n}" } } });
     const m = messages();
     const r = await generate({
       from: "locales",
       out: "comvi.d.ts",
       root,
+      // @ts-expect-error `defaultParams` is no longer an option
       defaultParams: ["brand"],
       onMessage: m.onMessage,
     });
-    expect(r.content).toContain('"hello": { "brand"?: string | number; "name": string | number };');
+    expect(r.content).toContain('"hello": { "brand": string | number; "name": string | number };');
     expect(r.content).toContain('"nested.a": { "n": string | number };');
     expect(m.list.filter((x) => x.level === "warn")).toEqual([]);
   });

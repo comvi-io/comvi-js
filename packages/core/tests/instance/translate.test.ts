@@ -1,9 +1,9 @@
 /**
- * t(), ns(), per-call options, defaultParams, has() and the report codes.
+ * t(), ns(), per-call options, explicit params, has() and the report codes.
  * Ported by meaning from 0.7: translation, translate-param-shapes, translate-parts-assembly,
  * translate-entry-defaults, namespaces, multilingual, empty-translation-fallback (instance
- * half), fallback-param-shared-cache, default-params, audit-default-params (setDefaultParams,
- * R3-3), host-error-reporting and error-stems (onError codes), missing-key-warning,
+ * half), fallback-param-shared-cache (default-params and audit-default-params: removed with
+ * the API, owner decision 2026-11-11), host-error-reporting and error-stems (onError codes), missing-key-warning,
  * api-contracts (has()).
  */
 import { describe, expect, it, vi } from "vitest";
@@ -49,8 +49,7 @@ describe("t()", () => {
     expect(de.t("since", { year: 2026 })).toBe("Seit 2026");
     // `locale` per call takes the full path (no primary-record fast path)
     expect(de.t("since", { year: 2026, locale: "de" })).toBe("Seit 2026");
-    de.setDefaultParams({ x: 1 });
-    expect(de.t("order", { orderId: 1004 })).toBe("Bestellung #1004");
+    expect(de.t("order", { orderId: 1004, ns: "default" })).toBe("Bestellung #1004");
   });
 
   it("renders ICU plural and select", () => {
@@ -229,7 +228,7 @@ describe("per-call locale", () => {
   });
 });
 
-describe("defaultParams (R3-3)", () => {
+describe("explicit params (defaultParams removed, owner decision 2026-11-11)", () => {
   const messages = {
     en: {
       g: "{gender, select, female {She} male {He} other {They}} wrote",
@@ -238,45 +237,25 @@ describe("defaultParams (R3-3)", () => {
     },
   };
 
-  it("apply when the call does not pass the param, key by key", () => {
-    const { i18n } = make({
-      locale: "en",
-      messages,
-      defaultParams: { gender: "female", brand: "Comvi" },
-    });
-    expect(i18n.t("g")).toBe("She wrote");
-    expect(i18n.t("g", { gender: "male" })).toBe("He wrote");
-    expect(i18n.t("hi", { name: "Ann" })).toBe("Hi Ann from Comvi");
+  it("a call renders the params it passes, key by key; a missing one stays a placeholder", () => {
+    const { i18n } = make({ locale: "en", messages });
+    expect(i18n.t("g", { gender: "female" })).toBe("She wrote");
     expect(i18n.t("hi", { name: "Ann", brand: "X" })).toBe("Hi Ann from X");
+    expect(i18n.t("hi", { name: "Ann" })).toBe("Hi Ann from {brand}");
     expect(i18n.t("plain")).toBe("Plain");
   });
 
-  it("setDefaultParams() replaces them and publishes", () => {
-    const { i18n } = make({ locale: "en", messages, defaultParams: { brand: "A" } });
-    const sub = vi.fn();
-    i18n.on(sub);
-    i18n.setDefaultParams({ brand: "B" });
-    expect(sub).toHaveBeenCalledTimes(1);
-    expect(i18n.t("hi", { name: "Ann" })).toBe("Hi Ann from B");
+  it("the instance has no defaults API", () => {
+    const { i18n } = make({ locale: "en", messages });
+    expect("setDefaultParams" in i18n).toBe(false);
+    expect("dp" in state(i18n)).toBe(false);
   });
 
-  it("an empty object is none: `defaultParams: {}` and setDefaultParams({}) keep the fast path", () => {
-    const { i18n } = make({ locale: "en", messages, defaultParams: {} });
-    expect(state(i18n).dp).toBeNull();
-    i18n.setDefaultParams({ brand: "B" });
-    expect(state(i18n).dp).toEqual({ brand: "B" });
-    i18n.setDefaultParams({});
-    expect(state(i18n).dp).toBeNull();
-    expect(i18n.t("hi", { name: "Ann", brand: "X" })).toBe("Hi Ann from X");
-  });
-
-  it("are not mutated by a render, and a call's params object is not either", () => {
-    const dp = { brand: "A" };
-    const p = { name: "Ann" };
-    const { i18n } = make({ locale: "en", messages, defaultParams: dp });
+  it("a call's params object is not mutated by a render", () => {
+    const p = { name: "Ann", brand: "A" };
+    const { i18n } = make({ locale: "en", messages });
     i18n.t("hi", p);
-    expect(dp).toEqual({ brand: "A" });
-    expect(p).toEqual({ name: "Ann" });
+    expect(p).toEqual({ name: "Ann", brand: "A" });
   });
 });
 

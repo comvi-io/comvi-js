@@ -188,7 +188,7 @@ describe("view() — render-local catalogs (R4-15; 0.7 withMessages)", () => {
 });
 
 describe("translate(…, join) — a binding's joiner (R4-20)", () => {
-  it("every tag handler gets its children joined: per-call, defaultParams and nested", () => {
+  it("every tag handler gets its children joined: per-call and nested", () => {
     const join = (parts: unknown[]) => ({ joined: parts });
     const seen: unknown[] = [];
     const H = { el: 1 };
@@ -196,16 +196,15 @@ describe("translate(…, join) — a binding's joiner (R4-20)", () => {
     const { i18n } = make({
       locale: "en",
       messages: { en: { a: "<x>one <y>two</y></x>", b: "<z/>" } },
-      defaultParams: { y: h, z: h },
     });
-    expect(translate(i18n, state(i18n), "a", { x: h }, undefined, join)).toEqual([H]);
+    expect(translate(i18n, state(i18n), "a", { x: h, y: h }, undefined, join)).toEqual([H]);
     expect(seen).toEqual([{ joined: ["two"] }, { joined: ["one ", H] }]);
     seen.length = 0;
-    translate(i18n, state(i18n), "b", undefined, undefined, join);
+    translate(i18n, state(i18n), "b", { z: h }, undefined, join);
     expect(seen).toEqual([{ joined: [] }]);
     // Without a joiner (the instance's own t()), handlers get the parts array.
     seen.length = 0;
-    i18n.t("a", { x: h });
+    i18n.t("a", { x: h, y: h });
     expect(seen).toEqual([["two"], ["one ", H]]);
   });
 });

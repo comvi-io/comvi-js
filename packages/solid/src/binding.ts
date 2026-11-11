@@ -217,14 +217,13 @@ export const read = (p: Record<string, any>, n?: string): JSX.Element => {
   // Solid has no reconciler: a render makes new nodes, so a state that cannot change this message
   // (a hold, another namespace's load) must not re-render it, or a link or a nested component
   // would be replaced under the user. What the message reads: the locale, its namespace's
-  // catalogs, the default params, the editor's hook, and whether its namespace is loading (a
+  // catalogs, the editor's hook, and whether its namespace is loading (a
   // failed load makes a missing key report).
   const v = createMemo(() => ((ns = n || p.ns || "default"), s()), undefined, {
     equals: (a, b) =>
       !!a &&
       a.locale == b.locale &&
       a.c[ns] == b.c[ns] &&
-      a.dp == b.dp &&
       a.mk == b.mk &&
       loading(a, ns) == loading(b, ns),
   });

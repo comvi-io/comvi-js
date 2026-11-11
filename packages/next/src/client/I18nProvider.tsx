@@ -1,19 +1,10 @@
 "use client";
 
-import { createElement, useMemo, useState, type ReactElement, type ReactNode } from "react";
-import {
-  createI18n,
-  I18nHandover,
-  I18nProvider as Provider,
-  type HandoverParams,
-  type I18nOptions,
-} from "@comvi/react";
-import { plain } from "@comvi/core/internal";
+import { createElement, useState, type ReactElement, type ReactNode } from "react";
+import { createI18n, I18nHandover, I18nProvider as Provider, type I18nOptions } from "@comvi/react";
 import type { Handover } from "@comvi/core/ssr";
 import { RoutingProvider } from "../routing/context";
 import type { RoutingConfig } from "../routing/types";
-
-declare const __DEV__: boolean;
 
 /**
  * The browser instance's options; the payload gives the locale, the time zone, the server's
@@ -21,18 +12,7 @@ declare const __DEV__: boolean;
  * loads only what no payload brought (a lazy widget), and a function crosses no RSC
  * boundary, so pass one from a `"use client"` module.
  */
-export type ClientOptions = Omit<
-  I18nOptions,
-  "locale" | "catalogs" | "serverNow" | "timeZone" | "defaultParams"
-> & {
-  /**
-   * The server's `defaultParams` (the server `<I18nProvider>` passes them): strings, finite
-   * numbers, booleans and `null` only — anything else is a `TypeError` naming the key. Each
-   * payload's set replaces the browser's whole set. A tag handler goes with the translation's
-   * params (`t(key, { link })`) or `components` (`<T>`), not here.
-   */
-  defaultParams?: HandoverParams;
-};
+export type ClientOptions = Omit<I18nOptions, "locale" | "catalogs" | "serverNow" | "timeZone">;
 
 export interface I18nProviderProps {
   /** `handover(i18n)` of the request's instance (`@comvi/core/ssr`). */
@@ -77,24 +57,11 @@ export function I18nProvider({
   suspense,
   children,
 }: I18nProviderProps): ReactElement {
-  // No server set: an empty one whose identity follows the payload, so a rerender with the same
-  // payload is a no-op and a new payload clears what the browser set since.
-  const empty = useMemo(() => ({}), [payload]);
-  const dp = plain(options?.defaultParams || empty, __DEV__ ? "[@comvi/next]" : "");
   const [i18n] = useState(() => createI18n({ ...options, ...payload }));
   const tree = createElement(
     Provider,
     { i18n, loading, suspense },
-    // The server's `defaultParams` travel with its catalogs: one snapshot per payload (`{}`: none).
-    createElement(
-      I18nHandover,
-      {
-        catalogs: payload.catalogs,
-        locale: payload.locale,
-        defaultParams: dp,
-      },
-      children,
-    ),
+    createElement(I18nHandover, { catalogs: payload.catalogs, locale: payload.locale }, children),
   );
   return routing
     ? createElement(RoutingProvider, { routing, locale: payload.locale, children: tree })

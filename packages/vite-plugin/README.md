@@ -46,14 +46,13 @@ most `src/**/*` setups already cover it.
 
 ## Options
 
-| Option          | Default                            | Behaviour                                                                                 |
-| --------------- | ---------------------------------- | ----------------------------------------------------------------------------------------- |
-| `from`          | required                           | The catalogs directory, or a schema file such as `.comvi/schema.json` from `comvi pull`.  |
-| `out`           | `'./src/types/i18n.d.ts'`          | Where the declaration is written.                                                         |
-| `sourceLocale`  | the only locale                    | The locale the types come from. Required when the directory has more than one locale.     |
-| `fileTemplate`  | `'{namespace}/{languageTag}.json'` | Maps a file to its locale and namespace. With the default, `<locale>.json` is `default`.  |
-| `defaultParams` | none                               | The keys of `createI18n({ defaultParams })`. They become optional in every key's params.  |
-| `augment`       | from `package.json`                | The module the declaration augments: `@comvi/core` when declared, otherwise your binding. |
+| Option         | Default                            | Behaviour                                                                                 |
+| -------------- | ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| `from`         | required                           | The catalogs directory, or a schema file such as `.comvi/schema.json` from `comvi pull`.  |
+| `out`          | `'./src/types/i18n.d.ts'`          | Where the declaration is written.                                                         |
+| `sourceLocale` | the only locale                    | The locale the types come from. Required when the directory has more than one locale.     |
+| `fileTemplate` | `'{namespace}/{languageTag}.json'` | Maps a file to its locale and namespace. With the default, `<locale>.json` is `default`.  |
+| `augment`      | from `package.json`                | The module the declaration augments: `@comvi/core` when declared, otherwise your binding. |
 
 ## What gets generated
 

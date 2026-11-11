@@ -80,15 +80,10 @@ export default async function Layout(props: {
 `getI18n({ locale })` checks the locale against `locales` (else `notFound()`), reads no request API
 (a static page stays static) and returns this request's instance, its catalogs loaded once per
 request. The server `<I18nProvider>` hands the browser data only: `handover(i18n)` (catalogs, a
-failed one as `null`, locale, time zone, clock) and the instance's `fallbackLocale`, `formats` and
-current `defaultParams`. `defaultParams` of the server instance cross to the browser with every
-payload, so Server and Client Components render the same text. Values must be strings, finite
-numbers, booleans or `null`; anything else throws, naming the param (the types accept any
-number: a non-finite one is refused at run time). Pass tag handlers with the
-translation (params) or through `components` (below). A new payload (`router.refresh()`) replaces
-the browser's whole set in the same render as its catalogs, without a remount; an empty set clears
-it, and a set equal to the current one publishes no `defaultParams` update (subscribers are not
-notified because of it). Explicit `t()` params win. The loader, callbacks and other options stay on the server.
+failed one as `null`, locale, time zone, clock) and the instance's `fallbackLocale` and `formats`.
+Translation params go to each `t()` call; server data a Client Component needs reaches it as an
+ordinary prop. Tag handlers go with the translation (params) or through `components` (below).
+The loader, callbacks and other options stay on the server.
 
 ## Use in components
 

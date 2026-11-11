@@ -23,9 +23,7 @@ const CASES = [
   ["out.push(s('s0.k0', { ns: 'default', count: 1 }));", ""],
   ["out.push(s('s0.k2', { locale: 'de' }));", ""],
   ["out.push(s(cond ? 's0.k0' : 's0.k1', { count: 1, name: 'x' }));", ""],
-  ["out.push(s('s0.k12', { name: 'x' }));", ""],
   ["out.push(s('s0.k12', { name: 'x', brand: 'B' }));", ""],
-  ["out.push(s('s0.k17'));", ""],
   ["out.push(s('s0.k17', { brand: 'B' }));", ""],
   ["rich.push(s('s0.k7', { link: tag }));", ""],
   ["rich.push(s('s0.k7', { ns: 'default', link: tag }));", ""],
@@ -54,7 +52,10 @@ const CASES = [
   ],
   ["rich.push(s('s0.k7', { link: (c) => c.length }));", ""],
   ["s(cond ? 's0.k0' : 's0.k1', { count: 1 }); // E9 union key, incomplete params", "TS2345"],
-  ["s('s0.k12', { brand: 'B' }); // E10 defaulted param given, required one missing", "TS2345"],
+  ["s('s0.k12', { brand: 'B' }); // E10 one param given, the other missing", "TS2345"],
+  // Every param is required (defaultParams removed, owner decision 2026-11-11).
+  ["s('s0.k12', { name: 'x' }); // E10b brand missing", "TS2345"],
+  ["s('s0.k17'); // E10c the only param missing", "TS2554"],
   ["t('s0.k3', { g: 1 }); // E11 select param of the wrong type", "TS2322"],
   // One-key and two-key namespaces: a real key that is the WHOLE key set is not a typo.
   ["const one = useI18n('one').t, r1 = useI18n('r1').t, pair = useI18n('pair').t;", ""],
@@ -80,8 +81,8 @@ const CASES = [
   ],
   // `markers` is a per-call option like ns and locale (R3-14 H9): a boolean, on every shape.
   ["out.push(s('s0.k0', { markers: false, count: 1 }));", ""],
-  ["out.push(s('s0.k17', { markers: false }));", ""],
-  ["out.push(s('s0.k12', { markers: true, name: 'x' }));", ""],
+  ["out.push(s('s0.k17', { markers: false, brand: 'B' }));", ""],
+  ["out.push(s('s0.k12', { markers: true, name: 'x', brand: 'B' }));", ""],
   ["s('s0.k0', { markers: 'no', count: 1 }); // E18 markers is a boolean", "TS2322"],
   ["s('s0.k17', { markers: 0 }); // E19 markers is a boolean (no-param key)", "TS2322"],
   // t as a value (lot 3): a callback typed by real keys takes it; `Parameters<typeof t>`

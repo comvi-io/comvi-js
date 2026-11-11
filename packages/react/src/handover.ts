@@ -19,7 +19,7 @@ import {
   type ReactNode,
 } from "react";
 import type { I18n } from "@comvi/core";
-import { canonicalize, core, plain, view } from "@comvi/core/internal";
+import { canonicalize, core, view } from "@comvi/core/internal";
 import type { CatalogInput } from "@comvi/core";
 import { provide, useCtx, type Ctx } from "./binding";
 
@@ -40,13 +40,6 @@ export type HandoverCatalogs = Readonly<
 
 /** The handover's target as given (see `I18nHandover`). */
 type Given = readonly [I18n, string | undefined, string, number, HandoverCatalogs | undefined | 0];
-
-/**
- * `defaultParams` a server hands over: strings, finite numbers, booleans and `null`. The type
- * accepts any `number`; a non-finite one (`NaN`, `Infinity`) is refused at run time, a
- * `TypeError` naming the param.
- */
-export type HandoverParams = Readonly<Record<string, string | number | boolean | null>>;
 
 export interface I18nHandoverProps {
   /**
@@ -76,32 +69,8 @@ export interface I18nHandoverProps {
    * the children render, and nothing reaches the instance. Absent: no target.
    */
   locale?: string;
-  /**
-   * The payload's set of plain values: strings, finite numbers, booleans and `null` (another
-   * kind of value is a type error; a non-finite number compiles and is refused at run time;
-   * either throws a `TypeError` naming the param; pass tag handlers with the translation or
-   * through `components`). It follows the `catalogs` rule: applied once per
-   * object, it replaces the instance's whole set (`{}` clears it), and a set equal to the current
-   * one publishes nothing. Omit it to leave the instance's set alone. Give it through one
-   * handover per instance: two with different sets share one set (the one applied last wins: an
-   * outer handover over its inner one, the later sibling) and must not be inline literals, or
-   * they re-apply each other forever; use separate instances for per-subtree defaults. Explicit `t()` params win.
-   */
-  defaultParams?: HandoverParams;
   children?: ReactNode;
 }
-
-type Values = Readonly<Record<string, unknown>>;
-
-const has = Object.prototype.hasOwnProperty;
-/** Whether two sets of `defaultParams` hold the same own keys with the same values. */
-const same = (a: Values | null | undefined, b: Values | null | undefined): boolean => {
-  const k = Object.keys(a || {});
-  return (
-    k.length == Object.keys(b || {}).length &&
-    k.every((x) => !!b && has.call(b, x) && Object.is(a![x], b[x]))
-  );
-};
 
 /**
  * Renders its subtree with `catalogs` and in `locale` before the instance has them, and
@@ -115,7 +84,6 @@ const same = (a: Values | null | undefined, b: Values | null | undefined): boole
 export const I18nHandover = ({
   catalogs,
   locale: target,
-  defaultParams,
   children,
 }: I18nHandoverProps): ReactElement => {
   if (target !== undefined && !canonicalize(target))
@@ -135,25 +103,10 @@ export const I18nHandover = ({
   /** The [instance, catalogs] pair published last (written at commit only). */
   const done = useRef<readonly [I18n, HandoverCatalogs]>(undefined);
   const fresh = (d = done.current) => catalogs && !(d && d[0] == i && d[1] == catalogs);
-  /** The [instance, set object] of `defaultParams` committed last (written at commit only). */
-  const sent = useRef<readonly [I18n, Values]>(undefined);
-  // Pending: a set object not committed before (the same object is the same payload: a no-op,
-  // so changes the client made since stay) whose own keys or values differ from the instance's
-  // current set; rendered at once. A new object equal to the current set publishes nothing.
-  const dp =
-    defaultParams &&
-    !(sent.current && sent.current[0] == i && sent.current[1] == defaultParams) &&
-    !same(plain(defaultParams, __DEV__ ? "[@comvi/react]" : ""), base.dp)
-      ? defaultParams
-      : undefined;
   const v = useMemo(
-    (): Ctx => [i, view(i, base, fresh() ? catalogs! : {}, loc, dp)],
-    [i, base, catalogs, loc, dp],
+    (): Ctx => [i, view(i, base, fresh() ? catalogs! : {}, loc)],
+    [i, base, catalogs, loc],
   );
-  useCommit(() => {
-    if (dp) i.setDefaultParams(dp);
-    if (defaultParams) sent.current = [i, defaultParams];
-  });
   useCommit(() => {
     if (fresh()) {
       // Own keys only, as view() renders them: an inherited catalog is never committed. Each

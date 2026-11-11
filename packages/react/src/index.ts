@@ -6,7 +6,7 @@
 export { createI18n } from "@comvi/core";
 export { I18nProvider, T, useI18n, useLocale } from "./binding";
 export { I18nHandover } from "./handover";
-export type { HandoverCatalogs, HandoverParams, I18nHandoverProps } from "./handover";
+export type { HandoverCatalogs, I18nHandoverProps } from "./handover";
 export type {
   BoundT,
   I18nProviderProps,

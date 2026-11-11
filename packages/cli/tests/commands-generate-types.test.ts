@@ -115,15 +115,24 @@ describe("comvi typegen", () => {
       expect(output.stdout + output.stderr).not.toContain("test-key");
     });
 
-    it("augments the module named by `augment` and lists defaultParams as optional", async () => {
-      await writeConfig({ augment: "@acme/i18n", defaultParams: ["name"] });
+    it("augments the module named by `augment`; every param is required", async () => {
+      await writeConfig({ augment: "@acme/i18n" });
       stubFetch(SCHEMA_ROUTES);
 
       expect(await run(["-c", configPath])).toBe(0);
 
       const written = await nodeFs.readFile(outputPath, "utf-8");
       expect(written).toContain("declare module '@acme/i18n'");
-      expect(written).toContain('"greeting": { "name"?: string | number };');
+      expect(written).toContain('"greeting": { "name": string | number };');
+    });
+
+    it("refuses the removed `defaultParams` field with exit 4 and says what to do (owner decision 2026-11-11)", async () => {
+      await writeConfig({ defaultParams: ["name"] });
+      stubFetch(SCHEMA_ROUTES);
+
+      expect(await run(["-c", configPath])).toBe(4);
+      expect(output.stderr).toContain('field "defaultParams" is not an option');
+      expect(output.stderr).toContain("pass params to t()");
     });
 
     it("fails with exit 4 and names the packages to declare when the project declares none", async () => {

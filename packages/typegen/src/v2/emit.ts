@@ -9,7 +9,7 @@
  *       "default": {
  *         "cart.items": { "count": number };
  *         "gender": { "g": "female" | "male" | (string & {}) };
- *         "hello": { "brand"?: string | number; "name": string | number };  // brand ∈ defaultParams
+ *         "hello": { "brand": string | number; "name": string | number };  // every param required
  *         "terms": { "link": Tag };          // a Tag-typed param: the key renders rich parts
  *         "title": never;                    // no params
  *       };
@@ -38,11 +38,6 @@ export interface EmitCatalogsOptions {
    * `Tag`. @default '@comvi/core'
    */
   augment?: string;
-  /**
-   * Param names the app gives a default with `createI18n({ defaultParams })`: optional in
-   * every key's params (R3-3).
-   */
-  defaultParams?: readonly string[];
 }
 
 /**
@@ -112,7 +107,6 @@ export function selectsWithoutOptions(schema: WireSchema): Array<[string, string
  */
 export function emitCatalogs(schema: WireSchema, options: EmitCatalogsOptions = {}): string {
   const augment = options.augment ?? "@comvi/core";
-  const defaults = new Set(options.defaultParams ?? []);
   const problems: string[] = [];
   if (!MODULE_SPECIFIER.test(augment))
     problems.push(
@@ -149,7 +143,7 @@ export function emitCatalogs(schema: WireSchema, options: EmitCatalogsOptions = 
       }
       const props = [...members.keys()]
         .sort(byCodeUnit)
-        .map((name) => `${q(name)}${defaults.has(name) ? "?" : ""}: ${members.get(name)}`);
+        .map((name) => `${q(name)}: ${members.get(name)}`);
       body.push(`      ${q(key)}: { ${props.join("; ")} };`);
     }
     body.push("    };");
