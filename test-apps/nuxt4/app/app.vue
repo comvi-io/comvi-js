@@ -27,6 +27,7 @@ const SWITCHES = ["en", "uk", "de", "fr", "de-AT"];
         :to="switchLocalePath(l)"
         >{{ l }}</NuxtLink
       >
+      <NuxtLinkLocale data-testid="link-uk" to="/admin" locale="uk">uk admin</NuxtLinkLocale>
       <button data-testid="direct-uk" @click="setLocale('uk').catch(() => {})">uk</button>
       <button data-testid="layout-count" @click="count++">{{ count }}</button>
     </nav>

@@ -383,6 +383,30 @@ test("6b: a pending switch is superseded by a navigation that stays in the local
   expect(await cookieOf(page)).toBe("en");
 });
 
+test("6c: a <NuxtLinkLocale locale> switch superseded by a link in the locale on screen leaves the cookie of the locale on screen", async ({
+  page,
+  request,
+}) => {
+  await page.goto("/admin");
+  await hydrated(page);
+  await mock.mode({ hold: ["uk:admin"] });
+  await id(page, "link-uk").click();
+  await expect.poll(mock.held).toContain("uk:admin");
+  await id(page, "nav-plurals").click();
+  await expect(page).toHaveURL(new RegExp(`${BASE}/plurals$`));
+  await mock.release("uk:admin");
+  await expect
+    .poll(async () => (await mock.log()).find((e) => e.pair === "uk:admin")?.status)
+    .toBe(200);
+  await page.waitForLoadState("networkidle");
+  await expect(id(page, "nav-locale")).toHaveText("en");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en-US");
+  await expect.poll(() => cookieOf(page)).toBe("en");
+  // The next visit to the root follows that cookie: it stays on the English root.
+  const r = await get(request, "/", { cookie: `i18n_locale=${await cookieOf(page)}` });
+  expect(r.status()).toBe(200);
+});
+
 test("7: a load error on a client navigation, nothing in the chain: unavailable, nothing unhandled; a revisit asks nothing; Retry loads", async ({
   page,
   asked,

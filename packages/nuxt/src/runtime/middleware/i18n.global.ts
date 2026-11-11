@@ -55,6 +55,9 @@ export default defineNuxtRouteMiddleware(async (to, from?: typeof to) => {
   );
 
   const state = nuxtApp as unknown as Navigating;
+  // This run cancels a switch still loading: the cookie may hold that switch's target
+  // (`<NuxtLinkLocale locale>` writes it before navigating), so it records what renders.
+  const cancels = !!state._comviNavigating;
   // A switch to another locale, or ANY navigation while a switch is still loading: every
   // newer navigation supersedes pending work. The router cancels the older navigation,
   // and the last `setLocale()` wins in the core (one to the locale on screen ends the
@@ -73,7 +76,7 @@ export default defineNuxtRouteMiddleware(async (to, from?: typeof to) => {
   }
 
   const rendered = i18n.locale;
-  const value = detected.keep ?? rendered;
+  const value = (!cancels && detected.keep) || rendered;
   if (cookie && cookie.value !== value) cookie.value = value;
 
   // Prefix modes are applied against the locale that actually rendered.
