@@ -93,6 +93,38 @@ export function setMockI18n(i18n: any) {
   mockNuxtApp.$i18n = i18n;
 }
 
+/**
+ * A stand-in instance whose `setLocale()` stays pending until the test settles it: the
+ * last call wins, as in the core (an earlier pending switch resolves without switching).
+ */
+export function deferredInstance(locale: string) {
+  const calls: string[] = [];
+  let pending: { target: string; resolve: () => void; reject: (e: Error) => void } | undefined;
+  const instance = {
+    locale,
+    calls,
+    setLocale: (target: string) => {
+      calls.push(target);
+      pending?.resolve();
+      return new Promise<void>((resolve, reject) => {
+        pending = { target, resolve, reject };
+      });
+    },
+    /** Lands the last switch: the instance shows its locale. */
+    land() {
+      instance.locale = pending!.target;
+      pending!.resolve();
+      pending = undefined;
+    },
+    /** Fails the last switch: the locale on screen stays. */
+    fail() {
+      pending!.reject(new Error("load_failed"));
+      pending = undefined;
+    },
+  };
+  return instance;
+}
+
 /** A stand-in instance for the route middleware: its locale and a `setLocale()` that switches. */
 export function fakeInstance(locale: string) {
   const instance = {

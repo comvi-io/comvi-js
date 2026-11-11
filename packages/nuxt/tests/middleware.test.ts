@@ -11,6 +11,7 @@ import {
   getMockCookieWrites,
   setLocaleOptions,
   fakeInstance,
+  deferredInstance,
 } from "./mocks/nuxt-app";
 import { setCustomResolveAcceptLanguage } from "./mocks/comvi-detection";
 import { useCookie, useNuxtApp } from "#app";
@@ -909,5 +910,61 @@ describe("i18n middleware: localeCookie and localeDetection, the shared vocabula
       secure: true,
     });
     expect(useCookie("LANG").value).toBe("de");
+  });
+});
+
+describe("i18n middleware: a pending switch and the navigations after it", () => {
+  beforeEach(() => {
+    resetMocks();
+    setServerMode(false);
+  });
+
+  it("a navigation in the locale on screen supersedes a pending switch: it asks for that locale, the stale run records nothing", async () => {
+    const i18n = deferredInstance("en");
+    setMockI18n(i18n);
+    setMockCookie("i18n_locale", "en");
+
+    const first = runMiddleware({ path: "/uk/admin", fullPath: "/uk/admin" });
+    await Promise.resolve();
+    expect(i18n.calls).toEqual(["uk"]);
+    const second = runMiddleware({ path: "/plurals", fullPath: "/plurals" });
+    await Promise.resolve();
+    // The newer navigation asks for the locale on screen, which ends uk's pending switch.
+    expect(i18n.calls).toEqual(["uk", "en"]);
+    i18n.land();
+
+    expect(await first).toBeUndefined();
+    expect(await second).toBeUndefined();
+    expect(i18n.locale).toBe("en");
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["en"]);
+  });
+
+  it("a switch that fails redirects to the URL of the locale on screen and records it", async () => {
+    const i18n = deferredInstance("en");
+    setMockI18n(i18n);
+    setMockCookie("i18n_locale", "en");
+
+    const run = runMiddleware({ path: "/uk/admin", fullPath: "/uk/admin?x=1" });
+    await Promise.resolve();
+    i18n.fail();
+
+    expect(await run).toEqual({ path: "/admin?x=1", redirectCode: 302 });
+    expect(useCookie("i18n_locale").value).toBe("en");
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["en"]);
+  });
+
+  it("a superseded switch that fails afterwards redirects nothing", async () => {
+    const i18n = deferredInstance("en");
+    setMockI18n(i18n);
+
+    const first = runMiddleware({ path: "/uk/admin", fullPath: "/uk/admin" });
+    await Promise.resolve();
+    const second = runMiddleware({ path: "/de/admin", fullPath: "/de/admin" });
+    await Promise.resolve();
+    i18n.land();
+
+    expect(await first).toBeUndefined();
+    expect(await second).toBeUndefined();
+    expect(i18n.locale).toBe("de");
   });
 });

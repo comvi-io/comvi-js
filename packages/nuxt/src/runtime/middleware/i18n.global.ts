@@ -55,9 +55,11 @@ export default defineNuxtRouteMiddleware(async (to, from?: typeof to) => {
   );
 
   const state = nuxtApp as unknown as Navigating;
-  if (detected.locale !== i18n.locale) {
-    // A later navigation supersedes this one: the router cancels it, and the last
-    // `setLocale()` wins in the core; this one then records and redirects nothing.
+  // A switch to another locale, or ANY navigation while a switch is still loading: every
+  // newer navigation supersedes pending work. The router cancels the older navigation,
+  // and the last `setLocale()` wins in the core (one to the locale on screen ends the
+  // pending switch); the superseded run then records and redirects nothing.
+  if (detected.locale !== i18n.locale || state._comviNavigating) {
     const id = (state._comviNavigation = (state._comviNavigation ?? 0) + 1);
     state._comviNavigating = (state._comviNavigating ?? 0) + 1;
     try {
