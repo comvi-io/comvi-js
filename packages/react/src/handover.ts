@@ -47,14 +47,15 @@ export interface I18nHandoverProps {
    * FULLY REPLACES the instance's slot, the first time and every later time: a key it lacks is
    * gone, `{}` is an empty catalog; a slot it omits is not changed; with two handovers on one
    * instance the last payload applied wins per slot. `add()` stays a patch. Committed once per
-   * object. The object IS the server's snapshot: a re-render passes the same object, a new server
-   * result comes as a new object (even with the same content), and a new object is applied again.
-   * Hold it once — module scope, `useState(() => …)`, or a prop from the server (as
-   * `@comvi/next/client` passes it) — never an inline literal: re-created on every render under a
-   * parent that reads `useI18n()`, a `null` slot fails its pair again and aborts an explicit
-   * retry, and a catalog replaces an `add()` patch to its slot. Sibling handovers on one instance: a `null` one hands is marked in its own
-   * subtree only until its commit, so create the instance from the first paint's payload (as
-   * `@comvi/next/client` does) for every subtree to take the server's branch at hydration. A `null` slot means what it means in
+   * object. The handover receives a stable server snapshot: a new object means a new handing-over,
+   * and an inline literal per render does not meet this contract (a `null` slot then aborts an
+   * explicit retry, a catalog replaces an `add()` patch). In the browser, read the payload once
+   * (module scope or `useState(() => …)`). On the server, the payload belongs to one request:
+   * build it in that request and pass it as a prop; never keep it in a module variable. With
+   * several handovers on one shared instance, the initial catalogs must be in the instance before
+   * hydration (create it from the first paint's payload, as `@comvi/next/client` does); support of
+   * a single handover without pre-filling does not mean independent sibling subtrees can agree
+   * their data before commit. A `null` slot means what it means in
    * `createI18n({ catalogs })`: the load failed on the server — the subtree renders without
    * it (the fallback the server rendered), and at commit the instance drops a catalog it held
    * for it and does not ask for it until `i18n.load(ns)` or a switch to its locale. A render

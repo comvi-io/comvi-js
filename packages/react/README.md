@@ -118,10 +118,13 @@ count), before the children render: an `<I18nHandover>` under a shut gate waits,
 first. Server renders and hydrations are never gated; a server preloads with `i18n.load()`. Each
 slot `<I18nHandover catalogs>` hands over replaces the instance's, every time (`null`: failed on the
 server; an omitted slot is kept); with two handovers on one instance, the last payload wins per slot.
-`catalogs` is the server's snapshot, and its identity is the result's: a new object is a new
-result and is applied again. Hold it once — read `window.__I18N__` at module scope as above,
-`useState(() => …)`, or a prop from the server — not an inline literal, which re-applies on every
-render (a `null` slot then aborts an explicit retry, and an `add()` patch to a handed slot is lost).
+The handover receives a stable server snapshot: a new object means a new handing-over, and an
+inline literal per render does not meet this contract. In the browser, read the payload once
+(module scope as above, or `useState(() => …)`). On the server, the payload belongs to one request:
+build it in that request and pass it as a prop; never keep it in a module variable. With several
+handovers on one shared instance, the initial catalogs must be in the instance before hydration
+(create it from the first paint's payload); support of a single handover without pre-filling does
+not mean independent sibling subtrees can agree their data before commit.
 
 Match a route, cookie or header locale against your supported locales first: `createI18n()` and
 `<I18nHandover locale>` throw a `RangeError` for an invalid tag (`t(key, { locale })`, `has()`,
