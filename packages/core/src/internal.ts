@@ -160,3 +160,22 @@ export const loading = (state: State, ns?: string): boolean =>
 
 /** What a server render hands the browser: public since lot 6a as `@comvi/core/ssr`. */
 export { handover, type Handover } from "./ssr";
+
+/**
+ * The `defaultParams` a server can hand over: strings, finite numbers, booleans and `null`, own
+ * keys only. Anything else (a tag handler, a `Date`, an array, an object, `undefined`, `NaN`)
+ * throws a `TypeError` naming the key; `who` prefixes the development message (production:
+ * `defaultParams.<key>` only).
+ */
+export const plain = <T extends object>(p: T, who: string): T => {
+  for (const k of Object.keys(p)) {
+    const v = (p as Record<string, unknown>)[k];
+    if (v !== null && !["string", "boolean"].includes(typeof v) && !Number.isFinite(v))
+      throw TypeError(
+        __DEV__
+          ? `${who} defaultParams.${k} is not server data: only strings, finite numbers, booleans and null are handed over (pass a tag handler with the translation's params or components)`
+          : `defaultParams.${k}`,
+      );
+  }
+  return p;
+};

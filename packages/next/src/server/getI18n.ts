@@ -2,8 +2,8 @@ import { cache, createElement, Fragment } from "react";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { createI18n, type I18n, type I18nOptions } from "@comvi/core";
-import { core } from "@comvi/core/internal";
-import type { UseI18n } from "@comvi/react";
+import { core, plain } from "@comvi/core/internal";
+import type { HandoverParams, UseI18n } from "@comvi/react";
 
 /** Set by the middleware on the requests it handles (`createMiddleware`). */
 const LOCALE_HEADER = "x-comvi-locale";
@@ -21,8 +21,14 @@ const node = (r: any): any => (r.map ? createElement(Fragment, null, ...r) : r);
  */
 export interface NextI18nOptions extends Omit<
   I18nOptions,
-  "locale" | "catalogs" | "serverNow" | "plugins" | "timeZone"
+  "locale" | "catalogs" | "serverNow" | "plugins" | "timeZone" | "defaultParams"
 > {
+  /**
+   * Defaults every request's `t()` reads, handed to the browser as they are: strings, finite
+   * numbers, booleans and `null` only (anything else is a `TypeError` naming the key). A tag
+   * handler goes with the translation's params (`t(key, { link })`) or `components` (`<T>`).
+   */
+  defaultParams?: HandoverParams;
   /** The supported locales; any other one is `notFound()`. */
   locales: readonly string[];
   /** The locale of a request that names none (no `locale`, no middleware header). */
@@ -92,6 +98,7 @@ export type GetI18n = <NS extends string = "default">(
  */
 export function createGetI18n(options: NextI18nOptions): GetI18n {
   const { locales, defaultLocale, loader, ...rest } = options;
+  if (rest.defaultParams) plain(rest.defaultParams, "[@comvi/next]");
   /** One load per (request, locale, namespace), shared by the request's instances. */
   const fetch = cache((locale: string, ns: string) => loader!(locale, ns, KEEP));
   /** One instance per (request, locale, namespace set), its namespaces loaded. */

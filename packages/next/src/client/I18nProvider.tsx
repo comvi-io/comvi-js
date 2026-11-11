@@ -1,7 +1,14 @@
 "use client";
 
 import { createElement, useState, type ReactElement, type ReactNode } from "react";
-import { createI18n, I18nHandover, I18nProvider as Provider, type I18nOptions } from "@comvi/react";
+import {
+  createI18n,
+  I18nHandover,
+  I18nProvider as Provider,
+  type HandoverParams,
+  type I18nOptions,
+} from "@comvi/react";
+import { plain } from "@comvi/core/internal";
 import type { Handover } from "@comvi/core/ssr";
 import { RoutingProvider } from "../routing/context";
 import type { RoutingConfig } from "../routing/types";
@@ -12,7 +19,18 @@ import type { RoutingConfig } from "../routing/types";
  * loads only what no payload brought (a lazy widget), and a function crosses no RSC
  * boundary, so pass one from a `"use client"` module.
  */
-export type ClientOptions = Omit<I18nOptions, "locale" | "catalogs" | "serverNow" | "timeZone">;
+export type ClientOptions = Omit<
+  I18nOptions,
+  "locale" | "catalogs" | "serverNow" | "timeZone" | "defaultParams"
+> & {
+  /**
+   * The server's `defaultParams` (the server `<I18nProvider>` passes them): strings, finite
+   * numbers, booleans and `null` only — anything else is a `TypeError` naming the key. Each
+   * payload's set replaces the browser's whole set. A tag handler goes with the translation's
+   * params (`t(key, { link })`) or `components` (`<T>`), not here.
+   */
+  defaultParams?: HandoverParams;
+};
 
 /** The set when the server hands none: one object, so a rerender with the same payload is a no-op. */
 const none = {};
@@ -60,6 +78,7 @@ export function I18nProvider({
   suspense,
   children,
 }: I18nProviderProps): ReactElement {
+  const dp = plain(options?.defaultParams || none, "[@comvi/next]");
   const [i18n] = useState(() => createI18n({ ...options, ...payload }));
   const tree = createElement(
     Provider,
@@ -70,7 +89,7 @@ export function I18nProvider({
       {
         catalogs: payload.catalogs,
         locale: payload.locale,
-        defaultParams: options?.defaultParams || none,
+        defaultParams: dp,
       },
       children,
     ),

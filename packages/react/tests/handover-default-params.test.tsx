@@ -1,5 +1,6 @@
 /**
- * `<I18nHandover defaultParams>` (public; owner decision 2026-11-10, the simple contract):
+ * `<I18nHandover defaultParams>` (public; owner decisions 2026-11-10/11): server DATA only
+ * (strings, finite numbers, booleans, `null`; anything else is a TypeError naming the key);
  * - not passed: the instance's `defaultParams` are not changed;
  * - passed: the object REPLACES the whole set (`{}` clears it), values and handlers the client
  *   set included; rendered at once, set at commit, no remount;
@@ -19,6 +20,7 @@ import {
   I18nProvider,
   useI18n,
   type HandoverCatalogs,
+  type HandoverParams,
   type I18n,
 } from "../src";
 
@@ -37,7 +39,7 @@ function Show() {
     </p>
   );
 }
-const tree = (i18n: I18n, dp?: Record<string, unknown>, catalogs: HandoverCatalogs = cats) => (
+const tree = (i18n: I18n, dp?: HandoverParams, catalogs: HandoverCatalogs = cats) => (
   <I18nProvider i18n={i18n}>
     <I18nHandover catalogs={catalogs} defaultParams={dp}>
       <Show />
@@ -46,7 +48,6 @@ const tree = (i18n: I18n, dp?: Record<string, unknown>, catalogs: HandoverCatalo
 );
 const shown = () => screen.getByTestId("s").innerHTML;
 const b = (c: unknown) => <b>{c as ReactNode}</b>;
-const i = (c: unknown) => <i>{c as ReactNode}</i>;
 const make = (defaultParams?: Record<string, unknown>) =>
   createI18n({ locale: "en", catalogs: cats, defaultParams, onError: () => {} });
 
@@ -68,14 +69,16 @@ describe("1. first and repeated payload", () => {
     expect(state(i18n).dp).toEqual({ brand: "Server" });
   });
 
-  it("a repeated payload replaces, removes a key it lacks, and `{}` clears (handlers too)", async () => {
-    const i18n = make({ brand: "One", b });
-    const { rerender } = render(tree(i18n, { brand: "One", b }));
-    expect(shown()).toBe("Welcome to One|<b>One</b>|[{__proto__}]|0");
-    await act(async () => rerender(tree(i18n, { brand: "Two", b: i })));
-    expect(shown()).toBe("Welcome to Two|<i>Two</i>|[{__proto__}]|0");
-    await act(async () => rerender(tree(i18n, { brand: "Two" })));
+  it("a repeated payload replaces, removes a key it lacks, and `{}` clears", async () => {
+    const i18n = make({ brand: "One", n: 1, b });
+    const { rerender } = render(tree(i18n, { brand: "One", n: 1 }));
+    // The first payload's set replaces the instance's: its handler is gone.
+    expect(shown()).toBe("Welcome to One|One|[{__proto__}]|0");
+    await act(async () => rerender(tree(i18n, { brand: "Two", n: 2 })));
     expect(shown()).toBe("Welcome to Two|Two|[{__proto__}]|0");
+    expect(state(i18n).dp).toEqual({ brand: "Two", n: 2 });
+    await act(async () => rerender(tree(i18n, { brand: "Two" })));
+    expect(state(i18n).dp).toEqual({ brand: "Two" });
     await act(async () => rerender(tree(i18n, {})));
     expect(shown()).toBe("Welcome to {brand}|{brand}|[{__proto__}]|0");
     expect(state(i18n).dp).toBe(null);
@@ -100,7 +103,7 @@ describe("2. one snapshot: catalogs, locale and the set", () => {
       drafts.push(d);
       return <p data-testid="d">{d}</p>;
     }
-    const ui = (dp: Record<string, unknown>, locale: string, mount: boolean) => (
+    const ui = (dp: HandoverParams, locale: string, mount: boolean) => (
       <I18nProvider i18n={i18n}>
         <I18nHandover
           catalogs={{ default: { uk: { hi: `Привіт, {brand} (${locale})` } } }}
@@ -221,7 +224,7 @@ describe("4. explicit params, own `__proto__`", () => {
       seenHere.push(`${t("hi") as string}|${t("hi", { brand: "Explicit" }) as string}`);
       return null;
     }
-    const ui = (dp: Record<string, unknown>) => (
+    const ui = (dp: HandoverParams) => (
       <I18nProvider i18n={i18n}>
         <I18nHandover catalogs={cats} defaultParams={dp}>
           <Explicit />
@@ -279,7 +282,7 @@ describe("4. explicit params, own `__proto__`", () => {
   });
   it("an inherited property is not read (pinning)", async () => {
     const i18n = make({ brand: "B" });
-    render(tree(i18n, Object.create({ brand: "Inherited" }) as Record<string, unknown>));
+    render(tree(i18n, Object.create({ brand: "Inherited" }) as HandoverParams));
     await act(async () => {});
     expect(shown()).toBe("Welcome to {brand}|{brand}|[{__proto__}]|0");
   });
@@ -292,5 +295,54 @@ describe("5. no remount", () => {
     fireEvent.click(screen.getByTestId("s"));
     await act(async () => rerender(tree(i18n, { brand: "Two" })));
     expect(shown()).toBe("Welcome to Two|Two|[{__proto__}]|1");
+  });
+});
+
+describe("6. server data only (owner decision 2026-11-11)", () => {
+  // The former loop: an inline handler re-created per render in a component that reads
+  // useI18n(). The prop takes strings, finite numbers, booleans and `null` only.
+  const run = (dp: () => Record<string, unknown>) => {
+    const i18n = make();
+    let renders = 0;
+    function Page() {
+      useI18n();
+      // A guard so a loop fails fast instead of hanging the suite.
+      if (++renders > 50) throw new Error("looped");
+      return (
+        <I18nHandover catalogs={cats} defaultParams={dp() as HandoverParams}>
+          <Show />
+        </I18nHandover>
+      );
+    }
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      render(
+        <I18nProvider i18n={i18n}>
+          <Page />
+        </I18nProvider>,
+      );
+      return "rendered";
+    } catch (e) {
+      return String(e);
+    } finally {
+      err.mockRestore();
+    }
+  };
+  it.each([
+    ["a handler", () => ({ b: (c: unknown) => <b>{c as ReactNode}</b> })],
+    ["a Date", () => ({ d: new Date(0) })],
+    ["an array", () => ({ d: ["a"] })],
+    ["a nested object", () => ({ d: { a: 1 } })],
+    ["NaN", () => ({ d: NaN })],
+    ["undefined", () => ({ d: undefined })],
+  ])("%s throws a clear TypeError naming the key, no loop", (_, dp) => {
+    const out = run(dp);
+    expect(out).toMatch(
+      /^TypeError: .*defaultParams\.[bd] .*strings, finite numbers, booleans and null/,
+    );
+  });
+
+  it("strings, finite numbers, booleans and null pass (pinning)", () => {
+    expect(run(() => ({ brand: "Comvi", n: 1.5, ok: false, none: null }))).toBe("rendered");
   });
 });

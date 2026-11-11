@@ -83,6 +83,28 @@ beforeEach(() => {
   newRequest();
 });
 
+describe("createGetI18n: defaultParams are server data (owner decision 2026-11-11)", () => {
+  const base = { locales: ["en"], defaultLocale: "en", timeZone: "UTC", loader, onError: () => {} };
+  it.each([
+    ["a tag handler", { link: (c: unknown) => c }],
+    ["a Date", { link: new Date(0) }],
+    ["an array", { link: ["a"] }],
+  ])("%s in the server configuration is a clear TypeError naming the key", (_, dp) => {
+    expect(() =>
+      createGetI18n({ ...base, defaultParams: dp as unknown as Record<string, string> }),
+    ).toThrow(/^\[@comvi\/next\] defaultParams\.link .*strings, finite numbers, booleans and null/);
+  });
+  it("strings, numbers, booleans and null are read by t() (pinning)", async () => {
+    const { t } = await createGetI18n({
+      ...base,
+      defaultParams: { name: "Ada", n: 1, ok: true, x: null },
+    })({
+      locale: "en",
+    });
+    expect(t("hi")).toBe("Hello, Ada!");
+  });
+});
+
 describe("createGetI18n", () => {
   it("an explicit locale: translated, reads no request API", async () => {
     const { t, locale, dir, i18n } = await getI18n()({ locale: "uk" });

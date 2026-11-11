@@ -19,7 +19,7 @@ import {
   type ReactNode,
 } from "react";
 import type { I18n } from "@comvi/core";
-import { canonicalize, core, view } from "@comvi/core/internal";
+import { canonicalize, core, plain, view } from "@comvi/core/internal";
 import type { CatalogInput } from "@comvi/core";
 import { provide, useCtx, type Ctx } from "./binding";
 
@@ -40,6 +40,9 @@ export type HandoverCatalogs = Readonly<
 
 /** The handover's target as given (see `I18nHandover`). */
 type Given = readonly [I18n, string | undefined, string, number, HandoverCatalogs | undefined | 0];
+
+/** `defaultParams` a server hands over: strings, finite numbers, booleans and `null`. */
+export type HandoverParams = Readonly<Record<string, string | number | boolean | null>>;
 
 export interface I18nHandoverProps {
   /**
@@ -70,22 +73,23 @@ export interface I18nHandoverProps {
    */
   locale?: string;
   /**
-   * A server payload's `defaultParams`, part of the same snapshot as `catalogs`.
+   * A server payload's `defaultParams`, part of the same snapshot as `catalogs`: server DATA
+   * only — strings, finite numbers, booleans and `null`, as a server can hand them over. Any
+   * other value (a tag handler, a `Date`, an array, an object) is a type error, and a
+   * `TypeError` naming the key at render; give a tag handler with the translation's params or
+   * `components` (the core's own `defaultParams` and `setDefaultParams()` take any value).
    * - Not passed: the handover never changes the instance's `defaultParams`.
    * - Passed: the object REPLACES the instance's whole set (`setDefaultParams()`); `{}` clears
    *   it. The subtree renders with it at once and the instance takes it at commit, no remount.
    * - The same object again (a rerender with the same payload) does nothing, so changes the
    *   client made since stay. A new object is a new payload: it overwrites the client's changes,
    *   even with the values of the earlier one; one with the same own keys and values
-   *   (`Object.is`) as the instance's current set publishes nothing, so an inline literal of
-   *   strings, numbers, booleans or `null` is fine. A value created anew on every render (an
-   *   inline handler, object, array or `Date`) differs on every render and is applied each time;
-   *   in a component that itself reads `useI18n()` that loops (React: "Maximum update depth
-   *   exceeded"), so define such a value once, outside the render or memoized.
+   *   (`Object.is`) as the instance's current set publishes nothing, so an inline literal is
+   *   fine.
    * Explicit `t()` params still win. Own keys only: inherited properties are not read; an own key
    * named `__proto__` is a param like any other.
    */
-  defaultParams?: Readonly<Record<string, unknown>>;
+  defaultParams?: HandoverParams;
   children?: ReactNode;
 }
 
@@ -141,7 +145,7 @@ export const I18nHandover = ({
   const dp =
     defaultParams &&
     !(sent.current && sent.current[0] == i && sent.current[1] == defaultParams) &&
-    !same(defaultParams, base.dp)
+    !same(plain(defaultParams, __DEV__ ? "[@comvi/react]" : ""), base.dp)
       ? defaultParams
       : undefined;
   const v = useMemo(

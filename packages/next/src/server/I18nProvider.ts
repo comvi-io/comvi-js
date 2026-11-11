@@ -1,7 +1,8 @@
 import { createElement, type ComponentType, type ReactElement, type ReactNode } from "react";
 import type { I18n } from "@comvi/core";
 import { handover } from "@comvi/core/ssr";
-import { core } from "@comvi/core/internal";
+import { core, plain } from "@comvi/core/internal";
+import type { HandoverParams } from "@comvi/react";
 import {
   I18nProvider as ClientProvider,
   type ClientOptions,
@@ -13,29 +14,21 @@ import type { RoutingConfig } from "../routing/types";
  * The settings of the request's instance that the browser instance must share, handed over as
  * data: `fallbackLocale`, `formats` and the instance's CURRENT `defaultParams`, whose values
  * must be strings, finite numbers, booleans or `null` (anything else, a tag handler included, is a
- * `TypeError` here, naming the param). Nothing else crosses: not the loader, credentials,
- * `onError`, `missing`, `plugins`, `namespaces` (the server's pins), `now`; the locale, the time
- * zone, the clock and the catalogs travel in the payload (`handover()`).
+ * `TypeError` here, naming the param: a handler goes with the translation's params or
+ * `components`). Nothing else crosses: not the loader, credentials, `onError`, `missing`,
+ * `plugins`, `namespaces` (the server's pins), `now`; the locale, the time zone, the clock and
+ * the catalogs travel in the payload (`handover()`).
  */
-export type ClientSettings = Pick<ClientOptions, "fallbackLocale" | "formats"> & {
-  defaultParams?: Readonly<Record<string, string | number | boolean | null>>;
-};
+export type ClientSettings = Pick<ClientOptions, "fallbackLocale" | "formats" | "defaultParams">;
 
 const settings = (i18n: I18n): ClientSettings => {
   const c = core(i18n);
   const { fallbackLocale, formats } = c.o;
-  const dp = c.s().dp;
-  for (const k in dp) {
-    const v = dp[k];
-    if (v !== null && !["string", "boolean"].includes(typeof v) && !Number.isFinite(v))
-      throw TypeError(
-        `[@comvi/next] defaultParams.${k} cannot cross to the browser: only strings, finite numbers, booleans and null are handed over (render tag handlers in a Client Component)`,
-      );
-  }
+  const dp = c.s().dp as HandoverParams | null | undefined;
   return {
     ...(fallbackLocale !== undefined && { fallbackLocale }),
     ...(formats !== undefined && { formats }),
-    ...(dp && { defaultParams: dp as ClientSettings["defaultParams"] }),
+    ...(dp && { defaultParams: plain(dp, "[@comvi/next]") }),
   };
 };
 

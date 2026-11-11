@@ -22,6 +22,23 @@ describe("production", () => {
     expect(message).not.toContain("[@comvi/react]");
   });
 
+  it("a handover's defaultParams that are not server data throw a TypeError naming the key, without the development text", () => {
+    const i18n = createI18n({ locale: "en", messages: { en: { m: "x" } } });
+    let message = "";
+    try {
+      renderToStaticMarkup(
+        <I18nProvider i18n={i18n}>
+          <I18nHandover defaultParams={{ link: new Date(0) } as unknown as Record<string, string>}>
+            <T i18nKey="m" />
+          </I18nHandover>
+        </I18nProvider>,
+      );
+    } catch (e) {
+      message = String(e);
+    }
+    expect(message).toBe("TypeError: defaultParams.link");
+  });
+
   it("renders the development markup: rich text, plural, handover, a tag without handler", () => {
     const warn = vi.spyOn(console, "warn");
     const i18n = createI18n({

@@ -81,18 +81,14 @@ export default async function Layout(props: {
 (a static page stays static) and returns this request's instance, its catalogs loaded once per
 request. The server `<I18nProvider>` hands the browser data only: `handover(i18n)` (catalogs, a
 failed one as `null`, locale, time zone, clock) and the instance's `fallbackLocale`, `formats` and
-current `defaultParams`, which must be strings, finite numbers, booleans or `null` (a tag handler throws:
-give it in a Client Component). An app's client component that adds its own defaults passes one
-`options.defaultParams` object: for a key both set, the value in that object wins (spread
-`props.options.defaultParams` first to let yours win). Each payload's set replaces the browser's
-whole set: a later payload (`router.refresh()`) that changes or drops a server param changes or
-clears it at once, and a handler stays because the client component passes it in that object
-every time. A rerender with the same payload changes nothing; a new payload (`router.refresh()`)
-sets its set again, overwriting a client's `setDefaultParams()` change, and publishes nothing when
-the browser already holds exactly that set. Define the handler once, outside the component's
-render: one created per render is applied again on each render of that component (it does not
-loop there, since the component that renders the provider does not read `useI18n()`).
-The loader, callbacks and other options stay on the server.
+current `defaultParams`. `defaultParams` in the server configuration and in the client `options`
+hold strings, finite numbers, booleans and `null` only: anything else (a tag handler, a `Date`,
+an array) is a type error and a `TypeError` naming the key. A tag handler goes with the
+translation: its params (`t("terms", { link })`) or `components` of `<T>`, on the server and in
+the browser alike (below). Each payload's set replaces the browser's whole set: a later payload
+(`router.refresh()`) that changes or drops a param changes or clears it at once, overwriting a
+`setDefaultParams()` made in the browser; a rerender with the same payload changes nothing, and a
+set equal to the browser's current one publishes nothing. The loader, callbacks and other options stay on the server.
 
 ## Use in components
 
@@ -109,7 +105,9 @@ export default async function Account({ params }: { params: Promise<{ locale: st
   const { t, i18n } = await getI18n({ locale, ns: "account" });
   return (
     <I18nProvider i18n={i18n}>
-      <h1>{t("title")}</h1> <Profile />
+      <h1>{t("title")}</h1>
+      <p>{t("terms", { link: (text) => <a href="/terms">{text}</a> })}</p>
+      <Profile />
     </I18nProvider>
   );
 }
@@ -120,11 +118,16 @@ A Client Component reads through `@comvi/react` (`useI18n(ns)`, `<T>`, `useLocal
 
 ```tsx title="src/app/[locale]/account/Profile.tsx" check=group=next-1
 "use client";
-import { useI18n } from "@comvi/react";
+import { T, useI18n } from "@comvi/react";
 
 export function Profile() {
   const { t } = useI18n("account");
-  return <p>{t("greeting", { name: "Ada" })}</p>;
+  return (
+    <>
+      <p>{t("greeting", { name: "Ada" })}</p>
+      <T ns="account" i18nKey="terms" components={{ link: "strong" }} />
+    </>
+  );
 }
 ```
 

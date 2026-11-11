@@ -9,7 +9,7 @@ import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { useI18n } from "@comvi/react";
+import { T, useI18n } from "@comvi/react";
 import type { Handover } from "@comvi/core/ssr";
 import { I18nProvider } from "../src/client";
 
@@ -247,34 +247,56 @@ describe("defaultParams from the server's settings (owner decision 2026-11-10)",
     expect(screen.getByTestId("c").textContent).toBe("Welcome to {brand}|Welcome to Explicit|0");
   });
 
-  it("client-only defaults (a BigInt, a tag handler) render and are never serialized", () => {
-    const b = <T,>(c: T) => <b>{c as ReactNode}</b>;
-    render(
-      <I18nProvider
-        payload={payload("en", { default: { en: { v: "{v}", r: "<b>bold</b>" } } })}
-        options={{ defaultParams: { v: 1n, b } }}
-      >
-        <Show />
-      </I18nProvider>,
-    );
-    expect(screen.getByTestId("show").innerHTML).toBe("1|<b>bold</b>");
-  });
+  it.each([
+    ["a tag handler", { b: (c: unknown) => <b>{c as ReactNode}</b> }],
+    ["a BigInt", { v: 1n }],
+    ["a Date", { v: new Date(0) }],
+  ])(
+    "client options with %s throw a clear TypeError naming the key (owner decision 2026-11-11)",
+    (_, dp) => {
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        expect(() =>
+          render(
+            <I18nProvider
+              payload={payload("en", { default: { en: { v: "{v}", r: "<b>bold</b>" } } })}
+              options={{ defaultParams: dp as unknown as Record<string, string> }}
+            >
+              <Show />
+            </I18nProvider>,
+          ),
+        ).toThrow(
+          /^\[@comvi\/next\] defaultParams\.[bv] .*strings, finite numbers, booleans and null/,
+        );
+      } finally {
+        err.mockRestore();
+      }
+    },
+  );
 
-  it("server-handed params merged with a client handler: a later payload changes and clears them, the handler stays", async () => {
-    const b = <T,>(c: T) => <b>{c as ReactNode}</b>;
+  it("rich text: a handler goes with the translation's params or `components` (README); later payloads change and clear the server's set", async () => {
     const cats2 = { default: { en: { v: "{v}", r: "<b>{v}</b>" } } };
-    const merged = (server?: Record<string, string>) => (
-      <I18nProvider payload={payload("en", cats2)} options={{ defaultParams: { ...server, b } }}>
-        <Show />
+    function Rich() {
+      const { t } = useI18n();
+      return (
+        <p data-testid="rich">
+          {t("r", { b: (c) => <b>{c}</b> }) as ReactNode}|
+          <T i18nKey="r" components={{ b: "strong" }} />
+        </p>
+      );
+    }
+    const ui = (server?: Record<string, string>) => (
+      <I18nProvider payload={payload("en", cats2)} options={server && { defaultParams: server }}>
+        <Rich />
       </I18nProvider>
     );
-    const { rerender } = render(merged({ v: "one" }));
-    const show = () => screen.getByTestId("show").innerHTML;
-    expect(show()).toBe("one|<b>one</b>");
-    await act(async () => rerender(merged({ v: "two" })));
-    expect(show()).toBe("two|<b>two</b>");
-    await act(async () => rerender(merged()));
-    expect(show()).toBe("{v}|<b>{v}</b>");
+    const { rerender } = render(ui({ v: "one" }));
+    const rich = () => screen.getByTestId("rich").innerHTML;
+    expect(rich()).toBe("<b>one</b>|<strong>one</strong>");
+    await act(async () => rerender(ui({ v: "two" })));
+    expect(rich()).toBe("<b>two</b>|<strong>two</strong>");
+    await act(async () => rerender(ui()));
+    expect(rich()).toBe("<b>{v}</b>|<strong>{v}</strong>");
   });
 
   it("hydrates the server's text with the server's params: no mismatch", async () => {

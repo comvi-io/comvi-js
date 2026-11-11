@@ -212,6 +212,8 @@ describe("no session, no devtools", () => {
         "lookup",
         "negotiate",
         "parents",
+        // Validates server-data defaultParams (lot 6a, owner 2026-11-11); sets nothing.
+        "plain",
         "pluralRules",
         "recordFor",
         "render",
