@@ -77,9 +77,10 @@ export interface I18nHandoverProps {
    */
   locale?: string;
   /**
-   * The payload's set of plain values: strings, finite numbers, booleans and `null` (anything
-   * else is a type error and a `TypeError` naming the param; pass tag handlers with the
-   * translation or through `components`). It follows the `catalogs` rule: applied once per
+   * The payload's set of plain values: strings, finite numbers, booleans and `null` (another
+   * kind of value is a type error; a non-finite number compiles and is refused at run time;
+   * either throws a `TypeError` naming the param; pass tag handlers with the translation or
+   * through `components`). It follows the `catalogs` rule: applied once per
    * object, it replaces the instance's whole set (`{}` clears it), and a set equal to the current
    * one publishes nothing. Omit it to leave the instance's set alone. Give it through one
    * handover per instance: two with different sets share one set (the one applied last wins: an

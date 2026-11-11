@@ -87,7 +87,8 @@ numbers, booleans or `null`; anything else throws, naming the param (the types a
 number: a non-finite one is refused at run time). Pass tag handlers with the
 translation (params) or through `components` (below). A new payload (`router.refresh()`) replaces
 the browser's whole set in the same render as its catalogs, without a remount; an empty set clears
-it, and an unchanged one re-renders nothing. Explicit `t()` params win. The loader, callbacks and other options stay on the server.
+it, and a set equal to the current one publishes no `defaultParams` update (subscribers are not
+notified because of it). Explicit `t()` params win. The loader, callbacks and other options stay on the server.
 
 ## Use in components
 
