@@ -49,7 +49,9 @@ export type {
   ResolvedLocaleDetection,
   NuxtI18nRuntimeConfig,
 } from "./types";
-export type { I18n } from "@comvi/core";
+// A generated comvi.d.ts that augments `@comvi/nuxt` (the package the app declared) reaches
+// the core's `Catalogs` through this named re-export, and imports `Tag` from it (typegen v2).
+export type { I18n, Catalogs, Tag } from "@comvi/core";
 
 function normalizeLocales(locales: (string | LocaleObject)[]): {
   codes: string[];
