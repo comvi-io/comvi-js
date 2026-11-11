@@ -372,3 +372,33 @@ describe("hydration with a `null` slot through the provider (the ordinary readin
     },
   );
 });
+
+describe("the same payload is a no-op for defaultParams (owner decision 2026-11-11)", () => {
+  it("a rerender of the provider with the same payload keeps a client setDefaultParams() change, with no server set", async () => {
+    const p = payload("en", { default: { en: { hi: "Welcome to {brand}" } } });
+    let i18nRef: ReturnType<typeof useI18n>["i18n"] | undefined;
+    function Read() {
+      const { t, i18n } = useI18n();
+      i18nRef = i18n;
+      return <p data-testid="w">{t("hi") as string}</p>;
+    }
+    function App() {
+      const [n, setN] = useState(0);
+      return (
+        <>
+          <button data-testid="n" onClick={() => setN(n + 1)}>
+            {n}
+          </button>
+          <I18nProvider payload={p}>
+            <Read />
+          </I18nProvider>
+        </>
+      );
+    }
+    render(<App />);
+    await act(async () => i18nRef!.setDefaultParams({ brand: "Client" }));
+    expect(screen.getByTestId("w").textContent).toBe("Welcome to Client");
+    await act(async () => fireEvent.click(screen.getByTestId("n")));
+    expect(screen.getByTestId("w").textContent).toBe("Welcome to Client");
+  });
+});

@@ -122,7 +122,12 @@ server; an omitted slot is kept); with two handovers on one instance, the last p
 `<I18nHandover defaultParams>` hands over the server's `defaultParams` with the same payload. Not
 passed, the instance's set is never changed. Passed, the object replaces the whole set (`{}` clears
 it), values and handlers the client set included: put a client handler in the object you pass.
-A render with the same set changes nothing; explicit `t()` params still win.
+The same object again changes nothing; a new object overwrites what the client set since, and one
+equal to the current set (same keys, `Object.is` values) publishes nothing, so an inline literal of
+text and numbers is fine. A handler, object or array created anew on every render is applied on
+every render, and in a component that reads `useI18n()` itself that loops (React: "Maximum update
+depth exceeded"): define it once, outside the render or memoized. Explicit `t()` params still win.
+Pass `catalogs` as a stable object too.
 
 Match a route, cookie or header locale against your supported locales first: `createI18n()` and
 `<I18nHandover locale>` throw a `RangeError` for an invalid tag (`t(key, { locale })`, `has()`,

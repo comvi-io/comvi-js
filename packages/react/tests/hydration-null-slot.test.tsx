@@ -5,7 +5,7 @@
  */
 import { act } from "react";
 import { renderToString } from "react-dom/server";
-import { hydrateRoot } from "react-dom/client";
+import { createRoot, hydrateRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { handover } from "@comvi/core/ssr";
 import { createI18n, I18nHandover, I18nProvider, useI18n, type I18n } from "../src";
@@ -282,6 +282,38 @@ describe("a load of the pair already in flight on the client at hydration (revie
 });
 
 describe("nested handovers (review F2)", () => {
+  it("an inner handover's catalog for the pair removes the outer marker below it: a client flight of the pair shows again", async () => {
+    // The instance loads `admin` at creation (the `namespaces` option) and never gets an answer.
+    const loader = vi.fn(() => new Promise<Record<string, string>>(() => {}));
+    const i18n = createI18n({
+      locale: "en",
+      timeZone: "UTC",
+      namespaces: ["admin"],
+      catalogs: { default: { en: { x: "x" } } },
+      loader,
+      onError: () => {},
+    });
+    expect(loader).toHaveBeenCalled();
+    seen.length = 0;
+    const el = document.createElement("div");
+    document.body.append(el);
+    const root = createRoot(el);
+    roots.push(root);
+    await act(async () =>
+      root.render(
+        <I18nProvider i18n={i18n}>
+          <I18nHandover catalogs={{ admin: { en: null } }}>
+            <I18nHandover catalogs={{ admin: { en: { title: "inner" } } }}>
+              <TplNs ns="admin" />
+            </I18nHandover>
+          </I18nHandover>
+        </I18nProvider>,
+      ),
+    );
+    // The render below the inner handover: its catalog is in place and the flight is real.
+    expect(seen[0]).toBe("true/true");
+  });
+
   it("an inner handover with an unrelated payload keeps the outer one's failed pair", async () => {
     const outer = { admin: { en: null } };
     const inner = { default: { en: { x: "x" } } };

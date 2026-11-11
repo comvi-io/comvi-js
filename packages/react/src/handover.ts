@@ -48,7 +48,9 @@ export interface I18nHandoverProps {
    * gone, `{}` is an empty catalog; a slot it omits is not changed; with two handovers on one
    * instance the last payload applied wins per slot. `add()` stays a patch. Committed once per
    * object; a new literal with the same messages on every parent render publishes nothing (the
-   * core compares values), but a STABLE object skips that comparison. A `null` slot means what it means in
+   * core compares values), but a STABLE object skips that comparison. A new object is a new
+   * payload: an inline literal with a `null` fails that pair again on every parent render (and
+   * aborts an explicit retry in flight), so pass a stable object. A `null` slot means what it means in
    * `createI18n({ catalogs })`: the load failed on the server — the subtree renders without
    * it (the fallback the server rendered), and at commit the instance drops a catalog it held
    * for it and does not ask for it until `i18n.load(ns)` or a switch to its locale. A render
@@ -71,14 +73,17 @@ export interface I18nHandoverProps {
    * A server payload's `defaultParams`, part of the same snapshot as `catalogs`.
    * - Not passed: the handover never changes the instance's `defaultParams`.
    * - Passed: the object REPLACES the instance's whole set (`setDefaultParams()`); `{}` clears
-   *   it. A later set may overwrite values and handlers the client set itself; to keep a client
-   *   value, put it in the object you pass. The subtree renders with it at once and the instance
-   *   takes it at commit, no remount. Applied only when it differs from the set this handover
-   *   applied last (the first time: from the instance's own), key by key with `Object.is`, so a
-   *   render with the same set leaves changes made since in place (pass a stable handler, not
-   *   one created per render). Explicit `t()` params still win.
-   * Own keys only: inherited properties are not read; an own key named `__proto__` is a param
-   * like any other.
+   *   it. The subtree renders with it at once and the instance takes it at commit, no remount.
+   * - The same object again (a rerender with the same payload) does nothing, so changes the
+   *   client made since stay. A new object is a new payload: it overwrites the client's changes,
+   *   even with the values of the earlier one; one with the same own keys and values
+   *   (`Object.is`) as the instance's current set publishes nothing, so an inline literal of
+   *   strings, numbers, booleans or `null` is fine. A value created anew on every render (an
+   *   inline handler, object, array or `Date`) differs on every render and is applied each time;
+   *   in a component that itself reads `useI18n()` that loops (React: "Maximum update depth
+   *   exceeded"), so define such a value once, outside the render or memoized.
+   * Explicit `t()` params still win. Own keys only: inherited properties are not read; an own key
+   * named `__proto__` is a param like any other.
    */
   defaultParams?: Readonly<Record<string, unknown>>;
   children?: ReactNode;
@@ -128,11 +133,17 @@ export const I18nHandover = ({
   /** The [instance, catalogs] pair published last (written at commit only). */
   const done = useRef<readonly [I18n, HandoverCatalogs]>(undefined);
   const fresh = (d = done.current) => catalogs && !(d && d[0] == i && d[1] == catalogs);
-  /** The [instance, set] of `defaultParams` applied last (written at commit only). */
+  /** The [instance, set object] of `defaultParams` committed last (written at commit only). */
   const sent = useRef<readonly [I18n, Values]>(undefined);
-  const was = sent.current && sent.current[0] == i ? sent.current[1] : base.dp;
-  // Pending: the payload's set differs from the one applied last; rendered at once.
-  const dp = defaultParams && !same(defaultParams, was) ? defaultParams : undefined;
+  // Pending: a set object not committed before (the same object is the same payload: a no-op,
+  // so changes the client made since stay) whose own keys or values differ from the instance's
+  // current set; rendered at once. A new object equal to the current set publishes nothing.
+  const dp =
+    defaultParams &&
+    !(sent.current && sent.current[0] == i && sent.current[1] == defaultParams) &&
+    !same(defaultParams, base.dp)
+      ? defaultParams
+      : undefined;
   const v = useMemo(
     (): Ctx => [i, view(i, base, fresh() ? catalogs! : {}, loc, dp)],
     [i, base, catalogs, loc, dp],

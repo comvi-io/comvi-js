@@ -143,13 +143,63 @@ describe("2. one snapshot: catalogs, locale and the set", () => {
   });
 });
 
-describe("3. the same set vs a new one", () => {
-  it("a rerender with the same set (a new object, same values) keeps what the client set since (pinning)", async () => {
+describe("3. the same payload vs a new one", () => {
+  it("a rerender with the SAME set object keeps what the client set since (pinning)", async () => {
+    const i18n = make({ brand: "One" });
+    const set = { brand: "One" };
+    const { rerender } = render(tree(i18n, set));
+    await act(async () => i18n.setDefaultParams({ brand: "Client", b }));
+    await act(async () => rerender(tree(i18n, set)));
+    expect(shown()).toBe("Welcome to Client|<b>Client</b>|[{__proto__}]|0");
+  });
+
+  it("a NEW payload whose values equal the earlier server set overwrites the client's change", async () => {
     const i18n = make({ brand: "One" });
     const { rerender } = render(tree(i18n, { brand: "One" }));
     await act(async () => i18n.setDefaultParams({ brand: "Client", b }));
     await act(async () => rerender(tree(i18n, { brand: "One" })));
-    expect(shown()).toBe("Welcome to Client|<b>Client</b>|[{__proto__}]|0");
+    expect(shown()).toBe("Welcome to One|One|[{__proto__}]|0");
+    expect(state(i18n).dp).toEqual({ brand: "One" });
+  });
+
+  it("a new object equal to the instance's current set publishes nothing", async () => {
+    const i18n = make({ brand: "One" });
+    const { rerender } = render(tree(i18n, { brand: "One" }));
+    await act(async () => {});
+    const rev = i18n.rev();
+    await act(async () => rerender(tree(i18n, { brand: "One" })));
+    expect(i18n.rev()).toBe(rev);
+  });
+
+  it("an inline set in a component that reads useI18n() settles: bounded renders, one publication", async () => {
+    const i18n = make();
+    let renders = 0;
+    const published: number[] = [];
+    i18n.on(() => published.push(i18n.rev()));
+    function Page() {
+      useI18n();
+      renders++;
+      return (
+        <I18nHandover catalogs={cats} defaultParams={{ brand: "Comvi" }}>
+          <Show />
+        </I18nHandover>
+      );
+    }
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      render(
+        <I18nProvider i18n={i18n}>
+          <Page />
+        </I18nProvider>,
+      );
+      await act(async () => {});
+      expect(err).not.toHaveBeenCalled();
+    } finally {
+      err.mockRestore();
+    }
+    expect(shown()).toBe("Welcome to Comvi|Comvi|[{__proto__}]|0");
+    expect(renders).toBeLessThanOrEqual(3);
+    expect(published.length).toBe(1);
   });
 
   it("a new set replaces the client's values AND handlers", async () => {
@@ -163,6 +213,29 @@ describe("3. the same set vs a new one", () => {
 });
 
 describe("4. explicit params, own `__proto__`", () => {
+  it("an explicit t() param wins over the set in the pending render too (pinning)", async () => {
+    const i18n = make({ brand: "One" });
+    const seenHere: string[] = [];
+    function Explicit() {
+      const { t } = useI18n();
+      seenHere.push(`${t("hi") as string}|${t("hi", { brand: "Explicit" }) as string}`);
+      return null;
+    }
+    const ui = (dp: Record<string, unknown>) => (
+      <I18nProvider i18n={i18n}>
+        <I18nHandover catalogs={cats} defaultParams={dp}>
+          <Explicit />
+        </I18nHandover>
+      </I18nProvider>
+    );
+    const { rerender } = render(ui({ brand: "One" }));
+    seenHere.length = 0;
+    await act(async () => rerender(ui({ brand: "Two" })));
+    // The first render with the new set runs before its commit.
+    expect(seenHere[0]).toBe("Welcome to Two|Welcome to Explicit");
+    expect(seenHere.every((x) => x.endsWith("|Welcome to Explicit"))).toBe(true);
+  });
+
   it("an explicit t() param wins over the set (pinning)", () => {
     const i18n = make();
     render(tree(i18n, { brand: "Server" }));

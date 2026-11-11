@@ -87,8 +87,12 @@ give it in a Client Component). An app's client component that adds its own defa
 `props.options.defaultParams` first to let yours win). Each payload's set replaces the browser's
 whole set: a later payload (`router.refresh()`) that changes or drops a server param changes or
 clears it at once, and a handler stays because the client component passes it in that object
-every time (define it once, outside the component's render). The loader, callbacks and other
-options stay on the server.
+every time. A rerender with the same payload changes nothing; a new payload (`router.refresh()`)
+sets its set again, overwriting a client's `setDefaultParams()` change, and publishes nothing when
+the browser already holds exactly that set. Define the handler once, outside the component's
+render: one created per render is applied again on each render of that component (it does not
+loop there, since the component that renders the provider does not read `useI18n()`).
+The loader, callbacks and other options stay on the server.
 
 ## Use in components
 

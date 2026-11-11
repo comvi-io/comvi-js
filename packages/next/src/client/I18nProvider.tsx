@@ -14,6 +14,9 @@ import type { RoutingConfig } from "../routing/types";
  */
 export type ClientOptions = Omit<I18nOptions, "locale" | "catalogs" | "serverNow" | "timeZone">;
 
+/** The set when the server hands none: one object, so a rerender with the same payload is a no-op. */
+const none = {};
+
 export interface I18nProviderProps {
   /** `handover(i18n)` of the request's instance (`@comvi/core/ssr`). */
   payload: Handover;
@@ -67,7 +70,7 @@ export function I18nProvider({
       {
         catalogs: payload.catalogs,
         locale: payload.locale,
-        defaultParams: options?.defaultParams || {},
+        defaultParams: options?.defaultParams || none,
       },
       children,
     ),
