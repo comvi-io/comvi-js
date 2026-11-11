@@ -54,11 +54,13 @@ export default defineNuxtPlugin({
         base && (pathname === base || pathname.startsWith(`${base}/`))
           ? pathname.slice(base.length) || "/"
           : pathname;
+      // A repeated parameter: its first value, as the route middleware reads `to.query`.
+      const params = new URLSearchParams(suffix.split("#")[0]);
       const detected = detectLocale(
         routing,
         {
           pathname: path,
-          query: Object.fromEntries(new URLSearchParams(suffix.split("#")[0])),
+          query: Object.fromEntries([...params.keys()].map((key) => [key, params.get(key)])),
           cookie: cookie?.value,
           header: import.meta.server ? (name) => useRequestHeaders([name])[name] : undefined,
         },

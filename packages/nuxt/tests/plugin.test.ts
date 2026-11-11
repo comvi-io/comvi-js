@@ -100,6 +100,13 @@ describe("the plugin on the server", () => {
     expect(calls).toEqual(["en:default"]);
   });
 
+  it("a repeated query parameter resolves to its FIRST value, as the route middleware reads it", async () => {
+    nuxtAppMocks.setLocaleOptions({ localeDetection: { queryParam: "lang" } });
+    const { i18n } = await run({ event: { context: {} }, url: "/?lang=uk&lang=en" });
+
+    expect(i18n.locale).toBe("uk");
+  });
+
   it("keeps a stored preference on a path-implied default (as-needed)", async () => {
     setMockCookie("i18n_locale", "uk");
     const { i18n } = await run({ event: { context: {} }, url: "/admin" });
