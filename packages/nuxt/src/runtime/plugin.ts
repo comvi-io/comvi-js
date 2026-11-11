@@ -68,10 +68,15 @@ export default defineNuxtPlugin({
       nuxtApp.hook("app:rendered", () => {
         const snapshot = handover(i18n);
         // The inline `comvi.messages` are in the browser's bundle already (the same
-        // `config`): their slots are left out, so no page carries them again. An absent
-        // slot is untouched by the browser's instance, which starts with them.
+        // `config`): a slot that is still that very catalog is left out, so no page carries
+        // it again (an absent slot is untouched by the browser's instance, which starts with
+        // it). A slot a server `add()` changed, or a nested inline catalog the core flattened
+        // into a copy, is handed over as usual.
         const inline = snapshot.catalogs.default;
-        if (inline) for (const locale in config.messages) delete inline[locale];
+        const bundled = config.messages ?? {};
+        if (inline)
+          for (const locale in bundled)
+            if (inline[locale] === bundled[locale]) delete inline[locale];
         nuxtApp.payload.comvi = snapshot;
       });
     }

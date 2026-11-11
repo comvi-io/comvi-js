@@ -127,6 +127,19 @@ describe("the snapshot and the inline comvi.messages", () => {
       Object.keys((nuxtApp.payload.comvi as { catalogs: { default: object } }).catalogs.default),
     ).toEqual(["en"]);
   });
+
+  it("keeps an inline slot a server add() changed: the bundle has the catalog without the patch", async () => {
+    const { i18n, hooks, nuxtApp } = await run({
+      event: { context: {} },
+      url: "/",
+      data: { messages: { uk: { hello: "Привіт (inline)" } } },
+    });
+    i18n.add("uk", { extra: "Додано на сервері" });
+    hooks["app:rendered"]!();
+    const slots = (nuxtApp.payload.comvi as { catalogs: { default: Record<string, object> } })
+      .catalogs.default;
+    expect(slots.uk).toEqual({ hello: "Привіт (inline)", extra: "Додано на сервері" });
+  });
 });
 
 describe("the plugin in the browser", () => {
