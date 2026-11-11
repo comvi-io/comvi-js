@@ -1674,3 +1674,19 @@ Re-measured after the rebase onto lot 6a 6454408d (the null-slot fix: core-icu 4
 Node: react-icu-cdn 6,024 (+569 ≤ +579), solid-icu-cdn 6,286 (+831 ≤ +847), vue-icu-cdn 6,177
 (+722 ≤ +731), svelte-icu-cdn 6,763 (+1,308 ≤ +1,356), fw-next-client-default 6,750 (≤ 6,860). No
 cap, ceiling or budget changed.
+
+## 2026-11-11: two Vue limits on the restacked tree (owner decision)
+
+Owner decision of 2026-11-11. Cause: the Vue 3.5.0 native rich tag fix (#173) and the readiness
+scope of `useI18n()` (#172) together; each fit alone. Measured on `feat/ready-loading-scope`
+restacked on `fix/vue-native-rich-and-vanilla-tag-type` (lot 6a c499fdf0 + #173 0101c657 + #172),
+`TURBO_FORCE=1 pnpm build`, `node --version` v24.22.1, two runs with the same figures. Only these
+two limits change; every other row fits.
+
+| row                   | measured                       | limit (old → new)                            |
+| --------------------- | ------------------------------ | -------------------------------------------- |
+| vue-icu-cdn           | 6,191 (+732 over core-icu-cdn) | increment cap +731 → +747 = ceil(732 × 1.02) |
+| fw-vue-full-composite | 8,409 (18,018 min)             | budget 8,406 → 8,830 = ceil(8,409 × 1.05)    |
+
+vue-icu-cdn's ceiling (6,191) is not changed: the row measures exactly at it. fw-vue-full-composite
+has no ceiling; its baseline is the measurement above.
