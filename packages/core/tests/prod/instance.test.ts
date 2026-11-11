@@ -1,7 +1,6 @@
 /**
  * The instance in the production project (`__DEV__` false): the same rendering and the
- * same codes as development, no development text, the catalog-value check left out, and
- * the default reporter silent.
+ * same codes as development, no development text, and the default reporter silent.
  */
 import { describe, expect, it, vi } from "vitest";
 import type { I18nError } from "../../src/errors";
@@ -33,11 +32,22 @@ describe("production instance", () => {
     ]);
   });
 
-  it("does not check catalog values (a development-only check) and prints nothing", () => {
+  it("flattens nested groups and reports a collision or an invalid leaf, without a message, printing nothing (lot 6a)", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const i18n = createI18n({ locale: "en", messages: { en: { nav: { home: "x" } } as never } });
-    expect(i18n.t("nav")).toBe("nav");
+    const errors: I18nError[] = [];
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { nav: { home: "x" }, "nav.home": "y", n: 5 } as never },
+      onError: (e) => errors.push(e),
+    });
+    expect(i18n.t("nav.home")).toBe("x");
+    expect(errors.map((e) => [e.code, e.key, e.message])).toEqual([
+      ["syntax", "nav.home", undefined],
+      ["syntax", "n", undefined],
+    ]);
+    // Without onError the default reporter is silent in production.
+    createI18n({ locale: "en", messages: { en: { nav: { home: "x" }, n: 5 } as never } });
     i18n.t("missing");
     expect(error).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();

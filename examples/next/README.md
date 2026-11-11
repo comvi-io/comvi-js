@@ -12,11 +12,11 @@ the middleware sends `/` to the visitor's language, and the switcher navigates b
 - **Select:** ICU `select` picks a whole sentence by a value.
 - **Markup in a translation:** `<T>` turns `<link>…</link>` from the catalog into a real `<a>`.
 - **Dates, numbers and currency:** formatted for the current locale.
-- **Server and client:** Server Components call `getI18n({ locale })`, client components `useI18n()`,
+- **Server and client:** Server Components call `getI18n({ locale })` (an instance per request), client components `useI18n()`,
   and the first HTML is already translated.
-- **Namespaces:** the `account` namespace is loaded only by the `/about` route's layout.
+- **Namespaces:** the `account` namespace is loaded only by the `/about` page, which hands it to its client components.
 - **Fallback:** a key missing in Ukrainian shows the English text; a key missing everywhere shows its name.
-- **Missing-key hook:** every miss reaches `i18n.on("missingKey")`.
+- **Missing-key report:** every miss in the browser reaches the client options' `onError`.
 - **Right-to-left:** Arabic renders `<html dir="rtl">`.
 
 ## Run it
@@ -45,7 +45,8 @@ NEXT_PUBLIC_COMVI_CDN_URL="<your project's CDN URL>" npm run build
 
 ## Where to look
 
-- `src/i18n/config.ts`: the instance and its loader.
+- `src/i18n/server.ts`: the server helper and its loader; `src/i18n/client.tsx`: the browser options;
+  `src/app/[locale]/layout.tsx`: the handover of each request's catalogs.
 - `src/i18n/routing.ts` and `src/middleware.ts`: the locale in the URL. On Next.js 16 the file is
   `src/proxy.ts` and imports from `@comvi/next/proxy`; this example is on Next.js 15.
 - `src/app/[locale]/cards/`: one client component per feature card.

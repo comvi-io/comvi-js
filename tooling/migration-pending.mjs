@@ -32,12 +32,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const MIGRATION_PENDING = {
-  "@comvi/next": "lot 6: Next on the new core and @comvi/react",
   "@comvi/nuxt": "lot 7: Nuxt on the new core and @comvi/vue",
   "@comvi/plugin-in-context-editor": "lot 8: editor on the internal hook v2",
   "@comvi/chrome-extension": "lot 8: depends on @comvi/plugin-in-context-editor",
-  "@test-apps/next": "lot 6: builds from @comvi/next",
-  "@test-apps/next16": "lot 6: builds from @comvi/next",
   "@test-apps/nuxt": "lot 7: builds from @comvi/nuxt",
   "@test-apps/nuxt4": "lot 7: builds from @comvi/nuxt",
 };
@@ -50,13 +47,14 @@ export const MIGRATION_PENDING = {
 const CORE_07_DOCS =
   "documents the 0.7 core API (.use() composition, the capability subpaths); the 0.8 API landed in lot 1b, the pages are rewritten in lot 10";
 const LINT_07_RULES =
-  "on the 0.8 API since lot 1c (React), lot 4 (Vue) and lot 5 (Solid, Svelte); the docs-snippets rules still require the 0.7 composition (`.use(installer)`, `compiler: icuCompiler`) — they move to 0.8 with the docs in lot 10";
+  "on the 0.8 API since lot 1c (React), lot 4 (Vue), lot 5 (Solid, Svelte) and lot 6a (Next); the docs-snippets rules still require the 0.7 composition (`.use(installer)`, `compiler: icuCompiler`) — they move to 0.8 with the docs in lot 10";
 const CDN_08_ROOT =
   "its Connect to Comvi section is on the 0.8 API since lot 2c (`loader: cdn(url)` from @comvi/core/cdn, the 0.7 fetch loader is gone); the docs-snippets rules still require the 0.7 composition (`.use(installer)`) — they move to 0.8 with the docs in lot 10";
 export const MIGRATION_PENDING_DOCS = {
   "README.md": CDN_08_ROOT,
   "packages/core/README.md": CORE_07_DOCS,
   "packages/react/README.md": LINT_07_RULES,
+  "packages/next/README.md": LINT_07_RULES,
   "packages/vue/README.md": LINT_07_RULES,
   "packages/solid/README.md": LINT_07_RULES,
   "packages/svelte/README.md": LINT_07_RULES,
@@ -95,13 +93,23 @@ export const PENDING_CAPABILITIES = {
 /**
  * What lot 1c moved to the 0.8 API: the React and vanilla examples, and the core and React
  * cases of the bundler matrix; lot 4 the Vue example and the Vue bundler cases; lot 5 the Solid
- * and Svelte examples, their SSR recipes and their bundler cases.
+ * and Svelte examples, their SSR recipes and their bundler cases; lot 6a the Next example,
+ * its bundler cases and the two Next test apps.
  * `@test-apps/react` moved in lot 3b with `@comvi/vite-plugin` and `@test-apps/vue` in lot 4
  * (both are built and type-checked, not part of the test-apps smoke), and `@test-apps/solid`
  * and `@test-apps/svelte` in lot 5 (likewise).
  */
 export const ON_08 = {
-  examples: new Set(["react", "vanilla", "vue", "solid", "solidstart", "svelte", "sveltekit"]),
+  examples: new Set([
+    "react",
+    "vanilla",
+    "vue",
+    "solid",
+    "solidstart",
+    "svelte",
+    "sveltekit",
+    "next",
+  ]),
   bundlerCases: new Set([
     "core-default",
     "core-subpaths",
@@ -113,8 +121,11 @@ export const ON_08 = {
     "solid-format",
     "svelte-default",
     "svelte-format",
+    "next-server-on-default",
+    "next-client-default",
+    "next-proxy",
   ]),
-  testApps: new Set(),
+  testApps: new Set(["next", "next16"]),
 };
 
 /** The reason `dirOrName` (a package or a PENDING_CAPABILITIES id) is pending, or `undefined`. */

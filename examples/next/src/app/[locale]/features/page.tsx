@@ -1,5 +1,5 @@
 import { Link } from "@comvi/next/navigation";
-import { getI18n } from "@comvi/next/server";
+import { getI18n } from "@/i18n/server";
 import { FeatureCards } from "../FeatureCards";
 import { Footer } from "../Footer";
 import { Header } from "../Header";
@@ -17,7 +17,7 @@ export default async function FeaturesPage({ params }: { params: Promise<{ local
         </Link>
       </p>
       {/* Client components, and still rendered on the server: the layout's
-          <ComviProvider> seeded this locale's catalog, so the first HTML is
+          provider handed this locale's catalogs over, so the first HTML is
           already translated. */}
       <FeatureCards />
       <Footer locale={locale} />

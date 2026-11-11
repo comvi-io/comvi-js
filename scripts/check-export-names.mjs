@@ -17,7 +17,7 @@
 // `build` job, `pnpm check:export-names`) fails on it instead.
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import ts from "typescript";
 import { TYPED_PACKAGES } from "../tooling/typed-packages.mjs";
@@ -51,6 +51,17 @@ export function entriesOf(pkgDir) {
 
 /** The export names of a built JS entry, or a `failure` when `export *` hides some. */
 export async function runtimeNames(file) {
+  // A CommonJS entry (`@comvi/next/plugin`'s `require` target): bundled as ESM it shows only a
+  // `default`; Node's own import of it reads the names it exports (cjs-module-lexer).
+  if (file.endsWith(".cjs")) {
+    const mod = await import(pathToFileURL(file).href);
+    return {
+      names: Object.keys(mod)
+        .filter((n) => n !== "default" && n !== "module.exports")
+        .sort(),
+      failure: undefined,
+    };
+  }
   const result = await build({
     entryPoints: [file],
     bundle: true,

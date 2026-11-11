@@ -96,7 +96,7 @@ import { createI18n, I18nProvider } from "@comvi/react";
 import { cdn } from "@comvi/core/cdn";
 import App from "./App";
 
-// 1. Data. A server-rendered page embeds `handover(i18n)` (`@comvi/core/internal`) as window.__I18N__
+// 1. Data. A server-rendered page embeds `handover(i18n)` (`@comvi/core/ssr`) as window.__I18N__
 //    (its catalogs win over inline `messages`) and calls hydrateRoot(root, …) instead of createRoot.
 const i18n = createI18n({
   locale: "en",
@@ -115,7 +115,16 @@ createRoot(document.getElementById("root")!).render(
 With `suspense`, the provider suspends to the nearest `<Suspense>` instead. Both gate the first
 paint only, while a namespace being loaded is not `isReady` (another locale's catalog does not
 count), before the children render: an `<I18nHandover>` under a shut gate waits, so pass the data
-first. Server renders and hydrations are never gated; a server preloads with `i18n.load()`.
+first. Server renders and hydrations are never gated; a server preloads with `i18n.load()`. Each
+slot `<I18nHandover catalogs>` hands over replaces the instance's, every time (`null`: failed on the
+server; an omitted slot is kept); with two handovers on one instance, the last payload wins per slot.
+The handover receives a stable server snapshot: a new object means a new handing-over, and an
+inline literal per render does not meet this contract. In the browser, read the payload once
+(module scope as above, or `useState(() => …)`). On the server, the payload belongs to one request:
+build it in that request and pass it as a prop; never keep it in a module variable. With several
+handovers on one shared instance, the initial catalogs must be in the instance before hydration
+(create it from the first paint's payload); support of a single handover without pre-filling does
+not mean independent sibling subtrees can agree their data before commit.
 
 Match a route, cookie or header locale against your supported locales first: `createI18n()` and
 `<I18nHandover locale>` throw a `RangeError` for an invalid tag (`t(key, { locale })`, `has()`,

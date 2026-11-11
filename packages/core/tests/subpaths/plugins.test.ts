@@ -212,7 +212,6 @@ describe("persist() writes", () => {
     const w = writes();
     await i18n.setLocale("de");
     i18n.add("de", { a: "A" });
-    i18n.setDefaultParams({ x: 1 });
     expect(w()).toEqual([`${LOCALE_KEY}=de; path=/; max-age=31536000; SameSite=Lax`]);
   });
 

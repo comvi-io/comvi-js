@@ -1,40 +1,35 @@
-import { getI18n } from "@comvi/next/server";
-import { routing } from "@/i18n/config";
+import { formatDate, formatNumber } from "@comvi/core/format";
+import { getI18n } from "@/i18n/server";
+import { ClientCard } from "./ClientCard";
+import { WHEN } from "./when";
 
-// SSG: Generate static pages for all locales at build time
+import { routing } from "@/i18n/routing";
+
+// Static: every locale is prerendered at build. The explicit locale reads no request API, so
+// nothing here turns the page dynamic.
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
 
-interface HomePageProps {
-  params: Promise<{ locale: string }>;
-}
-
-export default async function HomePage({ params }: HomePageProps) {
+export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  const { t } = await getI18n({ locale });
-
+  const { t, i18n } = await getI18n({ locale });
   return (
-    <div className="space-y-6">
-      <header className="border-b pb-4">
-        <h2 className="text-2xl font-bold text-gray-900">{t("home.title")}</h2>
-        <p className="text-gray-600 mt-1">{t("home.subtitle")}</p>
-      </header>
-
-      <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
-        <p className="text-lg text-blue-900">{t("home.intro", { name: "Developer" })}</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-        <div className="p-4 border rounded-lg">
-          <h3 className="font-semibold mb-2">
-            {t("common.current_language", { lang: t("common.language_selector") })}
-          </h3>
-          <p className="text-sm text-gray-500">
-            Comvi i18n automatically handles language switching and reactivity.
-          </p>
-        </div>
-      </div>
-    </div>
+    <section data-testid="server">
+      <h1 data-testid="server-title">{t("home.title")}</h1>
+      <p data-testid="server-param">{t("home.intro", { name: "Ada" })}</p>
+      <p data-testid="server-plural">{t("plurals.items", { count: 2 })}</p>
+      <p data-testid="server-rich">
+        {t("rich_text.nested_simple", {
+          link: (c) => <a href="https://comvi.io/docs">{c}</a>,
+          bold: (c) => <b>{c}</b>,
+        })}
+      </p>
+      <p data-testid="server-number">{formatNumber(i18n, 1234.5)}</p>
+      <p data-testid="server-date">
+        {formatDate(i18n, WHEN, { dateStyle: "medium", timeStyle: "short" })}
+      </p>
+      <ClientCard />
+    </section>
   );
 }

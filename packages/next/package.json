@@ -2,7 +2,7 @@
   "name": "@comvi/next",
   "version": "0.7.1",
   "type": "module",
-  "description": "Next.js App Router integration for Comvi — SSR, middleware, and locale routing",
+  "description": "Next.js App Router integration for Comvi — request-scoped server helper, RSC handover, middleware and locale routing",
   "license": "MIT",
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {
@@ -34,14 +34,7 @@
     "dist",
     "LICENSE"
   ],
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "development": "./dist/index.dev.js",
-      "default": "./dist/index.js"
-    },
     "./server": {
       "types": "./dist/server.d.ts",
       "development": "./dist/server.dev.js",
@@ -76,10 +69,6 @@
       "types": "./dist/plugin.d.ts",
       "import": "./dist/plugin.js",
       "require": "./dist/plugin.cjs"
-    },
-    "./config": {
-      "types": "./dist/config.d.ts",
-      "default": "./dist/config.js"
     }
   },
   "engines": {
@@ -97,7 +86,7 @@
     "build": "node ../../tooling/clean-dist.mjs && tsc && vite build && vite build --config vite.config.dev.ts && node ../../tooling/qualify-dts-specifiers.mjs dist && esbuild src/plugin.ts --bundle --platform=node --format=cjs --target=node18 --external:next --log-level=warning --outfile=dist/plugin.cjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
     "test": "vitest run && pnpm test:types",
-    "test:types": "tsc --noEmit -p tsconfig.test-types.json && tsc --noEmit -p tsconfig.keys-closed.json && tsc --noEmit -p tsconfig.keys-via-binding.json",
+    "test:types": "tsc --noEmit -p tsconfig.test-types.json",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings=0",
@@ -105,16 +94,18 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@comvi/core": "workspace:*",
-    "@comvi/react": "workspace:*",
     "server-only": "^0.0.1"
   },
   "peerDependencies": {
-    "next": "^15.0.0 || ^16.0.0",
-    "react": "^18.2.0 || ^19.0.0"
+    "@comvi/core": "^0.7.0",
+    "@comvi/react": "^0.7.0",
+    "next": "^15.5.28 || ^16.4.3",
+    "react": "^19.3.1"
   },
   "devDependencies": {
+    "@comvi/core": "workspace:*",
     "@comvi/locale-routing": "workspace:*",
+    "@comvi/react": "workspace:*",
     "@comvi/test-utils": "workspace:*",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^22.20.5",

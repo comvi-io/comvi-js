@@ -4,9 +4,10 @@
  *
  * Layout (the CDN's, `@comvi/core/cdn`): `<locale>.json` is the `default` namespace,
  * `<ns>/<locale>.json` namespace `ns`. Another `fileTemplate` names the two parts with
- * `{languageTag}` and `{namespace}`. Catalogs are FLAT, as core reads them (`a.b` is a
- * key, not a path); a value that is not a string is reported and left out, as core
- * reports it at runtime.
+ * `{languageTag}` and `{namespace}`. A catalog is read by the core's own rule
+ * (`packages/core/src/flat.ts`): nested groups are flat keys (`{ "a": { "b": … } }` is the
+ * key `a.b`, as `{ "a.b": … }` is); a collision's later leaf and an invalid leaf are warned
+ * about and left out, as the core reports and leaves them out at runtime.
  *
  * Reading is per namespace and cached: {@link LocalSource.refresh} re-reads only the
  * namespaces it is told changed, and within them parses only a file whose text changed
@@ -16,6 +17,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { flat, type CatalogInput } from "./flat";
 import { buildWireKey, type SchemaWarning } from "./build";
 import { readMessage, type ReadMessage } from "./read";
 import { byCodeUnit, record, WIRE_VERSION, type WireKey, type WireSchema } from "./wire";
@@ -163,16 +165,21 @@ export class LocalSource {
           throw new CatalogFileError(full, "a catalog is a JSON object of keys to messages");
         const messages = record<ReadMessage>();
         const fileIssues: SchemaWarning[] = [];
-        for (const [key, value] of Object.entries(json as Record<string, unknown>)) {
-          if (typeof value === "string") messages[key] = readMessage(value);
-          else
-            fileIssues.push({
-              namespace: ns,
-              key,
-              locale,
-              message: `the value is not a string; catalogs are flat (flatten nested objects) — left out`,
-            });
-        }
+        // The core's own rule (flat.ts): nested groups are flat keys; what the runtime leaves
+        // out (a collision's later leaf, an invalid leaf) is warned about and left out here
+        // too, so the types name exactly the keys the runtime reads.
+        const catalog = flat(json as CatalogInput, (key, kind) =>
+          fileIssues.push({
+            namespace: ns,
+            key,
+            locale,
+            message:
+              kind === 1
+                ? "defined both as a flat key and through nesting — the first one is kept"
+                : "the value is not a string or a group of strings — left out",
+          }),
+        );
+        for (const key of Object.keys(catalog)) messages[key] = readMessage(catalog[key]);
         file = { text, messages, issues: fileIssues };
         this.parsed.set(full, file);
       }

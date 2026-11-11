@@ -1,0 +1,69 @@
+{
+  "$comment": "The nested-catalog rule (packages/core/src/flat.ts), shared by the parity tests of @comvi/core, @comvi/typegen and @comvi/cli. `flat` is the flat catalog; `left` the keys left out: [key, 1 = collision | 2 = invalid leaf], in order. A case with `left` is a diagnostic (the CLI refuses the file).",
+  "cases": [
+    {
+      "name": "already flat",
+      "input": { "account.greeting": "Привіт, {name}!", "a": "A" },
+      "flat": { "account.greeting": "Привіт, {name}!", "a": "A" },
+      "left": []
+    },
+    {
+      "name": "nested equals flat",
+      "input": {
+        "account": {
+          "greeting": "Привіт, {name}!",
+          "items": "{count, plural, one {# товар} other {# товарів}}"
+        },
+        "terms": "Read <link>terms</link>"
+      },
+      "flat": {
+        "account.greeting": "Привіт, {name}!",
+        "account.items": "{count, plural, one {# товар} other {# товарів}}",
+        "terms": "Read <link>terms</link>"
+      },
+      "left": []
+    },
+    {
+      "name": "deep and mixed",
+      "input": { "a": { "b": { "c": "C" }, "b.d": "D" }, "a.e": "E" },
+      "flat": { "a.b.c": "C", "a.b.d": "D", "a.e": "E" },
+      "left": []
+    },
+    {
+      "name": "a flat key beside the same key through nesting: the first is kept",
+      "input": { "a": { "b": "nested" }, "a.b": "flat" },
+      "flat": { "a.b": "nested" },
+      "left": [["a.b", 1]]
+    },
+    {
+      "name": "the flat key first",
+      "input": { "a.b": "flat", "a": { "b": "nested", "c": "C" } },
+      "flat": { "a.b": "flat", "a.c": "C" },
+      "left": [["a.b", 1]]
+    },
+    {
+      "name": "invalid leaves",
+      "input": { "n": 5, "t": true, "z": null, "l": ["x"], "ok": "OK", "g": { "m": 1 } },
+      "flat": { "ok": "OK" },
+      "left": [
+        ["n", 2],
+        ["t", 2],
+        ["z", 2],
+        ["l", 2],
+        ["g.m", 2]
+      ]
+    },
+    {
+      "name": "prototype names are data",
+      "input": { "__proto__": { "x": "P" }, "constructor": "C", "toString": { "y": "T" } },
+      "flat": { "__proto__.x": "P", "constructor": "C", "toString.y": "T" },
+      "left": []
+    },
+    {
+      "name": "an empty group gives no key",
+      "input": { "empty": {}, "a": "A" },
+      "flat": { "a": "A" },
+      "left": []
+    }
+  ]
+}

@@ -176,22 +176,36 @@ describe("generate()", () => {
     expect(fs.existsSync(path.join(root, "comvi.d.ts"))).toBe(false);
   });
 
-  it("defaultParams make a param optional; nested values are reported and left out", async () => {
-    const root = app({ "en.json": { hello: "Hi {name} from {brand}", nested: { a: "x" } } });
+  it("every param is required, the removed `defaultParams` option included; nested groups are flat keys (lot 6a, D1; owner decision 2026-11-11)", async () => {
+    const root = app({ "en.json": { hello: "Hi {name} from {brand}", nested: { a: "x {n}" } } });
     const m = messages();
     const r = await generate({
       from: "locales",
       out: "comvi.d.ts",
       root,
+      // @ts-expect-error `defaultParams` is no longer an option
       defaultParams: ["brand"],
       onMessage: m.onMessage,
     });
-    expect(r.content).toContain('"hello": { "brand"?: string | number; "name": string | number };');
-    expect(r.content).not.toContain('"nested"');
+    expect(r.content).toContain('"hello": { "brand": string | number; "name": string | number };');
+    expect(r.content).toContain('"nested.a": { "n": string | number };');
+    expect(m.list.filter((x) => x.level === "warn")).toEqual([]);
+  });
+
+  it("a collision keeps the first leaf and an invalid leaf is left out, each with a warning", async () => {
+    const root = app({ "en.json": { a: { b: "nested" }, "a.b": "flat {x}", n: 5 } });
+    const m = messages();
+    const r = await generate({ from: "locales", out: "comvi.d.ts", root, onMessage: m.onMessage });
+    expect(r.content).toContain('"a.b": never;');
+    expect(r.content).not.toContain('"n"');
     expect(m.list).toEqual([
       {
         level: "warn",
-        text: 'default "nested" (en): the value is not a string; catalogs are flat (flatten nested objects) — left out',
+        text: 'default "a.b" (en): defined both as a flat key and through nesting — the first one is kept',
+      },
+      {
+        level: "warn",
+        text: 'default "n" (en): the value is not a string or a group of strings — left out',
       },
     ]);
   });

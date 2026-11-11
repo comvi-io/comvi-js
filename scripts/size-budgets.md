@@ -155,15 +155,10 @@ the bytes first, then decide whether they ship.
 each with the binding increment cap over `core-icu-cdn`);
 per framework
 `fw-{react,solid,svelte,vue}-{default,full-composite}`, `fw-svelte-format`; `fw-next-client-default`,
-`fw-next-server-default-loader`, `fw-next-server-provider`, `fw-next-root-composed`, `fw-next-root-devtools`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
+`fw-next-server-default-loader`, `fw-next-plugin-node`, `fw-next-middleware-edge`, `fw-nuxt-client-default`,
 `fw-nuxt-full-composite`, `fw-nuxt-i18n` (`platform-path-react` is replaced by `react-icu-cdn` in
 lot 1c; the `plugin-fetch-loader` and `plugin-fetch-loader-api` rows left with the package in lot 2c,
 the platform path is `core-icu-cdn`).
-
-`fw-next-server-provider` is the server graph of the `withComvi` setup: `<ComviProvider>` and
-`getI18n` with the provider's `"use client"` half and `@comvi/next/config` external, which is what
-Next keeps on the server (a client reference, and the app's own config module). Measured with the
-client half inlined instead, the row is 2737 B, so the external is what the row is about.
 
 `fw-next-plugin-node` is no pair half: `@comvi/next/plugin` runs in Node from next.config and is
 never bundled into an app, so its row only catches a runtime import creeping into the plugin.
@@ -580,7 +575,7 @@ not shipped (`<T ns>` stays). Kept: everything else above. Result, one sweep aft
 | row                     | gzip B | budget | ceiling | note                                               |
 | ----------------------- | ------ | ------ | ------- | -------------------------------------------------- |
 | react-icu-cdn           | 5,129  | 5,386  | 5,395   | **+468 B** over core-icu-cdn (cap 500)             |
-| fw-react-default        | 4,668  | 4,902  | —       | 0.7: 7,606                                         |
+| fw-react-default        | 5,142  | 4,902  | —       | 0.7: 7,606                                         |
 | fw-react-full-composite | 8,047  | 8,450  | —       | 0.7: 13,526; every export + cdn, plugins, devtools |
 
 `platform-path-react` (0.7 API: `cdnLoader` from `@comvi/plugin-fetch-loader`) is removed;
@@ -1400,11 +1395,11 @@ proposals: only the owner accepts them.** No React, Vue or core row moved.
 | ------------------------ | ------------ | ----- | ------ | ------------------ | -------------------------------- |
 | solid-icu-cdn            | —            | 5,927 | 6,046  | **6,046**          | +813 (**+830**)                  |
 | svelte-icu-cdn           | —            | 6,448 | 6,577  | **6,577**          | +1,334 (**+1,361**)              |
-| fw-solid-default         | 7,036        | 5,404 | 5,675  | —                  | —                                |
+| fw-solid-default         | 5,409        | 5,404 | 5,675  | —                  | —                                |
 | fw-solid-full-composite  | 12,914       | 8,044 | 8,447  | —                  | —                                |
 | fw-svelte-default        | 7,235        | 5,949 | 6,247  | —                  | —                                |
 | fw-svelte-full-composite | 13,609       | 8,510 | 8,936  | —                  | —                                |
-| fw-svelte-format         | 462          | 5,686 | 5,971  | —                  | —                                |
+| fw-svelte-format         | 5,692        | 5,686 | 5,971  | —                  | —                                |
 
 For comparison, the increment is +533 on React and +716 on Vue. `fw-svelte-format` measures a real
 instance, the context and `useFormat()`: the 462 B was one formatter over a plain object, which 0.8
@@ -1436,3 +1431,188 @@ pass-through and took 59–77 B off each row that compiles messages.
 Framework-row budgets are `ceil(gzip × 1.05)` of the final figure. No ceiling of a core, React or Vue
 row changed; their figures moved down: `core-icu-cdn` 5,114 → 5,050, `react-icu-cdn` 5,647 → 5,589
 (+539 over core-icu-cdn with #164, cap +544), `vue-icu-cdn` 5,830 → 5,753 (+703, cap +731).
+
+## 2026-11-06: lot 6a, Next on the 0.8 core
+
+`@comvi/next` left MIGRATION_PENDING with the 0.8 recipe (`createGetI18n` + `handover()` +
+`<I18nProvider payload>`). Measured after `TURBO_FORCE=true pnpm build`, `node --version` v24.22.1.
+No core, React, Vue, Solid or Svelte figure moved (the `/ssr` entry is imported by no core row). The
+review fix (prototype-free maps in the client provider, plain leaves in `handover()`) is in the figures:
+client 6,138 → 6,147, server 5,291 → 5,308, both within their budgets; the recorded baselines
+stay the figures the budgets were set from (budget = ceil(baseline × 1.05)), nothing is raised.
+
+| row                           | 0.7 baseline | lot 6a                 | budget        | graph                                                          |
+| ----------------------------- | ------------ | ---------------------- | ------------- | -------------------------------------------------------------- |
+| fw-next-client-default        | 8,209        | 6,147 (baseline 6,138) | 8,620 → 6,445 | `<I18nProvider payload>` + a `@comvi/react` component          |
+| fw-next-server-default-loader | 8,329        | 5,308 (baseline 5,291) | 8,746 → 5,556 | `createGetI18n` with a loader + `handover()`                   |
+| fw-next-middleware-edge       | 2,045        | 2,045                  | 2,148         | unchanged                                                      |
+| fw-next-plugin-node           | 939          | 121                    | 986           | `withComvi()` without the 0.7 config alias (lot 6b adds types) |
+
+`fw-next-root-composed`, `fw-next-root-devtools` and `fw-next-server-provider` are gone with the
+package root, `createNextI18n`, `.use()` and `<ComviProvider>`. The client row is the Next client
+graph of a page: against `react-icu-cdn` (5,589 B, which carries `cdn()` and no Next code) it adds the
+payload provider, React's `<I18nHandover>` chunk and the routing context, and leaves out `cdn()`.
+
+SSR payload of a real page (brief §9): the `payload` props of `<I18nProvider>` read out of the RSC
+payload in the HTML (`self.__next_f`) of the production build of `test-apps/next` (Next 15.5.28;
+`test-apps/next16` on Next 16.4.3 gives the same JSON bytes), `node --version` v24.22.1. JSON B is
+the props object as the Flight stream carries it; gzip at level 9 of that text alone.
+
+| page        | provider | namespace × locale                         | JSON B | gzip B |
+| ----------- | -------- | ------------------------------------------ | ------ | ------ |
+| `/`         | layout   | default×en                                 | 2,894  | 1,151  |
+| `/uk`       | layout   | default×uk, default×en                     | 7,476  | 2,350  |
+| `/ar`       | layout   | default×ar, default×en                     | 6,772  | 2,199  |
+| `/admin`    | layout   | default×en                                 | 2,894  | 1,151  |
+| `/admin`    | page     | default×en, admin×en                       | 302    | 215    |
+| `/uk/admin` | layout   | default×uk, default×en                     | 7,476  | 2,350  |
+| `/uk/admin` | page     | default×uk, default×en, admin×uk, admin×en | 595    | 347    |
+
+The page provider's `default` catalogs are the same objects as the layout's (one load per request,
+`handover()` hands a catalog over as the object the instance holds), so React's serializer writes
+them once and the page payload refers to them (`"$4:props:…:catalogs:default:uk"`): the second
+provider costs its own namespace only. The whole HTML of `/uk/admin` is 16,328 B (4,766 B gzip).
+
+## 2026-11-10: lot 6a D1 nested catalogs and the audit fixes of the repeated payload (owner decisions)
+
+Two owner decisions of 2026-11-10, measured after `TURBO_FORCE=true pnpm build`, `node --version`
+v24.22.1. "Before" is lot 6a at 173f5b40. **A**: D1 alone, nested catalogs normalized at the core's
+entry (`packages/core/src/flat.ts`) with a collision or an invalid leaf reported through `onError`
+in every build (option 1: the ceilings it pushes over move). **B**: A plus the four audit fixes of
+the repeated payload (a vanilla `Tag` typed as the rich parts — types only; a slot a handover handed
+before is replaced; a `null` aborts a load of the pair in flight; a handover's locale switch keeps
+the payload's failures). The owner accepted B: every affected ceiling is `ceil(B × 1.02)`, the React
+increment cap `ceil(546 × 1.02)`; budgets `min(ceiling, ceil(B × 1.05))`. No other increment cap
+moved: every other increment fits.
+
+| row               | before | A     | B     | old ceiling | new ceiling | increment A / B (cap old → new)  |
+| ----------------- | ------ | ----- | ----- | ----------- | ----------- | -------------------------------- |
+| core-icu          | 4,632  | 4,776 | 4,879 | 4,727       | 4,977       | —                                |
+| core-icu-cdn      | 5,120  | 5,269 | 5,372 | 5,217       | 5,480       | —                                |
+| core-icu-devtools | 5,090  | 5,232 | 5,336 | 5,189       | 5,443       | +456 / +457 over core-icu (+463) |
+| react-icu-cdn     | 5,656  | 5,805 | 5,918 | 5,760       | 6,037       | +536 / +546 (+544 → +557)        |
+| vue-icu-cdn       | 5,816  | 5,965 | 6,069 | 5,947       | 6,191       | +696 / +697 (+731)               |
+| solid-icu-cdn     | 5,930  | 6,074 | 6,184 | 5,979       | 6,308       | +805 / +812 (+828)               |
+| svelte-icu-cdn    | 6,402  | 6,548 | 6,655 | 6,507       | 6,789       | +1,279 / +1,283 (+1,356)         |
+
+The rows without a ceiling that B pushed over their budget are re-baselined to B, budget
+`ceil(B × 1.05)`:
+
+| row                           | before | A     | B     | old budget | new budget |
+| ----------------------------- | ------ | ----- | ----- | ---------- | ---------- |
+| fw-react-default              | 5,142  | 5,290 | 5,395 | 5,394      | 5,665      |
+| fw-solid-default              | 5,409  | 5,552 | 5,659 | 5,610      | 5,942      |
+| fw-svelte-format              | 5,692  | 5,842 | 5,946 | 5,909      | 6,244      |
+| fw-next-server-default-loader | 5,373  | 5,519 | 5,623 | 5,556      | 5,905      |
+| fw-next-client-default        | 6,190  | 6,338 | 6,533 | 6,445      | 6,860      |
+
+Every other row grew within its budget and keeps its baseline. Of A over before, about +124 B is
+the normalization itself and about +22 B its reporting (measured once without the `onError` report).
+
+## 2026-11-10: lot 6a re-review fixes (owner decision)
+
+Owner decision of 2026-11-10, measured after `TURBO_FORCE=true pnpm build`, `node --version`
+v24.22.1. "Before" is B above (e47da916); "after" adds the four fixes of the re-review of f62c6d7d:
+a handover remembers every slot it handed on the instance; its switch lands on the payload's locale
+when the target's own catalog failed on the server; a payload's `null` caches a per-pair `Error`
+(what an aborted `load(ns)` rejects with); `view()` flattens through the instance, which reports
+`syntax` once per catalog object. The core grows about +83 B (core-icu 4,879 → 4,962). Measured by
+taking each part out: the switch rule about 16 B, the once-per-object report cache about 26 B, the
+rest the per-pair `Error` (with its marking) and the seam's `view()` call. A shared `Error` instead
+saved about 23 B and still did not fit; the owner kept the fixes as built.
+
+The ceilings and caps of the entry above do not change: every row with a ceiling fits (core-icu
+4,962 ≤ 4,977; core-icu-cdn 5,456 ≤ 5,480; core-icu-devtools 5,418 ≤ 5,443, +456 over core-icu ≤
++463; react-icu-cdn 5,996 ≤ 6,037, +540 ≤ +557; vue-icu-cdn 6,150 ≤ 6,191; solid-icu-cdn 6,257 ≤
+6,308; svelte-icu-cdn 6,736 ≤ 6,789). The rows without a ceiling that no longer fit are re-baselined
+to the measurement, budget `ceil(after × 1.05)`:
+
+| row                     | before | after | old budget | new budget |
+| ----------------------- | ------ | ----- | ---------- | ---------- |
+| core-icu-cdn-store      | 5,544  | 5,624 | 5,547      | 5,906      |
+| core-icu-api            | 5,900  | 5,977 | 5,920      | 6,276      |
+| core-format             | 5,547  | 5,628 | 5,553      | 5,910      |
+| core-plugins            | 5,468  | 5,549 | 5,478      | 5,827      |
+| fw-react-full-composite | 8,523  | 8,642 | 8,539      | 9,075      |
+| fw-solid-full-composite | 8,333  | 8,406 | 8,383      | 8,827      |
+| fw-svelte-default       | 6,149  | 6,230 | 6,169      | 6,542      |
+| fw-vue-default          | 5,552  | 5,630 | 5,575      | 5,912      |
+
+Every other row grew within its budget and keeps its baseline and budget.
+
+## 2026-11-10: lot 6a model A, the CDN fallback contract, `defaultParams` (information only)
+
+Measured after `TURBO_FORCE=true pnpm build`, `node --version` v24.22.1. "Before" is da2ebeeb (the
+re-review entry above); "after" is `feat/lot6a-payload-owner`: one ownership rule for a server
+payload's slots (model A: the handed-slot history, the first-time merge and the layered-slot memo
+removed; the handover's locale decision by the current payload), a CDN `fallback` that returns the
+catalog itself (the `.default` unwrap removed), and the Next client provider applying the
+`defaultParams` the server hands over in the same snapshot as its catalogs (`<I18nHandover defaultParams>`). Ceilings, budgets and baselines are unchanged: every row
+fits its current budget (core-icu 4,974 ≤ 4,977). Rows that moved:
+
+| row                           | before | after | delta | budget |
+| ----------------------------- | ------ | ----- | ----- | ------ |
+| core-compile                  | 1,790  | 1,791 | +1    | 1,956  |
+| core-icu                      | 4,962  | 4,974 | +12   | 4,977  |
+| core-icu-cdn                  | 5,456  | 5,445 | -11   | 5,480  |
+| core-icu-cdn-store            | 5,624  | 5,614 | -10   | 5,906  |
+| core-icu-api                  | 5,977  | 5,967 | -10   | 6,276  |
+| core-icu-devtools             | 5,418  | 5,425 | +7    | 5,443  |
+| core-format                   | 5,628  | 5,637 | +9    | 5,910  |
+| core-plugins                  | 5,549  | 5,552 | +3    | 5,827  |
+| react-icu-cdn                 | 5,996  | 5,989 | -7    | 6,037  |
+| fw-react-default              | 5,468  | 5,486 | +18   | 5,665  |
+| fw-react-full-composite       | 8,642  | 8,618 | -24   | 9,075  |
+| vue-icu-cdn                   | 6,150  | 6,143 | -7    | 6,191  |
+| solid-icu-cdn                 | 6,257  | 6,247 | -10   | 6,308  |
+| svelte-icu-cdn                | 6,736  | 6,730 | -6    | 6,789  |
+| fw-solid-default              | 5,733  | 5,750 | +17   | 5,942  |
+| fw-solid-full-composite       | 8,406  | 8,396 | -10   | 8,827  |
+| fw-svelte-default             | 6,230  | 6,236 | +6    | 6,542  |
+| fw-svelte-full-composite      | 8,837  | 8,824 | -13   | 8,870  |
+| fw-svelte-format              | 6,020  | 6,025 | +5    | 6,244  |
+| fw-vue-default                | 5,630  | 5,641 | +11   | 5,912  |
+| fw-vue-full-composite         | 8,370  | 8,360 | -10   | 8,406  |
+| fw-next-server-default-loader | 5,698  | 5,704 | +6    | 5,905  |
+| fw-next-client-default        | 6,643  | 6,662 | +19   | 6,860  |
+
+Every other row measures as before.
+
+## 2026-11-10: lot 6a hydration with a `null` slot and a client loader (owner decision)
+
+Owner decision of 2026-11-10: fix the hydration mismatch and raise the ceiling it pushes over.
+Scenario: a payload whose slot failed on the server (`null`) reaches the instance only through
+`<I18nHandover catalogs>` at hydration, the instance has a client loader and no catalog of the
+namespace's chain; the server rendered the "unavailable" branch, the hydration render read
+`isLoading` true and rendered the loader (React: "Hydration failed …"). Fix: `view()` keeps the
+payload's `null` pairs on the render-local state and `coming()` skips them. Measured after
+`TURBO_FORCE=1 pnpm build`, `node --version` v24.22.1, twice with the same figures; "before" is
+f5ec46ac. Only core-icu went over its limit: ceiling `ceil(4,984 × 1.02)` = 5,084, budget
+`min(5,084, ceil(4,984 × 1.05))` = 5,084. No increment cap moved: core-icu-devtools +451 over
+core-icu (cap +463), react-icu-cdn +545 (+557), vue-icu-cdn +697 (+731), solid-icu-cdn +804
+(+828), svelte-icu-cdn +1,288 (+1,356).
+
+| row                           | before | after | limit (old → new)     |
+| ----------------------------- | ------ | ----- | --------------------- |
+| core-icu                      | 4,974  | 4,984 | ceiling 4,977 → 5,084 |
+| core-icu-cdn                  | 5,445  | 5,455 | ceiling 5,480         |
+| core-icu-devtools             | 5,425  | 5,435 | ceiling 5,443         |
+| react-icu-cdn                 | 5,989  | 6,000 | ceiling 6,037         |
+| vue-icu-cdn                   | 6,143  | 6,152 | ceiling 6,191         |
+| solid-icu-cdn                 | 6,247  | 6,259 | ceiling 6,308         |
+| svelte-icu-cdn                | 6,730  | 6,743 | ceiling 6,789         |
+| fw-next-server-default-loader | 5,704  | 5,712 | budget 5,905          |
+| fw-next-client-default        | 6,680  | 6,723 | budget 6,860          |
+
+Every other row moved by at most +41 B (fw-react-full-composite 8,636 → 8,677) within its budget
+and keeps its baseline and budget.
+
+## 2026-11-11: `defaultParams` removed (information only)
+
+Owner decision of 2026-11-11: `defaultParams` and `setDefaultParams()` leave the 0.8 API. Measured
+after `TURBO_FORCE=1 pnpm build`, `node --version` v24.22.1, lot 6a 559247a8 → 5e9f29c0: core-icu
+4,988 → 4,912 (−76), core-icu-cdn 5,459 → 5,378 (−81), core-icu-devtools 5,440 → 5,364 (−76),
+react-icu-cdn 6,004 → 5,922 (−82), vue-icu-cdn 6,156 → 6,077 (−79), solid-icu-cdn 6,263 → 6,177
+(−86), svelte-icu-cdn 6,744 → 6,664 (−80), fw-react-full-composite 8,736 → 8,470 (−266),
+fw-next-server-default-loader 5,800 → 5,639 (−161), fw-next-client-default 6,811 → 6,496 (−315);
+every other row −69…−90 B or unchanged. Limits unchanged: the owner decides whether to lower them.

@@ -167,11 +167,11 @@ describe("opt-out (H9)", () => {
     expect(i18n.t("hi", { markers: true })).toBe("[default|hi|Hi]");
   });
 
-  it("with defaultParams the opt-out still holds", () => {
+  it("with explicit params the opt-out still holds", () => {
     const mk = bracket();
-    const { i18n, x } = make({ defaultParams: { n: "Z" } });
+    const { i18n, x } = make();
     x.mark(mk);
-    expect(i18n.t("name", { markers: false })).toBe("Hi Z");
+    expect(i18n.t("name", { n: "Z", markers: false })).toBe("Hi Z");
     expect(mk).not.toHaveBeenCalled();
   });
 });
@@ -222,10 +222,16 @@ describe("no session, no devtools", () => {
     );
     // The seam a binding reads holds no setter of the hook (lot 4b: `core` is exported).
     expect(Object.keys(internal.core(i18n)).sort()).toEqual([
+      // A handover's own locale switch, keeping the payload's failures (lot 6a audit); no hook.
+      "L",
       "b",
       "ch",
+      // A server payload's failed slot handed over after creation (lot 6a); no hook.
+      "f",
       "h",
       "k",
+      // A catalog as the instance accepts it, for a render-local entry (lot 6a); no hook.
+      "n",
       "o",
       // Development only: a render's declaration before its hold (diagnostic marker only).
       "p",

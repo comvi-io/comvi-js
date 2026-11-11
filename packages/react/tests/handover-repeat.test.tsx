@@ -1,0 +1,347 @@
+/**
+ * A server payload through `<I18nHandover catalogs locale>`, model A (owner decision
+ * 2026-11-10): a slot the server hands over fully replaces the matching client slot, the first
+ * time and every later time — a key the server no longer has is gone, `{}` is empty, `null` is
+ * a failed server result; a slot the payload omits is not changed; `add()` stays a patch. A
+ * `null` wins over a load in flight; the handover's locale switch decides from the CURRENT
+ * payload only. Two handovers on one instance: the last payload applied wins per slot.
+ */
+import { act, render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import {
+  createI18n,
+  I18nHandover,
+  I18nProvider,
+  useI18n,
+  type HandoverCatalogs,
+  type I18n,
+} from "../src";
+import { flush, manualLoader, settle } from "./helpers";
+
+function Probe({ ns = "default", k }: { ns?: string; k: string }) {
+  const { t, isLoading, locale } = useI18n(ns);
+  return (
+    <p data-testid={k} data-loading={String(isLoading)}>
+      {locale}|{t(k) as string}
+    </p>
+  );
+}
+const tree = (
+  i18n: I18n,
+  catalogs: HandoverCatalogs,
+  keys: string[],
+  ns?: string,
+  locale?: string,
+) => (
+  <I18nProvider i18n={i18n}>
+    <I18nHandover catalogs={catalogs} locale={locale}>
+      {keys.map((k) => (
+        <Probe key={k} k={k} ns={ns} />
+      ))}
+    </I18nHandover>
+  </I18nProvider>
+);
+const text = (k: string) => screen.getByTestId(k).textContent;
+
+describe("a repeated payload replaces what the handover handed before (finding 2)", () => {
+  it("a key the server no longer has renders missing, at once and after commit; an empty catalog empties the slot", async () => {
+    const first = { default: { uk: { a: "A", b: "B" } } };
+    const i18n = createI18n({ locale: "uk", catalogs: first, onError: () => {} });
+    const { rerender } = render(tree(i18n, first, ["a", "b"]));
+    expect([text("a"), text("b")]).toEqual(["uk|A", "uk|B"]);
+    await act(async () => rerender(tree(i18n, { default: { uk: { a: "A2" } } }, ["a", "b"])));
+    expect([text("a"), text("b")]).toEqual(["uk|A2", "uk|b"]);
+    expect(i18n.t("b")).toBe("b");
+    await act(async () => rerender(tree(i18n, { default: { uk: {} } }, ["a", "b"])));
+    expect([text("a"), text("b")]).toEqual(["uk|a", "uk|b"]);
+  });
+
+  it("a slot handed for the first time replaces the instance's too (model A); add() stays a patch", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { a: "A", b: "B" } },
+      onError: () => {},
+    });
+    render(tree(i18n, { default: { en: { b: "b2" } } }, ["a", "b"]));
+    expect([text("a"), text("b")]).toEqual(["en|a", "en|b2"]);
+    await settle();
+    expect([text("a"), text("b")]).toEqual(["en|a", "en|b2"]);
+    i18n.add("en", { c: "C" });
+    expect([i18n.t("b"), i18n.t("c")]).toEqual(["b2", "C"]);
+  });
+
+  it("null → success → null: each payload is the slot's state", async () => {
+    const i18n = createI18n({
+      locale: "uk",
+      fallbackLocale: "en",
+      catalogs: { default: { uk: null, en: { a: "A" } } },
+      onError: () => {},
+    });
+    const p = (uk: Record<string, string> | null) => ({ default: { uk, en: { a: "A" } } });
+    const { rerender } = render(tree(i18n, p(null), ["a"]));
+    expect(text("a")).toBe("uk|A");
+    await act(async () => rerender(tree(i18n, p({ a: "А" }), ["a"])));
+    expect([text("a"), i18n.t("a")]).toEqual(["uk|А", "А"]);
+    await act(async () => rerender(tree(i18n, p(null), ["a"])));
+    expect([text("a"), i18n.t("a")]).toEqual(["uk|A", "A"]);
+  });
+});
+
+describe("a null slot against a load in flight (finding 3)", () => {
+  it("the late response does not restore the catalog; ready settles; isLoading is false", async () => {
+    const m = manualLoader();
+    const i18n = createI18n({
+      locale: "uk",
+      fallbackLocale: "en",
+      loader: m.load,
+      catalogs: { default: { uk: {}, en: {} } },
+      onError: () => {},
+    });
+    const { rerender } = render(tree(i18n, { default: { uk: {}, en: {} } }, ["title"], "admin"));
+    await settle();
+    expect(m.requested).toEqual(["uk:admin", "en:admin"]);
+    await act(async () =>
+      rerender(tree(i18n, { admin: { uk: null, en: { title: "Admin" } } }, ["title"], "admin")),
+    );
+    expect(text("title")).toBe("uk|Admin");
+    await m.answer("uk:admin", { title: "late" });
+    expect(text("title")).toBe("uk|Admin");
+    expect(i18n.t("title", { ns: "admin" })).toBe("Admin");
+    // The aborted request settled; the rest of the loads in flight settle on their own.
+    await m.answer("en:admin", { title: "Admin" });
+    await act(() => i18n.ready);
+    expect(screen.getByTestId("title").dataset.loading).toBe("false");
+  });
+});
+
+describe("a null slot with a locale change (finding 4)", () => {
+  it("the handover's own switch keeps the failure: no request for it", async () => {
+    const m = manualLoader();
+    const i18n = createI18n({
+      locale: "en",
+      fallbackLocale: "en",
+      loader: m.load,
+      catalogs: { default: { en: { title: "Hi" } }, admin: { en: { title: "Admin" } } },
+      onError: () => {},
+    });
+    const { rerender } = render(
+      tree(i18n, { admin: { en: { title: "Admin" } } }, ["title"], "admin"),
+    );
+    await settle();
+    await act(async () =>
+      rerender(
+        tree(
+          i18n,
+          { admin: { uk: null, en: { title: "Admin" } }, default: { uk: { title: "Привіт" } } },
+          ["title"],
+          "admin",
+          "uk",
+        ),
+      ),
+    );
+    await act(flush);
+    expect(m.requested.filter((r) => r === "uk:admin")).toEqual([]);
+    expect(i18n.locale).toBe("uk");
+    expect(text("title")).toBe("uk|Admin");
+    expect(m.requested.filter((r) => r === "uk:admin")).toEqual([]);
+    // The user's explicit retry keeps its contract.
+    void i18n.load("admin");
+    await act(flush);
+    expect(m.requested.filter((r) => r === "uk:admin")).toEqual(["uk:admin"]);
+  });
+});
+
+describe("re-review of lot 6a (2026-11-10)", () => {
+  it("a slot handed before stays replaced after a payload that omitted it (item 1)", async () => {
+    const first = { default: { en: { a: "A", b: "B" } } };
+    const i18n = createI18n({ locale: "en", catalogs: first, onError: () => {} });
+    const { rerender } = render(tree(i18n, first, ["a", "b"]));
+    // An omitted slot is not deleted.
+    await act(async () => rerender(tree(i18n, { other: { en: { x: "X" } } }, ["a", "b"])));
+    expect([text("a"), text("b")]).toEqual(["en|A", "en|B"]);
+    // It comes back: replaced, not merged.
+    await act(async () => rerender(tree(i18n, { default: { en: { a: "A2" } } }, ["a", "b"])));
+    expect([text("a"), text("b")]).toEqual(["en|A2", "en|b"]);
+    await act(async () => rerender(tree(i18n, { other: { en: { x: "X" } } }, ["a", "b"])));
+    await act(async () => rerender(tree(i18n, { default: { en: {} } }, ["a", "b"])));
+    expect([text("a"), text("b")]).toEqual(["en|a", "en|b"]);
+  });
+
+  it("a later payload in a locale whose own catalog failed lands there, like a first one (item 2)", async () => {
+    const payload = { default: { en: { title: "Hello" }, de: null } };
+    const fresh = createI18n({
+      locale: "de",
+      fallbackLocale: "en",
+      catalogs: payload,
+      onError: () => {},
+    });
+    render(tree(fresh, payload, ["title"], "default", "de"));
+    await settle();
+    const expected = text("title");
+    expect(expected).toBe("de|Hello");
+
+    document.body.innerHTML = "";
+    const i18n = createI18n({
+      locale: "fr",
+      fallbackLocale: "en",
+      catalogs: { default: { fr: { title: "Bonjour" }, en: { title: "Hello" } } },
+      onError: () => {},
+    });
+    const { rerender } = render(
+      tree(
+        i18n,
+        { default: { fr: { title: "Bonjour" }, en: { title: "Hello" } } },
+        ["title"],
+        "default",
+        "fr",
+      ),
+    );
+    expect(text("title")).toBe("fr|Bonjour");
+    await act(async () => rerender(tree(i18n, payload, ["title"], "default", "de")));
+    await settle();
+    expect(text("title")).toBe(expected);
+    expect(i18n.locale).toBe("de");
+  });
+
+  it("a browser failure, then the server's null for the same pair: the server's result lands", async () => {
+    const m = manualLoader();
+    const i18n = createI18n({
+      locale: "fr",
+      fallbackLocale: "en",
+      loader: m.load,
+      catalogs: { default: { fr: { title: "Bonjour" }, en: { title: "Hello" } } },
+      onError: () => {},
+    });
+    const first = { default: { fr: { title: "Bonjour" }, en: { title: "Hello" } } };
+    const { rerender } = render(tree(i18n, first, ["title"], "default", "fr"));
+    const sw = i18n.setLocale("de").catch(() => {});
+    await m.fail("de:default");
+    await act(() => sw);
+    expect(i18n.locale).toBe("fr");
+    const payload = { default: { en: { title: "Hello" }, de: null } };
+    await act(async () => rerender(tree(i18n, payload, ["title"], "default", "de")));
+    await settle();
+    expect([text("title"), i18n.locale]).toEqual(["de|Hello", "de"]);
+    expect(m.requested).toEqual(["de:default"]);
+  });
+
+  it("a payload that does not vouch for a locale: an earlier payload's null is retried, not trusted", async () => {
+    const m = manualLoader();
+    const i18n = createI18n({
+      locale: "en",
+      fallbackLocale: "en",
+      loader: m.load,
+      catalogs: { default: { en: { title: "Hello" }, de: null } },
+      onError: () => {},
+    });
+    const { rerender } = render(
+      tree(i18n, { default: { en: { title: "Hello" }, de: null } }, ["title"]),
+    );
+    // A later payload for `de` that carries nothing of `de`: the switch asks, as setLocale() does.
+    await act(async () =>
+      rerender(tree(i18n, { default: { en: { title: "Hello" } } }, ["title"], "default", "de")),
+    );
+    expect(m.requested).toEqual(["de:default"]);
+    await m.fail("de:default");
+    await settle();
+    expect([text("title"), i18n.locale]).toEqual(["en|Hello", "en"]);
+  });
+});
+
+describe("model A review F1: the locale decision follows the current payload", () => {
+  const base = { default: { en: { title: "Hello" } } };
+  const start = () => {
+    const m = manualLoader();
+    const i18n = createI18n({
+      locale: "en",
+      fallbackLocale: "en",
+      loader: m.load,
+      catalogs: base,
+      onError: () => {},
+    });
+    return { m, i18n };
+  };
+
+  it("a failed switch is retried by a new payload with the same target: its null lands", async () => {
+    const { m, i18n } = start();
+    const { rerender } = render(tree(i18n, base, ["title"]));
+    await act(async () => rerender(tree(i18n, { ...base }, ["title"], "default", "de")));
+    await m.fail("de:default");
+    await settle();
+    expect([text("title"), i18n.locale]).toEqual(["en|Hello", "en"]);
+    // router.refresh(): the same target, now with the server's null for `de`.
+    await act(async () =>
+      rerender(
+        tree(i18n, { default: { en: { title: "Hello" }, de: null } }, ["title"], "default", "de"),
+      ),
+    );
+    await settle();
+    expect([text("title"), i18n.locale]).toEqual(["de|Hello", "de"]);
+  });
+
+  it("after a failed switch, a payload with the target's catalog lands", async () => {
+    const { m, i18n } = start();
+    const { rerender } = render(tree(i18n, base, ["title"]));
+    await act(async () => rerender(tree(i18n, { ...base }, ["title"], "default", "de")));
+    await m.fail("de:default");
+    await settle();
+    expect(i18n.locale).toBe("en");
+    await act(async () =>
+      rerender(
+        tree(
+          i18n,
+          { default: { en: { title: "Hello" }, de: { title: "Hallo" } } },
+          ["title"],
+          "default",
+          "de",
+        ),
+      ),
+    );
+    await settle();
+    expect([text("title"), i18n.locale]).toEqual(["de|Hallo", "de"]);
+  });
+
+  it("a pending switch decides by the newer payload: one that drops the null retries the pair", async () => {
+    const { m, i18n } = start();
+    const { rerender } = render(tree(i18n, base, ["title"]));
+    // Two namespaces active: `admin` loads for `de` while the switch waits.
+    render(
+      <I18nProvider i18n={i18n}>
+        <Probe ns="admin" k="admin" />
+      </I18nProvider>,
+    );
+    await m.answer("en:admin", { admin: "Admin" });
+    await settle();
+    await act(async () =>
+      rerender(
+        tree(i18n, { default: { en: { title: "Hello" }, de: null } }, ["title"], "default", "de"),
+      ),
+    );
+    expect(m.requested).toContain("de:admin");
+    // The next payload keeps the target but no longer carries `de` for `default`.
+    await act(async () => rerender(tree(i18n, { ...base }, ["title"], "default", "de")));
+    await m.fail("de:admin");
+    await settle();
+    expect(m.requested).toContain("de:default");
+    await m.fail("de:default");
+    await settle();
+    expect(i18n.locale).toBe("en");
+  });
+
+  it("a new payload with the same target does not undo an explicit setLocale()", async () => {
+    const { m, i18n } = start();
+    const p = {
+      default: { en: { title: "Hello" }, de: { title: "Hallo" }, fr: { title: "Bonjour" } },
+    };
+    const { rerender } = render(tree(i18n, p, ["title"], "default", "de"));
+    await settle();
+    expect(i18n.locale).toBe("de");
+    await act(() => i18n.setLocale("fr"));
+    expect(i18n.locale).toBe("fr");
+    // router.refresh(): a new payload object, the same target.
+    await act(async () => rerender(tree(i18n, { ...p }, ["title"], "default", "de")));
+    await settle();
+    expect([text("title"), i18n.locale]).toEqual(["fr|Bonjour", "fr"]);
+    expect(m.requested).toEqual([]);
+  });
+});

@@ -22,7 +22,7 @@
 //
 //   (a1) completions at t("|            (a2) at useI18n("shop").t("|
 //   (a3) completions inside the params object of t("key", { | })
-//   (a4) the same for a key whose params all have defaults (all optional)
+//   (a4) the same for a key with a single (required) param
 //   (b)  quickinfo (hover) on t in t("key", …)
 //   (c)  semantic diagnostics of app.tsx after an edit of one call
 //   (c2) the same after an edit that makes the key a typo (R3-2's editor symptom)
@@ -229,8 +229,8 @@ const prefixOf = (ns) => (ns === "default" ? "s" : ns === "shop" ? "p" : `n${ns.
 const PARAM = {
   plural: "count: 2",
   rich: "link: tag",
-  dp: "name: 'x'",
-  dpOnly: "",
+  nameBrand: "name: 'x', brand: 'b'",
+  brand: "brand: 'b'",
   name: "name: 'x'",
   select: "g: 'male'",
   plain: "",
@@ -265,8 +265,8 @@ function project(dir, total, nsCount) {
     namespaces[ns] = Object.fromEntries(
       Object.entries(proto).map(([k, v]) => [prefixOf(ns) + k.slice(1), v]),
     );
-  // One key whose only param has a default, at every size (gen.mjs's own dpOnly keys
-  // need 900 keys per namespace): the (a4) site.
+  // One key with one param, at every size (gen.mjs's own `brand` keys need 900 keys per
+  // namespace): the (a4) site, completing its param names.
   namespaces.default["opt.brand"] = { params: { brand: { kind: "string" } } };
   const schema = { v: 2, sourceLocale: "en", namespaces };
   const dts = emit(schema);
@@ -332,7 +332,8 @@ function project(dir, total, nsCount) {
       jsx: { line: jsx + 1, offset: "export const el = <T i18nKey='s0.".length + 1 },
       added: added + 1,
       // Lines (1-based) that are errors by construction: t(''), shop.t(''), a3's missing param.
-      unfinished: [a1 + 1, a2 + 1, a3 + 1],
+      // a4's key requires its one param (defaultParams removed, 2026-11-11): unfinished too.
+      unfinished: [a1 + 1, a2 + 1, a3 + 1, a4 + 1],
     },
     // A regenerated comvi.d.ts: one key more in the default namespace.
     dtsNext: emit({
@@ -693,7 +694,7 @@ const OPS = {
   a1: 't("|',
   a2: 'shop.t("|',
   a3: "{ | }",
-  a4: "{ | } opt",
+  a4: "{ | } one param",
   b: "hover",
   c: "diag/edit",
   c2: "diag/typo",

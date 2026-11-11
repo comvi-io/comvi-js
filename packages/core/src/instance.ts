@@ -32,14 +32,19 @@
 import { render, type Catalog, type Compiled, type Rendered } from "./compile/cache";
 import { arg, type Env, type Params } from "./compile/scanner";
 import { defaultOnError, noop, type I18nError, type OnError } from "./errors";
+import { flat, type CatalogInput } from "./flat";
 import { canonicalize, dir as dirOf, parents } from "./locale";
-import { find, mk, N, put, type Mark, type State, type Store } from "./state";
+import { find, mk, N, put, whole, type Mark, type State, type Store } from "./state";
 import type { RichParts, TFor } from "./types";
 
 declare const __DEV__: boolean;
 
 /** Loads one catalog: flat keys → ICU messages. Rejects to report `load_failed`. */
-export type Loader = (locale: string, ns: string, signal: AbortSignal) => Promise<Catalog>;
+export type Loader = (
+  locale: string,
+  ns: string,
+  signal: AbortSignal,
+) => Promise<CatalogInput | Catalog>;
 
 /** A plugin: set up once by `createI18n`; the returned function runs on `destroy()`. */
 export interface Plugin {
@@ -68,23 +73,18 @@ export interface I18nOptions {
    * a `default` slot of a locale that `catalogs` also has is the `catalogs` one (a server
    * payload wins over inline messages), the other locales come from here.
    */
-  messages?: Readonly<Record<string, Catalog>>;
+  messages?: Readonly<Record<string, CatalogInput>>;
   /**
-   * Flat catalogs by namespace, then locale. A `null` slot is one whose load failed on the
-   * server (`handover()`): not asked for again until `load(ns)` or a switch to its locale.
+   * Catalogs (flat or nested) by namespace, then locale. A `null` slot is one whose load failed
+   * on the server (`handover()`): not asked for again until `load(ns)` or a switch to its locale.
    * For the `default` namespace a slot here wins over `messages` of the same locale, a
-   * `null` one too; the slots are merged by locale, never key by key.
+   * `null` one too; the slots are merged by locale, never key by key. Catalogs and payloads are
+   * plain data objects, read by their OWN keys; what inherited properties do is not defined.
    */
-  catalogs?: Readonly<Record<string, Readonly<Record<string, Catalog | null>>>>;
+  catalogs?: Readonly<Record<string, Readonly<Record<string, CatalogInput | null>>>>;
   loader?: Loader;
   /** Namespaces loaded from the start. Default `["default"]`. */
   namespaces?: readonly string[];
-  /**
-   * Params every `t()` call gets unless the call passes its own value. Copied: a later
-   * mutation of the object changes nothing (`setDefaultParams` replaces them). `ns`,
-   * `locale` and `markers` are reserved: they are per-call options, never message params.
-   */
-  defaultParams?: Readonly<Record<string, unknown>>;
   plugins?: readonly Plugin[];
   /**
    * IANA time zone of the Date formatters of `@comvi/core/format` (SSR bindings pass the
@@ -182,7 +182,7 @@ export interface I18n {
    */
   load(ns: string): Promise<void>;
   /** Adds messages to (locale, ns) — by reference into an empty pair, else as a patch layer. */
-  add(locale: string, messages: Catalog, ns?: string): void;
+  add(locale: string, messages: CatalogInput, ns?: string): void;
   /**
    * Whether `key` has a message in namespace `ns` (default `default`) for `locale` (default:
    * the current one) or its fallback chain. `fallback: false` looks in `locale` alone —
@@ -195,7 +195,6 @@ export interface I18n {
   rev(): number;
   /** Aborts every load, runs plugin teardowns, drops subscribers. Idempotent. */
   destroy(): void;
-  setDefaultParams(params: Readonly<Record<string, unknown>>): void;
 }
 
 /** A locale's lookup chain: [catalog key as spelled, canonical tag] pairs, nearest first. */
@@ -246,6 +245,33 @@ export interface Core {
   w(state: State, ns: string, f?: unknown): unknown;
   /** `isReady` of namespace `ns` in `state` (see `usable` in createI18n). */
   r(state: State, ns: string): boolean;
+  /**
+   * A slot a server payload hands over after creation (a binding's handover, lot 6a, one rule):
+   * it fully replaces the instance's slot, every time. A catalog BECOMES the slot (a key the
+   * server no longer has is gone, `{}` is empty) and a failure of the pair is forgotten; `null`
+   * (or none) means what `createI18n({ catalogs })` gives it — the pair joins the negative cache
+   * (asked for again only by `load(ns)` or a switch to its locale) and a catalog in place for it
+   * leaves, so the fallback the server rendered renders. Either way a load of the pair in flight
+   * is aborted and its late answer ignored: a `load(ns)` waiting on it RESOLVES when the server
+   * handed a catalog (`{}` too: the pair is loaded, by the server) and rejects with an Error only
+   * for a `null`. Publishes only when something changed.
+   */
+  f(locale: string, ns: string, catalog?: CatalogInput | null): void;
+  /**
+   * `setLocale(locale)` of a binding's handover with its CURRENT payload's `catalogs`: a pair the
+   * payload carries as `null` is the server's result — not asked for again, and the switch lands
+   * through the fallback the server rendered, as a fresh mount does. Every other failure of the
+   * target is retried and decides as in `setLocale()`.
+   */
+  L(
+    locale: string,
+    catalogs?: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
+  ): Promise<void>;
+  /**
+   * A catalog as the instance accepts it (flat.ts), for a binding's render-local entry
+   * (`view()`): flattened once per catalog object, a collision or an invalid leaf reported once.
+   */
+  n(locale: string, ns: string, catalog: CatalogInput): Catalog;
 }
 
 /** Instance → its internal seam; read by `@comvi/core/internal` only. */
@@ -279,13 +305,6 @@ const safe = (f: void | (() => void)) => {
 
 /** A load in flight: its promise, its abort, and whose parent it is now (see `get()`). */
 type Flight = [Promise<unknown>, AbortController, (string | 0 | false)?];
-
-/**
- * A shallow own copy of a params object; `null` for none or an empty one (so `pub()`'s
- * default does not apply, and `{}` keeps the `t()` fast path).
- */
-const own = (v?: Readonly<Record<string, unknown>>) =>
-  v && Object.keys(v).length ? { ...v } : null;
 
 export const createI18n = (o: I18nOptions): I18n => {
   // Before anything runs: a failed creation leaves nothing behind.
@@ -374,41 +393,62 @@ export const createI18n = (o: I18nOptions): I18n => {
   };
 
   /** A state for locale `l`, a valid tag: `createI18n()` and `setLocale()` refuse any other. */
-  const st = (rev: number, lrev: number, l: string, c: Store, dp: State["dp"]) => {
+  const st = (rev: number, lrev: number, l: string, c: Store) => {
     const h = chain(l);
-    return mk(rev, lrev, l, dirOf(h[0][1]), c, [...fl.keys()], dp, h[0][1], mf);
+    return mk(rev, lrev, l, dirOf(h[0][1]), c, [...fl.keys()], h[0][1], mf);
   };
 
   /**
    * Replaces the state (its loads in flight are `fl`'s keys), aborts `a` when a flight left it,
    * and tells the subscribers; a throwing subscriber does not stop the rest.
    */
-  const pub = (l = S.locale, c = S.c, dp = S.dp, a?: AbortController) => {
-    S = st(S.rev + 1, S.lrev + +(l != S.locale), l, c, dp);
+  const pub = (l = S.locale, c = S.c, a?: AbortController) => {
+    S = st(S.rev + 1, S.lrev + +(l != S.locale), l, c);
     a?.abort();
     subs.forEach(safe);
   };
 
   /**
-   * `c` with `m` layered at (l, n), after checking the locale (and, in development, the
-   * values); with `u` (a load landing) under what the pair holds (R3-14 H8).
+   * `c` with `m` layered at (l, n), after checking the locale and flattening the catalog
+   * (flat.ts); with `u` (a load landing) under what the pair holds (R3-14 H8).
    */
-  const ing = (c: Store, l: string, m: Catalog, n: string, u?: unknown): Store => {
-    if (__DEV__)
-      for (const k in m)
-        if (typeof m[k] != "string")
-          report({
-            code: "syntax",
-            key: k,
-            locale: l,
-            ns: n,
-            message: `the value of "${k}" is not a string; catalogs are flat (flatten nested objects, or use the \`catalogs\` option for namespaces)`,
-          });
-    return valid(l) ? put(c, n, l, m, u) : c;
+  /**
+   * `m` as a flat catalog (flat.ts): nested groups become flat keys; a collision or an invalid
+   * leaf is left out and reported, in every build.
+   */
+  /** Catalogs flattened before, by the object given: a catalog is reported once, not per entry. */
+  const fc = new WeakMap<object, Catalog>();
+  const fm = (l: string, m: CatalogInput, n: string): Catalog => {
+    let x = fc.get(m);
+    if (!x) {
+      x = flat(m, (key, k) =>
+        report({
+          code: "syntax",
+          key,
+          locale: l,
+          ns: n,
+          message: __DEV__
+            ? k < 2
+              ? `"${key}" is defined both as a flat key and through nesting; the first one is kept`
+              : `the value of "${key}" is not a string or a group of strings; left out`
+            : undefined,
+        }),
+      );
+      if (x != m) fc.set(m, x);
+    }
+    return x;
   };
+  /**
+   * What the negative cache holds for a pair a server payload handed over as `null`: the error a
+   * `load(ns)` waiting on the pair rejects with (a payload's `null` aborted its flight).
+   */
+  const sf = (l: string, n: string) =>
+    Error(__DEV__ ? `[@comvi/core] the server could not load "${n}" in "${l}"` : l + K + n);
+  const ing = (c: Store, l: string, m: CatalogInput, n: string, u?: unknown): Store =>
+    valid(l) ? put(c, n, l, fm(l, m, n), u) : c;
 
   let c0: Store = N();
-  const cats: Record<string, Readonly<Record<string, Catalog | null>>> = N(o.catalogs);
+  const cats: Record<string, Readonly<Record<string, CatalogInput | null>>> = N(o.catalogs);
   // `messages` fills the `default` slots that `catalogs` leaves out: per locale, `catalogs`
   // wins (a `null` slot too), never the whole namespace (Codex re-check HIGH B). With
   // neither, `default` is an empty record: nothing to ingest.
@@ -416,13 +456,13 @@ export const createI18n = (o: I18nOptions): I18n => {
   // A `null` slot failed to load on the server (`handover()`): it starts in the negative
   // cache, so the browser asks for it only on an explicit retry (`load(ns)`, a switch to
   // its locale), and a consumer of it is not loading at hydration (a known result, as on
-  // the server). The cached value is never read: a switch clears its target's failures
-  // before it could throw one, `load(ns)` its namespace's.
+  // the server). Its cached value, an Error (`sf`), is what a `load(ns)` that waits on the pair
+  // rejects with; a switch clears its target's failures first, `load(ns)` its namespace's.
   for (const n in cats)
     for (const l in cats[n])
       if (cats[n][l]) c0 = ing(c0, l, cats[n][l]!, n);
-      else bad.set(l + K + n, (cnt[n] |= 0));
-  S = st(0, 0, start, c0, own(o.defaultParams));
+      else bad.set(l + K + n, ((cnt[n] |= 0), sf(l, n)));
+  S = st(0, 0, start, c0);
 
   /**
    * `isReady` (lot 4c): a catalog of namespace `n` from the chain of the state's locale (the
@@ -437,11 +477,16 @@ export const createI18n = (o: I18nOptions): I18n => {
    * instance has a loader and a pair of the chain of the state's locale is neither in place
    * nor failed — the load a consumer's hold makes (React holds at commit, Vue at mount, after
    * the render). A failed pair is a known result, so no catalog and nothing in flight is never
-   * an endless loading state.
+   * an endless loading state; so is a pair a render-local state carries as a server's `null`
+   * (`x`, `view()`), even with a load of it in flight (the commit's `Core.f` aborts that load).
    */
   const coming = (s: State, n: string, f?: unknown): unknown =>
-    s.ld.some((x) => x.endsWith(K + n)) ||
-    (!f && load && chain(s.locale).some((x) => !s.c[n]?.[x[0]] && !bad.has(x[0] + K + n)));
+    s.ld.some((x) => x.endsWith(K + n) && !s.x?.includes(x)) ||
+    (!f &&
+      load &&
+      chain(s.locale).some(
+        (x) => !s.c[n]?.[x[0]] && !bad.has(x[0] + K + n) && !s.x?.includes(x[0] + K + n),
+      ));
 
   /** The message `look()` found last; copied by the caller before anything can call back. */
   let hit: Compiled;
@@ -469,8 +514,6 @@ export const createI18n = (o: I18nOptions): I18n => {
     }
     // An empty namespace is the default one (`i18n.ns("")`, `useI18n("")` and its `<T>`).
     n ||= D;
-    // The state's own copy of defaultParams (R4-12: an older snapshot keeps its own).
-    if (s.dp) p = N(s.dp, p);
     const ch = chain(l);
     const i = look(s, key, n, ch);
     if (i >= 0) {
@@ -539,7 +582,7 @@ export const createI18n = (o: I18nOptions): I18n => {
     if (fl.get(k) == f) {
       fl.delete(k);
       rd = 0;
-      pub(S.locale, c, undefined, a);
+      pub(S.locale, c, a);
     }
   };
 
@@ -557,13 +600,13 @@ export const createI18n = (o: I18nOptions): I18n => {
     if (!f && load && !dead && !S.c[n]?.[l] && !bad.has(k)) {
       const a = new AbortController();
       const no = () => a.signal.aborted;
-      let y!: (m: Catalog) => void;
+      let y!: (m: CatalogInput) => void;
       let x!: (e: unknown) => void;
       fl.set(
         k,
         (f = [
           // Settles on abort even when the loader ignores its signal.
-          new Promise<Catalog>((u, v) => {
+          new Promise<CatalogInput>((u, v) => {
             y = u;
             a.signal.onabort = x = v;
           })
@@ -613,9 +656,18 @@ export const createI18n = (o: I18nOptions): I18n => {
     return ps;
   };
 
-  /** Clears the failures whose `i`-th key part (0 locale, 1 namespace) is `v`. */
-  const retry = (i: number, v: string) =>
-    bad.forEach((_, k) => k.split(K)[i] == v && bad.delete(k));
+  /**
+   * Clears the failures whose `i`-th key part (0 locale, 1 namespace) is `v`, but a pair `p` (a
+   * handover's current payload) carries as `null`.
+   */
+  const retry = (
+    i: number,
+    v: string,
+    p?: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
+  ) =>
+    bad.forEach(
+      (_, k, _m, x = k.split(K)) => x[i] == v && p?.[x[1]]?.[x[0]] !== null && bad.delete(k),
+    );
 
   /**
    * Loads what the current chain lacks of `n` (failed pairs stay failed); with `x` (`load()`)
@@ -637,6 +689,71 @@ export const createI18n = (o: I18nOptions): I18n => {
   const lost = (n: string, l = S.locale, ch = chain(l)) =>
     bad.has(l + K + n) && !ch.slice(0, ch.o).some((x) => S.c[n]?.[x[0]]);
 
+  /**
+   * `setLocale()`; with `p` (a binding's handover, `Core.L`: its current payload's catalogs) a
+   * pair `p` carries as `null` is the server's result: not retried, and no reason to stay.
+   */
+  const sw = (
+    l: string,
+    p?: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
+  ): Promise<void> => {
+    if (dead) return R;
+    // Production names the tag only (the report says `invalid_locale`).
+    if (!valid(l))
+      return Promise.reject(RangeError(__DEV__ ? `[@comvi/core] invalid locale "${l}"` : l));
+    // The last call is decided here, whenever its body runs.
+    const my = ++seq;
+    const ch = chain(l);
+    // The active set at the call: what this switch waits for (never rebuilt meanwhile).
+    const ns = act();
+    /**
+     * Aborts the loads of locales outside `l`'s chain. A drop runs user code, which may call
+     * `setLocale()`: from then on this call is stale and leaves the rest to the newer one.
+     */
+    const prune = () =>
+      fl.forEach(
+        (f, k) => my != seq || ch.some((x) => x[0] == k.split(K)[0]) || drop(k, f, undefined, f[1]),
+      );
+    // Every step of a switch that runs user code is checked against `seq` after it: a stale
+    // call leaves the flights, the failure cache and the locale to the newer one. `destroy()`
+    // moves `seq` too, for good (this method returns before `++seq` once dead).
+    const go = (): unknown => {
+      if (my == seq) {
+        // Also what a load(ns) started while this switch was pending needs (re-checked
+        // until nothing is left to load).
+        const ps = ensure(l, ns);
+        if (ps.length) return Promise.all(ps).then(go);
+        // Partial failure switches (R4-11): a namespace is missing only when the target
+        // itself failed AND no catalog of its own chain (`de-AT` → `de`) is in place. The
+        // locale kept on screen gets back what this switch's start aborted. Stale after that
+        // recovery's publish: it resolves, like any superseded call.
+        // A handover's switch lands where the server rendered, through the fallbacks its CURRENT
+        // payload brought: a pair it carries as `null` is the server's result, not a reason to
+        // stay. A failure from anywhere else (the browser, an earlier payload) still is.
+        if (ns.length && ns.every((n) => lost(n, l, ch) && p?.[n]?.[l] !== null)) {
+          ensure(S.locale, act());
+          if (my == seq) throw bad.get(l + K + ns[0]);
+          return;
+        }
+        // Loads of the old locale a load(ns) started meanwhile are obsolete now.
+        prune();
+        // A subscriber told of that cleanup, or of this publish, may have switched again:
+        // the newer call wins, and a stale call starts nothing.
+        if (my == seq && l != S.locale) pub(l);
+        // The active set NOW reacts to the new locale: a consumer that appeared while this
+        // switch was pending (it loaded for the locale on screen) gets `l`'s catalog.
+        if (my == seq) ensure(l, act());
+      }
+    };
+    // Nothing to load: the switch happens inside this call.
+    return new Promise((y) => {
+      prune();
+      // The target's own failures are asked for again (but the handover payload's `null`s).
+      if (my == seq) retry(0, l, p);
+      y(go() as void);
+    });
+  };
+
   const i18n: I18n = {
     get locale() {
       return S.locale;
@@ -648,68 +765,12 @@ export const createI18n = (o: I18nOptions): I18n => {
       return fl.size ? rd || (rd = Promise.all([...fl.values()].map((f) => f[0])).then(noop)) : R;
     },
     // Fast path (R4-1d): a message already compiled in the primary record (default
-    // namespace at the locale), called without per-call options or defaultParams. An empty
+    // namespace at the locale), called without per-call options. An empty
     // string is untranslated and takes the full path (the fallback chain).
     t: ((key: string, p?: Params, f = S.pr?.[key]) =>
-      f && !(p && (p.ns || p.locale)) && !S.dp
-        ? render(f, p, S.tg, env)
-        : tr(S, key, p)) as I18n["t"],
+      f && !(p && (p.ns || p.locale)) ? render(f, p, S.tg, env) : tr(S, key, p)) as I18n["t"],
     ns: ((n: string) => (key: string, p?: Params) => tr(S, key, p, n)) as I18n["ns"],
-    setLocale(l) {
-      if (dead) return R;
-      // Production names the tag only (the report says `invalid_locale`).
-      if (!valid(l))
-        return Promise.reject(RangeError(__DEV__ ? `[@comvi/core] invalid locale "${l}"` : l));
-      // The last call is decided here, whenever its body runs.
-      const my = ++seq;
-      const ch = chain(l);
-      // The active set at the call: what this switch waits for (never rebuilt meanwhile).
-      const ns = act();
-      /**
-       * Aborts the loads of locales outside `l`'s chain. A drop runs user code, which may call
-       * `setLocale()`: from then on this call is stale and leaves the rest to the newer one.
-       */
-      const prune = () =>
-        fl.forEach(
-          (f, k) =>
-            my != seq || ch.some((x) => x[0] == k.split(K)[0]) || drop(k, f, undefined, f[1]),
-        );
-      // Every step of a switch that runs user code is checked against `seq` after it: a stale
-      // call leaves the flights, the failure cache and the locale to the newer one. `destroy()`
-      // moves `seq` too, for good (this method returns before `++seq` once dead).
-      const go = (): unknown => {
-        if (my == seq) {
-          // Also what a load(ns) started while this switch was pending needs (re-checked
-          // until nothing is left to load).
-          const ps = ensure(l, ns);
-          if (ps.length) return Promise.all(ps).then(go);
-          // Partial failure switches (R4-11): a namespace is missing only when the target
-          // itself failed AND no catalog of its own chain (`de-AT` → `de`) is in place. The
-          // locale kept on screen gets back what this switch's start aborted. Stale after that
-          // recovery's publish: it resolves, like any superseded call.
-          if (ns.length && ns.every((n) => lost(n, l, ch))) {
-            ensure(S.locale, act());
-            if (my == seq) throw bad.get(l + K + ns[0]);
-            return;
-          }
-          // Loads of the old locale a load(ns) started meanwhile are obsolete now.
-          prune();
-          // A subscriber told of that cleanup, or of this publish, may have switched again:
-          // the newer call wins, and a stale call starts nothing.
-          if (my == seq && l != S.locale) pub(l);
-          // The active set NOW reacts to the new locale: a consumer that appeared while this
-          // switch was pending (it loaded for the locale on screen) gets `l`'s catalog.
-          if (my == seq) ensure(l, act());
-        }
-      };
-      // Nothing to load: the switch happens inside this call.
-      return new Promise((y) => {
-        prune();
-        // The target's own failures are asked for again.
-        if (my == seq) retry(0, l);
-        y(go() as void);
-      });
-    },
+    setLocale: (l) => sw(l),
     load(n) {
       // The namespace's failed loads are asked for again (an explicit retry).
       retry(1, n);
@@ -755,10 +816,6 @@ export const createI18n = (o: I18nOptions): I18n => {
         downs.reverse().forEach(safe);
       }
     },
-    setDefaultParams(v) {
-      // A copy, published as part of the next state; after destroy() nothing changes.
-      if (!dead) pub(S.locale, S.c, own(v));
-    },
   };
 
   const c: Core = {
@@ -776,6 +833,27 @@ export const createI18n = (o: I18nOptions): I18n => {
     },
     w: coming,
     r: usable,
+    f: (l, n, m, k = l + K + n) => {
+      if (dead || !valid(l)) return;
+      // A load of the pair in flight: the server's state wins, its late answer is aborted.
+      const g = fl.get(k);
+      if (g) drop(k, g, undefined, g[1]);
+      const x = S.c[n];
+      const y = x?.[l];
+      if (m) {
+        const z = whole(y, fm(l, m, n));
+        bad.delete(k);
+        // The slot already holds exactly these messages: nothing changes.
+        if (z != y) pub(S.locale, N(S.c, { [n]: N(x, { [l]: z }) }));
+      } else if (y || !bad.has(k)) {
+        bad.set(k, ((cnt[n] |= 0), sf(l, n)));
+        const z = N(x);
+        delete z[l];
+        pub(S.locale, N(S.c, { [n]: z }));
+      }
+    },
+    L: sw,
+    n: (l, n, m) => fm(l, m, n),
   };
   if (__DEV__) c.p = (n) => void (cnt[n] || idle.add(K + n));
   CORE.set(i18n, c);

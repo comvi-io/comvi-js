@@ -35,7 +35,7 @@ describe("emitCatalogs", () => {
           },
           empty: {},
         }),
-        { augment: "@comvi/react", defaultParams: ["brand"] },
+        { augment: "@comvi/react" },
       ),
     ).toBe(`/**
  * Comvi translation catalogs, augmenting '@comvi/react'
@@ -49,7 +49,7 @@ declare module '@comvi/react' {
     "default": {
       "closed": { "g": "a" };
       "gender": { "g": "male" | "female" | (string & {}) };
-      "hello": { "brand"?: string | number; "name": string | number };
+      "hello": { "brand": string | number; "name": string | number };
       "it's \\"q\\"": { "a-b": string | number };
       "rank": { "n": number };
       "refused": { "d": Date | number; "t": Date | number; "x": number };
@@ -65,6 +65,17 @@ declare module '@comvi/react' {
 
 export {};
 `);
+  });
+
+  it("every param is required: the removed `defaultParams` option is a type error and makes nothing optional (owner decision 2026-11-11)", () => {
+    const out = emitCatalogs(
+      schema({
+        default: { hello: { params: { name: { kind: "string" }, brand: { kind: "string" } } } },
+      }),
+      // @ts-expect-error `defaultParams` is no longer an option
+      { defaultParams: ["brand"] },
+    );
+    expect(out).toContain('"hello": { "brand": string | number; "name": string | number };');
   });
 
   it("imports the augmented module for its side effect when no key has a tag", () => {

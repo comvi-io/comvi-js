@@ -13,7 +13,7 @@
 //   a body probe also declares the small namespaces `one`, `r1` and `pair`)
 //
 // Catalog: 2 namespaces (default, shop) × `keys` keys in 50 sections; key kinds rotate
-// through plural / rich (tag) / defaultParams-optional / name / select / no params.
+// through plural / rich (tag) / name + brand / brand only / name / select / no params.
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -32,30 +32,29 @@ export const kindOf = (j) =>
     : j % 25 === 7
       ? "rich"
       : j % 25 === 12
-        ? "dp"
+        ? "nameBrand"
         : j % 50 === 17
-          ? "dpOnly"
+          ? "brand"
           : j % 4 === 1
             ? "name"
             : j % 20 === 3
               ? "select"
               : "plain";
-/** Wire schema v2 entry per kind (`brand` is a defaultParams name: optional when emitted). */
+/** Wire schema v2 entry per kind (every param required: defaultParams removed 2026-11-11). */
 const WIRE = {
   plural: { params: { count: { kind: "plural" } } },
   rich: { tags: ["link"] },
-  dp: { params: { name: { kind: "string" }, brand: { kind: "string" } } },
-  dpOnly: { params: { brand: { kind: "string" } } },
+  nameBrand: { params: { name: { kind: "string" }, brand: { kind: "string" } } },
+  brand: { params: { brand: { kind: "string" } } },
   name: { params: { name: { kind: "string" } } },
   select: { params: { g: { kind: "select", options: ["male", "female"], other: true } } },
   plain: {},
 };
-export const DEFAULT_PARAMS = ["brand"];
 export const PARAM = {
   plural: "count: 2",
   rich: "link: tag",
-  dp: "name: 'x'",
-  dpOnly: "",
+  nameBrand: "name: 'x', brand: 'b'",
+  brand: "brand: 'b'",
   name: "name: 'x'",
   select: "g: 'male'",
   plain: "",
@@ -81,8 +80,7 @@ export function probeSchema(nss, list, extra = {}) {
 }
 
 /** The declaration typegen writes for `schema`, augmenting `augment`. */
-export const emitProbe = (schema, augment = "./lib") =>
-  emitCatalogs(schema, { augment, defaultParams: DEFAULT_PARAMS });
+export const emitProbe = (schema, augment = "./lib") => emitCatalogs(schema, { augment });
 
 const LIB_TAIL = `
 export declare function createI18n(o: { locale: string }): { t: TFor };
@@ -254,7 +252,6 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
         if (PARAM[k]) opts.push(PARAM[k]);
         if (i % 3 === 1) opts.unshift("ns: 'shop'");
         if (i % 5 === 2) opts.push("locale: 'de'");
-        if (k === "dp" && i % 2) opts.push("brand: 'B'");
         const call = `t('s${s}.k${j}'${opts.length ? `, { ${opts.join(", ")} }` : ""})`;
         A.push(k === "rich" ? `rich.push(${call});` : `out.push(${call});`);
       });
@@ -268,7 +265,7 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
         );
       A.push(
         "rich.push(t('s1.k7', { link: tag }));",
-        "out.push(t('s1.k17'));",
+        "out.push(t('s1.k17', { brand: 'A' }));",
         "out.push(t('s1.k17', { brand: 'B', ns: 'shop' }));",
       );
     }

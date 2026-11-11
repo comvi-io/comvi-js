@@ -245,7 +245,7 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
       setLocale: i.setLocale,
       i18n: i,
       // `node` joins rich parts into one node and, through the core, gives every tag
-      // handler (`defaultParams` ones too) its children as ONE node: `<a>{chunks}</a>`
+      // handler its children as ONE node: `<a>{chunks}</a>`
       // renders nested tags without React's missing-key warning.
       t: ((k: string, p?: Record<string, unknown>) =>
         node(x.tr(s, k, p, n, node))) as UseI18n<NS>["t"],

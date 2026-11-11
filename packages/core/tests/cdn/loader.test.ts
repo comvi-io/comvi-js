@@ -4,7 +4,9 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cdn } from "../../src/cdn";
+import { createI18n } from "../../src";
 import type { Loader } from "../../src/instance";
+import type { CatalogInput } from "../../src";
 
 const stub = (body: unknown) =>
   vi.stubGlobal("fetch", async () => ({ ok: true, status: 200, json: async () => body }));
@@ -53,16 +55,34 @@ describe("cdn() details", () => {
     expect(f).toHaveBeenCalledTimes(1);
   });
 
-  it("a fallback catalog with a key named `default` is a catalog, not a module", async () => {
+  it("a fallback returns the catalog itself: a flat key `default` and a nested group `default` are data", async () => {
     vi.stubGlobal("fetch", async () => ({ ok: false, status: 404, json: async () => ({}) }));
     const plain = { default: "Default label", a: "A" };
-    const mod = { default: { default: "Nested", b: "B" } };
-    const load = cdn("https://cdn.example", {
-      fallback: { de: async () => plain, en: async () => mod },
-    });
+    const nested: CatalogInput = { default: { title: "Головна" }, navigation: { home: "Додому" } };
     const s = new AbortController().signal;
+    const load = cdn("https://cdn.example", {
+      fallback: { de: async () => plain, uk: async () => nested },
+    });
     await expect(load("de", "default", s)).resolves.toBe(plain);
-    await expect(load("en", "default", s)).resolves.toBe(mod.default);
+    await expect(load("uk", "default", s)).resolves.toBe(nested);
+    const i18n = createI18n({
+      locale: "uk",
+      loader: cdn("https://cdn.example", { fallback: { uk: () => nested } }),
+    });
+    await i18n.load("default");
+    expect([i18n.t("default.title"), i18n.t("navigation.home")]).toEqual(["Головна", "Додому"]);
+  });
+
+  it("a bundled JSON file: `import().then((m) => m.default)` is the catalog", async () => {
+    vi.stubGlobal("fetch", async () => ({ ok: false, status: 404, json: async () => ({}) }));
+    const i18n = createI18n({
+      locale: "uk",
+      loader: cdn("https://cdn.example", {
+        fallback: { uk: () => import("./fixtures/fallback/uk.json").then((m) => m.default) },
+      }),
+    });
+    await i18n.load("default");
+    expect([i18n.t("default.title"), i18n.t("navigation.home")]).toEqual(["Головна", "Додому"]);
   });
 
   it("without a store the caller's abort cancels the request (its signal aborts)", async () => {

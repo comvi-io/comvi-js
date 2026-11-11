@@ -239,6 +239,30 @@ describe("one output from every input", () => {
   });
 });
 
+describe("every param is required (defaultParams removed, owner decision 2026-11-11)", () => {
+  it("a call without a needed param is rejected, with it compiles; the removed option makes nothing optional", async () => {
+    const dir = app();
+    // A JavaScript caller still passing the removed option: ignored, as any unknown key is.
+    await typegen.generate({
+      from: "locales",
+      out: "comvi.d.ts",
+      root: dir,
+      sourceLocale: "en",
+      defaultParams: ["name"],
+    });
+    const src = [
+      'import type { I18n } from "@comvi/react";',
+      "declare const i18n: I18n;",
+      'i18n.t("hello");',
+      'i18n.t("hello", { name: "Ada" });',
+      "",
+    ].join("\n");
+    const out = tsc(dir, src);
+    assert.match(out, /^index\.ts\(3,/m);
+    assert.doesNotMatch(out, /^index\.ts\(4,/m);
+  });
+});
+
 describe("comvi typegen --watch on a fixture app", { timeout: 120_000 }, () => {
   it("a new key in en.json updates comvi.d.ts and tsc sees it", async () => {
     const dir = app();

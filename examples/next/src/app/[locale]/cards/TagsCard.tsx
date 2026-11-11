@@ -1,6 +1,6 @@
 "use client";
 
-import { T, useI18n } from "@comvi/next/client";
+import { T, useI18n } from "@comvi/react";
 import { Card } from "./Card";
 
 export function TagsCard() {
@@ -11,7 +11,12 @@ export function TagsCard() {
       <p className="widget" data-testid="read-more">
         <T
           i18nKey="docs.read_more"
-          components={{ link: <a href="https://comvi.io/docs" target="_blank" rel="noreferrer" /> }}
+          components={{
+            link: {
+              component: "a",
+              props: { href: "https://comvi.io/docs", target: "_blank", rel: "noreferrer" },
+            },
+          }}
         />
       </p>
     </Card>

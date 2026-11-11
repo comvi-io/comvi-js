@@ -36,20 +36,17 @@ describe("<I18nProvider>", () => {
     expect(screen.getByText("en:Hello, Ann!")).toBeTruthy();
   });
 
-  it("re-renders its consumers on every published change: setLocale, add, setDefaultParams", async () => {
+  it("re-renders its consumers on every published change: setLocale, add", async () => {
     const i18n = createI18n({
       locale: "en",
       messages: { en: { hi: "Hi {who}" }, de: { hi: "Hallo {who}" } },
-      defaultParams: { who: "you" },
     });
-    const { container } = render(app(i18n));
+    const { container } = render(app(i18n, <Show p={{ who: "you" }} />));
     expect(container.textContent).toBe("en:Hi you");
     await act(() => i18n.setLocale("de"));
     expect(container.textContent).toBe("de:Hallo you");
     act(() => i18n.add("de", { hi: "Servus {who}" }));
     expect(container.textContent).toBe("de:Servus you");
-    act(() => i18n.setDefaultParams({ who: "Ann" }));
-    expect(container.textContent).toBe("de:Servus Ann");
   });
 
   it("follows a new i18n prop: renders and subscribes to the new instance only", async () => {

@@ -1,22 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useI18n } from "@comvi/next/client";
-import { missedKeys } from "@/i18n/config";
+import { useSyncExternalStore } from "react";
+import { useI18n } from "@comvi/react";
+import { missingKeys } from "@/i18n/client";
 import { Card } from "./Card";
 
+const NONE: ReadonlySet<string> = new Set();
+
 export function ErrorsCard() {
-  const { t, locale } = useI18n();
-  // Read after mount: the server's instance collects misses from every request,
-  // and the fallback card has rendered its missing key by then.
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    setCount(missedKeys.size);
-  }, [locale]);
+  const { t } = useI18n();
+  // This browser's misses; the server's render and the hydration show none.
+  const missing = useSyncExternalStore(missingKeys.subscribe, missingKeys.get, () => NONE);
   return (
     <Card title={t("demo.errors.title")} body={t("demo.errors.body")}>
       <p className="widget" data-testid="missing-count">
-        {t("demo.errors.count", { count })}
+        {t("demo.errors.count", { count: missing.size })}
       </p>
     </Card>
   );

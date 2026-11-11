@@ -1,10 +1,10 @@
-import { getI18n } from "@comvi/next/server";
+import { getI18n } from "@/i18n/server";
 import { LocaleSwitcher } from "./LocaleSwitcher";
 
 /** The title, one sentence about the page, and the switcher: shared by both pages. */
 export async function Header({ locale }: { locale: string }) {
-  // A Server Component has no hooks: `getI18n({ locale })` returns a `t` bound
-  // to this request's locale, since one instance serves every request.
+  // A Server Component has no hooks: `getI18n({ locale })` returns this
+  // request's instance and a `t` bound to it.
   const { t } = await getI18n({ locale });
   return (
     <header>

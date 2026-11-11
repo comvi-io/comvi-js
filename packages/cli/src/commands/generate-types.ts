@@ -79,7 +79,6 @@ function generateOptions(config: ComviConfig, flags: TypegenFlags): GenerateOpti
     // `.{extension}` is the CLI's spelling of the one format it writes.
     fileTemplate: config.fileTemplate?.replace("{extension}", "json"),
     augment: config.augment,
-    defaultParams: config.defaultParams,
     onMessage: print,
   };
 }

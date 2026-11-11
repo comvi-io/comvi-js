@@ -36,17 +36,16 @@ const result = await generate({ from: "./locales", out: "./comvi.d.ts", sourceLo
 // { content, written, stale, namespaces, keys, warnings }
 ```
 
-| Option          | Meaning                                                                                                                                                     |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `from`          | A directory of JSON catalogs, a wire schema v2 file (`.comvi/schema.json`), or `{ platform: { apiKey?, apiBaseUrl?, fetch? } }` (key from `COMVI_API_KEY`). |
-| `out`           | The declaration file. Relative paths resolve against `root`.                                                                                                |
-| `root`          | The app's root (default `process.cwd()`); its `package.json` names the module to augment.                                                                   |
-| `sourceLocale`  | Directory source: the locale the types come from. Required with more than one locale.                                                                       |
-| `fileTemplate`  | Directory source: default `{namespace}/{languageTag}.json`, where `<locale>.json` is `default`.                                                             |
-| `augment`       | The module to augment; by default the Comvi package `package.json` declares.                                                                                |
-| `defaultParams` | The keys of `createI18n({ defaultParams })`: optional in every key's params.                                                                                |
-| `check`         | Write nothing; `stale` says whether the file on disk differs (CI: fail on `stale`).                                                                         |
-| `onMessage`     | `({ level, text }) => void` for warnings; by default each distinct line is printed once.                                                                    |
+| Option         | Meaning                                                                                                                                                     |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `from`         | A directory of JSON catalogs, a wire schema v2 file (`.comvi/schema.json`), or `{ platform: { apiKey?, apiBaseUrl?, fetch? } }` (key from `COMVI_API_KEY`). |
+| `out`          | The declaration file. Relative paths resolve against `root`.                                                                                                |
+| `root`         | The app's root (default `process.cwd()`); its `package.json` names the module to augment.                                                                   |
+| `sourceLocale` | Directory source: the locale the types come from. Required with more than one locale.                                                                       |
+| `fileTemplate` | Directory source: default `{namespace}/{languageTag}.json`, where `<locale>.json` is `default`.                                                             |
+| `augment`      | The module to augment; by default the Comvi package `package.json` declares.                                                                                |
+| `check`        | Write nothing; `stale` says whether the file on disk differs (CI: fail on `stale`).                                                                         |
+| `onMessage`    | `({ level, text }) => void` for warnings; by default each distinct line is printed once.                                                                    |
 
 It throws, and leaves the file on disk as it was, for: broken JSON (`CatalogFileError`, naming
 the file), a param named `ns`, `locale` or `markers` (`EmitError`, listing every key), an
@@ -102,7 +101,7 @@ namespaces }`), validated strictly and serialized canonically.
 - `readMessage`: a message's params, tags and choices, read by `@comvi/core`'s own scanner (its
   development-only shape observer), so the types follow the grammar that renders the message.
 - `buildWireKey`: one key from all locales, the platform's source-locale rule.
-- `emitCatalogs(schema, { augment, defaultParams })`: the declaration, `interface Catalogs` of the
+- `emitCatalogs(schema, { augment })`: the declaration, `interface Catalogs` of the
   augmented module, one member per namespace, params by key, nothing repeated per locale.
 - `LocalSource`, `PlatformSource`, `resolveAugmentationTarget`, `writeIfChanged`, `lockFileOf`.
 

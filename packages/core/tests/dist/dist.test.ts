@@ -25,7 +25,9 @@ beforeAll(() => {
 
 describe("development diagnostics in the built files", () => {
   const HINT = "renders nothing without";
-  const files = fs.readdirSync(DIST, { recursive: true, encoding: "utf8" }).filter((f) => f.endsWith(".js"));
+  const files = fs
+    .readdirSync(DIST, { recursive: true, encoding: "utf8" })
+    .filter((f) => f.endsWith(".js"));
   const has = (f: string) => fs.readFileSync(path.join(DIST, f), "utf8").includes(HINT);
 
   it("the <br> hint and the load_failed cause text are in a development file and in no production one", () => {

@@ -8,6 +8,7 @@ import type {
   TranslationDiff,
 } from "../types";
 import { DEFAULT_NAMESPACE, isDefaultFileTemplate } from "../defaults";
+import { flat, type CatalogInput } from "@comvi/typegen";
 import { TypegenError, ErrorCodes, wrapError } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
 import { emptyDictionary, hasOwnKey } from "../utils/dictionary";
@@ -970,46 +971,41 @@ function describeValue(value: unknown): string {
 
 /**
  * Flatten a parsed translation file to the dotted keys the API stores, so
- * `{"nav": {"home": "Home"}}` uploads as `"nav.home"`. `pull` writes the flat
- * form, so an already-flat file passes through key for key.
+ * `{"nav": {"home": "Home"}}` uploads as `"nav.home"`, by the core's own rule
+ * (`packages/core/src/flat.ts`, through `@comvi/typegen`): the runtime and the generated types
+ * read the same keys. `pull` writes the flat form, so an already-flat file passes through key
+ * for key.
  *
- * Non-string leaves are a hard error rather than a coercion: the API
- * stringifies whatever it is handed, so a number, boolean, null or array
- * would previously have been uploaded as its `String()` form (a nested object
- * as the literal `[object Object]`) with nothing to show for it.
+ * What the runtime would leave out is an error here, and the file is refused: a key defined
+ * both flat and through nesting, and a leaf that is not a string. The API stringifies whatever
+ * it is handed, so a number, boolean, null or array would otherwise be uploaded as its
+ * `String()` form with nothing to show for it.
  */
-function flattenTranslationFile(
+export function flattenTranslationFile(
   catalog: Record<string, unknown>,
   filePath: string,
 ): Record<string, string> {
-  // Null prototype so a key literally named `__proto__` lands as data instead
-  // of hitting Object.prototype's setter and vanishing.
-  const result: Record<string, string> = emptyDictionary();
-
-  const visit = (node: Record<string, unknown>, prefix: string): void => {
-    for (const [key, value] of Object.entries(node)) {
-      const fullKey = prefix ? `${prefix}.${key}` : key;
-
-      if (typeof value === "string") {
-        if (fullKey in result) {
-          throw new TypegenError(
-            `Duplicate translation key in ${filePath}: "${fullKey}" is defined both as a flat key and through nesting`,
-            ErrorCodes.CONFIG_INVALID,
-          );
-        }
-        result[fullKey] = value;
-      } else if (isPlainObject(value)) {
-        visit(value, fullKey);
-      } else {
-        throw new TypegenError(
-          `Invalid translation value in ${filePath}: key "${fullKey}" is ${describeValue(value)}, ` +
+  return flat(catalog as CatalogInput, (key, kind) => {
+    throw new TypegenError(
+      kind === 1
+        ? `Duplicate translation key in ${filePath}: "${key}" is defined both as a flat key and through nesting`
+        : `Invalid translation value in ${filePath}: key "${key}" is ${describeValue(valueAt(catalog, key))}, ` +
             `expected a string or a nested object of strings`,
-          ErrorCodes.CONFIG_INVALID,
-        );
-      }
-    }
-  };
+      ErrorCodes.CONFIG_INVALID,
+    );
+  });
+}
 
-  visit(catalog, "");
-  return result;
+/** The value at dotted `key` of a nested catalog, for the error message (a group or a leaf). */
+function valueAt(catalog: Record<string, unknown>, key: string): unknown {
+  if (key in catalog) return catalog[key];
+  const dot = key.indexOf(".");
+  for (let i = dot; i > 0; i = key.indexOf(".", i + 1)) {
+    const head = catalog[key.slice(0, i)];
+    if (isPlainObject(head)) {
+      const found = valueAt(head, key.slice(i + 1));
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
 }

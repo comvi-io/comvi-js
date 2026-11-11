@@ -22,6 +22,7 @@ import {
   provenanceLine,
   staticImportClosure,
   tempInstallEnv,
+  isolatedCache,
   withOverrides,
 } from "./examples-verify.mjs";
 import { childEnv } from "./examples-e2e/run.mjs";
@@ -594,4 +595,8 @@ test("measureFiles labels a single file by its basename and a set by its count",
 
   assert.equal(measureFiles([one]).file, "index-aaa.js");
   assert.equal(measureFiles([one, two]).file, "2 chunks");
+});
+
+test("a temp install keeps pnpm's metadata cache in its own directory", () => {
+  assert.equal(isolatedCache("/tmp/x"), `cache-dir=${path.join("/tmp/x", ".pnpm-cache")}\n`);
 });

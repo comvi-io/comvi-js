@@ -483,7 +483,9 @@ test("e: catalogs load lazily, one per visited locale", async ({ page }) => {
   await switchTo(page, "uk");
   await expect(line).toHaveText(fetched("uk", ["en", "uk"]));
   await switchTo(page, "de");
-  await expect(line).toHaveText(fetched("de", ["en", "uk", "de"]));
+  // Next (0.8): the browser fetches no catalog; each locale's page carries its
+  // own and its fallback's (`en`), handed over by the server, and nothing else.
+  await expect(line).toHaveText(fetched("de", KIND === "next" ? ["en", "de"] : ["en", "uk", "de"]));
 });
 
 test("f: SSR — plain-HTTP /uk is already translated, then hydrates", async ({ page, request }) => {
@@ -607,6 +609,14 @@ test("k2: CDN down — the bundled fallback imports serve the catalogs", async (
       failed.length,
       `no failed request to ${CDN_URL} — was the CDN ever tried?`,
     ).toBeGreaterThan(0);
+  } else {
+    // Next's server hands the browser the catalogs it holds: they must be the fallback's
+    // catalog, not a JSON module ingested as one (whose `default` export would add a
+    // `default.` copy of every key; webpack's named exports hide the rest of the damage).
+    const html = await (await page.request.get(page.url())).text();
+    expect(html, "the handed-over catalog holds a module's `default` export").not.toContain(
+      "default.app.title",
+    );
   }
 });
 
@@ -1058,7 +1068,9 @@ const cdn = {
     let state: CdnState = { held: [], hanging: [] };
     while (Date.now() < deadline) {
       state = await cdn.state();
-      if (locales.every((locale) => state[kind].includes(locale))) return;
+      // A locale named twice waits for two requests of it (two server renders of one locale).
+      const count = (list: string[], locale: string) => list.filter((l) => l === locale).length;
+      if (locales.every((locale) => count(state[kind], locale) >= count(locales, locale))) return;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     throw new Error(
@@ -1184,8 +1196,11 @@ for (const [step, first] of [
     // one render's `addMessages` must not cancel the other's load of the same
     // catalog into a render without it.
     const twin = request.get(livePath("uk"));
-    // Both server renders are now waiting on their catalog at the same time.
-    await cdn.inFlight("held", ["uk", "de"]);
+    // Every server render is now waiting on its catalog. Next (0.8) renders each request with
+    // an instance of its own, so the twin asks the CDN for uk too: the barrier waits for both
+    // uk requests, or the twin's could arrive after uk's release, stay held and time out into
+    // the bundled fallback (seen once in CI on 4527bf9f).
+    await cdn.inFlight("held", KIND === "next" ? ["uk", "de", "uk"] : ["uk", "de"]);
 
     const html = {} as Record<"uk" | "de", string>;
     await cdn.release(first);
@@ -1442,7 +1457,7 @@ for (const [step, fault] of [
 // and shows its loading row meanwhile (never the old language's rows).
 const LOADS_AFTER_SWITCH = env("E2E_FRAMEWORK") === "vanilla";
 /** The 0.8 examples: a namespace with no consumer left is not loaded by a switch (lot 4c). */
-const RELEASES_NAMESPACES = ["react", "vanilla", "vue", "solid", "svelte"].includes(
+const RELEASES_NAMESPACES = ["react", "next", "vanilla", "vue", "solid", "svelte"].includes(
   env("E2E_FRAMEWORK"),
 );
 

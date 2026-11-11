@@ -66,21 +66,25 @@
  *
  * `fallback` (design R3-12): bundled catalogs for when the CDN cannot answer — a network
  * error, a non-2xx status, a body that is not a catalog or the timeout; never an abort.
- * Keys are `"<locale>"` (the root namespace) or `"<locale>:<ns>"`, values functions, so a
- * dynamic `import()` keeps the files out of the main bundle:
+ * Keys are `"<locale>"` (the root namespace) or `"<locale>:<ns>"`, values functions that
+ * return THE CATALOG (flat or nested), as a `Loader` does — never a module: a dynamic `import()`
+ * keeps the files out of the main bundle, and `.then((m) => m.default)` takes the catalog out:
  *
  * ```ts
- * cdn(base, { fallback: { de: () => import("./locales/de.json"), "de:shop": () => import("./locales/shop/de.json") } })
+ * cdn(base, { fallback: { de: () => import("./locales/de.json").then((m) => m.default) } })
  * ```
  */
 
 import type { Catalog } from "./compile/cache";
+import type { CatalogInput } from "./flat";
 import { N } from "./state";
 import type { Loader } from "./instance";
 
-/** What a `fallback` entry returns: a catalog, or a JSON module (`{ default: catalog }`). */
-export type CdnFallback = () =>
-  Catalog | { default: Catalog } | Promise<Catalog | { default: Catalog }>;
+/**
+ * What a `fallback` entry returns: the catalog itself, flat or nested — never a module (a key or
+ * a group named `default` is data).
+ */
+export type CdnFallback = () => CatalogInput | Promise<CatalogInput>;
 
 /**
  * What one fetch brought: the catalog and the response (a 304 rejects, as any non-2xx).
@@ -229,9 +233,8 @@ const mk = (
       if (signal?.aborted) throw e;
       const x = fb[l + ":" + n] || (n === root && fb[l]);
       if (!x) throw e;
-      const m = (await x()) as Catalog | { default: Catalog };
-      // A module namespace (`import("./de.json")`) — but a catalog may have a key `default`.
-      return m.default && typeof m.default == "object" ? m.default : (m as Catalog);
+      // The catalog itself, as a loader returns it: nothing is unwrapped or guessed.
+      return x();
     }
   };
 };

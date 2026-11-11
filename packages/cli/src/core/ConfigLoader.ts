@@ -46,7 +46,6 @@ const KNOWN_CONFIG_FIELDS: ReadonlySet<string> = new Set<keyof ComviConfig>([
   "apiKey",
   "apiBaseUrl",
   "outputPath",
-  "defaultParams",
   "augment",
   "translationsPath",
   "fileTemplate",
@@ -72,8 +71,8 @@ const FORCE_MODES: readonly string[] = ["override", "keep", "ask", "abort"];
 const UNKNOWN_FIELD_HINTS: Record<string, string> = {
   languages: 'use "locales"',
   defaultNsName: "the default namespace is read from the TMS, so delete it",
-  strictParams:
-    'generated params are always required; list the ones createI18n({ defaultParams }) fills in "defaultParams"',
+  strictParams: "generated params are always required: pass them to t()",
+  defaultParams: "removed in 0.8, every generated param is required: pass params to t()",
 };
 
 export class ConfigLoader {
@@ -236,19 +235,6 @@ export class ConfigLoader {
     // Validation throws CONFIG_INVALID so the CLI maps it to exit code 4.
     config.namespaces = this.normalizeFilterField(config.namespaces, "namespaces");
     config.locales = this.normalizeFilterField(config.locales, "locales");
-
-    if (
-      config.defaultParams !== undefined &&
-      !(
-        Array.isArray(config.defaultParams) &&
-        config.defaultParams.every((name) => typeof name === "string" && name !== "")
-      )
-    ) {
-      throw new TypegenError(
-        `Invalid configuration: "defaultParams" must be an array of param names, received ${describe(config.defaultParams)}`,
-        ErrorCodes.CONFIG_INVALID,
-      );
-    }
 
     // `augment` is interpolated into the generated `declare module`: a
     // non-string, or one holding a quote or line break, would produce a file

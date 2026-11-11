@@ -6,7 +6,7 @@
  * activeNamespaces, isInitializing, the formatters (→ @comvi/vue/format), useI18nLoader
  * (`i18n.load(ns)`), the capability composables.
  */
-import { defineComponent, h, nextTick, ref } from "vue";
+import { defineComponent, h, nextTick, ref, shallowRef } from "vue";
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { createI18n, useI18n, type UseI18n } from "../src";
@@ -338,18 +338,18 @@ describe("useI18n(ns)", () => {
     expect(w.text()).toBe("Shop");
   });
 
-  it("default tag handlers get their children as ONE child too (constructor and setDefaultParams)", async () => {
+  it("tag handlers shared by the app (one object passed to t()) get their children as ONE child", async () => {
     const seen: unknown[] = [];
     const b = (c: unknown) => (seen.push(c), h("b", c as string));
     const { i18n, errors } = make({
       locale: "en",
       messages: { en: { a: "<x>one <y>two</y></x>" } },
-      defaultParams: { x: b, y: b },
     });
+    const handlers = shallowRef<Record<string, (c: unknown) => unknown>>({ x: b, y: b });
     const C = defineComponent({
       setup() {
         const { t } = useI18n();
-        return () => h("div", null, [t("a")]);
+        return () => h("div", null, [t("a", handlers.value)]);
       },
     });
     const w = mountWith(i18n, C);
@@ -357,7 +357,7 @@ describe("useI18n(ns)", () => {
     // `y` gets the text "two"; `x` gets ONE child: the list of "one " and `y`'s node.
     expect(seen[0]).toBe("two");
     expect((seen[1] as unknown[]).length).toBe(2);
-    i18n.setDefaultParams({ x: (c: unknown) => h("i", c as string), y: b });
+    handlers.value = { x: (c: unknown) => h("i", c as string), y: b };
     await nextTick();
     expect(w.html()).toBe("<div><i>one <b>two</b></i></div>");
     expect(errors).toEqual([]);

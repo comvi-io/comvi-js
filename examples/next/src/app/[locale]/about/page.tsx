@@ -1,20 +1,21 @@
 import { Link } from "@comvi/next/navigation";
-import { getI18n } from "@comvi/next/server";
+import { getI18n } from "@/i18n/server";
+import { I18nProvider } from "@comvi/next/server";
+import { WithBrowserOptions } from "@/i18n/client";
 import { Footer } from "../Footer";
 import { Header } from "../Header";
 import { Namespaces } from "../cards/Namespaces";
 import { Account } from "./Account";
 
 /**
- * The second page: a Server Component, translated through `getI18n()` like
- * the header. <Link> prefixes `/` with the current locale, so the way back
- * lands on the same language.
+ * The second page, with a namespace of its own. `getI18n({ locale, ns: "account" })`
+ * loads `account` for the locale and its fallback chain; the page hands its
+ * payload to its client components with a provider of its own, so a page
+ * outside this route never receives the `account` catalog.
  */
 export default async function AboutPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const { t } = await getI18n({ locale });
-  // A second namespace on the server: `ns` scopes this `t()` to `account` and
-  // loads it for the locale and its fallback chain.
   const account = await getI18n({ locale, ns: "account" });
 
   return (
@@ -25,12 +26,13 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
         <p className="widget" data-testid="about-body">
           {t("about.body")}
         </p>
-        {/* One `account` row rendered here on the server, two in a client
-            component. */}
+        {/* One `account` row rendered here on the server, two in a client component. */}
         <p className="widget" data-testid="account-devices">
           {account.t("profile.devices", { count: 3 })}
         </p>
-        <Account />
+        <I18nProvider i18n={account.i18n} client={WithBrowserOptions}>
+          <Account />
+        </I18nProvider>
         <p className="widget">
           <Link data-testid="nav-home" href="/features">
             {t("nav.home")}

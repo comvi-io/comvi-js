@@ -59,7 +59,6 @@ A filled-in `.comvirc.json`:
   "apiBaseUrl": "https://api.comvi.io",
   "outputPath": "src/types/i18n.d.ts",
   "sourceLocale": "en",
-  "defaultParams": ["brand"],
   "translationsPath": "./src/locales",
   "fileTemplate": "{namespace}/{languageTag}.json",
   "format": "json",
@@ -113,8 +112,8 @@ same. `--no-schema` never asks for it.
 
 `typegen` writes `outputPath` (or `--out`). The declaration augments `@comvi/core` when
 `package.json` declares it, otherwise the first framework binding it declares (`augment` in
-`.comvirc.json` names another module); `defaultParams` lists the params `createI18n({
-defaultParams })` fills, which become optional. With `--from`, `sourceLocale` (or
+`.comvirc.json` names another module); every param a message uses is required in `t()`. With
+`--from`, `sourceLocale` (or
 `--source-locale`) picks the locale the types come from. A file whose content would not change
 is not rewritten, and a second `--watch` of the same file waits while the first one writes.
 

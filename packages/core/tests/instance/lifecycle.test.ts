@@ -299,7 +299,6 @@ describe("destroy()", () => {
     const sub = vi.fn();
     i18n.on(sub);
     i18n.add("en", { a: "B" });
-    i18n.setDefaultParams({ x: 1 });
     await i18n.load("x");
     expect(sub).not.toHaveBeenCalled();
     expect(i18n.t("a")).toBe("A");

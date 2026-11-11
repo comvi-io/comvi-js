@@ -134,6 +134,14 @@ export function copyTree(from, to) {
  * The temp install's `.npmrc`; why each line is there is spelled out where
  * `verifyExample` writes it. Exported so `examples:e2e` installs the same way.
  */
+/**
+ * pnpm's metadata cache of a temp install, inside the temp copy: the candidate registry runs on
+ * a random port, and pnpm keys its metadata cache by host and port, so a shared cache can hand a
+ * later run the integrity of an earlier candidate on the same port (seen once, 2026-11-06). The
+ * package store stays the shared, content-addressed one.
+ */
+export const isolatedCache = (dir) => `cache-dir=${path.join(dir, ".pnpm-cache")}\n`;
+
 export const EXAMPLE_NPMRC = [
   "ignore-workspace=true",
   "node-linker=hoisted",
@@ -789,7 +797,7 @@ async function verifyExample(example, packages, options) {
     // and never to npmjs.org: scripts/examples-e2e/candidate-registry.mjs.
     fs.writeFileSync(
       path.join(target, ".npmrc"),
-      `${EXAMPLE_NPMRC}@comvi:registry=${options.registryUrl}\n`,
+      `${EXAMPLE_NPMRC}${isolatedCache(target)}@comvi:registry=${options.registryUrl}\n`,
     );
     const env = exampleInstallEnv(kind);
     assertPinnedPnpm(target, { env });

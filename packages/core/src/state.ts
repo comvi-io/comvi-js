@@ -60,12 +60,15 @@ export interface State {
   readonly c: Store;
   /** Catalog loads in flight, as `locale + "\0" + ns`. */
   readonly ld: readonly string[];
+  /**
+   * Only on a render-local state (`view()`): the pairs its payload hands over as `null`, as
+   * `locale + "\0" + ns` — read as failed (no load predicted or shown) until `Core.f` at commit.
+   */
+  readonly x?: readonly string[];
   /** Primary record: default namespace at `locale`, when that slot has no patch. */
   readonly pr: CompiledRecord | undefined;
   /** The canonical tag of `locale` (what Intl receives on the fast path). */
   readonly tg: string;
-  /** The instance's `defaultParams` as of this state (an own copy, never the caller's object). */
-  readonly dp: Readonly<Record<string, unknown>> | null | undefined;
   /**
    * The marking hook of an in-context editor session (R3-14 H4), set only by the
    * `/devtools` handle; a state that has one has no `pr`, so the fast path is skipped.
@@ -91,7 +94,6 @@ export const mk = (
   dir: "ltr" | "rtl",
   c: Store,
   ld: readonly string[],
-  dp: State["dp"],
   tg: string,
   m?: Mark | null,
   s = c.default?.[locale],
@@ -102,7 +104,6 @@ export const mk = (
   dir,
   c,
   ld,
-  dp,
   tg,
   mk: m,
   pr: m || s?.p ? undefined : s?.c,
@@ -138,6 +139,19 @@ export const layer = (slot: Slot | undefined, msgs: Catalog, u?: unknown): Slot 
   const r = inherit(slot.m, slot.c, p, f ? undefined : msgs);
   return f ? { m: p, c: r } : { m: slot.m, c: slot.c, p, pc: r };
 };
+
+/**
+ * A slot that IS `msgs` (a server payload's slot, lot 6a: a key the server no longer has is
+ * gone): `slot` itself when it renders exactly these messages without a patch (its compiled
+ * messages stay), else a new slot of `msgs` alone.
+ */
+export const whole = (slot: Slot | undefined, msgs: Catalog): Slot =>
+  slot &&
+  !slot.p &&
+  layer(slot, msgs) == slot &&
+  Object.keys(slot.m).length == Object.keys(msgs).length
+    ? slot
+    : layer(undefined, msgs);
 
 /**
  * The compiled message for `key` in a slot: the patch first, then the base. An empty

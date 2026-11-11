@@ -9,9 +9,8 @@
     "rootDir": ".",
     "noEmit": true,
     "paths": {
-      "@comvi/next": ["./src/index.ts"],
       "@comvi/next/server": ["./src/server.ts"],
-      "@comvi/next/config": ["./src/config.ts"]
+      "@comvi/next/client": ["./src/client.ts"]
     }
   },
   "include": ["src/**/*", "tests/types/**/*.test-d.ts"],

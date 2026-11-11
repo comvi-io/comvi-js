@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { I18nError } from "../../src/errors";
 import { createI18n } from "../../src/instance";
-import { acquire, loading, state, translate, view } from "../../src/internal";
+import { acquire, loading, state, view } from "../../src/internal";
 import { flush, make, manualLoader, tableLoader } from "./helpers";
 
 describe("add() of the catalog a slot already holds is a no-op (H5 livelock class)", () => {
@@ -219,39 +219,6 @@ describe("the reporter is isolated", () => {
       },
     });
     expect(i18n.t("a")).toBe("A");
-  });
-});
-
-describe("defaultParams belong to a snapshot", () => {
-  const messages = { en: { hi: "Hi {name}" } };
-
-  it("the caller mutating its object changes nothing, even at rev 0", () => {
-    const dp = { name: "Ann" };
-    const { i18n } = make({ locale: "en", messages, defaultParams: dp });
-    dp.name = "Bob";
-    expect(i18n.rev()).toBe(0);
-    expect(i18n.t("hi")).toBe("Hi Ann");
-    const next = { name: "Cy" };
-    i18n.setDefaultParams(next);
-    next.name = "Dee";
-    expect(i18n.t("hi")).toBe("Hi Cy");
-  });
-
-  it("an older snapshot (and a view of it) keeps the defaults it was published with", () => {
-    const { i18n } = make({ locale: "en", messages, defaultParams: { name: "Old" } });
-    const old = state(i18n);
-    const v = view(i18n, old, { extra: { en: { x: "X" } } });
-    i18n.setDefaultParams({ name: "New" });
-    expect(translate(i18n, old, "hi")).toBe("Hi Old");
-    expect(translate(i18n, v, "hi")).toBe("Hi Old");
-    expect(i18n.t("hi")).toBe("Hi New");
-  });
-
-  it("setDefaultParams() after destroy() changes nothing", () => {
-    const { i18n } = make({ locale: "en", messages, defaultParams: { name: "Ann" } });
-    i18n.destroy();
-    i18n.setDefaultParams({ name: "Bob" });
-    expect(i18n.t("hi")).toBe("Hi Ann");
   });
 });
 

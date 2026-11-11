@@ -1,7 +1,6 @@
-import { notFound } from "next/navigation";
-import { getTextDirection } from "@comvi/core";
-import { hasLocale } from "@comvi/next/routing";
-import { ComviProvider } from "@comvi/next/server";
+import { getI18n } from "@/i18n/server";
+import { I18nProvider } from "@comvi/next/server";
+import { WithBrowserOptions } from "@/i18n/client";
 import { routing } from "@/i18n/routing";
 import { NameProvider } from "./NameProvider";
 import "./styles.css";
@@ -19,21 +18,19 @@ export default async function LocaleLayout({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  // A `[locale]` segment outside `routing.locales` is a bad URL, not a request
-  // for the fallback language.
-  if (!hasLocale(routing.locales, locale)) notFound();
+  // A `[locale]` outside `routing.locales` is a 404, before any instance exists.
+  // This request's instance has the default namespace for the locale and its fallback.
+  const { i18n, dir } = await getI18n({ locale });
 
   return (
-    // `rtl` for Arabic. A Server Component has no hooks, so `dir` comes from
-    // core's free function.
-    <html lang={locale} dir={getTextDirection(locale)}>
+    // `rtl` for Arabic.
+    <html lang={locale} dir={dir}>
       <body>
-        {/* Loads this locale's catalogs on the server and hands them to the
-            client instance, so client components render translated on the
-            first paint. */}
-        <ComviProvider locale={locale}>
+        {/* Hands this request's catalogs to the client components as data, so they
+            render translated on the first paint and the browser fetches nothing. */}
+        <I18nProvider i18n={i18n} routing={routing} client={WithBrowserOptions}>
           <NameProvider>{children}</NameProvider>
-        </ComviProvider>
+        </I18nProvider>
       </body>
     </html>
   );

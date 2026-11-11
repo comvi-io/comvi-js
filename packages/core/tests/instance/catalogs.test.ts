@@ -2,8 +2,8 @@
  * Catalog ingestion, the layered add() (R4-1b), the primary-record fast path (R4-1d) and
  * "references, not copies" (R4-12).
  * Ported by meaning from 0.7: catalog-ingestion-isolation, host-catalog-inherited-keys,
- * catalog-null-prototype-nesting, catalog-flatten-warnings (→ development `syntax` on a
- * nested catalog), host-catalog-ingestion-guards, add-messages-emit,
+ * catalog-null-prototype-nesting, catalog-flatten-warnings (lot 6a: a nested group is flat
+ * keys, `nested.test.ts`), host-catalog-ingestion-guards, add-messages-emit,
  * hot-path-invariants (instance half), translate-static-detection (instance half).
  * New in 1b: S1 cow-identity (counted), stale-prim on every slot-replacing path.
  */
@@ -53,16 +53,14 @@ describe("ingestion", () => {
     expect(state(i18n).c.default.en.m).toBe(en);
   });
 
-  it("development: a nested (non-flat) value reports `syntax` and is not a message", () => {
+  it("a nested group is flat keys (lot 6a, D1); an invalid leaf reports `syntax` and is not a message", () => {
     const { i18n, errors } = make({
       locale: "en",
       messages: { en: { nav: { home: "Home" }, n: 5, ok: "OK" } as never },
     });
-    expect(errors.map((e) => [e.code, e.key])).toEqual([
-      ["syntax", "nav"],
-      ["syntax", "n"],
-    ]);
-    expect(errors[0].message).toMatch(/flat/);
+    expect(errors.map((e) => [e.code, e.key])).toEqual([["syntax", "n"]]);
+    expect(errors[0].message).toMatch(/not a string/);
+    expect(i18n.t("nav.home")).toBe("Home");
     expect(i18n.t("nav")).toBe("nav");
     expect(i18n.t("ok")).toBe("OK");
   });

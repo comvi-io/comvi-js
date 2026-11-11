@@ -15,7 +15,7 @@ import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import { act, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { state } from "../../core/src/internal";
+import { core, state } from "../../core/src/internal";
 import {
   createI18n,
   I18nHandover,
@@ -40,7 +40,7 @@ const NaiveHandover: Handover = ({ catalogs, locale, children }) => {
   const { i18n } = useI18n();
   if (catalogs && !added.has(catalogs)) {
     added.add(catalogs);
-    for (const n in catalogs) for (const l in catalogs[n]) i18n.add(l, catalogs[n][l], n);
+    for (const n in catalogs) for (const l in catalogs[n]) i18n.add(l, catalogs[n][l]!, n);
   }
   return <I18nHandover locale={locale}>{children}</I18nHandover>;
 };
@@ -266,9 +266,9 @@ describe("R1–R6: target locale and catalogs (0.7 target-locale)", () => {
     expect(view.container.textContent).toBe("de:Servus");
   });
 
-  it("R4 adds a catalogs object once, under StrictMode too", () => {
+  it("R4 commits a catalogs object once, under StrictMode too", () => {
     const i18n = createI18n({ locale: "en", messages: { en: { greeting: "Hello" } } });
-    const add = vi.spyOn(i18n, "add");
+    const commit = vi.spyOn(core(i18n), "f");
     const m = { default: { de: { greeting: "Hallo" } } };
     const ui = (
       <StrictMode>
@@ -281,7 +281,7 @@ describe("R1–R6: target locale and catalogs (0.7 target-locale)", () => {
     );
     const view = render(ui);
     view.rerender(ui);
-    expect(add).toHaveBeenCalledTimes(1);
+    expect(commit).toHaveBeenCalledTimes(1);
   });
 
   it("R5 renderToString with catalogs never writes the instance", () => scenarios.R5(I18nHandover));
@@ -667,8 +667,12 @@ describe("hydration (0.7 target-locale hydrateRoot)", () => {
 });
 
 describe("handed-over catalogs (0.7 target-locale messages)", () => {
-  it("a partial catalog merges over the one in place, key by key", async () => {
-    const i18n = createI18n({ locale: "en", messages: { en: { a: "A", b: "B" } } });
+  it("a handed catalog replaces the one in place, the first time too (model A)", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { a: "A", b: "B" } },
+      onError: () => {},
+    });
     const Two = () => {
       const { t } = useI18n();
       return <p>{`${t("a") as string}${t("b") as string}`}</p>;
@@ -680,10 +684,25 @@ describe("handed-over catalogs (0.7 target-locale messages)", () => {
         </I18nHandover>
       </I18nProvider>,
     );
-    expect(view.container.textContent).toBe("Ab2");
+    expect(view.container.textContent).toBe("ab2");
     await settle();
-    expect(i18n.t("a")).toBe("A");
+    expect(i18n.t("a")).toBe("a");
     expect(i18n.t("b")).toBe("b2");
+  });
+
+  it("a nested catalog is accepted as given (CatalogInput) and read by its flat keys", async () => {
+    const i18n = createI18n({ locale: "en" });
+    const Nested = () => <p>{useI18n().t("account.greeting") as string}</p>;
+    const view = render(
+      <I18nProvider i18n={i18n}>
+        <I18nHandover catalogs={{ default: { en: { account: { greeting: "Hi" } } } }}>
+          <Nested />
+        </I18nHandover>
+      </I18nProvider>,
+    );
+    expect(view.container.textContent).toBe("Hi");
+    await settle();
+    expect(i18n.t("account.greeting")).toBe("Hi");
   });
 
   it("an Object.prototype name is a missing key; a __proto__ key is translatable", () => {
@@ -775,7 +794,7 @@ describe("a fresh catalogs literal on every render", () => {
     // Counted: the first render, the published add(), the switch — never dozens.
     expect(renders).toBeLessThan(10);
     const rev = i18n.rev();
-    act(() => i18n.setDefaultParams({ x: "1" }));
+    act(() => i18n.add("de", { x: "1" }, "other"));
     await settle();
     expect(i18n.rev()).toBe(rev + 1);
   });

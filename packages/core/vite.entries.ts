@@ -10,6 +10,7 @@ export const entries = (dir: string): Record<string, string> => ({
   plugins: resolve(dir, "src/plugins.ts"),
   format: resolve(dir, "src/format.ts"),
   devtools: resolve(dir, "src/devtools.ts"),
+  ssr: resolve(dir, "src/ssr.ts"),
   internal: resolve(dir, "src/internal.ts"),
 });
 

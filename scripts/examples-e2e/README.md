@@ -51,20 +51,20 @@ import { detect, persist } from "@comvi/core/plugins";
 export const locales = ["en", "uk", "de", "ar"] as const;
 
 const bundled = {
-  en: () => import("./locales/en.json"),
-  uk: () => import("./locales/uk.json"),
-  de: () => import("./locales/de.json"),
-  ar: () => import("./locales/ar.json"),
-  "en:account": () => import("./locales/account/en.json"),
-  "uk:account": () => import("./locales/account/uk.json"),
-  "de:account": () => import("./locales/account/de.json"),
-  "ar:account": () => import("./locales/account/ar.json"),
+  en: () => import("./locales/en.json").then((m) => m.default),
+  uk: () => import("./locales/uk.json").then((m) => m.default),
+  de: () => import("./locales/de.json").then((m) => m.default),
+  ar: () => import("./locales/ar.json").then((m) => m.default),
+  "en:account": () => import("./locales/account/en.json").then((m) => m.default),
+  "uk:account": () => import("./locales/account/uk.json").then((m) => m.default),
+  "de:account": () => import("./locales/account/de.json").then((m) => m.default),
+  "ar:account": () => import("./locales/account/ar.json").then((m) => m.default),
 };
 
 const fromBundle: Loader = async (locale, ns) => {
   const load = bundled[(ns === "default" ? locale : `${locale}:${ns}`) as keyof typeof bundled];
   if (!load) throw new Error(`No bundled catalog for ${locale}/${ns}`);
-  return (await load()).default;
+  return load();
 };
 
 const cdnUrl: string | undefined = import.meta.env.VITE_COMVI_CDN_URL;
@@ -90,10 +90,10 @@ Solid lot 5, Next lot 6, Nuxt lot 7; `tooling/migration-pending.mjs` lists them)
 through the constructor's `compiler`, then `.use(loader({…}))` (or `cdnLoader`), then
 `.use(localeDetector({…}))`. Of those:
 
-- **Next** keeps the instance in `examples/next/src/i18n/config.ts` and the routing in a separate
-  `routing.ts`, because `middleware.ts` runs in the Edge runtime and must not import the composed
-  instance. `next.config.ts` points `withComvi({ config })` at the config module, the layout renders
-  `<ComviProvider locale>` from `@comvi/next/server`, and the pages call `getI18n({ locale })`.
+- **Next** (0.8 since lot 6a) creates an instance per request with `createGetI18n` in
+  `examples/next/src/i18n/server.ts`, the routing in a separate `routing.ts` (the middleware runs
+  on the Edge). The layout calls `getI18n({ locale })` and hands `handover(i18n)` to
+  `<I18nProvider payload>` from `@comvi/next/client`; the browser fetches no catalog.
 - **Nuxt** names a Comvi package in one file only, `examples/nuxt/src/comvi.i18n.ts`: a factory
   that composes `icuCompiler` and `loader(map)` on the options Nuxt resolved. `useI18n()`, `<T>`
   and `useSwitchLocalePath()` are auto-imported, and `src/app.vue` calls `useLocaleHead()`.
@@ -112,13 +112,13 @@ The second page renders three rows from a namespace of its own, `account`: a par
 (`profile.only_en`). The import map names each catalog by its `locale:namespace` key, and nothing
 lists `account` in `ns`, so the first page never loads it.
 
-| example       | how the second page gets `account`                                                                                                                                               |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| react, vue    | the `/about` route loads `account` before the page renders (React Router `loader`, Vue Router `beforeEnter`: `i18n.load("account")`); `useI18n("account")` scopes `t()`          |
-| svelte, solid | `src/Account.*`: `useI18n("account")` scopes `t()`, `useI18nLoader().addActiveNamespace("account")` loads it, and the rows wait for that to settle                               |
-| vanilla       | `i18n.addActiveNamespace("account")` when the view is first shown, then `t(key, { ns: "account" })` on every call                                                                |
-| next          | `about/layout.tsx` renders `<ComviProvider namespaces={["default", "account"]}>`; the page calls `getI18n({ locale, ns: "account" })`, the client component `useI18n("account")` |
-| nuxt          | `pages/about.vue` awaits `useI18nLoader().addActiveNamespace("account")` in its setup and reads through `useI18n("account")`                                                     |
+| example       | how the second page gets `account`                                                                                                                                      |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| react, vue    | the `/about` route loads `account` before the page renders (React Router `loader`, Vue Router `beforeEnter`: `i18n.load("account")`); `useI18n("account")` scopes `t()` |
+| svelte, solid | `src/Account.*`: `useI18n("account")` scopes `t()`, `useI18nLoader().addActiveNamespace("account")` loads it, and the rows wait for that to settle                      |
+| vanilla       | `i18n.addActiveNamespace("account")` when the view is first shown, then `t(key, { ns: "account" })` on every call                                                       |
+| next          | the page calls `getI18n({ locale, ns: "account" })` and hands its payload to its own `<I18nProvider payload>`; the client component `useI18n("account")`                |
+| nuxt          | `pages/about.vue` awaits `useI18nLoader().addActiveNamespace("account")` in its setup and reads through `useI18n("account")`                                            |
 
 An activated namespace stays active: a locale switch on the second page fetches `account` for the
 new locale together with the default namespace, and applies the locale only when both are in.

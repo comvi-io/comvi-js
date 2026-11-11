@@ -1,5 +1,5 @@
 import { Link } from "@comvi/next/navigation";
-import { getI18n } from "@comvi/next/server";
+import { getI18n } from "@/i18n/server";
 import { LocaleSwitcher } from "./LocaleSwitcher";
 import { StartGreeting } from "./StartGreeting";
 

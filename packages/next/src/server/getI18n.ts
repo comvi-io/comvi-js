@@ -1,140 +1,130 @@
-import { createBoundTranslation, translationResultToString } from "@comvi/core";
-import type { TranslationParams, TranslationResult } from "@comvi/core";
-import { getConfiguredRouting, resolveServerI18n } from "./cache";
-import { ensureInitialized } from "./ensureInitialized";
-import { getLocale } from "./getLocale";
-import type { ServerTranslatingInstance } from "./instanceTypes";
-import { loadChain } from "./loadMessages";
-import type {
-  GetI18nOptions,
-  RequestView,
-  ServerI18n,
-  TranslationFunction,
-  HasTranslationOptions,
-} from "./types";
+import { cache, createElement, Fragment } from "react";
+import { headers } from "next/headers";
+import { notFound } from "next/navigation";
+import { createI18n, type I18n, type I18nOptions } from "@comvi/core";
+import { core } from "@comvi/core/internal";
+import type { UseI18n } from "@comvi/react";
 
-declare const __DEV__: boolean | undefined;
-const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
+/** Set by the middleware on the requests it handles (`createMiddleware`). */
+const LOCALE_HEADER = "x-comvi-locale";
 
-/** Explicit locales already reported as missing from `routing.locales`. */
-const warnedLocales = new Set<string>();
+/** A signal no server load is ever aborted through: nothing switches a server instance. */
+const KEEP = /* @__PURE__ */ new AbortController().signal;
+
+/** Rich parts → one React node (a Fragment), as `@comvi/react` joins them. */
+const node = (r: any): any => (r.map ? createElement(Fragment, null, ...r) : r);
 
 /**
- * An explicit locale the config's `routing` does not list renders anyway (the
- * catalog falls back); `notFound()` stays the app's job. Development says so
- * once per locale. Without a `routing` export nothing is validated.
+ * What the server and every request share: plain configuration, never request state. Spread
+ * the routing in (`{ ...routing, ... }`): `locales` and `defaultLocale` are what a request's
+ * locale is matched against.
  */
-const warnUnknownLocale = (locale: string): void => {
-  const locales = getConfiguredRouting()?.locales;
-  if (!locales || locales.includes(locale) || warnedLocales.has(locale)) return;
-  warnedLocales.add(locale);
-  console.warn(
-    `[@comvi/next] getI18n({ locale: "${locale}" }): "${locale}" is not in routing.locales (${locales.join(", ")}). Call notFound() for an unknown locale before rendering.`,
-  );
-};
+export interface NextI18nOptions extends Omit<
+  I18nOptions,
+  "locale" | "catalogs" | "serverNow" | "plugins" | "timeZone"
+> {
+  /** The supported locales; any other one is `notFound()`. */
+  locales: readonly string[];
+  /** The locale of a request that names none (no `locale`, no middleware header). */
+  defaultLocale: string;
+  /**
+   * Required: the server and the browser format dates in this zone, so the hydration
+   * renders what the server rendered.
+   */
+  timeZone: string;
+}
+
+export interface GetI18nOptions<NS extends string = "default"> {
+  /**
+   * The request's locale, typically the `[locale]` route param. Matched against `locales`
+   * first: any other is `notFound()`. Given, no request API is read, so a static page stays
+   * static and the result does not depend on a layout having run first. Absent: the
+   * middleware's `x-comvi-locale` header (a dynamic read), else `defaultLocale`.
+   */
+  locale?: string;
+  /**
+   * The namespaces this render needs, loaded before the call resolves (with the `namespaces`
+   * option's). `t` is bound to the first one (default: `default`).
+   */
+  ns?: NS | readonly [NS, ...string[]];
+}
+
+/** What `getI18n()` gives a Server Component, Route Handler or Server Action. */
+export interface ServerI18n<NS extends string = "default"> {
+  /**
+   * `t()` bound to the first `ns` (the `default` namespace without one); a rich message returns
+   * one React node.
+   */
+  t: UseI18n<NS>["t"];
+  locale: string;
+  dir: "ltr" | "rtl";
+  /** This request's instance: `handover(i18n)` from `@comvi/core/ssr` is its payload. */
+  i18n: I18n;
+}
+
+export type GetI18n = <NS extends string = "default">(
+  options?: GetI18nOptions<NS>,
+) => Promise<ServerI18n<NS>>;
 
 /**
- * Get i18n for use in Server Components, Server Actions, and Route Handlers.
+ * The server helper of an app: call it once, in a server-only module, and export what it
+ * returns.
  *
- * Uses the server i18n instance (the `withComvi({ config })` module, or the one
- * registered with setI18n) and the locale you pass: `getI18n({ locale })`.
- * Without one it reads the request context (set by setRequestLocale or
- * middleware).
- *
- * @param options - Options object with `locale` and `ns`
- * @returns `{ t, hasTranslation, locale }` — the same shape `@comvi/nuxt`'s
- * `useTranslation` returns
+ * Every call of the returned `getI18n` within one request and one locale, with the same set
+ * of namespaces, gets the same instance (React `cache()`); no instance is shared between
+ * requests. Instances of one request share one load per (locale, namespace): a pair loads
+ * once, and a pair that failed stays failed for the rest of the request (`null` in its
+ * `handover()`, the fallback rendered). Loading, fallback and failure are the core's own.
  *
  * @example
- * ```tsx
- * // Server Component - using keys from default namespace
- * import { getI18n } from '@comvi/next/server';
+ * ```ts
+ * // src/i18n/server.ts
+ * import { createGetI18n } from "@comvi/next/server";
+ * import { options, routing } from "./routing";
  *
- * export default async function HomePage() {
- *   const { t } = await getI18n();
- *   return (
- *     <div>
- *       <h1>{t('home.title')}</h1>
- *       <p>{t('common.description')}</p>
- *     </div>
- *   );
- * }
+ * export const getI18n = createGetI18n({
+ *   ...routing,
+ *   ...options,
+ *   timeZone: "UTC",
+ *   loader: async (locale, ns) => (await import(`../locales/${ns}/${locale}.json`)).default,
+ * });
  * ```
- *
- * @example
- * ```tsx
- * // Using a different namespace
- * const { t } = await getI18n();
- * // Access admin namespace translations
- * t('title', { ns: 'admin' })        // → "Admin Dashboard"
- * t('roles.admin', { ns: 'admin' })  // → "Administrator"
- * ```
- *
- * @remarks
- * getI18n auto-loads one namespace, the default one or the one passed via
- * getI18n({ ns }), for the request locale and every locale of the instance's
- * `fallbackLocale` chain. If you call t() with a different ns, ensure you
- * preloaded it via loadMessages(locale, { namespaces: [...] }) in your layout
- * or metadata.
  */
-export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
-  const i18n = resolveServerI18n();
-
-  // The request view (`RequestView`) is resolved FIRST, before anything global
-  // runs: `init()` loads the default namespace at the instance's own, static locale
-  // (`_nsAddActiveNamespaces`), so a request that cannot say which locale it is
-  // must not be what triggers it.
-  let locale: RequestView["locale"] | undefined = options?.locale;
-  if (locale) {
-    if (IS_DEV) warnUnknownLocale(locale);
-  } else {
-    try {
-      locale = await getLocale();
-    } catch (e) {
-      const err = new Error(
-        "[@comvi/next] Locale not set. " +
-          "Call setRequestLocale(locale) in your layout/page first, or configure middleware.",
-      );
-      (err as Error & { cause?: unknown }).cause = e;
-      throw err;
-    }
-  }
-
-  await ensureInitialized(i18n);
-
-  const defaultNs: RequestView["defaultNs"] = options?.ns ?? i18n.getDefaultNamespace();
-
-  // A page can render before its layout completes, so the namespace may not be
-  // in yet — for the request locale or for any locale of its fallback chain. A
-  // cached primary catalog says nothing about the fallbacks, so each is checked.
-  await loadChain(i18n, [...new Set([locale, ...i18n.getFallbackLocales()])], [defaultNs]);
-
-  // The one place allowed to reach the instance's translator: the shared instance
-  // contributes catalog and loader only, and `ServerI18nInstance` has no `t`/`tRaw`
-  // so no other server helper can translate. Every call below names the request
-  // locale explicitly.
-  const translate = createBoundTranslation(i18n as ServerTranslatingInstance, defaultNs) as (
-    key: string,
-    params?: TranslationParams,
-  ) => TranslationResult;
-
-  // The locale travels in params, so concurrent renders cannot race on it.
-  const t = ((key: string, params?: TranslationParams) => {
-    const result = translate(key, {
-      ...params,
+export function createGetI18n(options: NextI18nOptions): GetI18n {
+  const { locales, defaultLocale, loader, ...rest } = options;
+  /** One load per (request, locale, namespace), shared by the request's instances. */
+  const fetch = cache((locale: string, ns: string) => loader!(locale, ns, KEEP));
+  /** One instance per (request, locale, namespace set), its namespaces loaded. */
+  const instance = cache((locale: string, nss: string): Promise<I18n> => {
+    const i18n = createI18n({
+      ...rest,
       locale,
+      namespaces: [...new Set([...(rest.namespaces || ["default"]), ...nss.split("\0")])].filter(
+        Boolean,
+      ),
+      loader: loader && ((l, n) => fetch(l, n)),
     });
-    return translationResultToString(result);
-  }) as TranslationFunction;
-
-  const hasTranslation = (key: string, opts?: HasTranslationOptions) => {
-    const checkLocale = opts?.locale ?? locale;
-    const checkNs = opts?.ns ?? defaultNs;
-    return i18n.hasTranslation(key, checkLocale, checkNs);
+    return i18n.ready.then(() => i18n);
+  });
+  const requested = async (): Promise<string> => {
+    const h = (await headers()).get(LOCALE_HEADER);
+    return h && locales.includes(h) ? h : defaultLocale;
   };
 
-  // `locale` is the same binding `t` and `hasTranslation` close over, not a
-  // second read: a result whose `locale` could disagree with its own `t` would
-  // be worse than no `locale` at all.
-  return { t, hasTranslation, locale };
+  return (async (o: GetI18nOptions<string> = {}) => {
+    const locale = o.locale ?? (await requested());
+    // Before any instance exists: an unsupported locale renders nothing.
+    if (!locales.includes(locale)) notFound();
+    const list: string[] = o.ns === undefined ? [] : typeof o.ns == "string" ? [o.ns] : [...o.ns];
+    const i18n = await instance(locale, [...new Set(list)].sort().join("\0"));
+    const n = list[0] || "default";
+    const x = core(i18n);
+    return {
+      i18n,
+      locale: i18n.locale,
+      dir: i18n.dir,
+      t: ((key: string, params?: Record<string, unknown>) =>
+        node(x.tr(x.s(), key, params as never, n, node))) as never,
+    };
+  }) as GetI18n;
 }

@@ -1,29 +1,17 @@
-// Framework size fixture: the next SERVER graph on a composed BASE host — SSR without
-// ICU or tags, every specifier `@comvi/next/server`. Composition goes through
-// `.use(attachLoader)`, the attach-only installer: this host registers no import
-// map, and `loader(map)` requires one.
-import {
-  attachLoader,
-  createI18n,
-  createNextI18nFromInstance,
-  getI18n,
-  loadMessages,
-  setRequestLocale,
-} from "@comvi/next/server";
+// Framework size fixture: the Next.js SERVER graph of the 0.8 recipe — `createGetI18n` from
+// `@comvi/next/server` with a loader (an instance per request, React `cache()`) and the payload
+// of `handover()` from `@comvi/core/ssr`.
+import { createGetI18n } from "@comvi/next/server";
+import { handover } from "@comvi/core/ssr";
 
-const { i18n, routing } = createNextI18nFromInstance(
-  () =>
-    createI18n({
-      locale: "en",
-      messages: { en: { greeting: "Hello, {name}!" } },
-    }).use(attachLoader),
-  { locales: ["en", "de"], defaultLocale: "en" },
-);
+const getI18n = createGetI18n({
+  locales: ["en", "de"],
+  defaultLocale: "en",
+  timeZone: "UTC",
+  loader: async () => ({ greeting: "Hello, {name}!" }),
+});
 
-console.log(
-  i18n.t("greeting" as never, { name: "world" } as never),
-  routing.defaultLocale,
-  getI18n,
-  loadMessages,
-  setRequestLocale,
-);
+export const page = getI18n({ locale: "en" }).then(({ t, i18n }) => [
+  t("greeting", { name: "world" }),
+  handover(i18n),
+]);

@@ -1,96 +1,350 @@
 /**
- * When `routing` is provided and `locale` is not in `routing.locales`,
- * <I18nProvider> calls `i18n.reportError` and skips the mutation. Without
- * `routing`, behavior is unchanged (no validation — defensive only).
+ * `<I18nProvider payload>` of `@comvi/next/client` (lot 6a, brief §3, C2): the instance is
+ * created once from `{ ...options, ...payload }` (data → instance → gate → content), a failed
+ * slot stays failed, and a later payload of the same mount reaches the instance through
+ * `<I18nHandover>`.
  */
+import { useState, type ReactNode } from "react";
+import { renderToString } from "react-dom/server";
+import { hydrateRoot } from "react-dom/client";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { T, useI18n } from "@comvi/react";
+import type { Handover } from "@comvi/core/ssr";
+import { I18nProvider } from "../src/client";
 
-import React from "react";
-import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+const payload = (locale: string, catalogs: Handover["catalogs"]): Handover => ({
+  locale,
+  timeZone: "UTC",
+  serverNow: 0,
+  catalogs,
+});
 
-import { I18nProvider } from "../src/client/I18nProvider";
-import type { RoutingConfig } from "../src/routing/types";
-import { FakeI18n } from "@comvi/test-utils/fakeI18n";
+function Probe({ ns = "default", k }: { ns?: string; k: string }) {
+  const { t, isReady, isLoading, locale } = useI18n(ns);
+  return (
+    <p data-testid={`${ns}:${k}`} data-ready={String(isReady)} data-loading={String(isLoading)}>
+      {locale}|{t(k)}
+    </p>
+  );
+}
 
-describe("Next <I18nProvider> locale validation", () => {
-  const routing: RoutingConfig = {
-    locales: ["en", "fr", "de"],
-    defaultLocale: "en",
-  };
-
-  it("does NOT mutate i18n.locale when locale is not in routing.locales", () => {
-    const fake = new FakeI18n();
-    const i18n = fake.asI18n();
-    fake.language = "en";
-
+describe("<I18nProvider payload> of @comvi/next/client", () => {
+  it("renders the payload on the first render and asks the loader for nothing", async () => {
+    const loader = vi.fn(async () => ({}));
     render(
-      <I18nProvider i18n={i18n} locale="zz" routing={routing} autoInit={false}>
-        <div data-testid="child" />
+      <I18nProvider
+        payload={payload("uk", { default: { uk: { hi: "Привіт" }, en: { hi: "Hi" } } })}
+        options={{ fallbackLocale: "en", loader }}
+      >
+        <Probe k="hi" />
       </I18nProvider>,
     );
-
-    expect(fake.language).toBe("en");
-    // The locale sync runs both during the first render and again in
-    // useLayoutEffect, so the count is >= 1, not exactly 1.
-    expect(fake.reportError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining(`"zz" is not in routing.locales`),
-      }),
-      expect.objectContaining({ source: "init", locale: "zz" }),
-    );
-    expect(fake.reportError.mock.calls[0]![0]).toBeInstanceOf(Error);
+    expect(screen.getByTestId("default:hi").textContent).toBe("uk|Привіт");
+    await act(async () => {});
+    expect(loader).not.toHaveBeenCalled();
   });
 
-  it("DOES mutate i18n.locale when locale IS in routing.locales", () => {
-    const fake = new FakeI18n();
-    const i18n = fake.asI18n();
-    fake.language = "en";
-
+  it("a slot the server failed stays failed: the fallback renders and the loader is not asked", async () => {
+    const loader = vi.fn(async () => ({ title: "x" }));
     render(
-      <I18nProvider i18n={i18n} locale="fr" routing={routing} autoInit={false}>
-        <div data-testid="child" />
+      <I18nProvider
+        payload={payload("uk", { admin: { uk: null, en: { title: "Admin" } } })}
+        options={{ fallbackLocale: "en", loader }}
+      >
+        <Probe ns="admin" k="title" />
       </I18nProvider>,
     );
-
-    expect(fake.language).toBe("fr");
-    expect(fake.reportError).not.toHaveBeenCalled();
+    const el = screen.getByTestId("admin:title");
+    expect(el.textContent).toBe("uk|Admin");
+    expect(el.dataset.loading).toBe("false");
+    await act(async () => {});
+    expect(loader.mock.calls.filter((c) => (c as unknown[])[1] === "admin")).toEqual([]);
   });
 
-  it("does NOT validate (back-compat) when routing prop is omitted", () => {
-    const fake = new FakeI18n();
-    const i18n = fake.asI18n();
-    fake.language = "en";
-
-    // No routing config: there is no source of truth to validate against, so
-    // any locale string is accepted.
-    render(
-      <I18nProvider i18n={i18n} locale="zz" autoInit={false}>
-        <div data-testid="child" />
-      </I18nProvider>,
+  it("a later payload of the same mount renders at once and reaches the instance at commit", async () => {
+    const first = payload("uk", { admin: { uk: null, en: { title: "Admin" } } });
+    const tree = (p: Handover) => (
+      <I18nProvider payload={p} options={{ fallbackLocale: "en" }}>
+        <Probe ns="admin" k="title" />
+      </I18nProvider>
     );
-
-    expect(fake.language).toBe("zz");
-    expect(fake.reportError).not.toHaveBeenCalled();
+    const { rerender } = render(tree(first));
+    expect(screen.getByTestId("admin:title").textContent).toBe("uk|Admin");
+    // router.refresh(): the server loaded uk this time.
+    await act(async () =>
+      rerender(tree(payload("uk", { admin: { uk: { title: "Адмін" }, en: { title: "Admin" } } }))),
+    );
+    expect(screen.getByTestId("admin:title").textContent).toBe("uk|Адмін");
   });
 
-  it("validates again on subsequent renders (useLayoutEffect path)", () => {
-    const fake = new FakeI18n();
-    const i18n = fake.asI18n();
-    fake.language = "en";
-
-    const { rerender } = render(
-      <I18nProvider i18n={i18n} locale="fr" routing={routing} autoInit={false}>
-        <div data-testid="child" />
-      </I18nProvider>,
+  it("a payload of another locale switches the instance it created", async () => {
+    const cats = { default: { uk: { hi: "Привіт" }, de: { hi: "Hallo" } } };
+    const tree = (l: string) => (
+      <I18nProvider payload={payload(l, cats)}>
+        <Probe k="hi" />
+      </I18nProvider>
     );
-    expect(fake.language).toBe("fr");
+    const { rerender } = render(tree("uk"));
+    await act(async () => rerender(tree("de")));
+    expect(screen.getByTestId("default:hi").textContent).toBe("de|Hallo");
+  });
+});
 
-    rerender(
-      <I18nProvider i18n={i18n} locale="zz" routing={routing} autoInit={false}>
-        <div data-testid="child" />
-      </I18nProvider>,
+describe("a payload's namespace and locale names are own keys (review of lot 6a)", () => {
+  it("__proto__ and constructor namespaces leave Object.prototype alone and are handed over", async () => {
+    const catalogs = JSON.parse(
+      '{"__proto__":{"en":{"p":"Proto"}},"constructor":{"en":{"c":"Ctor"}},"default":{"en":{"hi":"Hi"}}}',
+    ) as Handover["catalogs"];
+    const tree = (p: Handover) => (
+      <I18nProvider payload={p}>
+        <Probe ns="__proto__" k="p" />
+        <Probe ns="constructor" k="c" />
+      </I18nProvider>
     );
-    expect(fake.language).toBe("fr"); // unchanged
-    expect(fake.reportError).toHaveBeenCalled();
+    // A later payload of the same mount goes through the non-null filter.
+    const { rerender } = render(tree(payload("en", { default: { en: { hi: "Hi" } } })));
+    await act(async () => rerender(tree(payload("en", catalogs))));
+    expect(Object.prototype).not.toHaveProperty("en");
+    expect(({} as Record<string, unknown>).en).toBeUndefined();
+    expect(screen.getByTestId("__proto__:p").textContent).toBe("en|Proto");
+    expect(screen.getByTestId("constructor:c").textContent).toBe("en|Ctor");
+  });
+});
+
+describe("a later payload means what the first one meant (lot 6a, owner decision)", () => {
+  function Counter({ ns }: { ns: string }) {
+    const { t, isLoading } = useI18n(ns);
+    const [n, setN] = useState(0);
+    return (
+      <button data-testid="counter" data-loading={String(isLoading)} onClick={() => setN(n + 1)}>
+        {t("title")}|{n}
+      </button>
+    );
+  }
+  const tree = (p: Handover, ns: string, loader?: (l: string, n: string) => Promise<{}>) => (
+    <I18nProvider payload={p} options={{ fallbackLocale: "en", loader }}>
+      <Counter ns={ns} />
+    </I18nProvider>
+  );
+
+  it("a catalog that loaded, then failed on router.refresh(): the server's fallback, state kept", async () => {
+    const loader = vi.fn(async (_l: string, _n: string) => ({ title: "x" }));
+    const ok = payload("uk", { admin: { uk: { title: "Адмін" }, en: { title: "Admin" } } });
+    const { rerender } = render(tree(ok, "admin", loader));
+    expect(screen.getByTestId("counter").textContent).toBe("Адмін|0");
+    fireEvent.click(screen.getByTestId("counter"));
+    await act(async () =>
+      rerender(
+        tree(payload("uk", { admin: { uk: null, en: { title: "Admin" } } }), "admin", loader),
+      ),
+    );
+    expect(screen.getByTestId("counter").textContent).toBe("Admin|1");
+    await act(async () => {});
+    expect(loader.mock.calls.filter((c) => c[1] === "admin")).toEqual([]);
+  });
+
+  it("a namespace first handed over as null in a later payload: no request until a retry", async () => {
+    const loader = vi.fn(async (_l: string, _n: string) => ({ title: "Адмін" }));
+    const first = payload("uk", { default: { uk: {}, en: {} } });
+    const { rerender } = render(tree(first, "default", loader));
+    await act(async () =>
+      rerender(
+        tree(
+          payload("uk", {
+            default: { uk: {}, en: {} },
+            admin: { uk: null, en: { title: "Admin" } },
+          }),
+          "admin",
+          loader,
+        ),
+      ),
+    );
+    expect(screen.getByTestId("counter").textContent).toBe("Admin|0");
+    await act(async () => {});
+    expect(loader.mock.calls.filter((c) => c[1] === "admin")).toEqual([]);
+  });
+});
+
+describe("a repeated successful payload (lot 6a audit, finding 2)", () => {
+  it("a key the server no longer has renders missing on the client too", async () => {
+    const tree = (p: Handover) => (
+      <I18nProvider payload={p}>
+        <Probe k="b" />
+      </I18nProvider>
+    );
+    const { rerender } = render(tree(payload("en", { default: { en: { a: "A", b: "B" } } })));
+    expect(screen.getByTestId("default:b").textContent).toBe("en|B");
+    await act(async () => rerender(tree(payload("en", { default: { en: { a: "A" } } }))));
+    expect(screen.getByTestId("default:b").textContent).toBe("en|b");
+  });
+});
+
+describe("explicit params and rich text through payloads (defaultParams removed, owner decision 2026-11-11)", () => {
+  it("rich text: a handler in the translation's params or `components`; a later payload's text renders at once, state kept", async () => {
+    function Rich() {
+      const { t } = useI18n();
+      const [n, setN] = useState(0);
+      return (
+        <p data-testid="rich" onClick={() => setN(n + 1)}>
+          {t("r", { v: "one", b: (c) => <b>{c}</b> }) as ReactNode}|
+          <T i18nKey="r" v="two" components={{ b: "strong" }} />|{n}
+        </p>
+      );
+    }
+    const ui = (r: string) => (
+      <I18nProvider payload={payload("en", { default: { en: { r } } })}>
+        <Rich />
+      </I18nProvider>
+    );
+    const { rerender } = render(ui("<b>{v}</b>"));
+    const rich = () => screen.getByTestId("rich").innerHTML;
+    expect(rich()).toBe("<b>one</b>|<strong>two</strong>|0");
+    fireEvent.click(screen.getByTestId("rich"));
+    await act(async () => rerender(ui("<b>{v}!</b>")));
+    expect(rich()).toBe("<b>one!</b>|<strong>two!</strong>|1");
+  });
+
+  it("hydrates the server's text with an explicit param: no mismatch", async () => {
+    const Show = () => <p>{useI18n().t("hi", { brand: "Comvi" }) as string}</p>;
+    const ui = () => (
+      <I18nProvider payload={payload("en", { default: { en: { hi: "Welcome to {brand}" } } })}>
+        <Show />
+      </I18nProvider>
+    );
+    const html = renderToString(ui());
+    const el = document.createElement("div");
+    el.innerHTML = html;
+    document.body.append(el);
+    const errors: unknown[] = [];
+    await act(async () => {
+      hydrateRoot(el, ui(), { onRecoverableError: (e) => errors.push(e) });
+    });
+    expect(errors).toEqual([]);
+    expect(el.textContent).toBe("Welcome to Comvi");
+  });
+
+  it("a component mounted with a later payload captures that payload's text in its render", async () => {
+    const captured: string[] = [];
+    function Draft() {
+      const { t } = useI18n();
+      const [draft] = useState(() => t("welcome", { brand: "B" }) as string);
+      captured.push(draft);
+      return <p data-testid="draft">{draft}</p>;
+    }
+    const tree = (welcome: string, draft: boolean) => (
+      <I18nProvider payload={payload("en", { default: { en: { welcome } } })}>
+        {draft && <Draft />}
+      </I18nProvider>
+    );
+    const { rerender } = render(tree("Welcome to {brand}", false));
+    await act(async () => rerender(tree("Hello from {brand}", true)));
+    expect(captured[0]).toBe("Hello from B");
+  });
+});
+
+describe("hydration with a `null` slot through the provider (the ordinary readiness template)", () => {
+  const branch = ({ t, isReady, isLoading }: ReturnType<typeof useI18n>) =>
+    isReady ? <p>{t("title")}</p> : isLoading ? <i>loading</i> : <b>unavailable</b>;
+  const TplDefault = () => branch(useI18n());
+  const TplNs = ({ ns }: { ns: string }) => branch(useI18n(ns));
+
+  // Pinning: the browser instance is created from the payload, so the server HTML of the Client
+  // Component and the hydration render read the same failed pair.
+  it.each([
+    ["useI18n()", "default", undefined],
+    ["useI18n(ns)", "admin", "admin"],
+  ])(
+    "%s, no catalog at all, a client loader: same branch, no warning, no request",
+    async (_, ns, arg) => {
+      // The layout's `default` is in the payload too, so nothing loads at creation.
+      const p = payload("uk", { default: { uk: {}, en: {} }, [ns]: { uk: null, en: null } });
+      const loader = vi.fn(async () => ({ title: "x" }));
+      const ui = () => (
+        <I18nProvider payload={p} options={{ fallbackLocale: "en", loader, onError: () => {} }}>
+          {arg ? <TplNs ns={arg} /> : <TplDefault />}
+        </I18nProvider>
+      );
+      const html = renderToString(ui());
+      expect(html).toBe("<b>unavailable</b>");
+      const el = document.createElement("div");
+      el.innerHTML = html;
+      document.body.append(el);
+      const errors: unknown[] = [];
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      let root: { unmount(): void } | undefined;
+      await act(async () => {
+        root = hydrateRoot(el, ui(), { onRecoverableError: (e) => errors.push(e) });
+      });
+      await act(async () => {});
+      expect(errors).toEqual([]);
+      expect(err).not.toHaveBeenCalled();
+      err.mockRestore();
+      expect(el.innerHTML).toBe("<b>unavailable</b>");
+      expect(loader).not.toHaveBeenCalled();
+      root!.unmount();
+      el.remove();
+    },
+  );
+});
+
+describe("the payload is the server snapshot: an explicit retry after a hydration with a `null` slot (owner, 2026-11-11)", () => {
+  it("ordinary re-renders (the retry's publication, a parent state change) keep the retry; a new payload fails the pair again", async () => {
+    const gates: (() => void)[] = [];
+    const loader = vi.fn(
+      (_l: string, _n: string) =>
+        new Promise<Record<string, string>>((ok) => gates.push(() => ok({ title: "Admin" }))),
+    );
+    const first = payload("en", { default: { en: {} }, admin: { en: null } });
+    let retry!: () => Promise<void>;
+    function Tpl() {
+      const { t, isReady, isLoading, i18n } = useI18n("admin");
+      retry = () => i18n.load("admin");
+      return isReady ? <p>{t("title")}</p> : isLoading ? <i>loading</i> : <b>unavailable</b>;
+    }
+    let bump!: () => void;
+    function Layout({ p }: { p: Handover }) {
+      const [n, setN] = useState(0);
+      bump = () => setN(n + 1);
+      return (
+        <I18nProvider payload={p} options={{ loader, onError: () => {} }}>
+          <Tpl />
+        </I18nProvider>
+      );
+    }
+    const html = renderToString(<Layout p={first} />);
+    expect(html).toBe("<b>unavailable</b>");
+    const el = document.createElement("div");
+    el.innerHTML = html;
+    document.body.append(el);
+    const errors: unknown[] = [];
+    let root!: ReturnType<typeof hydrateRoot>;
+    await act(async () => {
+      root = hydrateRoot(el, <Layout p={first} />, { onRecoverableError: (e) => errors.push(e) });
+    });
+    expect(errors).toEqual([]);
+    expect(loader).not.toHaveBeenCalled();
+    let outcome = "";
+    await act(async () => {
+      void retry().then(
+        () => (outcome = "resolved"),
+        () => (outcome = "rejected"),
+      );
+    });
+    expect(el.innerHTML).toBe("<i>loading</i>");
+    await act(async () => bump());
+    expect(el.innerHTML).toBe("<i>loading</i>");
+    await act(async () => gates.splice(0).forEach((g) => g()));
+    await act(async () => {});
+    expect(outcome).toBe("resolved");
+    expect(el.innerHTML).toBe("<p>Admin</p>");
+    expect(loader).toHaveBeenCalledTimes(1);
+    // `router.refresh()`: a new payload object in which the server failed the pair again.
+    await act(async () =>
+      root.render(<Layout p={payload("en", { default: { en: {} }, admin: { en: null } })} />),
+    );
+    expect(el.innerHTML).toBe("<b>unavailable</b>");
+    root.unmount();
+    el.remove();
   });
 });

@@ -1,13 +1,13 @@
 import { defineRouting } from "@comvi/next/routing";
 
 /**
- * The URL rules alone, so `middleware.ts` imports a core-free module: an Edge
- * isolate executes every module its entry reaches, and `./config` would pull
- * the composed i18n instance and its loader into middleware. `config.ts`
- * spreads this object back into `createNextI18n`, so the rules stay one source.
+ * Plain data shared by the middleware (Edge), the server helper and the browser: the URL rules
+ * and the options both instances must agree on. No loader, nothing that needs a runtime.
  */
 export const routing = defineRouting({
   locales: ["en", "de", "fr", "es", "uk", "ar"],
   defaultLocale: "en",
   localePrefix: "as-needed",
 });
+
+export const options = { fallbackLocale: "en" };

@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import { useI18n } from "@comvi/next/client";
+import { useI18n } from "@comvi/react";
 import { useName } from "../NameProvider";
 
 /**
  * The client half of the `account` namespace. `useI18n("account")` scopes
- * `t()` to it and loads nothing: the catalog is here because the layout's
- * `<ComviProvider namespaces>` shipped it with the page.
+ * `t()` to it and loads nothing: the catalog is here because the page's
+ * provider shipped it with the page.
  */
 export function Account() {
   const { t } = useI18n("account");

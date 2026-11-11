@@ -11,21 +11,21 @@ export type Locale = (typeof locales)[number];
 // a language is downloaded only when someone picks it. `locale:account` is a
 // second namespace that only the Account page asks for.
 const bundled = {
-  en: () => import("./locales/en.json"),
-  uk: () => import("./locales/uk.json"),
-  de: () => import("./locales/de.json"),
-  ar: () => import("./locales/ar.json"),
-  "en:account": () => import("./locales/account/en.json"),
-  "uk:account": () => import("./locales/account/uk.json"),
-  "de:account": () => import("./locales/account/de.json"),
-  "ar:account": () => import("./locales/account/ar.json"),
+  en: () => import("./locales/en.json").then((m) => m.default),
+  uk: () => import("./locales/uk.json").then((m) => m.default),
+  de: () => import("./locales/de.json").then((m) => m.default),
+  ar: () => import("./locales/ar.json").then((m) => m.default),
+  "en:account": () => import("./locales/account/en.json").then((m) => m.default),
+  "uk:account": () => import("./locales/account/uk.json").then((m) => m.default),
+  "de:account": () => import("./locales/account/de.json").then((m) => m.default),
+  "ar:account": () => import("./locales/account/ar.json").then((m) => m.default),
 };
 
 // A loader is a function: (locale, namespace, signal) → catalog.
 const fromBundle: Loader = async (locale, ns) => {
   const load = bundled[(ns === "default" ? locale : `${locale}:${ns}`) as keyof typeof bundled];
   if (!load) throw new Error(`No bundled catalog for ${locale}/${ns}`);
-  return (await load()).default;
+  return load();
 };
 
 // Set VITE_COMVI_CDN_URL to serve the catalogs from your Comvi project. The

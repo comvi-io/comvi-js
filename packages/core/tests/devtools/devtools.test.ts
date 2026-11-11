@@ -138,10 +138,10 @@ describe("the queue entry (H1)", () => {
     expect(win.__COMVI__).toBeUndefined();
   });
 
-  it("the instance gets no instanceId and keeps its 13 own keys (R3-14: instanceId removed)", () => {
+  it("the instance gets no instanceId and keeps its 12 own keys (R3-14: instanceId removed; setDefaultParams removed 2026-11-11)", () => {
     const i18n = make();
     expect("instanceId" in i18n).toBe(false);
-    expect(Object.getOwnPropertyNames(i18n)).toHaveLength(13);
+    expect(Object.getOwnPropertyNames(i18n)).toHaveLength(12);
     expect(JSON.stringify(Object.keys(entryOf(i18n)))).not.toMatch(/instanceId/);
   });
 

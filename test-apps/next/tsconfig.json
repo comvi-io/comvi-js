@@ -19,27 +19,7 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"],
-      // The paths below compile @comvi/* from source, and that source would
-      // resolve `next` from packages/next/node_modules (Next 16, the package's
-      // devDependency). Pinning `next` to this app's own install makes the
-      // binding source type-check against Next 15 here, the lower end of its
-      // peer range; test-apps/next16 covers the upper end.
-      "next": ["./node_modules/next"],
-      "next/*": ["./node_modules/next/*"],
-      "@comvi/core": ["../../packages/core/src/index.ts"],
-      "@comvi/core/loader": ["../../packages/core/src/loader.ts"],
-      "@comvi/core/plugins": ["../../packages/core/src/plugins.ts"],
-      "@comvi/core/tags": ["../../packages/core/src/tags.ts"],
-      "@comvi/core/icu": ["../../packages/core/src/icu.ts"],
-      "@comvi/core/devtools": ["../../packages/core/src/devtools.ts"],
-      "@comvi/react": ["../../packages/react/src/index.ts"],
-      "@comvi/next": ["../../packages/next/src/index.ts"],
-      "@comvi/next/server": ["../../packages/next/src/server.ts"],
-      "@comvi/next/client": ["../../packages/next/src/client.ts"],
-      "@comvi/next/middleware": ["../../packages/next/src/middleware.ts"],
-      "@comvi/next/routing": ["../../packages/next/src/routing.ts"],
-      "@comvi/next/navigation": ["../../packages/next/src/navigation.ts"]
+      "@/*": ["./src/*"]
     },
     "esModuleInterop": true
   },

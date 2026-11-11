@@ -101,18 +101,22 @@ describe("vite build", () => {
     expect(fs.readFileSync(path.join(root, "from-schema.d.ts"), "utf8")).toBe(read(root));
   });
 
-  it("honours out, defaultParams and augment", async () => {
+  it("honours out and augment; every param is required", async () => {
     const root = app();
-    await viteBuild(root, {
-      ...PLUGIN,
-      out: "comvi.d.ts",
-      defaultParams: ["name"],
-      augment: "@acme/i18n",
-    });
+    await viteBuild(root, { ...PLUGIN, out: "comvi.d.ts", augment: "@acme/i18n" });
 
     const written = fs.readFileSync(path.join(root, "comvi.d.ts"), "utf8");
     expect(written).toContain("declare module '@acme/i18n'");
-    expect(written).toContain('"hello": { "name"?: string | number };');
+    expect(written).toContain('"hello": { "name": string | number };');
+  });
+
+  it("the removed `defaultParams` option is a type error and makes nothing optional (owner decision 2026-11-11)", async () => {
+    const root = app();
+    // @ts-expect-error `defaultParams` is no longer an option
+    await viteBuild(root, { ...PLUGIN, out: "comvi.d.ts", defaultParams: ["name"] });
+
+    const written = fs.readFileSync(path.join(root, "comvi.d.ts"), "utf8");
+    expect(written).toContain('"hello": { "name": string | number };');
   });
 
   it("fails the build on broken JSON, names the file, and keeps the old declaration", async () => {

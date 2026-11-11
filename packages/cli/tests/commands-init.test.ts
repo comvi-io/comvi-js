@@ -214,7 +214,7 @@ describe("comvi init", () => {
     });
   });
 
-  it("writes no strictParams: generated params are always required (defaultParams instead)", async () => {
+  it("writes no strictParams: generated params are always required", async () => {
     await createInitCommand().parseAsync([], { from: "user" });
 
     expect(await readConfig()).not.toHaveProperty("strictParams");

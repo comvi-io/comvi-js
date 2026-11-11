@@ -105,12 +105,6 @@ export interface ComviConfig {
   outputPath?: string;
 
   /**
-   * The keys of `createI18n({ defaultParams })`: optional in every key's params of the
-   * generated declaration.
-   */
-  defaultParams?: string[];
-
-  /**
    * Module the generated declarations augment.
    *
    * Left out, it is the Comvi package this project declares: `@comvi/core` when

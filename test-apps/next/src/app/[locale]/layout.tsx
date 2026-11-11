@@ -1,36 +1,27 @@
-import { notFound } from "next/navigation";
-import { hasLocale, routing, loadMessages } from "../../i18n";
-import { ClientProvider } from "./ClientProvider";
-import { Navigation } from "../../components/Navigation";
-import "../globals.css";
-
-// SSR mode - no generateStaticParams, pages rendered on each request
+import type { ReactNode } from "react";
+import { getI18n } from "@/i18n/server";
+import { I18nProvider } from "@comvi/next/server";
+import { WithLoader } from "@/i18n/client";
+import { routing } from "@/i18n/routing";
+import { Navigation } from "./Navigation";
 
 export default async function LocaleLayout({
   children,
   params,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-
-  if (!hasLocale(routing.locales, locale)) {
-    notFound();
-  }
-
-  // Load translations for server + pass to client (avoids extra fetch)
-  const messages = await loadMessages(locale);
-
+  // An unsupported locale is notFound() inside, before any instance exists.
+  const { i18n, dir } = await getI18n({ locale });
   return (
-    <html lang={locale}>
-      <body className="min-h-screen bg-gray-50 font-sans">
-        <ClientProvider locale={locale} messages={messages}>
+    <html lang={locale} dir={dir}>
+      <body>
+        <I18nProvider i18n={i18n} routing={routing} client={WithLoader}>
           <Navigation />
-          <main className="container mx-auto px-4 pb-12">
-            <div className="bg-white rounded-lg shadow p-6 min-h-[300px]">{children}</div>
-          </main>
-        </ClientProvider>
+          <main>{children}</main>
+        </I18nProvider>
       </body>
     </html>
   );

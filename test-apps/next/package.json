@@ -1,6 +1,6 @@
 {
   "name": "@test-apps/next",
-  "description": "Next.js test app on the MANUAL setup (setI18n + own I18nProvider wrapper); the standard withComvi + ComviProvider path lives in examples/next.",
+  "description": "Next.js 15 test app of @comvi/next 0.8 (lot 6a scenarios, scripts/test-apps-smoke). test-apps/next16 is the same app on Next 16 with proxy.ts.",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -12,18 +12,19 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
+    "@comvi/core": "workspace:*",
     "@comvi/next": "workspace:*",
+    "@comvi/react": "workspace:*",
     "next": "^15.5.28",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^15.5.28",
-    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2"
   }
 }
