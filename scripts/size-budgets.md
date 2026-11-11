@@ -1690,3 +1690,32 @@ two limits change; every other row fits.
 
 vue-icu-cdn's ceiling (6,191) is not changed: the row measures exactly at it. fw-vue-full-composite
 has no ceiling; its baseline is the measurement above.
+
+## 2026-11-11: lot 7, Nuxt on the 0.8 core (owner-approved ceilings)
+
+Owner decision of 2026-11-11. The three 0.7 rows (`fw-nuxt-client-default`, `fw-nuxt-full-composite`,
+`fw-nuxt-i18n` of 0.7) named entries that no longer exist (`loadMessages`, `@comvi/core/icu`,
+`/loader`, `/plugins`) and are replaced by four rows of the 0.8 entries. Measured on `lot7/nuxt`
+@ `49db80b6`, `TURBO_FORCE=true pnpm build`, `node --version` v24.22.1, two runs with the same
+figures. Budget = min(ceiling, ceil(measured × 1.05)), which is the ceiling for all four.
+
+| row            | measured (min / min+gz) | ceiling = budget |
+| -------------- | ----------------------- | ---------------- |
+| fw-nuxt-client | 23,077 / 10,231         | 10,436           |
+| fw-nuxt-server | 24,389 / 10,805         | 11,022           |
+| fw-nuxt-module | 9,025 / 3,467           | 3,537            |
+| fw-nuxt-i18n   | 1,190 / 716             | 731              |
+
+`fw-nuxt-client` is the FULL graph: core + `@comvi/vue` + the Nuxt runtime (plugin, route
+middleware), the routing composables, the `useFormat` formatters and the SEO helper
+`useLocaleHead`, `<T>` and `<NuxtLinkLocale>`. It is not the minimal weight of an app that calls
+only `t()`. `fw-nuxt-server` is for the record (no transfer cost); `fw-nuxt-module` is Node tooling.
+
+No optimisation pass in lot 7 (owner). Recorded candidates:
+
+- the `Accept-Language` parser (`resolveAcceptLanguage` of the vendored locale-routing) is in the
+  client bundle, which never has the header: a concrete candidate for a local reduction;
+- the `lang` / `dir` derivation exists twice (the plugin's `comvi.head` and `useLocaleHead()`):
+  deferred to the agreed SEO lot.
+
+API and behaviour are not changed for bytes.
