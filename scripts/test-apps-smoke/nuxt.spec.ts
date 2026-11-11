@@ -407,6 +407,42 @@ test("6c: a <NuxtLinkLocale locale> switch superseded by a link in the locale on
   expect(r.status()).toBe(200);
 });
 
+test("6d: a real stored preference survives an unrelated switch that a navigation in the locale on screen cancelled", async ({
+  page,
+}) => {
+  await page.context().addCookies([{ name: "i18n_locale", value: "uk", url: BASE }]);
+  await page.goto("/admin");
+  await hydrated(page);
+  await expect(id(page, "nav-locale")).toHaveText("en");
+  await mock.mode({ hold: ["de:admin"] });
+  await id(page, "switch-de").click();
+  await expect.poll(mock.held).toContain("de:admin");
+  await id(page, "nav-plurals").click();
+  await expect(page).toHaveURL(new RegExp(`${BASE}/plurals$`));
+  await mock.release("de:admin");
+  await page.waitForLoadState("networkidle");
+  await expect(id(page, "nav-locale")).toHaveText("en");
+  expect(await cookieOf(page)).toBe("uk");
+});
+
+test("6e: after a cancelled <NuxtLinkLocale locale> click, the root resolves from the cookie, not from the cancelled choice", async ({
+  page,
+}) => {
+  await page.goto("/admin");
+  await hydrated(page);
+  await mock.mode({ hold: ["uk:admin"] });
+  await id(page, "link-uk").click();
+  await expect.poll(mock.held).toContain("uk:admin");
+  // The root names no locale: it reads the cookie, which the cancelled click did not touch.
+  await id(page, "nav-home").click();
+  await expect(page).toHaveURL(new RegExp(`${BASE}/$`));
+  await mock.release("uk:admin");
+  await page.waitForLoadState("networkidle");
+  await expect(id(page, "nav-locale")).toHaveText("en");
+  await expect(id(page, "title")).toHaveText(EN["home.title"]);
+  expect(await cookieOf(page)).toBe("en");
+});
+
 test("7: a load error on a client navigation, nothing in the chain: unavailable, nothing unhandled; a revisit asks nothing; Retry loads", async ({
   page,
   asked,

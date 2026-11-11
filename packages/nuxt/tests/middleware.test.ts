@@ -14,7 +14,8 @@ import {
   deferredInstance,
 } from "./mocks/nuxt-app";
 import { setCustomResolveAcceptLanguage } from "./mocks/comvi-detection";
-import { useCookie, useNuxtApp } from "#app";
+import { useCookie, useNuxtApp, useRouter } from "#app";
+import { setTarget } from "../src/runtime/utils/target";
 
 const setServerMode = (value: boolean) => {
   vi.stubGlobal("__COMVI_TEST_SERVER__", value);
@@ -972,11 +973,12 @@ describe("i18n middleware: a pending switch and the navigations after it", () =>
     expect(getMockCookieWrites("i18n_locale")).toEqual(["en"]);
   });
 
-  it("a navigation that supersedes a pending switch records the locale that rendered, not the cancelled target", async () => {
+  it("a <NuxtLinkLocale locale> switch superseded by a navigation in the locale on screen records that locale", async () => {
     const i18n = deferredInstance("en");
     setMockI18n(i18n);
-    // <NuxtLinkLocale locale="uk"> wrote the cookie before its navigation.
-    setMockCookie("i18n_locale", "uk");
+    setMockCookie("i18n_locale", "en");
+    // The link's click: its locale for the navigation it started; no cookie write.
+    setTarget(useNuxtApp(), useRouter(), "uk", "/uk/admin");
 
     const first = runMiddleware({ path: "/uk/admin", fullPath: "/uk/admin" });
     await tick();
@@ -988,5 +990,40 @@ describe("i18n middleware: a pending switch and the navigations after it", () =>
     await second;
 
     expect(useCookie("i18n_locale").value).toBe("en");
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["en"]);
+  });
+
+  it("a real stored preference survives an unrelated cancelled switch (en on screen, cookie uk)", async () => {
+    const i18n = deferredInstance("en");
+    setMockI18n(i18n);
+    setMockCookie("i18n_locale", "uk");
+
+    const first = runMiddleware({ path: "/de/admin", fullPath: "/de/admin" });
+    await tick();
+    const second = runMiddleware({ path: "/plurals", fullPath: "/plurals" });
+    await tick();
+    i18n.resolve(0);
+    i18n.land(1);
+    await first;
+    await second;
+
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["uk"]);
+  });
+
+  it("a real stored preference survives a cancelled switch away from it (uk on screen, cookie uk)", async () => {
+    const i18n = deferredInstance("uk");
+    setMockI18n(i18n);
+    setMockCookie("i18n_locale", "uk");
+
+    const first = runMiddleware({ path: "/plurals", fullPath: "/plurals" });
+    await tick();
+    const second = runMiddleware({ path: "/about", fullPath: "/about" });
+    await tick();
+    i18n.resolve(0);
+    i18n.land(1);
+    await first;
+    await second;
+
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["uk"]);
   });
 });

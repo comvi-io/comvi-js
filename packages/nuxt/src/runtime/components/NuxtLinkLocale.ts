@@ -1,8 +1,8 @@
 import { defineComponent, h, computed, type PropType } from "vue";
 import { NuxtLink } from "#components";
-import { useRuntimeConfig } from "#app";
+import { useNuxtApp, useRouter, useRuntimeConfig } from "#app";
 import { useLocalePath } from "../composables/useLocalePath";
-import { useLocaleCookie } from "../utils/cookie";
+import { setTarget } from "../utils/target";
 
 /**
  * Prefixes the `to` prop with the current or specified locale, following the
@@ -38,16 +38,17 @@ export default defineComponent({
   setup(props, { slots, attrs }) {
     const localePath = useLocalePath();
     const { locales } = useRuntimeConfig().public.comvi;
-    const cookie = useLocaleCookie();
+    const nuxtApp = useNuxtApp();
+    const router = useRouter();
 
-    // A link that names a locale is a locale switch, and the cookie is the record of the
-    // user's choice: the click writes it BEFORE the navigation, through the module's one
-    // cookie ref. The route middleware resolves a URL that names no locale (the root under
-    // `as-needed`, every URL under `never`) from it, and would otherwise answer with the
-    // locale being switched away from.
+    // A link that names a locale is a locale switch. The click records the locale for the
+    // navigation it starts (in memory, `utils/target.ts`): the route middleware resolves a
+    // URL that names no locale (every URL under `never`, the root under `as-needed`) from it.
+    // The cookie is written by the middleware once the switch has landed, so a switch that
+    // is superseded or aborted records nothing.
     const recordLocale = () => {
       const { locale } = props;
-      if (cookie && locale && locales.includes(locale)) cookie.value = locale;
+      if (locale && locales.includes(locale)) setTarget(nuxtApp, router, locale, localizedTo.value);
     };
 
     const localizedTo = computed(() => {
@@ -66,7 +67,7 @@ export default defineComponent({
             // No `defaultPrevented` check: `RouterLink` has already called
             // `preventDefault()` on every click it turns into a navigation. A modified or
             // non-primary click, or a link with a `target` other than this window's, opens
-            // elsewhere: this tab's preference stays.
+            // elsewhere: this tab records nothing.
             const { button, metaKey, ctrlKey, shiftKey, altKey } = event;
             const target = (rest as { target?: string }).target;
             const blank = !!target && !/^_(self|parent|top)$/i.test(target);

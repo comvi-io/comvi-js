@@ -189,8 +189,21 @@ export function setRouterResolveOverride(fn: ((to: any) => any) | null) {
   routerResolveOverride = fn;
 }
 
+/** The router's `afterEach` hooks; `endNavigation()` ends the navigation in progress. */
+const afterEachHooks: Array<() => void> = [];
+export function endNavigation() {
+  for (const hook of afterEachHooks.splice(0)) hook();
+}
+
 export function useRouter() {
   return {
+    afterEach: (hook: () => void) => {
+      afterEachHooks.push(hook);
+      return () => {
+        const i = afterEachHooks.indexOf(hook);
+        if (i >= 0) afterEachHooks.splice(i, 1);
+      };
+    },
     push: () => Promise.resolve(),
     replace: () => Promise.resolve(),
     go: () => {},
@@ -302,7 +315,14 @@ export function resetMocks() {
   stateStore.clear();
   mockNuxtApp.$i18n = null;
   // What the module's runtime keeps on the app: its one cookie ref, the navigation count.
-  for (const key of ["_comviLocaleCookie", "_comviNavigating", "_comviNavigation", "payload"])
+  afterEachHooks.length = 0;
+  for (const key of [
+    "_comviLocaleCookie",
+    "_comviNavigating",
+    "_comviNavigation",
+    "_comviTarget",
+    "payload",
+  ])
     delete (mockNuxtApp as Record<string, unknown>)[key];
   cookieStore.clear();
   cookieOptions.clear();

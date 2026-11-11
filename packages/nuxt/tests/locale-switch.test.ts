@@ -30,6 +30,7 @@ import {
   fakeInstance,
   getMockCookieOptions,
   getMockCookieWrites,
+  endNavigation,
 } from "./mocks/nuxt-app";
 import { useCookie, useNuxtApp } from "#app";
 
@@ -149,14 +150,42 @@ describe("a clicked <NuxtLinkLocale locale>", () => {
     expect((useNuxtApp().$i18n as { locale: string }).locale).toBe("de");
   });
 
-  it("writes the cookie the middleware reads, through the module's one cookie ref: name and attributes from localeCookie", () => {
+  it("the click writes no cookie; the middleware records it once the switch has landed, with localeCookie's attributes", async () => {
     setLocaleOptions({ localeCookie: { name: "LANG", maxAge: 60 } });
+    standOn("/de/about", "de");
+    setMockCookie("LANG", "de");
+
+    clickLink({ to: "/", locale: "en" });
+    expect(getMockCookieWrites("LANG")).toEqual(["de"]);
+    await middleware(route("/"), route("/de/about"));
+
+    expect(getMockCookieWrites("LANG")).toEqual(["de", "en"]);
+    expect(getMockCookieOptions("LANG")).toMatchObject({ maxAge: 60, path: "/", sameSite: "lax" });
+  });
+
+  it("a navigation aborted before the i18n middleware records nothing, and the next one resolves from the cookie", async () => {
     standOn("/de/about", "de");
 
     clickLink({ to: "/", locale: "en" });
+    endNavigation(); // another guard aborted it
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["de"]);
 
-    expect(getMockCookieWrites("LANG")).toEqual(["en"]);
-    expect(getMockCookieOptions("LANG")).toMatchObject({ maxAge: 60, path: "/", sameSite: "lax" });
+    expect(await middleware(route("/"), route("/de/about"))).toEqual({
+      path: "/de",
+      redirectCode: 302,
+    });
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["de"]);
+  });
+
+  it("under never, a newer ordinary navigation does not take the cancelled click's locale", async () => {
+    mockRuntimeConfig.public.comvi.localePrefix = "never";
+    standOn("/", "en");
+
+    clickLink({ to: "/about", locale: "de" });
+    await middleware(route("/contact"), route("/"));
+
+    expect((useNuxtApp().$i18n as { locale: string }).locale).toBe("en");
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["en"]);
   });
 
   it("without a locale prop → no cookie is written", () => {
@@ -183,30 +212,40 @@ describe("a clicked <NuxtLinkLocale locale>", () => {
     ["shift", { shiftKey: true }],
     ["alt", { altKey: true }],
     ["middle button", { button: 1 }],
-  ])("a %s click opens another tab: this tab's preference is not written", (_name, init) => {
+  ])("a %s click opens another tab: this tab records nothing", async (_name, init) => {
     standOn("/de/about", "de");
 
     clickLink({ to: "/", locale: "en" }, init);
 
+    // The root of this tab still resolves from the cookie.
+    expect(await middleware(route("/"), route("/de/about"))).toEqual({
+      path: "/de",
+      redirectCode: 302,
+    });
     expect(getMockCookieWrites("i18n_locale")).toEqual(["de"]);
   });
 
   it.each(["_blank", "preview"])(
-    "a link with target=%s opens elsewhere: this tab's preference is not written",
-    (target) => {
+    "a link with target=%s opens elsewhere: this tab records nothing",
+    async (target) => {
       standOn("/de/about", "de");
 
       clickLink({ to: "/", locale: "en", target });
 
+      expect(await middleware(route("/"), route("/de/about"))).toEqual({
+        path: "/de",
+        redirectCode: 302,
+      });
       expect(getMockCookieWrites("i18n_locale")).toEqual(["de"]);
     },
   );
 
-  it("a link with target=_self is this window: the choice is recorded", () => {
+  it("a link with target=_self is this window: the choice applies and is recorded", async () => {
     standOn("/de/about", "de");
 
     clickLink({ to: "/", locale: "en", target: "_self" });
 
+    expect(await middleware(route("/"), route("/de/about"))).toBeUndefined();
     expect(getMockCookieWrites("i18n_locale")).toEqual(["de", "en"]);
   });
 
