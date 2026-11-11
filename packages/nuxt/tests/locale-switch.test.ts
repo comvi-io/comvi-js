@@ -55,7 +55,7 @@ const readDocumentCookies = (): Record<string, string> =>
  * afresh on every call, which is how the middleware sees what a click wrote;
  * the `#app` stub keeps its own store, so the document's value is copied over.
  */
-const clickLink = (props: Record<string, unknown>) => {
+const clickLink = (props: Record<string, unknown>, init: MouseEventInit = {}) => {
   const host = document.createElement("div");
   const app = createApp({ render: () => h(NuxtLinkLocale as Component, props, () => "link") });
   app.mount(host);
@@ -63,7 +63,9 @@ const clickLink = (props: Record<string, unknown>) => {
   // keep the browser from loading the page, so by the time a handler passed to
   // `<NuxtLink>` runs, the event is ALWAYS default-prevented.
   host.addEventListener("click", (event) => event.preventDefault(), true);
-  host.querySelector("a")!.click();
+  host
+    .querySelector("a")!
+    .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ...init }));
   app.unmount();
   for (const [name, value] of Object.entries(readDocumentCookies())) {
     setMockCookie(name, value);
@@ -172,6 +174,20 @@ describe("a clicked <NuxtLinkLocale locale>", () => {
     clickLink({ to: "/", locale: "en" });
 
     expect(readDocumentCookies()).toEqual({});
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["de"]);
+  });
+
+  it.each([
+    ["ctrl", { ctrlKey: true }],
+    ["meta", { metaKey: true }],
+    ["shift", { shiftKey: true }],
+    ["alt", { altKey: true }],
+    ["middle button", { button: 1 }],
+  ])("a %s click opens another tab: this tab's preference is not written", (_name, init) => {
+    standOn("/de/about", "de");
+
+    clickLink({ to: "/", locale: "en" }, init);
+
     expect(getMockCookieWrites("i18n_locale")).toEqual(["de"]);
   });
 

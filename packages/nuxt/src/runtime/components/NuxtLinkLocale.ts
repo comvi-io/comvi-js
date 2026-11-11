@@ -64,8 +64,10 @@ export default defineComponent({
           onClick: (event: MouseEvent) => {
             onClick?.(event);
             // No `defaultPrevented` check: `RouterLink` has already called
-            // `preventDefault()` on every click it turns into a navigation.
-            recordLocale();
+            // `preventDefault()` on every click it turns into a navigation. A modified or
+            // non-primary click opens another tab: this tab's preference stays.
+            const { button, metaKey, ctrlKey, shiftKey, altKey } = event;
+            if (!button && !metaKey && !ctrlKey && !shiftKey && !altKey) recordLocale();
           },
         },
         slots,
