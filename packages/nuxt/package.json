@@ -72,7 +72,7 @@
     "h3": "^1.15.11"
   },
   "peerDependencies": {
-    "nuxt": "^3.21.0 || ^4.6.0"
+    "nuxt": "^3.7.0 || ^4.0.0"
   },
   "devDependencies": {
     "@comvi/locale-routing": "workspace:*",

@@ -98,7 +98,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
     name: "@comvi/nuxt",
     configKey: "comvi",
     compatibility: {
-      nuxt: "^3.21.0 || ^4.6.0",
+      nuxt: "^3.7.0 || ^4.0.0",
     },
   },
 

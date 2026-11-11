@@ -17,7 +17,9 @@
 
 ---
 
-Nuxt 3.21+ on Node 22.20+; Nuxt 4.6+ on the Node it requires (verified on Node 22.22.3 and 24.22.1).
+Nuxt 3.7+ and Nuxt 4 on Node 22.20+, or the newer Node your Nuxt requires. Verified: Nuxt 3.7.0,
+3.21.11, 4.0.0 and 4.6.0 on Node 22.22.3; Nuxt 3.21.11 and 4.6.2 on Node 24.22.1. Three limits outside
+the module are listed under [Version notes](#version-notes).
 
 `@comvi/nuxt` is the Comvi i18n module for Nuxt 3 and 4: it creates one i18n instance per request,
 renders the page's translations on the server, starts the browser from that render, and clones your
@@ -173,6 +175,20 @@ after the response, when the handler throws, or when the client goes away. `rout
 are excluded for pages rendered with Comvi: the stale-while-revalidate re-render runs after the
 response has ended its instance, and the cache stores raw keys. `isr`, `ssrStreaming`, non-Node
 presets and `nuxt generate` are unverified (neither supported nor excluded).
+
+### Version notes
+
+- Nuxt 4.0.0 as installed pins nitropack 2.12.0, which answers every `/_nuxt/` asset with a 500
+  (observed with nitropack 2.12.0 to 2.12.8). It is Nuxt's own defect: a plain Nuxt 4.0.0 app without
+  Comvi shows it. nitropack 2.12.9 or later fixes it (verified: 2.12.9, 2.13.0, 2.13.6), and so does
+  Nuxt 4.0.3, whose install resolves nitropack 2.13.6.
+- Older Nuxt versions print their own `[nuxt] error caught during app initialization` with
+  `Page not found` when a 404 page hydrates (observed: Nuxt 3.7.0, 3.21.0 and 4.0.0, with or without
+  the module; not in 3.21.11 or 4.6.x).
+- The server and the browser format dates with their own Intl data: a server Node whose ICU/CLDR
+  differs from the visitor's browser can render a different date text and cause a hydration mismatch
+  (observed: Node 22.20.0, CLDR 47, against Chromium, CLDR 48, for an `es` long date with a short
+  time). It is not specific to the module.
 
 ## Routing
 
