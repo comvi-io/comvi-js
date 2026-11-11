@@ -694,7 +694,7 @@ const OPS = {
   a1: 't("|',
   a2: 'shop.t("|',
   a3: "{ | }",
-  a4: "{ | } opt",
+  a4: "{ | } one param",
   b: "hover",
   c: "diag/edit",
   c2: "diag/typo",

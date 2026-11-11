@@ -119,6 +119,7 @@ describe("the stated consequence of an inline literal (re-created on every rende
     expect(outcome).toEqual(["rejected"]);
     expect(screen.getByTestId("s").textContent).toBe("retry");
     expect(loader).toHaveBeenCalledTimes(1);
+    // Measured value of the pinned fact; the bound is the `> 50` guard in `Page`.
     expect(app.renders()).toBe(4);
   });
 
@@ -144,6 +145,7 @@ describe("the stated consequence of an inline literal (re-created on every rende
       </I18nProvider>,
     );
     await act(async () => {});
+    // Measured values of the pinned fact; the bound is the `> 50` guard in `Page`.
     expect([renders, pubs]).toEqual([2, 2]);
     await act(async () => i18n.add("en", { extra: "Patched" }, "admin"));
     await act(async () => {});
