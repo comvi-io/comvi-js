@@ -430,11 +430,11 @@
       "gzipBudgetBytes": 10436,
       "ceilingBytes": 10436,
       "baseline": {
-        "minBytes": 23104,
-        "gzipBytes": 10239,
+        "minBytes": 23383,
+        "gzipBytes": 10368,
         "measuredAt": "2026-11-12"
       },
-      "note": "Gated Nuxt client graph (lot 7): the FULL graph — core + @comvi/vue + the Nuxt runtime (plugin, route middleware), routing composables, useFormat formatters and the SEO helper useLocaleHead, <T>, <NuxtLinkLocale> — with Nuxt's client-build flags; not the minimal weight of an app that calls only t(). Owner ceiling 10,436 (2026-11-11); budget = min(ceiling, ceil(10,239 × 1.05)) = 10,436; size-budgets.md 2026-11-11 lot 7."
+      "note": "Gated Nuxt client graph (lot 7): the FULL graph — core + @comvi/vue + the Nuxt runtime (plugin, route middleware), routing composables, useFormat formatters and the SEO helper useLocaleHead, <T>, <NuxtLinkLocale> — with Nuxt's client-build flags; not the minimal weight of an app that calls only t(). Owner ceiling 10,436 (2026-11-11); budget = min(ceiling, ceil(10,368 × 1.05)) = 10,436; size-budgets.md 2026-11-11 lot 7."
     },
     {
       "name": "fw-nuxt-server",
@@ -461,11 +461,11 @@
       "gzipBudgetBytes": 11022,
       "ceilingBytes": 11022,
       "baseline": {
-        "minBytes": 24416,
-        "gzipBytes": 10817,
+        "minBytes": 24612,
+        "gzipBytes": 10898,
         "measuredAt": "2026-11-12"
       },
-      "note": "Nuxt server graph (lot 7), for the record, not a transfer cost: the client graph's modules with import.meta.server, plus the Nitro useTranslation(event) and the request-end Nitro plugin. Owner ceiling 11,022 (2026-11-11); budget = min(ceiling, ceil(10,817 × 1.05)) = 11,022; size-budgets.md 2026-11-11 lot 7."
+      "note": "Nuxt server graph (lot 7), for the record, not a transfer cost: the client graph's modules with import.meta.server, plus the Nitro useTranslation(event) and the request-end Nitro plugin. Owner ceiling 11,022 (2026-11-11); budget = min(ceiling, ceil(10,898 × 1.05)) = 11,022; size-budgets.md 2026-11-11 lot 7."
     },
     {
       "name": "fw-nuxt-module",

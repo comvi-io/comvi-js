@@ -1696,13 +1696,13 @@ has no ceiling; its baseline is the measurement above.
 Owner decision of 2026-11-11. The three 0.7 rows (`fw-nuxt-client-default`, `fw-nuxt-full-composite`,
 `fw-nuxt-i18n` of 0.7) named entries that no longer exist (`loadMessages`, `@comvi/core/icu`,
 `/loader`, `/plugins`) and are replaced by four rows of the 0.8 entries. Measured on `lot7/nuxt`
-@ `83831cb3` (with the cancelled-switch cookie fix; `49db80b6`: 10,231 / 10,805), `TURBO_FORCE=true pnpm build`, `node --version` v24.22.1, two runs with the same
+@ `7ebe639b` (the click records no cookie, form B; the server query's first value; `83831cb3`: 10,239 / 10,817; `49db80b6`: 10,231 / 10,805), `TURBO_FORCE=true pnpm build`, `node --version` v24.22.1, two runs with the same
 figures. Budget = min(ceiling, ceil(measured × 1.05)), which is the ceiling for all four.
 
 | row            | measured (min / min+gz) | ceiling = budget |
 | -------------- | ----------------------- | ---------------- |
-| fw-nuxt-client | 23,104 / 10,239         | 10,436           |
-| fw-nuxt-server | 24,416 / 10,817         | 11,022           |
+| fw-nuxt-client | 23,383 / 10,368         | 10,436           |
+| fw-nuxt-server | 24,612 / 10,898         | 11,022           |
 | fw-nuxt-module | 9,025 / 3,467           | 3,537            |
 | fw-nuxt-i18n   | 1,190 / 716             | 731              |
 
