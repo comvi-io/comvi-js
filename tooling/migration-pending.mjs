@@ -91,7 +91,7 @@ export const PENDING_CAPABILITIES = {
  * What lot 1c moved to the 0.8 API: the React and vanilla examples, and the core and React
  * cases of the bundler matrix; lot 4 the Vue example and the Vue bundler cases; lot 5 the Solid
  * and Svelte examples, their SSR recipes and their bundler cases; lot 6a the Next example,
- * its bundler cases and the two Next test apps; lot 7 the two Nuxt test apps.
+ * its bundler cases and the two Next test apps; lot 7 the Nuxt example and the two Nuxt test apps.
  * `@test-apps/react` moved in lot 3b with `@comvi/vite-plugin` and `@test-apps/vue` in lot 4
  * (both are built and type-checked, not part of the test-apps smoke), and `@test-apps/solid`
  * and `@test-apps/svelte` in lot 5 (likewise).
@@ -106,6 +106,7 @@ export const ON_08 = {
     "svelte",
     "sveltekit",
     "next",
+    "nuxt",
   ]),
   bundlerCases: new Set([
     "core-default",

@@ -1287,16 +1287,11 @@ for (const [step, first] of [
 }
 
 /**
- * The examples whose binding queues locale switches (the 0.7 `@comvi/vue`'s
- * `setLocale` ran one switch after the other): nuxt, until it moves to 0.8 in lot 7.
- */
-const QUEUED_SWITCHES = ["nuxt"].includes(env("E2E_FRAMEWORK"));
-/**
  * The examples on the 0.8 core: `setLocale(de)` aborts the loads of the switch it
  * supersedes, so uk's request is cancelled the moment de is chosen and its answer can
- * never land. The other client examples (0.7) let it land and discard the switch.
+ * never land. Next's browser fetches no catalog: the stale answer is the server's.
  */
-const ABORTS_SUPERSEDED = ["react", "vanilla", "vue", "solid", "svelte"].includes(
+const ABORTS_SUPERSEDED = ["react", "vanilla", "vue", "solid", "svelte", "nuxt"].includes(
   env("E2E_FRAMEWORK"),
 );
 
@@ -1340,18 +1335,7 @@ test("u: client race — en → uk → de with uk's catalog answered last stays 
   await cdn.inFlight("held", ["uk"]);
   await page.getByTestId("locale-de").click();
 
-  if (QUEUED_SWITCHES) {
-    // The 0.7 Vue binding queues `setLocale`: de's catalog is not even requested
-    // while uk's is outstanding, so uk cannot be answered after de. Proven,
-    // not assumed: a second later only uk is in flight. uk then applies in
-    // its turn and de replaces it, which is what the checks below hold.
-    await page.waitForTimeout(1_000);
-    expect((await cdn.state()).held, "requests in flight while uk is held").toEqual(["uk"]);
-    await cdn.release("uk");
-    await cdn.inFlight("held", ["de"]);
-    await cdn.release("de");
-    await expect(page.getByTestId("greeting")).toHaveText(greeting("de"));
-  } else if (ABORTS_SUPERSEDED) {
+  if (ABORTS_SUPERSEDED) {
     await cdn.inFlight("held", ["de"]);
     // uk's request is aborted by the client, not answered: the mock no longer holds it.
     await cdn.gone("held", "uk");
@@ -1457,7 +1441,7 @@ for (const [step, fault] of [
 // and shows its loading row meanwhile (never the old language's rows).
 const LOADS_AFTER_SWITCH = env("E2E_FRAMEWORK") === "vanilla";
 /** The 0.8 examples: a namespace with no consumer left is not loaded by a switch (lot 4c). */
-const RELEASES_NAMESPACES = ["react", "next", "vanilla", "vue", "solid", "svelte"].includes(
+const RELEASES_NAMESPACES = ["react", "next", "vanilla", "vue", "solid", "svelte", "nuxt"].includes(
   env("E2E_FRAMEWORK"),
 );
 
