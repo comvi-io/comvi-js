@@ -34,6 +34,6 @@ assertEqual(
   ["a ", { bold: ["c"] }, " d"],
   "a tag handler's result is a rich part",
 );
-assertEqual(Object.keys(i18n).length, 13, "the instance has its 13 members");
+assertEqual(Object.keys(i18n).length, 12, "the instance has its 12 members");
 
 console.log("BUNDLER_MATRIX_OK core-default");

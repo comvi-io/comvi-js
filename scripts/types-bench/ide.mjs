@@ -22,7 +22,7 @@
 //
 //   (a1) completions at t("|            (a2) at useI18n("shop").t("|
 //   (a3) completions inside the params object of t("key", { | })
-//   (a4) the same for a key whose params all have defaults (all optional)
+//   (a4) the same for a key with a single (required) param
 //   (b)  quickinfo (hover) on t in t("key", …)
 //   (c)  semantic diagnostics of app.tsx after an edit of one call
 //   (c2) the same after an edit that makes the key a typo (R3-2's editor symptom)
@@ -332,7 +332,8 @@ function project(dir, total, nsCount) {
       jsx: { line: jsx + 1, offset: "export const el = <T i18nKey='s0.".length + 1 },
       added: added + 1,
       // Lines (1-based) that are errors by construction: t(''), shop.t(''), a3's missing param.
-      unfinished: [a1 + 1, a2 + 1, a3 + 1],
+      // a4's key requires its one param (defaultParams removed, 2026-11-11): unfinished too.
+      unfinished: [a1 + 1, a2 + 1, a3 + 1, a4 + 1],
     },
     // A regenerated comvi.d.ts: one key more in the default namespace.
     dtsNext: emit({
