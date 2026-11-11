@@ -17,7 +17,7 @@
 
 ---
 
-Nuxt 3.21+ on Node 22.20+; Nuxt 4.6+ on the Node it requires (verified on 22.22.3 and 24.x).
+Nuxt 3.21+ on Node 22.20+; Nuxt 4.6+ on the Node it requires (verified on Node 22.22.3 and 24.22.1).
 
 `@comvi/nuxt` is the Comvi i18n module for Nuxt 3 and 4: it creates one i18n instance per request,
 renders the page's translations on the server, starts the browser from that render, and clones your
@@ -157,7 +157,7 @@ marks the catalog request: Nuxt renders a URL with no server route as a page, so
 would render a page whose loader asks for the same URL again, without end. The module answers a
 page render that carries the header with a 404 instead, and the load fails (`load_failed`). A
 loader that sends no such header to a missing route still recurses until the process runs out of
-memory: the route must exist. The header is reserved: any request that carries it to a page URL gets that 404.
+memory: the route must exist. The header is reserved: any request that carries it to a server-rendered page URL gets that 404.
 
 ### How it works
 

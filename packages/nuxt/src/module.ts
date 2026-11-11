@@ -304,8 +304,8 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
     addServerImports([
       { name: "useTranslation", from: resolve("./runtime/server/utils/useTranslation") },
     ]);
-    // Ends every server instance of a request with the request: after the response, or
-    // when its handler threw.
+    // Ends every server instance of a request with the request, through three request-end
+    // hooks: after the response, when its handler threw, or when the connection closed.
     addServerPlugin(resolve("./runtime/server/plugins/comvi"));
 
     addRouteMiddleware({
