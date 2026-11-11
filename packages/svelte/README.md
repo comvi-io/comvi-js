@@ -45,13 +45,22 @@ export const i18n = createI18n({
   setI18n(i18n);
   const r = useI18n();
   const t = r.t;
+  let failed = $state(false);
+  // A switch that cannot load (a network error) rejects and keeps the old locale on screen:
+  // say so, and show that locale in the control again.
+  const switchTo = (select: HTMLSelectElement) =>
+    r.setLocale(select.value).then(
+      () => (failed = false),
+      () => ((failed = true), (select.value = r.locale)),
+    );
 </script>
 
 <h1>{t("greeting", { name: "Alice" })}</h1>
-<select value={r.locale} onchange={(e) => r.setLocale(e.currentTarget.value)}>
+<select value={r.locale} onchange={(e) => switchTo(e.currentTarget)}>
   <option value="en">English</option>
   <option value="uk">Українська</option>
 </select>
+{#if failed}<p role="alert">Could not switch the language. Try again.</p>{/if}
 ```
 
 `t()` fills `{name}` from its second argument (`{ ns }`, `{ locale }` there apply to one call) and
@@ -80,6 +89,13 @@ skips it. `isReady`: a catalog of the locale on screen, its parent or a `fallbac
 remount does not retry, `i18n.load("account")` does. `t()` and `<T>` only read (development warns
 about a namespace nothing loads). Nothing gates the first paint: `await i18n.ready` before
 `mount()`, or read `isReady`.
+
+`useI18n()` with no namespace reads `default` (what its `t` reads) and every namespace of the
+`namespaces` option: `isReady` once each has a usable catalog (a catalog, not every key),
+`isLoading` while one of them loads, so an app root can branch on it. It is no longer
+`useI18n("default")`, which reads `default` alone. Check `isReady` first: a switch loads beside the
+text on screen. `false`/`false` means the text is unavailable and nothing is loading — a failed
+load or no loader, not necessarily an error.
 
 `useFormat()` from `@comvi/svelte/format` formats numbers, currency, dates, ranges, lists, display
 names and relative time in the locale on screen; what calls one re-runs on a switch.

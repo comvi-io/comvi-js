@@ -2,7 +2,20 @@
 import { renderToString, renderToStringAsync } from "solid-js/web";
 import type { JSX } from "solid-js";
 import { I18nProvider, type I18n } from "../../src";
-import { Account, Ago, Bare, Empty, Forged, Keyed, Lines, Node, Page, Price, Provide } from "./app";
+import {
+  Account,
+  Ago,
+  Bare,
+  Empty,
+  Forged,
+  Global,
+  Keyed,
+  Lines,
+  Node,
+  Page,
+  Price,
+  Provide,
+} from "./app";
 
 const views: Record<string, (q: Record<string, string>) => JSX.Element> = {
   account: () => <Account />,
@@ -10,6 +23,7 @@ const views: Record<string, (q: Record<string, string>) => JSX.Element> = {
   bare: (q) => <Bare name={q.name!} />,
   empty: () => <Empty />,
   forged: () => <Forged />,
+  global: () => <Global />,
   keyed: () => <Keyed />,
   lines: (q) => <Lines k={q.k!} />,
   node: () => <Node />,

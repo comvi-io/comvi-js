@@ -159,15 +159,23 @@ export interface UseI18n<NS extends string = "default"> {
   locale: string;
   dir: "ltr" | "rtl";
   /**
-   * A catalog of this namespace is usable for the locale on screen: its own, a parent's or an
+   * `useI18n(ns)`: a catalog of `ns` is usable for the locale on screen: its own, a parent's or an
    * allowed fallback locale's. Keys are not promised: a key a catalog lacks is a plain missing
    * key. Not the same as the `i18n.ready` promise.
+   * `useI18n()` (or `undefined`): true when this holds for `default` (the namespace its `t`
+   * reads) AND every namespace of the `namespaces` option — not for `default` alone, so
+   * `useI18n()` and `useI18n("default")` differ when the option names others. A usable catalog,
+   * not every key. Check it before `isLoading`: a load beside usable catalogs (a switch) must
+   * not hide the text; `false` with `isLoading` false means the text is unavailable and nothing
+   * is loading (a failed load, or no loader), not necessarily an error.
    */
   isReady: boolean;
   /**
-   * A catalog of this namespace is loading, for any locale, or will load when the component
+   * `useI18n(ns)`: a catalog of `ns` is loading, for any locale, or will load when the component
    * holds the namespace at mount. `false` once a load failed with nothing in flight: with no
    * usable catalog that is the "unavailable" state (`isReady` false too).
+   * `useI18n()` (or `undefined`): true when this holds for `default` or SOME namespace of the
+   * `namespaces` option; a namespace outside them changes nothing.
    */
   isLoading: boolean;
   setLocale: (locale: string) => Promise<void>;
@@ -178,7 +186,9 @@ export interface UseI18n<NS extends string = "default"> {
 const Ts = N<Component<any>>();
 
 /**
- * The i18n of the nearest `setI18n`. `ns` (default `default`) is the namespace of `t` and `T`.
+ * The i18n of the nearest `setI18n`. `ns` (default `default`) is the namespace of `t` and `T`,
+ * and of `isReady` / `isLoading` when given: with no `ns` those read `default` and every
+ * namespace of the `namespaces` option, so `useI18n()` is not `useI18n("default")` there.
  * The component holds it from mount to destroy: while held it loads for the locale on screen and
  * for every locale `setLocale()` switches to; with no consumer left it stays cached but a
  * switch does not load it. A failed load of it is not asked again by a remount: `i18n.load(ns)`
@@ -194,6 +204,9 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
   // Once released, `isLoading` is a load in flight only: no hold of this one will load `n`, so a
   // result kept after the destroy is not loading forever.
   let u = 0;
+  // The flags' namespaces: `ns`, or with no argument `default` (what its `t` reads) and the
+  // `namespaces` option's (duplicates change nothing in `every` / `some`).
+  const a = [n, ...((ns === undefined && x.o.namespaces) || [])];
   if (BROWSER)
     onMount(() => {
       const r = x.h(n);
@@ -217,10 +230,10 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
     // Until the hold at mount, what the hold will load is loading already: no frame that says
     // "unavailable", no `missing_key` (lot 1d, 4c).
     get isReady() {
-      return x.r(c.s, n);
+      return a.every((m) => x.r(c.s, m));
     },
     get isLoading() {
-      return !!x.w(c.s, n, u);
+      return a.some((m) => x.w(c.s, m, u));
     },
     setLocale: i.setLocale,
     i18n: i,

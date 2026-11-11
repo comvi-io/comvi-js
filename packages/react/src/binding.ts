@@ -186,16 +186,22 @@ export interface UseI18n<NS extends string = "default"> {
   locale: string;
   dir: "ltr" | "rtl";
   /**
-   * A catalog of this namespace is usable for the locale on screen: its own, a parent's
+   * `useI18n(ns)`: a catalog of `ns` is usable for the locale on screen: its own, a parent's
    * (`pt` for `pt-BR`) or an allowed fallback locale's — inline, cached, handed over or
    * loaded; an empty one too. Keys are not promised: a key a catalog lacks is a plain missing
    * key. During a switch it is the locale still on screen that counts; after a failed load it
    * is true when a fallback locale's catalog is in. Not the same as the `i18n.ready` promise,
    * which settles when the loads in flight settle, failed ones too.
+   * `useI18n()` (or `undefined`): true when this holds for `default` (the namespace its `t`
+   * reads) AND every namespace of the `namespaces` option — not for `default` alone, so
+   * `useI18n()` and `useI18n("default")` differ when the option names others. A usable catalog,
+   * not every key. Check it before `isLoading`: a load beside usable catalogs (a switch) must
+   * not hide the text; `false` with `isLoading` false means the text is unavailable and nothing
+   * is loading (a failed load, or no loader), not necessarily an error.
    */
   isReady: boolean;
   /**
-   * A catalog of this namespace is loading, for any locale (a switch in progress too, a
+   * `useI18n(ns)`: a catalog of `ns` is loading, for any locale (a switch in progress too, a
    * background load beside a usable catalog), or will load when this hook holds the
    * namespace at commit. On a server nothing commits, so nothing loads there: preload the
    * route's namespaces with `i18n.load(ns)` before the render (else the server and the
@@ -203,6 +209,8 @@ export interface UseI18n<NS extends string = "default"> {
    * load failed with nothing in flight: with no usable catalog that is the "unavailable" state
    * (`isReady` false too), never an endless one; with a fallback locale's catalog in,
    * `isReady` is true.
+   * `useI18n()` (or `undefined`): true when this holds for `default` or SOME namespace of the
+   * `namespaces` option; a namespace outside them changes nothing.
    */
   isLoading: boolean;
   setLocale: (locale: string) => Promise<void>;
@@ -216,8 +224,10 @@ export interface UseI18n<NS extends string = "default"> {
 const Ts = N<(props: object) => ReactNode>();
 
 /**
- * The i18n of the nearest `<I18nProvider>`. `ns` is the namespace of `t` and `T`. The
- * component holds it from its commit to its unmount (or a change of `ns`): while held it
+ * The i18n of the nearest `<I18nProvider>`. `ns` (default `default`) is the namespace of `t`
+ * and `T`, and of `isReady` / `isLoading` when given: with no `ns` those read `default` and every
+ * namespace of the `namespaces` option, so `useI18n()` is not `useI18n("default")` there.
+ * The component holds it from its commit to its unmount (or a change of `ns`): while held it
  * loads for the locale on screen and for every locale `setLocale()` switches to; with no
  * consumer left it stays cached but a switch does not load it. A failed load of it is not
  * asked again by a remount — `i18n.load(ns)` retries.
@@ -234,14 +244,18 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
   useEffect(() => x.h(n), [x, n]);
   // Development: until that commit (Suspense may delay it), reads of `n` are not idle ones.
   if (__DEV__) x.p!(n);
+  // The flags' namespaces: `ns`, or with no argument `default` (what its `t` reads) and the
+  // `namespaces` option's (duplicates change nothing in `every` / `some`).
+  const a = [n, ...((ns === undefined && x.o.namespaces) || [])];
   return useMemo(
     () => ({
       locale: s.locale,
       dir: s.dir,
-      // From this render's snapshot. Until the hold at commit, what the hold will load is
-      // loading already: no frame that says "unavailable", no `missing_key` (lot 1d, 4c).
-      isReady: x.r(s, n),
-      isLoading: !!x.w(s, n),
+      // From this render's snapshot (a handover's view at hydration). Until the hold at commit,
+      // what the hold will load is loading already: no frame that says "unavailable", no
+      // `missing_key` (lot 1d, 4c).
+      isReady: a.every((m) => x.r(s, m)),
+      isLoading: a.some((m) => x.w(s, m)),
       setLocale: i.setLocale,
       i18n: i,
       // `node` joins rich parts into one node and, through the core, gives every tag
@@ -251,7 +265,7 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
         node(x.tr(s, k, p, n, node))) as UseI18n<NS>["t"],
       T: (Ts[n] ||= (q) => read({ ...q, ns: n } as never)) as BoundT<NS>,
     }),
-    [c, n],
+    [c, ns],
   );
 };
 
