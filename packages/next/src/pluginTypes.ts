@@ -40,8 +40,6 @@ export interface WithComviTypes {
   sourceLocale?: string;
   /** Maps a file to its locale and namespace. @default '{namespace}/{languageTag}.json' */
   fileTemplate?: string;
-  /** The keys of `createI18n({ defaultParams })`: optional in every key's params. */
-  defaultParams?: readonly string[];
   /**
    * The module the declaration augments. By default the Comvi package the app's
    * `package.json` declares (`@comvi/core`, else its binding).
