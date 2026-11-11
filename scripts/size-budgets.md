@@ -1606,3 +1606,13 @@ core-icu (cap +463), react-icu-cdn +545 (+557), vue-icu-cdn +697 (+731), solid-i
 
 Every other row moved by at most +41 B (fw-react-full-composite 8,636 → 8,677) within its budget
 and keeps its baseline and budget.
+
+## 2026-11-11: `defaultParams` removed (information only)
+
+Owner decision of 2026-11-11: `defaultParams` and `setDefaultParams()` leave the 0.8 API. Measured
+after `TURBO_FORCE=1 pnpm build`, `node --version` v24.22.1, lot 6a 559247a8 → 5e9f29c0: core-icu
+4,988 → 4,912 (−76), core-icu-cdn 5,459 → 5,378 (−81), core-icu-devtools 5,440 → 5,364 (−76),
+react-icu-cdn 6,004 → 5,922 (−82), vue-icu-cdn 6,156 → 6,077 (−79), solid-icu-cdn 6,263 → 6,177
+(−86), svelte-icu-cdn 6,744 → 6,664 (−80), fw-react-full-composite 8,736 → 8,470 (−266),
+fw-next-server-default-loader 5,800 → 5,639 (−161), fw-next-client-default 6,811 → 6,496 (−315);
+every other row −69…−90 B or unchanged. Limits unchanged: the owner decides whether to lower them.

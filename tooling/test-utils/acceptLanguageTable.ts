@@ -28,7 +28,7 @@
  *
  * This file is a workspace-package export rather than a relative import so it
  * resolves from inside a Stryker sandbox, where paths out of the package under
- * mutation do not exist — the same reason `fakeI18n.ts` lives here.
+ * mutation do not exist — the same reason the other doubles live here.
  */
 
 export interface AcceptLanguageCase {

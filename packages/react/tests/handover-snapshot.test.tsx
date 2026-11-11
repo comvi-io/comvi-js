@@ -23,15 +23,19 @@ describe("the handover's snapshot with explicit params", () => {
     }
     const ui = (locale: string, mount: boolean) => (
       <I18nProvider i18n={i18n}>
-        <I18nHandover catalogs={{ default: { uk: { hi: "Привіт, {name}" } } }} locale={locale}>
+        <I18nHandover
+          catalogs={{ default: { uk: { hi: `Привіт, {name} (${locale})` } } }}
+          locale={locale}
+        >
           {mount && <Draft />}
         </I18nHandover>
       </I18nProvider>
     );
     const { rerender } = render(ui("en", false));
     await act(async () => rerender(ui("uk", true)));
-    expect(drafts[0]).toBe("uk|Привіт, B");
-    expect(screen.getByTestId("d").textContent).toBe("uk|Привіт, B");
+    // The catalog of THIS render (its text names the render's locale), not the earlier one.
+    expect(drafts[0]).toBe("uk|Привіт, B (uk)");
+    expect(screen.getByTestId("d").textContent).toBe("uk|Привіт, B (uk)");
   });
 
   it("hydrates the handed catalogs with explicit params: no mismatch", async () => {

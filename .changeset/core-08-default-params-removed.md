@@ -1,9 +1,8 @@
 ---
 "@comvi/core": minor
-"@comvi/next": minor
 "@comvi/react": minor
-"@comvi/cli": minor
-"@comvi/vite-plugin": minor
+"@comvi/vue": minor
+"@comvi/next": minor
 ---
 
-**BREAKING** (0.8-internal) — `defaultParams` and `setDefaultParams()` are removed from the 0.8 API, with the matching option of the generators: `createI18n({ defaultParams })`, `i18n.setDefaultParams()`, `<I18nHandover defaultParams>` (and its `HandoverParams` type), the Next server configuration's and client `options`' `defaultParams`, typegen's `emitCatalogs`/`generate` `defaultParams`, the CLI's `.comvirc.json` `defaultParams` (now refused as an unknown field) and `comviTypes({ defaultParams })` of the Vite plugin. Every param a message uses is required in the generated types. Migration: pass the params to each `t(key, params)` call (an app may share one object of values or tag handlers and spread it into its calls); hand server data a Client Component needs to it as an ordinary prop. No replacement API.
+**BREAKING** — interpolation defaults are gone. 0.7 code that used them loses: `createI18n({ defaultParams })`, the instance's `setDefaultParams()` and its `defaultParams` getter (`@comvi/core`); `defaultParams` and `setDefaultParams` on `useI18n()` (`@comvi/react`, `@comvi/vue`; Solid and Svelte list them with their own removals); `createNextI18n({ defaultParams })` (`@comvi/next`). There is no replacement API, and the generated types make every param a message uses required. Migration: pass the params to each `t(key, params)` call — an app may keep one object of shared values or tag handlers and spread it into its calls; hand server data a Client Component needs to it as an ordinary prop.

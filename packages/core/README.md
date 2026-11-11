@@ -93,8 +93,8 @@ walkthrough is [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi).
 
 ## How it works
 
-The root entry is the base instance: text and `{param}` interpolation, the messages cache, events,
-default params and the `.use(installer)` pipe. Everything else is a subpath you import, and a
+The root entry is the base instance: text and `{param}` interpolation, the messages cache, events
+and the `.use(installer)` pipe. Everything else is a subpath you import, and a
 capability you never import never enters your bundle.
 
 | You want                                      | You import                                             | You write                   |
