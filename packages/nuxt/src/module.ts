@@ -228,7 +228,8 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
     }
 
     // Routing travels in public runtime config; translation data in a generated build
-    // module (below), so it is not in every page's payload.
+    // module (below). The inline `messages` are in that module, so the bundle has them and
+    // the plugin leaves them out of every page payload.
     nuxt.options.runtimeConfig.public.comvi = withoutUndefined({
       ...existingPublicRuntimeConfig,
       locales: localeCodes,

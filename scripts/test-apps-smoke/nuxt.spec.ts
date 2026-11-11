@@ -234,6 +234,31 @@ test("2: the snapshot is a fallback chain: a server null with and without a fall
   }
 });
 
+test("2b: inline comvi.messages: their locale renders from the bundle, no payload carries them, hydration asks for nothing", async ({
+  page,
+  request,
+  asked,
+}) => {
+  const ES = catalog("es");
+  const payload = (html: string) =>
+    /<script type="application\/json"[^>]*id="__NUXT_DATA__"[^>]*>([\s\S]*?)<\/script>/.exec(
+      html,
+    )![1]!;
+  // Another locale's page: the inline es catalog is in place on its instance, but the
+  // browser has it from the bundle, so the payload does not carry it.
+  expect(payload(await (await get(request, "/uk")).text())).not.toContain(ES["home.title"]);
+  const html = await (await get(request, "/es")).text();
+  expect(testText(html, "title")).toBe(ES["home.title"]);
+  expect(payload(html)).not.toContain(ES["home.title"]);
+  expect((await mock.log()).filter((e) => e.pair === "es:default")).toEqual([]);
+  await page.goto("/es");
+  await hydrated(page);
+  await page.waitForLoadState("networkidle");
+  await expect(id(page, "title")).toHaveText(ES["home.title"]);
+  await expect(id(page, "param")).toHaveText(testText(html, "param")!);
+  expect(asked).toEqual([]);
+});
+
 for (const first of ["de", "uk"] as const) {
   test(`3: two parallel requests in uk and de, ${first} answered first, each in its own locale`, async ({
     request,

@@ -80,7 +80,7 @@ and its URL. Navigate with `<NuxtLink>` or `router.push`: while a switch loads, 
 `navigateTo()` called from a click with the location only.
 
 For a two-line start, `comvi.messages: { en: { … }, uk: { … } }` in `nuxt.config.ts` gives the
-`default` namespace without files; those catalogs are compiled into the app bundle.
+`default` namespace without files; those catalogs are compiled into the app bundle, and no page payload carries them again.
 
 ## A page that waits for its namespace
 

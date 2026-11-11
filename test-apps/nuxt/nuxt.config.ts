@@ -1,5 +1,8 @@
 import tailwindcss from "@tailwindcss/vite";
 import type { NuxtConfig } from "nuxt/schema";
+// Inline catalogs (`comvi.messages`): the default namespace of `es` is compiled into the
+// app, the other locales come from the catalog route.
+import es from "../locales/es.json";
 
 type NuxtVitePlugin = NonNullable<NonNullable<NuxtConfig["vite"]>["plugins"]>[number];
 const tailwindVitePlugin = tailwindcss() as unknown as NuxtVitePlugin;
@@ -37,6 +40,7 @@ export default defineNuxtConfig({
     fallbackLocale: "en",
     // The server's zone; the e2e's browser runs in UTC.
     timeZone: "Pacific/Kiritimati",
+    messages: { es },
     // Explicit on purpose: the Nuxt 4 test app relies on the `./comvi.i18n.*` convention,
     // so this app keeps the `i18nModule` path exercised by a real build.
     i18nModule: "./comvi.i18n.ts",

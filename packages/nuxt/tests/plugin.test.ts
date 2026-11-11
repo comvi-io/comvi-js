@@ -31,7 +31,14 @@ async function run({
   event,
   url,
   loader,
-}: { payload?: Record<string, unknown>; event?: object; url?: string; loader?: Loader } = {}) {
+  data = {},
+}: {
+  payload?: Record<string, unknown>;
+  event?: object;
+  url?: string;
+  loader?: Loader;
+  data?: Record<string, unknown>;
+} = {}) {
   const calls: string[] = [];
   const counted: Loader = async (locale, ns, signal) => {
     calls.push(`${locale}:${ns}`);
@@ -41,7 +48,7 @@ async function run({
     return catalog;
   };
   const factory = vi.fn(() => ({ loader: counted }));
-  setComviOptions({ fallbackLocale: "en" }, factory);
+  setComviOptions({ fallbackLocale: "en", ...data }, factory);
   const hooks: Record<string, () => void> = {};
   const vueApp = createApp({ render: () => null });
   const nuxtApp = Object.assign(nuxtAppMocks.useNuxtApp(), {
@@ -101,6 +108,24 @@ describe("the plugin on the server", () => {
       timeZone: "UTC",
       catalogs: { default: { en: CATALOGS["en:default"] }, admin: { en: CATALOGS["en:admin"] } },
     });
+  });
+});
+
+describe("the snapshot and the inline comvi.messages", () => {
+  beforeEach(() => vi.stubGlobal("__COMVI_TEST_SERVER__", true));
+
+  it("leaves out the slots of the inline catalogs: the browser has them from its bundle", async () => {
+    const event = { context: {} };
+    const { i18n, hooks, nuxtApp } = await run({
+      event,
+      url: "/",
+      data: { messages: { uk: { hello: "Привіт (inline)" } } },
+    });
+    expect(i18n.ns("default")("hello", { locale: "uk" } as never)).toBe("Привіт (inline)");
+    hooks["app:rendered"]!();
+    expect(
+      Object.keys((nuxtApp.payload.comvi as { catalogs: { default: object } }).catalogs.default),
+    ).toEqual(["en"]);
   });
 });
 

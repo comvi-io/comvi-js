@@ -66,7 +66,13 @@ export default defineNuxtPlugin({
     if (import.meta.server && event) {
       track(event, i18n);
       nuxtApp.hook("app:rendered", () => {
-        nuxtApp.payload.comvi = handover(i18n);
+        const snapshot = handover(i18n);
+        // The inline `comvi.messages` are in the browser's bundle already (the same
+        // `config`): their slots are left out, so no page carries them again. An absent
+        // slot is untouched by the browser's instance, which starts with them.
+        const inline = snapshot.catalogs.default;
+        if (inline) for (const locale in config.messages) delete inline[locale];
+        nuxtApp.payload.comvi = snapshot;
       });
     }
 
