@@ -5,6 +5,8 @@ import { createI18n, type I18n, type I18nOptions } from "@comvi/core";
 import { core, plain } from "@comvi/core/internal";
 import type { HandoverParams, UseI18n } from "@comvi/react";
 
+declare const __DEV__: boolean;
+
 /** Set by the middleware on the requests it handles (`createMiddleware`). */
 const LOCALE_HEADER = "x-comvi-locale";
 
@@ -98,7 +100,7 @@ export type GetI18n = <NS extends string = "default">(
  */
 export function createGetI18n(options: NextI18nOptions): GetI18n {
   const { locales, defaultLocale, loader, ...rest } = options;
-  if (rest.defaultParams) plain(rest.defaultParams, "[@comvi/next]");
+  if (rest.defaultParams) plain(rest.defaultParams, __DEV__ ? "[@comvi/next]" : "");
   /** One load per (request, locale, namespace), shared by the request's instances. */
   const fetch = cache((locale: string, ns: string) => loader!(locale, ns, KEEP));
   /** One instance per (request, locale, namespace set), its namespaces loaded. */

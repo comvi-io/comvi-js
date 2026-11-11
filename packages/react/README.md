@@ -123,9 +123,10 @@ server; an omitted slot is kept); with two handovers on one instance, the last p
 booleans, `null`; anything else throws, naming the param — the types accept any number, a
 non-finite one is refused at run time). It follows the `catalogs` rule: applied
 once per object, it replaces the instance's whole set (`{}` clears it), and a set equal to the
-current one publishes nothing. Omit it to leave the instance's set alone. Two handovers on one
-instance do not give their subtrees separate defaults (the one applied last wins): use separate
-instances for that. Pass `catalogs` as a stable object too.
+current one publishes nothing. Omit it to leave the instance's set alone. Give it through one
+handover per instance: two with different sets share one set (the one applied last wins: an outer
+handover over its inner one, the later sibling) and must not be inline literals, or they re-apply
+each other forever; use separate instances for per-subtree defaults. Pass `catalogs` as a stable object too.
 
 Match a route, cookie or header locale against your supported locales first: `createI18n()` and
 `<I18nHandover locale>` throw a `RangeError` for an invalid tag (`t(key, { locale })`, `has()`,

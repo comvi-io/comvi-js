@@ -81,9 +81,10 @@ export interface I18nHandoverProps {
    * else is a type error and a `TypeError` naming the param; pass tag handlers with the
    * translation or through `components`). It follows the `catalogs` rule: applied once per
    * object, it replaces the instance's whole set (`{}` clears it), and a set equal to the current
-   * one publishes nothing. Omit it to leave the instance's set alone. Two handovers on one
-   * instance do not give their subtrees separate defaults (the one applied last wins): use
-   * separate instances for that. Explicit `t()` params win.
+   * one publishes nothing. Omit it to leave the instance's set alone. Give it through one
+   * handover per instance: two with different sets share one set (the one applied last wins: an
+   * outer handover over its inner one, the later sibling) and must not be inline literals, or
+   * they re-apply each other forever; use separate instances for per-subtree defaults. Explicit `t()` params win.
    */
   defaultParams?: HandoverParams;
   children?: ReactNode;

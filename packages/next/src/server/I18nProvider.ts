@@ -10,6 +10,8 @@ import {
 } from "../client/I18nProvider";
 import type { RoutingConfig } from "../routing/types";
 
+declare const __DEV__: boolean;
+
 /**
  * The settings of the request's instance that the browser instance must share, handed over as
  * data: `fallbackLocale`, `formats` and the instance's CURRENT `defaultParams`, whose values
@@ -28,7 +30,7 @@ const settings = (i18n: I18n): ClientSettings => {
   return {
     ...(fallbackLocale !== undefined && { fallbackLocale }),
     ...(formats !== undefined && { formats }),
-    ...(dp && { defaultParams: plain(dp, "[@comvi/next]") }),
+    ...(dp && { defaultParams: plain(dp, __DEV__ ? "[@comvi/next]" : "") }),
   };
 };
 

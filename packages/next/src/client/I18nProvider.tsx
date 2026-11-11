@@ -13,6 +13,8 @@ import type { Handover } from "@comvi/core/ssr";
 import { RoutingProvider } from "../routing/context";
 import type { RoutingConfig } from "../routing/types";
 
+declare const __DEV__: boolean;
+
 /**
  * The browser instance's options; the payload gives the locale, the time zone, the server's
  * clock and the catalogs. `fallbackLocale` must be the server's. A `loader` is optional: it
@@ -78,7 +80,7 @@ export function I18nProvider({
   // No server set: an empty one whose identity follows the payload, so a rerender with the same
   // payload is a no-op and a new payload clears what the browser set since.
   const empty = useMemo(() => ({}), [payload]);
-  const dp = plain(options?.defaultParams || empty, "[@comvi/next]");
+  const dp = plain(options?.defaultParams || empty, __DEV__ ? "[@comvi/next]" : "");
   const [i18n] = useState(() => createI18n({ ...options, ...payload }));
   const tree = createElement(
     Provider,

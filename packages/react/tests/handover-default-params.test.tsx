@@ -2,11 +2,12 @@
  * `<I18nHandover defaultParams>` (public; owner decisions 2026-11-10/11): server DATA only
  * (strings, finite numbers, booleans, `null`; anything else is a TypeError naming the key);
  * - not passed: the instance's `defaultParams` are not changed;
- * - passed: the object REPLACES the whole set (`{}` clears it), values and handlers the client
- *   set included; rendered at once, set at commit, no remount;
- * - a render with the same set (key by key, `Object.is`) re-applies nothing, so changes the
- *   client made since stay; explicit `t()` params win. Own keys only; an own `__proto__` key is
- *   a param like any other.
+ * - passed: the object REPLACES the whole set (`{}` clears it), what the client set included;
+ *   rendered at once, set at commit, no remount;
+ * - the same OBJECT again is a no-op (changes the client made since stay); a new object that
+ *   differs from the instance's CURRENT set (own keys, `Object.is`) replaces it, and one equal
+ *   to it publishes nothing; explicit `t()` params win. Own keys only; an own `__proto__` key
+ *   is a param like any other.
  */
 import { useState, type ReactNode } from "react";
 import { renderToString } from "react-dom/server";
@@ -181,7 +182,8 @@ describe("3. the same payload vs a new one", () => {
     i18n.on(() => published.push(i18n.rev()));
     function Page() {
       useI18n();
-      renders++;
+      // A guard so a loop fails fast instead of hanging the suite.
+      if (++renders > 50) throw new Error("looped");
       return (
         <I18nHandover catalogs={cats} defaultParams={{ brand: "Comvi" }}>
           <Show />
@@ -340,6 +342,10 @@ describe("6. server data only (owner decision 2026-11-11)", () => {
     expect(out).toMatch(
       /^TypeError: .*defaultParams\.[bd] .*strings, finite numbers, booleans and null/,
     );
+  });
+
+  it("only own keys are checked: an inherited handler is not read (pinning)", () => {
+    expect(run(() => Object.create({ b: () => 1 }) as Record<string, unknown>)).toBe("rendered");
   });
 
   it("strings, finite numbers, booleans and null pass (pinning)", () => {
