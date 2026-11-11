@@ -203,7 +203,9 @@ A URL that names no locale reads it from `localeDetection.order` (the query, the
 `{ name, maxAge, secure, sameSite, domain }` or `false`; `localeDetection` takes
 `{ order, queryParam, headerName, resolveAcceptLanguage }` or `false`. `useLocalePath()`,
 `useSwitchLocalePath()`, `useLocaleRoute()`, `useRouteConfig()` and `<NuxtLinkLocale>` build the
-links; `useLocaleHead()` adds canonical, hreflang and `og:locale`. Set `comvi.head: false` to write
+links. A `<NuxtLinkLocale locale>` switch is recorded in the cookie once it lands; under `never` a
+link NuxtLink renders as a plain anchor (`external`, a `target` other than `_self`) is a page load
+and does not switch. `useLocaleHead()` adds canonical, hreflang and `og:locale`. Set `comvi.head: false` to write
 `<html lang dir>` yourself. `fallbackLocale`, `namespaces` and `formats` are `comvi` options too.
 
 ## Read next

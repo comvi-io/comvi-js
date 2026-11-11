@@ -6,8 +6,8 @@ const KEY = "_comviLocaleCookie";
 /**
  * The locale cookie: ONE ref per app (per request on the server), created by the plugin
  * and read and written through it only — by the server's resolution, the route
- * middleware, a locale change of the instance and `<NuxtLinkLocale locale>`. `null` with
- * `localeCookie: false`. One ref, so Nuxt writes the response's `Set-Cookie` once and
+ * middleware and a locale change of the instance (`<NuxtLinkLocale locale>` writes nothing:
+ * its switch is recorded when it lands). `null` with `localeCookie: false`. One ref, so Nuxt writes the response's `Set-Cookie` once and
  * every reader in the browser sees a write at once.
  */
 export function useLocaleCookie(): Ref<string | null | undefined> | null {

@@ -85,7 +85,8 @@ declare module "#app" {
   export function useRoute(): NuxtRouteLike;
   export function useRouter(): {
     resolve(to: import("vue-router").RouteLocationRaw): import("vue-router").RouteLocationResolved;
-    afterEach(hook: () => void): () => void;
+    afterEach(hook: (to: unknown, from: unknown, failure?: { type: number } | void) => void): () => void;
+    onError(hook: () => void): () => void;
   };
   export function useHead(input: unknown): void;
   export function createError(input: {

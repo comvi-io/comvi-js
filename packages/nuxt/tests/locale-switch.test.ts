@@ -240,6 +240,25 @@ describe("a clicked <NuxtLinkLocale locale>", () => {
     },
   );
 
+  it.each([
+    ["target=_parent", { target: "_parent" }],
+    ["target=_top", { target: "_top" }],
+    ["external", { external: true }],
+  ])(
+    "a link with %s is a page load (NuxtLink renders a plain anchor): nothing recorded in this document",
+    async (_name, attrs) => {
+      standOn("/de/about", "de");
+
+      clickLink({ to: "/", locale: "en", ...attrs });
+
+      expect(await middleware(route("/"), route("/de/about"))).toEqual({
+        path: "/de",
+        redirectCode: 302,
+      });
+      expect(getMockCookieWrites("i18n_locale")).toEqual(["de"]);
+    },
+  );
+
   it("a link with target=_self is this window: the choice applies and is recorded", async () => {
     standOn("/de/about", "de");
 

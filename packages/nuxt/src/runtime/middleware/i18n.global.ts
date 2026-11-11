@@ -49,8 +49,9 @@ export default defineNuxtRouteMiddleware(async (to, from?: typeof to) => {
       // The first resolution of a visit has no origin: on the server `from` is the target
       // itself, in the browser the router's start location.
       from: import.meta.server ? undefined : from?.path,
-      // A `<NuxtLinkLocale locale>` click's locale, for the navigation it started only.
-      cookie: (!import.meta.server && targetFor(nuxtApp, pathname)) || cookie?.value,
+      // A `<NuxtLinkLocale locale>` click's locale, for the navigation it started only (it
+      // stands in for the cookie, so not with `localeCookie: false`).
+      cookie: (!import.meta.server && cookie && targetFor(nuxtApp, to)) || cookie?.value,
       header: import.meta.server ? (name) => useRequestHeaders([name])[name] : undefined,
     },
     resolveAcceptLanguage,
