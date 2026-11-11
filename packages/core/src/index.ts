@@ -15,6 +15,7 @@ export type {
   Args,
   BoundTFor,
   Catalogs,
+  CoreUntypedParams,
   KeysOf,
   NsOf,
   OutOf,

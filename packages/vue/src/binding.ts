@@ -329,9 +329,11 @@ export const render = (
   for (const k in m) {
     // A tag name, a component, or `{ component, props }` (R3-24): an element takes the
     // content as its children, a component as its default slot. An entry that is
-    // `undefined` leaves the tag to its slot.
+    // `undefined` leaves the tag to its slot. An element is never given a function: Vue
+    // 3.5.0 (the peer floor) reads one as slots, which an element does not render.
     const e = m[k];
-    if (e) q[k] = (c: Children) => h(e.component || e, e.component && e.props, () => c);
+    const t = e && (e.component || e);
+    if (e) q[k] = (c: Children) => h(t, e.component && e.props, typeof t == "string" ? c : () => c);
   }
   for (const k in attrs) if (attrs[k] !== undefined) q[camelize(k)] = attrs[k];
   // `ns`, `locale` and `markers` are attributes too: the core reads them off the params as

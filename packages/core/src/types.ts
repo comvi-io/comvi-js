@@ -188,6 +188,19 @@ export type BoundTFor<NS extends NsOf, Out, S = 0, C = never> = <K extends KeysO
 /** A param value a plain `{x}` prints as text (`String(value)`, R3-17), or a list of them. */
 type Printed = string | number | bigint | boolean | Date | null | undefined;
 
+/** An object param that is no function (`call` is never): a call may return it as is. */
+type NoHandler = { readonly [k: string]: unknown; call?: never } | (object & { call?: never });
+
+/**
+ * The params of `t()` in a project with no generated catalogs: a value `{x}` prints as text
+ * (or a list of them), a tag handler that takes its children's parts, or an object that is no
+ * function. `unknown` is none of them: it may be a handler of another argument type.
+ */
+export type CoreUntypedParams = Record<
+  string,
+  Printed | readonly Printed[] | ((children: RichParts) => unknown) | NoHandler
+>;
+
 /**
  * `t()` of a project with no generated catalogs: any key, any params. With params that
  * are all printed as text it returns a string; a function param may be a tag handler,
@@ -195,9 +208,11 @@ type Printed = string | number | bigint | boolean | Date | null | undefined;
  * (review A6). A plain `{x}` is always text, whatever its value (owner decision
  * 04.11.2026): a framework node there prints `String(value)`; markup comes from a tag.
  * `P` is the params type of that call: a binding passes its own, so an inline tag handler
- * gets its argument type (lot 4b).
+ * gets its argument type (lot 4b). The core's own passes a handler its children's parts, as
+ * {@link Tag} does with no binding registered: an inline handler gets `RichParts`, one
+ * typed for a string is refused.
  */
-export interface UntypedT<Rich = RichParts, P = Readonly<Record<string, unknown>>> {
+export interface UntypedT<Rich = RichParts, P = Readonly<CoreUntypedParams>> {
   (key: string, params?: Readonly<Record<string, Printed | readonly Printed[]>>): string;
   (key: string, params?: P): string | Rich;
 }

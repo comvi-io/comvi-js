@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { checkPackages } from "./check-export-names.mjs";
+import { BARREL_CLASHES, barrelDiagnostics, checkPackages } from "./check-export-names.mjs";
 
 function fixture(js, dts, extra = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-export-names-"));
@@ -98,4 +98,48 @@ test("a CommonJS `require` target is read by its export names, not as one defaul
     wrong.failures.map((f) => f.split(": ").slice(1).join(": ")),
     ["in the dist, not in the .d.ts: q", "in the .d.ts, not in the dist: p"],
   );
+});
+
+/** A root with `node_modules/<name>` packages, each one `index.d.ts`. */
+function barrelRoot(pkgs) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-barrel-"));
+  for (const [name, dts] of Object.entries(pkgs)) {
+    const dir = path.join(root, "node_modules", ...name.split("/"));
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, "package.json"),
+      JSON.stringify({ name, types: "./index.d.ts", exports: { ".": { types: "./index.d.ts" } } }),
+    );
+    fs.writeFileSync(path.join(dir, "index.d.ts"), dts);
+  }
+  return root;
+}
+
+const CORE = "export declare const createI18n: () => 1;\nexport type UntypedParams = { a: 1 };\n";
+
+test("barrel: a name core and a binding both declare is reported as TS2308", () => {
+  const root = barrelRoot({
+    "@comvi/core": CORE,
+    "@comvi/react": "export type UntypedParams = { b: 2 };\n",
+  });
+  const out = barrelDiagnostics(["@comvi/react"], root);
+  assert.equal(out.length, 1);
+  assert.match(out[0], /^barrel core \+ @comvi\/react: TS2308 .*UntypedParams/);
+});
+
+test("barrel: the allowed Vue createI18n clash passes; without the allowance it is TS2308", () => {
+  const root = barrelRoot({
+    "@comvi/core": CORE,
+    "@comvi/vue": "export declare const createI18n: () => 2;\n",
+  });
+  assert.deepEqual(barrelDiagnostics(["@comvi/vue"], root), []);
+  const allowed = BARREL_CLASHES["@comvi/vue"];
+  delete BARREL_CLASHES["@comvi/vue"];
+  try {
+    const out = barrelDiagnostics(["@comvi/vue"], root);
+    assert.equal(out.length, 1);
+    assert.match(out[0], /TS2308 .*createI18n/);
+  } finally {
+    BARREL_CLASHES["@comvi/vue"] = allowed;
+  }
 });
