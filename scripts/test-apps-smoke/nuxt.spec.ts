@@ -333,6 +333,29 @@ test("6: fast consecutive navigations: the older switch never lands", async ({ p
   expect(await seenTexts(page)).not.toContain(UK_ADMIN.welcome_admin);
 });
 
+test("6b: a pending switch is superseded by a navigation that stays in the locale on screen", async ({
+  page,
+}) => {
+  await page.goto("/admin");
+  await hydrated(page);
+  await mock.mode({ hold: ["uk:admin"] });
+  await id(page, "switch-uk").click();
+  await expect.poll(mock.held).toContain("uk:admin");
+  // An ordinary link in the locale on screen, while uk is still loading.
+  await id(page, "nav-plurals").click();
+  await expect(page).toHaveURL(new RegExp(`${BASE}/plurals$`));
+  await mock.release("uk:admin");
+  await expect
+    .poll(async () => (await mock.log()).find((e) => e.pair === "uk:admin")?.status)
+    .toBe(200);
+  await page.waitForLoadState("networkidle");
+  await expect(page).toHaveURL(new RegExp(`${BASE}/plurals$`));
+  await expect(id(page, "nav-locale")).toHaveText("en");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en-US");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(EN["plurals.title"]);
+  expect(await cookieOf(page)).toBe("en");
+});
+
 test("7: a load error on a client navigation, nothing in the chain: unavailable, nothing unhandled; a revisit asks nothing; Retry loads", async ({
   page,
   asked,
@@ -410,8 +433,10 @@ test("10: the cookie: one writer, one Set-Cookie; detection on the root, a store
   r = await get(request, "/uk/admin", { cookie: "i18n_locale=uk" });
   expect(setCookies(r)).toEqual([]);
   // Accept-Language on the root, no cookie: the redirect and the record.
-  r = await get(request, "/", { "accept-language": "uk" });
+  // (`cookie: ""`: the request context keeps the cookies of the steps above.)
+  r = await get(request, "/", { "accept-language": "uk", cookie: "" });
   expect(new URL(r.headers().location!, BASE).pathname).toBe("/uk");
+  expect(setCookies(r)).toEqual(["i18n_locale=uk"]);
 });
 
 test("11: SEO: canonical, hreflang alternates and og:locale on the server render; they follow a switch", async ({
@@ -513,6 +538,11 @@ test("15: the private source: no session, the route answers 401 and the page ren
     await request.get("/account", { headers: { cookie: "", "accept-language": "en" } })
   ).text();
   expect(testText(html, "account-title")).toMatch(/^unavailable/);
+  // The route's own rule: 401 without the session, the catalog with it.
+  const route = (cookie: string) =>
+    request.get("/api/i18n/en/account", { headers: { cookie } }).then((r) => r.status());
+  expect(await route("")).toBe(401);
+  expect(await route("session=ok")).toBe(200);
   const files: string[] = [];
   const walk = (dir: string) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true }))
@@ -561,8 +591,26 @@ test("16: request end: every server instance is destroyed with its request, load
   expect(p).toEqual({ created: 1, destroyed: 1, aborted: 1 });
   expect((await get(request, "/boom")).status()).toBe(500);
   p = await settled();
-  expect(p.created).toBeGreaterThanOrEqual(1);
-  expect(p.aborted).toBeGreaterThanOrEqual(1);
+  // The page's instance (its load aborted) and the error page's: Nuxt renders the error
+  // page through a request of its own, with its own instance.
+  expect(p).toEqual({ created: 2, destroyed: 2, aborted: 1 });
+  // The browser goes away while the page and a route still wait for a load: their
+  // instances end then, and the loads are aborted (the mock still holds them).
+  await mock.mode({ hold: ["uk:admin", "de:default"] });
+  for (const path of ["/uk/admin", "/api/translate"]) {
+    const gone = new AbortController();
+    const pending = fetch(`${BASE}${path}`, {
+      signal: gone.signal,
+      headers: { "accept-language": path === "/uk/admin" ? "en" : "de" },
+    }).catch(() => "aborted");
+    const pair = path === "/uk/admin" ? "uk:admin" : "de:default";
+    await expect.poll(mock.held).toContain(pair);
+    gone.abort();
+    await pending;
+    p = await settled();
+    expect(p, `${path}: ended at the disconnect`).toEqual({ created: 1, destroyed: 1, aborted: 1 });
+  }
+  await mock.mode({});
   const urls = ["/", "/uk/admin", "/api/translate", "/api/hang", "/api/throw", "/boom"];
   await Promise.all(
     Array.from({ length: 30 }, (_, i) =>
