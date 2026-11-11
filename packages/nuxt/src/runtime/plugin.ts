@@ -41,8 +41,11 @@ export default defineNuxtPlugin({
         ? String(nuxtApp.ssrContext?.url ?? "/")
         : location.pathname + location.search;
       const { pathname, suffix } = splitPathAndSuffix(raw);
+      // By segment: under base `/app`, `/app` and `/app/…` are the app's, `/apple` is not.
       const path =
-        base && pathname.startsWith(base) ? pathname.slice(base.length) || "/" : pathname;
+        base && (pathname === base || pathname.startsWith(`${base}/`))
+          ? pathname.slice(base.length) || "/"
+          : pathname;
       const detected = detectLocale(
         routing,
         {

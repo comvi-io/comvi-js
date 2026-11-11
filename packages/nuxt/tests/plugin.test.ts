@@ -70,6 +70,15 @@ describe("the plugin on the server", () => {
     expect(getMockCookieWrites("i18n_locale")).toEqual(["uk"]);
   });
 
+  it("strips the app's baseURL by segment: /app/uk is uk, /appuk is not under /app", async () => {
+    nuxtAppMocks.mockRuntimeConfig.app.baseURL = "/app/";
+    expect((await run({ event: { context: {} }, url: "/app/uk/admin" })).i18n.locale).toBe("uk");
+    resetMocks();
+    nuxtAppMocks.mockRuntimeConfig.public.comvi.locales = ["en", "uk"];
+    nuxtAppMocks.mockRuntimeConfig.app.baseURL = "/app/";
+    expect((await run({ event: { context: {} }, url: "/appuk" })).i18n.locale).toBe("en");
+  });
+
   it("keeps a stored preference on a path-implied default (as-needed)", async () => {
     setMockCookie("i18n_locale", "uk");
     const { i18n } = await run({ event: { context: {} }, url: "/admin" });
