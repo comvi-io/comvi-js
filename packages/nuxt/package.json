@@ -46,7 +46,7 @@
     "./runtime/*": "./dist/runtime/*"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.20.0"
   },
   "publishConfig": {
     "access": "public"
@@ -72,7 +72,7 @@
     "h3": "^1.15.11"
   },
   "peerDependencies": {
-    "nuxt": "^3.0.0 || ^4.0.0"
+    "nuxt": "^3.21.0 || ^4.6.0"
   },
   "devDependencies": {
     "@comvi/locale-routing": "workspace:*",

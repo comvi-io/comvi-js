@@ -44,7 +44,7 @@ export const MIGRATION_PENDING = {
 const CORE_07_DOCS =
   "documents the 0.7 core API (.use() composition, the capability subpaths); the 0.8 API landed in lot 1b, the pages are rewritten in lot 10";
 const LINT_07_RULES =
-  "on the 0.8 API since lot 1c (React), lot 4 (Vue), lot 5 (Solid, Svelte) and lot 6a (Next); the docs-snippets rules still require the 0.7 composition (`.use(installer)`, `compiler: icuCompiler`) — they move to 0.8 with the docs in lot 10";
+  "on the 0.8 API since lot 1c (React), lot 4 (Vue), lot 5 (Solid, Svelte), lot 6a (Next) and lot 7 (Nuxt); the docs-snippets rules still require the 0.7 composition (`.use(installer)`, `compiler: icuCompiler`) — they move to 0.8 with the docs in lot 10";
 const CDN_08_ROOT =
   "its Connect to Comvi section is on the 0.8 API since lot 2c (`loader: cdn(url)` from @comvi/core/cdn, the 0.7 fetch loader is gone); the docs-snippets rules still require the 0.7 composition (`.use(installer)`) — they move to 0.8 with the docs in lot 10";
 export const MIGRATION_PENDING_DOCS = {
@@ -52,6 +52,7 @@ export const MIGRATION_PENDING_DOCS = {
   "packages/core/README.md": CORE_07_DOCS,
   "packages/react/README.md": LINT_07_RULES,
   "packages/next/README.md": LINT_07_RULES,
+  "packages/nuxt/README.md": LINT_07_RULES,
   "packages/vue/README.md": LINT_07_RULES,
   "packages/solid/README.md": LINT_07_RULES,
   "packages/svelte/README.md": LINT_07_RULES,
