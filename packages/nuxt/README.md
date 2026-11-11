@@ -17,6 +17,8 @@
 
 ---
 
+Nuxt 3.21+ on Node 22.20+; Nuxt 4.6+ on the Node it requires (verified on 24.x).
+
 `@comvi/nuxt` is the Comvi i18n module for Nuxt 3 and 4: it creates one i18n instance per request,
 renders the page's translations on the server, starts the browser from that render, and clones your
 pages into locale-prefixed routes. `useI18n()`, `useFormat()`, `<T>` and `$t` are `@comvi/vue`'s own,
@@ -80,7 +82,8 @@ and its URL. Navigate with `<NuxtLink>` or `router.push`: a `navigateTo()` calle
 switch is pending is ignored (Nuxt returns the location without navigating).
 
 For a two-line start, `comvi.messages: { en: { … }, uk: { … } }` in `nuxt.config.ts` gives the
-`default` namespace without files; those catalogs are compiled into the app bundle, and no page payload carries them again.
+`default` namespace without files; those catalogs are compiled into the app bundle, and no page payload
+carries a flat one again (a nested one, or one a server `add()` changed, is handed over as usual).
 
 ## A page that waits for its namespace
 
@@ -143,8 +146,9 @@ export default defineI18nOptions((event) => {
 
 `retry: 0` applies to any loader built on `$fetch` where one attempt is wanted: `$fetch` repeats a
 failed GET once otherwise, and the retry belongs to `i18n.load(ns)`. A protected route also needs the
-request forwarded through `event.$fetch`. The route must exist: Nuxt renders an unknown `/api/…` path
-as a page, whose loader would call it again. The key stays in the server build.
+request forwarded through `event.$fetch`. The key stays in the server build. The route must exist:
+Nuxt renders a URL with no server route as a page (under `/api` or elsewhere), and that page's
+server render calls the same URL again, without end, until the server process runs out of memory.
 
 ### How it works
 
