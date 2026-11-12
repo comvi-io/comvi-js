@@ -1719,3 +1719,24 @@ No optimisation pass in lot 7 (owner). Recorded candidates:
   deferred to the agreed SEO lot.
 
 API and behaviour are not changed for bytes.
+
+## 2026-11-12: lot 7, the `fw-nuxt-client` ceiling raised (owner)
+
+Owner decision of 2026-11-12. `<NuxtLinkLocale locale>` no longer writes the cookie on click: it
+keeps its locale in memory for the navigation it starts, and the middleware records the cookie
+after the switch lands (form B). An independent review on a real vue-router then required: a link
+to the URL on screen switches the instance directly (the router runs no guard for a duplicate);
+the target ends with its own navigation through one `afterEach` that skips a cancellation and an
+`onError` for a guard that throws; it matches a redirecting route record and ignores a trailing
+slash; it is read only with the cookie enabled. Together with the server's first query value the
+client row moved 10,239 → 10,491 B (form B +108, the query value +21, the review fixes +123) and
+no longer fit 10,436. The owner raised that ceiling only, to ceil(final measured × 1.02); the
+server, module and `/i18n` ceilings stay. Measured on `lot7/nuxt` @ `cc655b4c`,
+`TURBO_FORCE=true pnpm build`, `node --version` v24.22.1, two runs with the same figures.
+
+| row            | measured (min / min+gz) | ceiling (old → new)                   | budget = min(ceiling, ceil(× 1.05)) |
+| -------------- | ----------------------- | ------------------------------------- | ----------------------------------- |
+| fw-nuxt-client | 23,680 / 10,491         | 10,436 → 10,701 = ceil(10,491 × 1.02) | 10,701                              |
+| fw-nuxt-server | 24,877 / 11,010         | 11,022 (unchanged)                    | 11,022                              |
+| fw-nuxt-module | 9,024 / 3,465           | 3,537 (unchanged)                     | 3,537                               |
+| fw-nuxt-i18n   | 1,190 / 716             | 731 (unchanged)                       | 731                                 |

@@ -427,14 +427,14 @@
         "import.meta.client": "true",
         "import.meta.dev": "false"
       },
-      "gzipBudgetBytes": 10436,
-      "ceilingBytes": 10436,
+      "gzipBudgetBytes": 10701,
+      "ceilingBytes": 10701,
       "baseline": {
-        "minBytes": 23383,
-        "gzipBytes": 10368,
+        "minBytes": 23680,
+        "gzipBytes": 10491,
         "measuredAt": "2026-11-12"
       },
-      "note": "Gated Nuxt client graph (lot 7): the FULL graph — core + @comvi/vue + the Nuxt runtime (plugin, route middleware), routing composables, useFormat formatters and the SEO helper useLocaleHead, <T>, <NuxtLinkLocale> — with Nuxt's client-build flags; not the minimal weight of an app that calls only t(). Owner ceiling 10,436 (2026-11-11); budget = min(ceiling, ceil(10,368 × 1.05)) = 10,436; size-budgets.md 2026-11-11 lot 7."
+      "note": "Gated Nuxt client graph (lot 7): the FULL graph — core + @comvi/vue + the Nuxt runtime (plugin, route middleware), routing composables, useFormat formatters and the SEO helper useLocaleHead, <T>, <NuxtLinkLocale> — with Nuxt's client-build flags; not the minimal weight of an app that calls only t(). Owner ceiling 10,436 (2026-11-11), raised to 10,701 = ceil(10,491 × 1.02) (owner, 2026-11-12: the link-records-no-cookie change and its review fixes); budget = min(ceiling, ceil(10,491 × 1.05)) = 10,701; size-budgets.md 2026-11-12 lot 7."
     },
     {
       "name": "fw-nuxt-server",
@@ -461,11 +461,11 @@
       "gzipBudgetBytes": 11022,
       "ceilingBytes": 11022,
       "baseline": {
-        "minBytes": 24612,
-        "gzipBytes": 10898,
+        "minBytes": 24877,
+        "gzipBytes": 11010,
         "measuredAt": "2026-11-12"
       },
-      "note": "Nuxt server graph (lot 7), for the record, not a transfer cost: the client graph's modules with import.meta.server, plus the Nitro useTranslation(event) and the request-end Nitro plugin. Owner ceiling 11,022 (2026-11-11); budget = min(ceiling, ceil(10,898 × 1.05)) = 11,022; size-budgets.md 2026-11-11 lot 7."
+      "note": "Nuxt server graph (lot 7), for the record, not a transfer cost: the client graph's modules with import.meta.server, plus the Nitro useTranslation(event) and the request-end Nitro plugin. Owner ceiling 11,022 (2026-11-11); budget = min(ceiling, ceil(11,010 × 1.05)) = 11,022; size-budgets.md 2026-11-11 lot 7."
     },
     {
       "name": "fw-nuxt-module",
@@ -475,11 +475,11 @@
       "gzipBudgetBytes": 3537,
       "ceilingBytes": 3537,
       "baseline": {
-        "minBytes": 9025,
-        "gzipBytes": 3467,
-        "measuredAt": "2026-11-11"
+        "minBytes": 9024,
+        "gzipBytes": 3465,
+        "measuredAt": "2026-11-12"
       },
-      "note": "Node tooling, never shipped to a browser (lot 7): the build-time module @comvi/nuxt (dist/module.mjs) nuxt.config loads. Owner ceiling 3,537 (2026-11-11); budget = min(ceiling, ceil(3,467 × 1.05)) = 3,537; size-budgets.md 2026-11-11 lot 7."
+      "note": "Node tooling, never shipped to a browser (lot 7): the build-time module @comvi/nuxt (dist/module.mjs) nuxt.config loads. Owner ceiling 3,537 (2026-11-11); budget = min(ceiling, ceil(3,465 × 1.05)) = 3,537; size-budgets.md 2026-11-11 lot 7."
     },
     {
       "name": "fw-nuxt-i18n",
