@@ -244,6 +244,8 @@ describe("a clicked <NuxtLinkLocale locale>", () => {
     ["target=_parent", { target: "_parent" }],
     ["target=_top", { target: "_top" }],
     ["external", { external: true }],
+    ["a bare external attribute", { external: "" }],
+    ["target=_SELF (NuxtLink compares exactly)", { target: "_SELF" }],
   ])(
     "a link with %s is a page load (NuxtLink renders a plain anchor): nothing recorded in this document",
     async (_name, attrs) => {

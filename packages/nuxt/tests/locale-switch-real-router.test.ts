@@ -18,6 +18,7 @@ import {
 import middleware from "../src/runtime/middleware/i18n.global";
 import NuxtLinkLocale from "../src/runtime/components/NuxtLinkLocale";
 import {
+  getMockCookieWrites,
   mockRuntimeConfig,
   resetMocks,
   setLocaleOptions,
@@ -34,6 +35,8 @@ const ROUTES: RouteRecordRaw[] = [
   { path: "/home", component: Stub },
   { path: "/admin", component: Stub },
   { path: "/old", redirect: "/admin" },
+  { path: "/about", component: Stub },
+  { path: "/uk/about", component: Stub },
 ];
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -111,6 +114,18 @@ describe("<NuxtLinkLocale locale> under `never`, against a real vue-router", () 
     expect([i18n.locale, target()]).toEqual(["uk", undefined]);
   });
 
+  it("a link the router finds a duplicate of the page on screen, though not string-identical (a redirect record to it), switches", async () => {
+    const { router, i18n } = await standOn("/admin");
+    await click(router, "/old", "uk");
+    await sleep(0);
+
+    expect([router.currentRoute.value.path, i18n.locale, target()]).toEqual([
+      "/admin",
+      "uk",
+      undefined,
+    ]);
+  });
+
   it("two quick locale clicks to the same path: the last one wins, whatever ends first", async () => {
     let n = 0;
     const { router, i18n } = await standOn("/home", {
@@ -165,11 +180,32 @@ describe("<NuxtLinkLocale locale> under `never`, against a real vue-router", () 
     expect([i18n.locale, cookie()]).toEqual(["uk", "uk"]);
   });
 
-  it("with `localeCookie: false` the click switches nothing (the target stands in for the cookie)", async () => {
+  it("with `localeCookie: false` a click records nothing: neither a link to another URL nor one to the page on screen switches", async () => {
     setLocaleOptions({ localeCookie: false });
     const { router, i18n } = await standOn("/home");
     await click(router, "/admin", "uk");
+    expect(i18n.locale).toBe("en");
+    await click(router, "/admin", "uk");
+    await sleep(0);
 
     expect(i18n.locale).toBe("en");
+  });
+
+  it("as-needed: a switch whose catalogs fail redirects back, and the redirected run does not take the click again (cookie stays)", async () => {
+    mockRuntimeConfig.public.comvi.localePrefix = "as-needed";
+    const { router, i18n } = await standOn("/");
+    i18n.setLocale = async (next: string) => {
+      if (next === "uk") throw new Error("load_failed");
+      i18n.locale = next;
+    };
+    await click(router, "/uk/about", "uk");
+
+    expect([router.currentRoute.value.path, i18n.locale, cookie(), target()]).toEqual([
+      "/about",
+      "en",
+      "en",
+      undefined,
+    ]);
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["en"]);
   });
 });

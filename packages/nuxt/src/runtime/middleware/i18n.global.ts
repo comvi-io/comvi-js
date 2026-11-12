@@ -17,7 +17,7 @@ import { useLocaleCookie } from "../utils/cookie";
 import { targetFor } from "../utils/target";
 import { resolveAcceptLanguage } from "#build/comvi.detection";
 
-type Navigating = { _comviNavigating?: number; _comviNavigation?: number };
+type Navigating = { _comviNavigating?: number; _comviNavigation?: number; _comviTarget?: unknown };
 
 /**
  * One direction: route → instance. Resolves the target's locale with the plugin's
@@ -49,9 +49,8 @@ export default defineNuxtRouteMiddleware(async (to, from?: typeof to) => {
       // The first resolution of a visit has no origin: on the server `from` is the target
       // itself, in the browser the router's start location.
       from: import.meta.server ? undefined : from?.path,
-      // A `<NuxtLinkLocale locale>` click's locale, for the navigation it started only (it
-      // stands in for the cookie, so not with `localeCookie: false`).
-      cookie: (!import.meta.server && cookie && targetFor(nuxtApp, to)) || cookie?.value,
+      // A `<NuxtLinkLocale locale>` click's locale, for the navigation it started only.
+      cookie: (!import.meta.server && targetFor(nuxtApp, to)) || cookie?.value,
       header: import.meta.server ? (name) => useRequestHeaders([name])[name] : undefined,
     },
     resolveAcceptLanguage,
@@ -92,6 +91,8 @@ export default defineNuxtRouteMiddleware(async (to, from?: typeof to) => {
       extractLocaleFromPath(pathname, locales) !== undefined &&
       queryParam !== undefined &&
       Object.prototype.hasOwnProperty.call(to.query ?? {}, queryParam);
+    // This redirect ends a link's switch here: the redirected run must not take it again.
+    delete state._comviTarget;
     return navigateTo(
       `${localized}${keepsQuery ? setQueryParamInSuffix(suffix, queryParam!, rendered) : suffix}`,
       { redirectCode: 302 },
