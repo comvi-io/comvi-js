@@ -1740,3 +1740,9 @@ server, module and `/i18n` ceilings stay. Measured on `lot7/nuxt` @ `cc655b4c`,
 | fw-nuxt-server | 24,877 / 11,010         | 11,022 (unchanged)                    | 11,022                              |
 | fw-nuxt-module | 9,024 / 3,465           | 3,537 (unchanged)                     | 3,537                               |
 | fw-nuxt-i18n   | 1,190 / 716             | 731 (unchanged)                       | 731                                 |
+
+Closing check, `lot7/nuxt` @ `1ebff22f` (same build, Node v24.22.1, two runs): the middleware's own
+redirect ends the link's target, and a link to the page on screen switches on the router's
+`duplicated` report instead of a string compare, which removes code. `fw-nuxt-client` 10,491 →
+**10,456** (23,658 min), `fw-nuxt-server` 11,010 → **10,977** (24,858 min); module and `/i18n`
+unchanged. Ceilings unchanged (client 10,701 stays as set from 10,491).
