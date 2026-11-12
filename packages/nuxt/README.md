@@ -17,101 +17,178 @@
 
 ---
 
-`@comvi/nuxt` is the Comvi i18n module for Nuxt 3 and 4: it auto-imports the composables and
-`<T>`, clones your pages into locale-prefixed routes, builds one i18n instance per request on the
-server and hydrates the client from what the server loaded. Use it instead of `@comvi/vue` on
-Nuxt; it brings `@comvi/core` and the Vue bindings with it.
+Nuxt 3.7+ and Nuxt 4 on Node 22.20+, or the newer Node your Nuxt requires. Verified: Nuxt 3.7.0,
+3.21.11, 4.0.0 and 4.6.0 on Node 22.22.3; Nuxt 3.21.11 and 4.6.2 on Node 24.22.1. Three limits outside
+the module are listed under [Version notes](#version-notes).
+
+`@comvi/nuxt` is the Comvi i18n module for Nuxt 3 and 4: it creates one i18n instance per request,
+renders the page's translations on the server, starts the browser from that render, and clones your
+pages into locale-prefixed routes. `useI18n()`, `useFormat()`, `<T>` and `$t` are `@comvi/vue`'s own,
+auto-imported; the module brings `@comvi/core` and `@comvi/vue` with it.
 
 ## Install
 
 ```bash
 npm install @comvi/nuxt
-# Peer: nuxt ^3.0.0 || ^4.0.0
 ```
 
 ## Setup
 
-Add the module and declare the locales, in `nuxt.config.ts`:
+The data go to `nuxt.config.ts`, once; the module uses them on the server and in the browser:
 
 ```ts title="nuxt.config.ts" check=group=nuxt-app
-import { defineNuxtConfig } from "nuxt/config";
-
 export default defineNuxtConfig({
   modules: ["@comvi/nuxt"],
   comvi: {
-    defaultLocale: "en",
     locales: ["en", "uk"],
-    messages: {
-      en: { greeting: "Hello, {name}!" },
-      uk: { greeting: "Привіт, {name}!" },
-    },
+    defaultLocale: "en",
+    timeZone: "UTC", // required: the server and the browser format dates in one zone
   },
 });
 ```
 
-Nuxt renders the pages through an outlet, in `app/app.vue`:
+The functions go to `comvi.i18n.ts` next to it. A dynamic import returns a module, so the loader
+returns its `default`, the catalog. Catalogs are nested or flat JSON, `locales/<ns>/<locale>.json`:
 
-```vue title="app/app.vue" check=group=nuxt-app
-<template>
-  <NuxtPage />
-</template>
+```ts title="comvi.i18n.ts" check=group=nuxt-app
+import { defineI18nOptions } from "@comvi/nuxt/i18n";
+
+export default defineI18nOptions(() => ({
+  loader: async (locale, ns) => (await import(`./locales/${ns}/${locale}.json`)).default,
+}));
 ```
-
-`comvi.messages` is the inline catalog, nested or flat, and must stay JSON-serializable. The
-module writes `<html lang dir>` from the active locale on the server and on every switch.
-
-## Use in components
-
-In a page, `app/pages/index.vue`:
 
 ```vue title="app/pages/index.vue" check=group=nuxt-app
 <script setup lang="ts">
 const { t, locale } = useI18n();
+const switchLocalePath = useSwitchLocalePath();
 </script>
 
 <template>
-  <h1>{{ t("greeting", { name: "Alice" }) }}</h1>
-  <NuxtLinkLocale to="/" :locale="locale === 'en' ? 'uk' : 'en'">Switch</NuxtLinkLocale>
+  <h1>{{ t("home.title", { name: "Alice" }) }}</h1>
+  <p>{{ $t("home.count", { count: 3 }) }}</p>
+  <T i18n-key="home.terms">
+    <template #link="{ children }"
+      ><NuxtLinkLocale to="/terms">{{ children }}</NuxtLinkLocale></template
+    >
+  </T>
+  <NuxtLink :to="switchLocalePath(locale === 'en' ? 'uk' : 'en')">Switch</NuxtLink>
 </template>
 ```
 
-`useI18n()` is auto-imported. It returns the `@comvi/vue` composable plus `locales` and
-`defaultLocale` from runtime config. `setLocale()` loads the new catalog and advances the locale
-state the route middleware watches. `$t()` works in any template without calling `useI18n()`.
-`formatNumber`, `formatDate`, `formatCurrency` and `formatRelativeTime` are auto-imported too, and
-a plain module imports them from `@comvi/nuxt/i18n`. They take the core instance first:
-`formatRelativeTime(useNuxtApp().$i18n.core, -2, 'hour')`.
+Switching the language is a navigation: the URL, the text, the cookie and `<html lang dir>` move
+together, and the old text stays until the new catalogs are in. `setLocale()` changes the instance
+only (the text and the cookie, not the URL; the next navigation applies the URL's locale): use it as
+the switch with `localePrefix: "never"`. A switch whose catalogs all fail keeps the locale on screen
+and its URL. Navigate with `<NuxtLink>` or `router.push`: a `navigateTo()` called while a language
+switch is pending is ignored (Nuxt returns the location without navigating).
 
-## Load from Comvi
+For a two-line start, `comvi.messages: { en: { … }, uk: { … } }` in `nuxt.config.ts` gives the
+`default` namespace without files; those catalogs are compiled into the app bundle, and no page payload
+carries a flat one again (a nested one, or one a server `add()` changed, is handed over as usual).
 
-Pass the CDN loader (`@comvi/core/cdn`) in `comvi.i18n.ts`:
+## A page that waits for its namespace
 
-```ts title="comvi.i18n.ts" check=group=nuxt-cdn
-import { createI18n, defineComviI18n } from "@comvi/nuxt/i18n";
-import { cdn } from "@comvi/core/cdn";
+`useI18n("account")` loads the page's namespace on the server render and, on a client navigation,
+shows the loading branch until it is in. To keep the previous page on screen instead, load it
+explicitly and wait for the result:
 
-export default defineComviI18n((options) =>
-  createI18n({ ...options, loader: cdn("https://cdn.comvi.io/<project-token>") }),
-);
+```vue title="app/pages/account.vue" check=group=nuxt-app
+<script setup lang="ts">
+const { t, isReady, isLoading, i18n } = useI18n("account");
+// The error is already reported through `onError`; the page shows the fallback or "unavailable".
+if (isLoading.value) await i18n.load("account").catch(() => {});
+</script>
+
+<template>
+  <h1 v-if="isReady">{{ t("title") }}</h1>
+  <p v-else-if="isLoading">…</p>
+  <button v-else @click="i18n.load('account').catch(() => {})">Retry</button>
+</template>
 ```
 
-Add this file next to `nuxt.config.ts`. The module picks up `./comvi.i18n.*` by convention and
-logs the path; `comvi.i18nModule` points at a file elsewhere. The default export receives the
-resolved `comvi` options and must return a new instance from `createI18n` on every call; in
-development the module throws when it gets the same instance twice. The CDN URL is on
-[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi).
+At hydration nothing is loading, so the line does nothing and asks for nothing. It inherits
+`load()`'s retry semantics: `load(ns)` asks every pair of `ns` not in place, a failed one too, and
+`isLoading` can be true while one pair of the chain loads and another has already failed. The empty
+`.catch` does not ignore the error: `onError` has reported it, and the page renders the fallback or
+the "unavailable" branch. A later visit asks nothing again; the button is the retry.
+
+## A private source
+
+A source with a secret lives in the app's own server route; one loader calls it on the server
+render, in the browser and from Nitro routes:
+
+```ts title="server/api/i18n/[locale]/[ns].get.ts" check=group=nuxt-private
+import { api } from "@comvi/nuxt/i18n";
+
+const load = api("https://api.comvi.io", { key: String(useRuntimeConfig().comviApiKey) });
+
+export default defineEventHandler(async (event) => {
+  const { locale, ns } = getRouterParams(event);
+  const { locales } = useRuntimeConfig(event).public.comvi;
+  // The app's own list, and its own access rule: a parameter never reaches the source unchecked.
+  if (!locales.includes(locale!) || !["default", "account"].includes(ns!))
+    throw createError({ statusCode: 404 });
+  return load(locale!, ns!, AbortSignal.timeout(10_000));
+});
+```
+
+```ts title="comvi.i18n.ts" check=group=nuxt-private
+import { defineI18nOptions } from "@comvi/nuxt/i18n";
+
+export default defineI18nOptions((event) => {
+  // On a server, the request's own fetch: it forwards the user's cookies and calls the route
+  // in-process. In the browser `event` is undefined and `$fetch` sends them itself.
+  const fetch = event?.$fetch ?? $fetch;
+  return {
+    loader: (locale, ns, signal) =>
+      fetch(`/api/i18n/${locale}/${ns}`, {
+        signal,
+        retry: 0,
+        // Marks the catalog request: if no route answers it, the module answers it 404.
+        headers: { "x-comvi-catalog": "1" },
+      }),
+  };
+});
+```
+
+`retry: 0` applies to any loader built on `$fetch` where one attempt is wanted: `$fetch` repeats a
+failed GET once otherwise, and the retry belongs to `i18n.load(ns)`. A protected route also needs the
+request forwarded through `event.$fetch`. The key stays in the server build. `x-comvi-catalog`
+marks the catalog request: Nuxt renders a URL with no server route as a page, so a missing route
+would render a page whose loader asks for the same URL again, without end. The module answers a
+page render that carries the header with a 404 instead, and the load fails (`load_failed`). A
+loader that sends no such header to a missing route still recurses until the process runs out of
+memory: the route must exist. The header is reserved: any request that carries it to a server-rendered page URL gets that 404.
 
 ### How it works
 
-On every request the module builds a fresh i18n instance in the default locale, runs `comvi.setup.ts` for it when the file exists, initializes it, and then the route middleware detects the locale from the URL path, the cookie and the `Accept-Language` header and switches to it before the page renders. The loaded catalog is serialized into the Nuxt payload, so the client hydrates
-with no second fetch and no flash. Without a `comvi.i18n.ts` file the module builds the base
-instance, with no loader, and with the ICU compiler only when `comvi.icu` is `true`; every
-installer that file needs (`createI18n`,
-`loader`, `icuCompiler`, `plugins`, `devtools`) comes from `@comvi/nuxt/i18n`. In a Nitro route
-the server auto-imports are `useTranslation(event)`, `loadMessages(event, locale)`,
-`getRequestI18n(event, locale)` and `getServerRuntimeConfig(event)`; the app-side composables do
-not exist there. `<T>` is auto-imported: each tag a translator wrote becomes a named slot, or an
-entry in the `components` prop. Never render a translation with `v-html`.
+On a server the module resolves the request's locale (URL, cookie, `Accept-Language`) before the
+instance exists, creates it in that locale, waits for its catalogs and for each `useI18n(ns)` of the
+page, and writes one snapshot into the Nuxt payload after the render. The browser creates its
+instance from that snapshot before any component renders, so hydration asks the loader for nothing,
+a catalog the server failed included (it renders the fallback the server rendered until a retry).
+After it, every new namespace comes from the browser's loader. `useNuxtApp().$i18n` is the instance
+outside a component. In a Nitro route, `const { t } = await useTranslation(event, { ns?, locale? })`
+gives `{ t, locale, dir, i18n }` on the same options. Every server instance ends with its request:
+after the response, when the handler throws, or when the client goes away. `routeRules` with `swr`
+are excluded for pages rendered with Comvi: the stale-while-revalidate re-render runs after the
+response has ended its instance, and the cache stores raw keys. `isr`, `ssrStreaming`, non-Node
+presets and `nuxt generate` are unverified (neither supported nor excluded).
+
+### Version notes
+
+- Nuxt 4.0.0 as installed pins nitropack 2.12.0, which answers every `/_nuxt/` asset with a 500
+  (observed with nitropack 2.12.0 to 2.12.8). It is Nuxt's own defect: a plain Nuxt 4.0.0 app without
+  Comvi shows it. nitropack 2.12.9 or later fixes it (verified: 2.12.9, 2.13.0, 2.13.6), and so does
+  Nuxt 4.0.3, whose install resolves nitropack 2.13.6.
+- Older Nuxt versions print their own `[nuxt] error caught during app initialization` with
+  `Page not found` when a 404 page hydrates (observed: Nuxt 3.7.0, 3.21.0 and 4.0.0, with or without
+  the module; not in 3.21.11 or 4.6.x).
+- The server and the browser format dates with their own Intl data: a server Node whose ICU/CLDR
+  differs from the visitor's browser can render a different date text and cause a hydration mismatch
+  (observed: Node 22.20.0, CLDR 47, against Chromium, CLDR 48, for an `es` long date with a short
+  time). It is not specific to the module.
 
 ## Routing
 
@@ -121,19 +198,21 @@ entry in the `components` prop. Never render a translation with `v-html`.
 | `always`       | `/en/about`    | `/de/about`                                                   |
 | `never`        | `/about`       | `/about`, locale from the cookie or `Accept-Language` instead |
 
-The route middleware detects the locale, persists it in the `i18n_locale` cookie and loads that
-locale's catalog before the page renders. Pair a switcher with `useSwitchLocalePath()` when the
-URL should change too. `localeCookie` takes a name, `{ name, maxAge, secure, sameSite, domain }`,
-or `false` to persist nothing; `localeDetection` takes
-`{ order, queryParam, headerName, resolveAcceptLanguage }`, or `false` to leave the URL path alone
-in charge. `comvi.ns` lists the namespaces to load besides `defaultNs`. `useLocaleHead()` adds canonical, hreflang and `og:locale` tags, and writes `lang` and `dir` too unless `addLang` or `addDir` is `false`; set `comvi.head: false` when you write those attributes yourself.
+A URL that names no locale reads it from `localeDetection.order` (the query, the `i18n_locale` cookie,
+`Accept-Language`); the module records the locale in the cookie. `localeCookie` takes a name,
+`{ name, maxAge, secure, sameSite, domain }` or `false`; `localeDetection` takes
+`{ order, queryParam, headerName, resolveAcceptLanguage }` or `false`. `useLocalePath()`,
+`useSwitchLocalePath()`, `useLocaleRoute()`, `useRouteConfig()` and `<NuxtLinkLocale>` build the
+links. A `<NuxtLinkLocale locale>` switch is recorded in the cookie once it lands; under `never` a
+link NuxtLink renders as a plain anchor (`external`, a `target` other than `_self`) is a page load
+and does not switch. `useLocaleHead()` adds canonical, hreflang and `og:locale`. Set `comvi.head: false` to write
+`<html lang dir>` yourself. `fallbackLocale`, `namespaces` and `formats` are `comvi` options too.
 
 ## Read next
 
 - [Nuxt guide](https://comvi.io/docs/i18n/nuxt): rich text, SSR, locale routing.
-- [Nuxt API reference](https://comvi.io/docs/i18n/api/nuxt): every module option, the `i18nModule` factory and setup types, the composables.
-- [Server-side rendering](https://comvi.io/docs/i18n/ssr#nuxt): `comvi.setup.ts`, per-request instances and hydration.
-- [Type safety](https://comvi.io/docs/i18n/type-safety): generate `TranslationKeys` so `t()` autocompletes in templates.
+- [Server-side rendering](https://comvi.io/docs/i18n/ssr#nuxt): the per-request instance and the handover.
+- [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi): `cdn()` and `api()` from `@comvi/nuxt/i18n`.
 
 ## Contributing
 

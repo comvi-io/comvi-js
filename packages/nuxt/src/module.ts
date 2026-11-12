@@ -6,7 +6,7 @@ import {
   addTemplate,
   addImports,
   addComponent,
-  addServerImportsDir,
+  addServerImports,
   addServerPlugin,
   addRouteMiddleware,
   extendPages,
@@ -20,7 +20,6 @@ import type {
   ResolveAcceptLanguage,
   ResolvedLocaleDetection,
   LocaleObject,
-  ResolvedRoutingConfig,
 } from "./types";
 import { DEFAULT_COOKIE_NAME } from "./runtime/defaults";
 import { detectionTemplate } from "./locale-options";
@@ -37,6 +36,8 @@ export type ModuleOptions = Partial<NuxtI18nOptions>;
 // consumers resolving `@comvi/nuxt` receive.
 export type {
   NuxtI18nOptions,
+  NuxtI18nFileOptions,
+  I18nOptionsFactory,
   LocaleObject,
   LocalePrefixMode,
   LocaleCookieConfig,
@@ -46,31 +47,11 @@ export type {
   ResolveAcceptLanguage,
   ResolvedLocaleCookie,
   ResolvedLocaleDetection,
-  ResolvedRoutingConfig,
   NuxtI18nRuntimeConfig,
-  NuxtI18nPrivateRuntimeConfig,
-  NuxtI18nSetupContext,
-  NuxtI18nSetup,
-  NuxtI18nSetupNuxtApp,
-  NuxtI18nSetupEvent,
-  NuxtI18nSetupRuntimeConfig,
-  NuxtDefaultTranslationParams,
-  ComviNuxtInstanceRegistry,
-  ResolvedNuxtInstance,
-  RegisteredNuxtInstance,
-  CheckedNuxtI18nSetup,
-  NuxtServerInstance,
-  NuxtServerLoaderInstance,
-  NuxtInstanceFactory,
-  NuxtInstanceFactoryOptions,
-  TranslationParams,
-  TranslationResult,
-  TranslationKeys,
-  I18n,
-  I18nLoaderApi,
-  LoaderFn,
 } from "./types";
-export type { MessagesMap } from "@comvi/core";
+// A generated comvi.d.ts that augments `@comvi/nuxt` (the package the app declared) reaches
+// the core's `Catalogs` through this named re-export, and imports `Tag` from it (typegen v2).
+export type { I18n, Catalogs, Tag } from "@comvi/core";
 
 function normalizeLocales(locales: (string | LocaleObject)[]): {
   codes: string[];
@@ -78,17 +59,11 @@ function normalizeLocales(locales: (string | LocaleObject)[]): {
 } {
   const codes: string[] = [];
   const objects: Record<string, LocaleObject> = {};
-
   for (const locale of locales) {
-    if (typeof locale === "string") {
-      codes.push(locale);
-      objects[locale] = { code: locale };
-    } else {
-      codes.push(locale.code);
-      objects[locale.code] = locale;
-    }
+    const object = typeof locale === "string" ? { code: locale } : locale;
+    codes.push(object.code);
+    objects[object.code] = object;
   }
-
   return { codes, objects };
 }
 
@@ -98,32 +73,32 @@ function isLocaleParamRoute(path: string): boolean {
 }
 
 /**
- * A path `import("…")` can carry inside a generated `.d.ts`: POSIX separators,
- * and no extension, because `import("…/comvi.i18n.ts")` is an error unless the
- * app enabled `allowImportingTsExtensions` and `…/comvi.i18n.js` next to a
- * `.d.ts` resolves to the wrong file. Absolute, so the emitted declaration does
- * not depend on where in `buildDir` nuxt puts it.
- */
-function toTypeImportSpecifier(path: string): string {
-  return path.replace(/\\/gu, "/").replace(/\.(?:[cm]?tsx?|[cm]?jsx?)$/u, "");
-}
-
-/**
  * Nitro serializes runtime config and normalizes every `undefined` value to
- * `""`, so an unset option written as a key reaches the runtime as an empty
- * string. For `messages` that string fails core's catalog check and every
- * SSR request answers 500, so unset options must be absent, not `undefined`.
+ * `""`, so unset options must be absent, not `undefined`.
  */
 function withoutUndefined<T extends Record<string, unknown>>(record: T): T {
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined)) as T;
 }
+
+/** 0.7 options with no 0.8 counterpart, and what to write instead. */
+const REMOVED: Record<string, string> = {
+  ns: "`namespaces`",
+  defaultNs: "nothing: the default namespace is `default`",
+  icu: "nothing: ICU is the core's compiler",
+  basicHtmlTags: "tag handlers, `components` or slots of `<T>`",
+  defaultParams: "params of `t()`",
+  apiKey: "a private server route that reads its key from private `runtimeConfig`",
+  setup: "the `plugins` and `onError` options of `comvi.i18n.ts`",
+  detectBrowserLanguage: "`localeCookie` and `localeDetection`",
+  fallbackLanguage: "`fallbackLocale`",
+};
 
 const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOptions>({
   meta: {
     name: "@comvi/nuxt",
     configKey: "comvi",
     compatibility: {
-      nuxt: "^3.0.0 || ^4.0.0",
+      nuxt: "^3.7.0 || ^4.0.0",
     },
   },
 
@@ -132,11 +107,25 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
     defaultLocale: "en",
     localePrefix: "as-needed",
     head: true,
-    defaultNs: "default",
-    icu: false,
   },
 
   async setup(options, nuxt) {
+    const input = options as unknown as Record<string, unknown>;
+    for (const key of Object.keys(REMOVED)) {
+      if (input[key] !== undefined) {
+        throw new Error(`[@comvi/nuxt] \`comvi.${key}\` is not an option: use ${REMOVED[key]}.`);
+      }
+    }
+    if (typeof options.timeZone !== "string" || !options.timeZone) {
+      throw new Error(
+        '[@comvi/nuxt] `comvi.timeZone` is required: the server and the browser must format dates in one zone. Add it to nuxt.config, e.g. `comvi: { timeZone: "UTC" }`.',
+      );
+    }
+    try {
+      new Intl.DateTimeFormat("en", { timeZone: options.timeZone });
+    } catch {
+      throw new Error(`[@comvi/nuxt] \`comvi.timeZone\` "${options.timeZone}" is not a time zone.`);
+    }
     if (!options.locales || options.locales.length === 0) {
       console.warn(
         "[@comvi/nuxt] No locales configured. Add locales to your nuxt.config.ts comvi options.",
@@ -144,9 +133,18 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
     }
 
     const { resolve } = createResolver(import.meta.url);
+    const { codes: localeCodes, objects: localeObjects } = normalizeLocales(options.locales);
+    // A start locale that is not a tag makes `createI18n` throw on every request: say so
+    // at build time, by name.
+    for (const code of [...localeCodes, options.defaultLocale]) {
+      try {
+        Intl.getCanonicalLocales(code);
+      } catch {
+        throw new Error(`[@comvi/nuxt] locale "${code}" is not a BCP 47 language tag.`);
+      }
+    }
 
-    // A user module is addressed relative to srcDir first, then rootDir —
-    // `findPath` throws on some malformed inputs, so each lookup is guarded.
+    // A user module is addressed relative to srcDir first, then rootDir.
     const findUserModule = async (specifier: string): Promise<string | undefined> => {
       for (const cwd of [nuxt.options.srcDir, nuxt.options.rootDir]) {
         try {
@@ -158,110 +156,49 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       }
       return undefined;
     };
-
-    // An auto-detect MISS is otherwise the quietest failure the module has: the
-    // setup template degrades to an empty `runComviSetup()` and the app boots
-    // with none of its hooks; a missed `comvi.i18n` file builds the BASE instance and every
-    // capability the file composed is absent. A file that merely does not
-    // RESOLVE (an extension Nuxt does not try, a typo after the prefix) is the
-    // reachable shape, so it is looked for by name, at build time only. The
-    // shape is `<stem>.<one extension>` and a regular file: `comvi.setup.d.ts`,
-    // `comvi.setup.ts.bak` or a `comvi.setup/` directory are not near misses,
-    // and a false report would send a reader chasing a file that is not there.
-    const findNearMiss = async (stem: string): Promise<string | undefined> => {
-      const pattern = new RegExp(`^${stem.replace(/\./gu, "\\.")}\\.[^.]+$`, "u");
+    const optionsFile = await findUserModule(options.i18nModule ?? "./comvi.i18n");
+    if (options.i18nModule && !optionsFile) {
+      throw new Error(`[@comvi/nuxt] Failed to resolve comvi i18nModule: "${options.i18nModule}".`);
+    }
+    if (!options.i18nModule && !optionsFile) {
+      // A file that does not RESOLVE (an extension Nuxt does not try) is the reachable
+      // miss: the app would run with no loader, quietly.
       for (const cwd of [nuxt.options.srcDir, nuxt.options.rootDir]) {
-        if (!cwd) continue;
-        try {
-          const entries = await readdir(cwd, { withFileTypes: true });
-          const hit = entries.find((entry) => entry.isFile() && pattern.test(entry.name));
-          if (hit) return join(cwd, hit.name);
-        } catch {
-          // Unreadable directory: nothing to report, and nothing to fail on.
+        const entries = await readdir(cwd, { withFileTypes: true }).catch(() => []);
+        const hit = entries.find((e) => e.isFile() && /^comvi\.i18n\.[^.]+$/u.test(e.name));
+        if (hit) {
+          console.warn(
+            `[@comvi/nuxt] Found "${join(cwd, hit.name)}" but could not resolve "./comvi.i18n", so the app runs without its options. Give the file an extension Nuxt resolves (.ts, .mts, .js, .mjs) or point \`comvi.i18nModule\` at it.`,
+          );
+          break;
         }
       }
-      return undefined;
-    };
-
-    const warnNearMiss = async (stem: string, consequence: string, option: string) => {
-      const nearMiss = await findNearMiss(stem);
-      if (nearMiss) {
-        console.warn(
-          `[@comvi/nuxt] Found "${nearMiss}" but could not resolve "./${stem}" under ` +
-            `${nuxt.options.srcDir} or ${nuxt.options.rootDir}, so ${consequence}. ` +
-            `Give the file an extension Nuxt resolves (.ts, .mts, .js, .mjs) or point ` +
-            `\`${option}\` at it explicitly.`,
-        );
-      }
-    };
-
-    const resolvedSetupPath = await findUserModule(options.setup ?? "./comvi.setup");
-    if (options.setup && !resolvedSetupPath) {
-      throw new Error(`[@comvi/nuxt] Failed to resolve comvi.setup path: "${options.setup}".`);
     }
-    if (!options.setup && !resolvedSetupPath) {
-      await warnNearMiss("comvi.setup", "the comvi.setup hook is EMPTY", "comvi.setup");
-    }
-
-    // Same convention as the setup hook: `i18nModule` is the explicit override,
-    // and unset means `./comvi.i18n.*` under srcDir then rootDir. The detected
-    // path is logged so a stray file that changed the instance is visible at build
-    // time rather than at the first `useI18nLoader()` that throws.
-    const resolvedI18nModulePath = await findUserModule(options.i18nModule ?? "./comvi.i18n");
-    if (options.i18nModule && !resolvedI18nModulePath) {
-      throw new Error(
-        `[@comvi/nuxt] Failed to resolve comvi i18nModule path: "${options.i18nModule}".`,
-      );
-    }
-    if (!options.i18nModule) {
-      if (resolvedI18nModulePath) {
-        console.info(
-          `[@comvi/nuxt] Composing the i18n instance from "${resolvedI18nModulePath}" (auto-detected ./comvi.i18n; set \`i18nModule\` to override).`,
-        );
-      } else {
-        await warnNearMiss("comvi.i18n", "the app runs on the BASE instance", "i18nModule");
-      }
-    }
-
-    const { codes: localeCodes, objects: localeObjects } = normalizeLocales(options.locales);
 
     const existingPublicRuntimeConfig: Partial<NuxtI18nRuntimeConfig["comvi"]> &
       Record<string, unknown> = nuxt.options.runtimeConfig.public.comvi ?? {};
-
-    // `nuxt.config` is JavaScript the type checker may never have seen, so a
-    // key the options no longer have fails here, by name, instead of being
-    // ignored. 0.5 has no aliases: each message names the key to write.
-    const removed: Array<[where: string, key: string, use: string]> = [
-      ["comvi", "detectBrowserLanguage", "`localeCookie` and `localeDetection`"],
-      ["comvi", "fallbackLanguage", "`fallbackLocale`"],
-      [
-        "runtimeConfig.public.comvi",
-        "detectBrowserLanguage",
-        "`localeCookie` and `localeDetection`",
-      ],
-      ["runtimeConfig.public.comvi", "cookieName", "`localeCookie`"],
-    ];
-    for (const [where, key, use] of removed) {
-      const source: Record<string, unknown> =
-        where === "comvi"
-          ? (options as unknown as Record<string, unknown>)
-          : existingPublicRuntimeConfig;
-      if (source[key] !== undefined) {
-        throw new Error(`[@comvi/nuxt] \`${where}.${key}\` is not an option: use ${use}.`);
+    for (const [key, use] of [
+      ["detectBrowserLanguage", "`localeCookie` and `localeDetection`"],
+      ["cookieName", "`localeCookie`"],
+    ]) {
+      if (existingPublicRuntimeConfig[key!] !== undefined) {
+        throw new Error(
+          `[@comvi/nuxt] \`runtimeConfig.public.comvi.${key}\` is not an option: use ${use}.`,
+        );
       }
     }
     const localeCookieInput = existingPublicRuntimeConfig.localeCookie ?? options.localeCookie;
     const localeDetectionInput =
       existingPublicRuntimeConfig.localeDetection ?? options.localeDetection;
-    // Both sources, each under its own name: a stale key in runtime config is
-    // as wrong as one in `comvi`, even when the other side would win.
-    for (const [where, input] of [
+    // Both sources, each under its own name: a stale key in runtime config is as wrong
+    // as one in `comvi`, even when the other side would win.
+    for (const [where, source] of [
       ["comvi", options],
       ["runtimeConfig.public.comvi", existingPublicRuntimeConfig],
     ] as const) {
       for (const { key, use } of findUnknownRoutingOptionKeys({
-        localeCookie: input.localeCookie as NuxtI18nOptions["localeCookie"],
-        localeDetection: input.localeDetection as NuxtI18nOptions["localeDetection"],
+        localeCookie: source.localeCookie as NuxtI18nOptions["localeCookie"],
+        localeDetection: source.localeDetection as NuxtI18nOptions["localeDetection"],
       })) {
         throw new Error(
           `[@comvi/nuxt] \`${where}.${key}\` is not an option` +
@@ -270,10 +207,8 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       }
     }
 
-    // The ONE schema `@comvi/next` normalizes through too, so a name or a
-    // default cannot differ between them; only the cookie name's default is ours.
-    // `localeCookie` / `localeDetection` stay out of the module `defaults`, so
-    // runtime config can still override what nuxt.config set.
+    // The ONE schema `@comvi/next` normalizes through too; only the cookie name's
+    // default is ours.
     const routing = normalizeRoutingOptions(
       {
         locales: localeCodes,
@@ -281,7 +216,6 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
         localePrefix: options.localePrefix,
         localeCookie: localeCookieInput,
         localeDetection: localeDetectionInput,
-        ns: existingPublicRuntimeConfig.ns ?? options.ns,
       },
       { cookieNameDefault: DEFAULT_COOKIE_NAME },
     );
@@ -293,16 +227,9 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       ({ resolveAcceptLanguage, ...localeDetection } = routing.localeDetection);
     }
 
-    const cookieName = routing.localeCookie ? routing.localeCookie.name : false;
-
-    const routingConfig: ResolvedRoutingConfig = {
-      locales: localeCodes,
-      localeObjects,
-      defaultLocale: options.defaultLocale,
-      localePrefix: routing.localePrefix,
-      cookieName,
-    };
-
+    // Routing travels in public runtime config; translation data in a generated build
+    // module (below). The inline `messages` are in that module, so the bundle has them and
+    // the plugin leaves them out of every page payload.
     nuxt.options.runtimeConfig.public.comvi = withoutUndefined({
       ...existingPublicRuntimeConfig,
       locales: localeCodes,
@@ -310,178 +237,34 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       defaultLocale: options.defaultLocale,
       localePrefix: routing.localePrefix,
       head: existingPublicRuntimeConfig.head ?? options.head,
-      // Forwarded so BOTH construction paths — the client plugin and each
-      // per-request server instance — receive the same inline catalog, and so a
-      // `i18nModule` factory sees it in its resolved options.
-      messages: existingPublicRuntimeConfig.messages ?? options.messages,
-      defaultNs: existingPublicRuntimeConfig.defaultNs ?? options.defaultNs ?? "default",
-      ns: routing.ns,
-      fallbackLocale:
-        existingPublicRuntimeConfig.fallbackLocale ??
-        options.fallbackLocale ??
-        options.defaultLocale,
-      defaultParams: existingPublicRuntimeConfig.defaultParams ?? options.defaultParams,
-      basicHtmlTags: existingPublicRuntimeConfig.basicHtmlTags ?? options.basicHtmlTags,
       localeCookie: routing.localeCookie,
       localeDetection,
-    });
-
-    nuxt.options.runtimeConfig.comvi = {
-      ...(nuxt.options.runtimeConfig.comvi ?? {}),
-      ...(options.apiKey !== undefined ? { apiKey: options.apiKey } : {}),
-    };
-
-    nuxt.options.appConfig.comvi = {
-      routing: routingConfig,
-    };
-
-    addPlugin({
-      src: resolve("./runtime/plugin"),
-      mode: "all",
     });
 
     const detectionContents = () => detectionTemplate(resolveAcceptLanguage);
     addTemplate({ filename: "comvi.detection.mjs", getContents: detectionContents });
 
-    const setupContents = () => {
-      const setupPath = resolvedSetupPath;
+    // The data of `createI18n` both sides start from, and the app's options factory. The
+    // same source for the Vue app (client and server builds) and for Nitro.
+    const data = withoutUndefined({
+      timeZone: options.timeZone,
+      fallbackLocale: options.fallbackLocale,
+      namespaces: options.namespaces,
+      formats: options.formats,
+      messages: options.messages,
+    });
+    const optionsContents = () =>
+      (optionsFile
+        ? `import factory from ${JSON.stringify(optionsFile)};\n` +
+          `if (typeof factory !== "function") throw new TypeError("[@comvi/nuxt] comvi.i18n must default-export defineI18nOptions((event) => options).");\n` +
+          `export const options = factory;\n`
+        : `export const options = () => ({});\n`) +
+      `export const config = ${JSON.stringify(data)};\n`;
+    addTemplate({ filename: "comvi.options.mjs", getContents: optionsContents });
 
-      if (!setupPath) {
-        return `
-export async function runComviSetup() {}
-`;
-      }
-
-      return `
-import userSetup from ${JSON.stringify(setupPath)};
-
-export async function runComviSetup(context) {
-  if (typeof userSetup !== "function") {
-    throw new TypeError(
-      "[@comvi/nuxt] comvi.setup must export a default function.",
-    );
-  }
-
-  await userSetup(context);
-}
-`;
-    };
-    addTemplate({ filename: "comvi.setup.mjs", getContents: setupContents });
-
-    // The instance is decided HERE, at codegen: the same branch taken at runtime
-    // would keep BOTH paths alive in every bundle. The default branch builds the
-    // BASE instance — ICU is the one capability with a module option, because it is
-    // a constructor argument rather than something `.use()` can pipe on. Every
-    // other capability arrives through `i18nModule`, which is why that branch
-    // forwards nuxt's RESOLVED options into the factory — `icu: true` included,
-    // as `compiler: icuCompiler` in those options, so the option means the same
-    // thing on both branches and a factory that spreads them gets it.
-    const i18nContents = () => {
-      const i18nModulePath = resolvedI18nModulePath;
-
-      if (!i18nModulePath) {
-        // Emitted only for `icu: true`: an app that did not ask for ICU must
-        // get a module that cannot pull `@comvi/core/icu` into its graph.
-        if (options.icu) {
-          return `
-import { createI18n } from "@comvi/vue";
-import { createI18n as createCore } from "@comvi/core";
-import { icuCompiler } from "@comvi/core/icu";
-
-export function createComviI18n(options) {
-  return createI18n({ ...options, compiler: icuCompiler });
-}
-
-export function createComviCore(options) {
-  return createCore({ ...options, compiler: icuCompiler });
-}
-`;
-        }
-
-        return `
-import { createI18n } from "@comvi/vue";
-import { createI18n as createCore } from "@comvi/core";
-
-export function createComviI18n(options) {
-  return createI18n(options);
-}
-
-export function createComviCore(options) {
-  return createCore(options);
-}
-`;
-      }
-
-      // The same conditional import as the default branch: `icu: false`
-      // emits a module that cannot pull `@comvi/core/icu` into the graph.
-      // With `icu: true` the compiler is the LAST key, so a factory that
-      // spreads `options` gets ICU, and one that writes its own `compiler`
-      // after the spread wins by key order.
-      const icuImport = options.icu ? `import { icuCompiler } from "@comvi/core/icu";\n` : "";
-      const factoryOptions = options.icu ? "{ ...options, compiler: icuCompiler }" : "options";
-      // Development only, decided at codegen like the branch itself: a factory
-      // that hands back one shared instance would mix every request's locale and
-      // catalog. Production builds carry no guard and no WeakSet.
-      const freshInstanceGuard = nuxt.options.dev
-        ? `
-  if (returnedInstances.has(instance)) {
-    throw new Error(
-      "[@comvi/nuxt] comvi i18nModule returned an instance it already returned. Every call builds a separate instance (the client, and each server request), so return a new instance from createI18n on every call.",
-    );
-  }
-  returnedInstances.add(instance);
-`
-        : "";
-      const guardState = nuxt.options.dev ? "\nconst returnedInstances = new WeakSet();\n" : "";
-
-      return `
-import { createI18nFromCore } from "@comvi/vue";
-${icuImport}import i18nFactory from ${JSON.stringify(i18nModulePath)};
-${guardState}
-function createInstance(options) {
-  if (typeof i18nFactory !== "function") {
-    throw new TypeError(
-      "[@comvi/nuxt] comvi i18nModule must export a default function returning an i18n instance.",
-    );
-  }
-
-  const instance = i18nFactory(${factoryOptions});
-
-  // A VueI18n HAS a t(), so a t-only check let @comvi/vue's createI18n(...)
-  // through and createI18nFromCore wrapped a wrapper. "core" is the wrapper's
-  // own tell, and init() separates an instance from any object carrying a t().
-  if (!instance || typeof instance.t !== "function" || typeof instance.init !== "function" || "core" in instance) {
-    throw new TypeError(
-      '[@comvi/nuxt] comvi i18nModule must default-export a factory returning a core instance, not a VueI18n. Use createI18n from "@comvi/nuxt/i18n", e.g. createI18n(options).use(loader(map)).',
-    );
-  }
-
-${freshInstanceGuard}
-  return instance;
-}
-
-export function createComviI18n(options) {
-  const locale = options.ssrLocale ?? options.locale;
-
-  return createI18nFromCore(createInstance({ ...options, locale }), { ssrLocale: locale });
-}
-
-export function createComviCore(options) {
-  return createInstance(options);
-}
-`;
-    };
-    addTemplate({ filename: "comvi.i18n.mjs", getContents: i18nContents });
-
-    // The same three modules for the Nitro build, which the server utilities
-    // (`useTranslation(event)`, `loadMessages`, `getRequestI18n`) import. The
-    // Vue app's server bundle and the Nitro runtime are separate builds, and
-    // nuxt's `impound` plugin refuses a `#build/*` specifier anywhere in the
-    // Nitro graph: an app with one `server/api` route that called
-    // `useTranslation(event)` failed `nuxt build`. Nitro's own virtual modules
-    // are how generated code reaches that build.
-    // The hook is declared by nuxt's Nitro integration, which this package's
-    // own compilation does not load; the cast names the one field written.
+    // The same two modules for the Nitro build, which `useTranslation(event)` imports:
+    // nuxt's `impound` plugin refuses a `#build/*` specifier in the Nitro graph, and
+    // Nitro's own virtual modules are how generated code reaches that build.
     (
       nuxt as unknown as {
         hook(
@@ -493,122 +276,37 @@ export function createComviCore(options) {
       nitroConfig.virtual = {
         ...nitroConfig.virtual,
         "#comvi/detection": detectionContents,
-        "#comvi/setup": setupContents,
-        "#comvi/i18n": i18nContents,
+        "#comvi/options": optionsContents,
       };
     });
 
-    // The type-level counterpart of the instance template above, and the only place
-    // the two user files are compared. `comvi.setup`'s instance used to be an
-    // ASSERTION about a different file reached by a string path — a hook typed
-    // `NuxtI18nSetup<I18n & I18nLoaderApi>` compiled whether or not
-    // `comvi.i18n` ever composed the loader, and a base instance gets no capability
-    // shim, so `core.registerLoader(...)` threw a raw `TypeError` on the first
-    // call. This template reads the instance type OFF the factory
-    // (`ReturnType<typeof import("./comvi.i18n").default>`), publishes it
-    // through `ComviNuxtInstanceRegistry` so `NuxtI18nSetup`'s DEFAULT type
-    // argument is the real instance, and puts the hook through
-    // `CheckedNuxtI18nSetup`, which does not compile when the hook names a
-    // capability the factory did not compose.
-    //
-    // A `.ts`, NOT the `.d.ts` `addTypeTemplate` insists on: every nuxt
-    // tsconfig sets `skipLibCheck: true`, which silences every error inside a
-    // declaration file — including the one this file exists to raise. A module
-    // augmentation still APPLIES from a `.d.ts`, so the registry half would
-    // have worked there; the cross-check half was measurably dead. Referencing
-    // a `.ts` from the generated `nuxt.d.ts` is the same one-line hook
-    // `addTypeTemplate` uses, minus its filename assertion.
-    const typeCheckTemplate = addTemplate({
-      filename: "types/comvi-i18n.ts",
-      // Templates are virtual unless asked for: `.d.ts` is the one extension
-      // nuxt writes to `buildDir` on its own, and a file tsc never opens raises
-      // nothing.
-      write: true,
-      getContents: () => {
-        // `default` in BOTH imports on purpose: the runtime template above
-        // imports exactly these two default exports, so a file whose default
-        // export is missing is a build error here too.
-        const instanceType = resolvedI18nModulePath
-          ? `ReturnType<typeof import(${JSON.stringify(toTypeImportSpecifier(resolvedI18nModulePath))}).default>`
-          : // No i18n module: codegen built core's BASE instance, and naming it here
-            // is what makes a hook that calls a capability on it an error.
-            `import("@comvi/nuxt").I18n`;
+    addPlugin({ src: resolve("./runtime/plugin"), mode: "all" });
 
-        const check = resolvedSetupPath
-          ? `
-/**
- * The cross-check. \`comvi.setup\`'s default export is measured against the instance
- * \`comvi.i18n\` actually returns, so a hook that reaches for a capability the
- * factory never composed fails HERE instead of throwing on its first call.
- */
-export type ComviSetupMatchesInstance = import("@comvi/nuxt").CheckedNuxtI18nSetup<
-  ComviResolvedInstance,
-  typeof import(${JSON.stringify(toTypeImportSpecifier(resolvedSetupPath))}).default
->;
-`
-          : "";
-
-        return `// Generated by @comvi/nuxt — do not edit.
-export {};
-
-/** The instance \`#build/comvi.i18n\` really builds, read off the factory. */
-type ComviResolvedInstance = ${instanceType};
-
-declare module "@comvi/nuxt" {
-  interface ComviNuxtInstanceRegistry {
-    instance: ComviResolvedInstance;
-  }
-}
-${check}`;
-      },
-    });
-
-    nuxt.hook("prepare:types", (payload) => {
-      payload.references ||= [];
-      payload.references.push({ path: typeCheckTemplate.dst });
-    });
-
-    // Explicit, so Nuxt generates stable #imports types for published package
-    // consumers. Keep in sync with src/runtime/composables/ — asserted by
-    // tests/module.test.ts.
+    // Explicit, so Nuxt generates stable #imports types for published package consumers.
+    // `useI18n` and `useFormat` are `@comvi/vue`'s own, re-exported as they are.
     addImports([
       { name: "useI18n", from: resolve("./runtime/composables/useI18n") },
-      { name: "useI18nLoader", from: resolve("./runtime/composables/capabilities") },
-      { name: "useI18nPlugins", from: resolve("./runtime/composables/capabilities") },
+      { name: "useFormat", from: resolve("./runtime/composables/useI18n") },
       { name: "useLocaleHead", from: resolve("./runtime/composables/useLocaleHead") },
       { name: "useLocalePath", from: resolve("./runtime/composables/useLocalePath") },
       { name: "useLocaleRoute", from: resolve("./runtime/composables/useLocaleRoute") },
       { name: "useRouteConfig", from: resolve("./runtime/composables/useRouteConfig") },
       { name: "useSwitchLocalePath", from: resolve("./runtime/composables/useSwitchLocalePath") },
     ]);
-    // Below every app and layer directory, so an app's own `formatDate` wins silently.
-    addImports(
-      ["formatNumber", "formatDate", "formatCurrency", "formatRelativeTime"].map((name) => ({
-        name,
-        from: resolve("./runtime/i18n"),
-        priority: -100,
-      })),
-    );
 
-    // Register runtime components explicitly to avoid async/global component chunk warnings.
-    addComponent({
-      name: "T",
-      filePath: resolve("./runtime/components/T"),
-      export: "default",
-    });
+    addComponent({ name: "T", filePath: resolve("./runtime/components/T"), export: "default" });
     addComponent({
       name: "NuxtLinkLocale",
       filePath: resolve("./runtime/components/NuxtLinkLocale"),
       export: "default",
     });
 
-    addServerImportsDir(resolve("./runtime/server/utils"));
-
-    // Owns the per-request instance teardown: Nitro's `afterResponse` fires after
-    // the handler returned AND after the response was written, which the
-    // response's `close` event cannot promise on a client abort. Registering it
-    // also tells `getRequestI18n` to stop hooking the response itself.
-    addServerPlugin(resolve("./runtime/server/plugins/request-cleanup"));
+    addServerImports([
+      { name: "useTranslation", from: resolve("./runtime/server/utils/useTranslation") },
+    ]);
+    // Ends every server instance of a request with the request, through three request-end
+    // hooks: after the response, when its handler threw, or when the connection closed.
+    addServerPlugin(resolve("./runtime/server/plugins/comvi"));
 
     addRouteMiddleware({
       name: "i18n",
@@ -617,7 +315,6 @@ ${check}`;
     });
 
     nuxt.options.build.transpile.push(resolve("./runtime"));
-
     nuxt.options.build.transpile.push("@comvi/vue", "@comvi/core");
 
     nuxt.options.vite = nuxt.options.vite || {};
@@ -636,9 +333,8 @@ ${check}`;
           if (path === "/") {
             return `/${locale}`;
           }
-          // Child route paths are often relative (e.g. "settings").
-          // Only absolute route paths should get locale prefixes.
-          // A leading `//` is a protocol-relative URL, not an app path.
+          // Child route paths are often relative (e.g. "settings"); only absolute route
+          // paths get locale prefixes. A leading `//` is a protocol-relative URL.
           if (path.startsWith("/") && !path.startsWith("//")) {
             return `/${locale}${path}`;
           }
@@ -647,9 +343,8 @@ ${check}`;
 
         /**
          * Drop a locale prefix the path already carries, so a hand-written
-         * `alias: "/de/already"` clones to `/en/already` instead of
-         * `/en/de/already`. Segment-based, like the runtime stripper: `/enter`
-         * keeps its leading `en` bytes.
+         * `alias: "/de/already"` clones to `/en/already` instead of `/en/de/already`.
+         * Segment-based, like the runtime stripper: `/enter` keeps its leading `en`.
          */
         const withoutLocalePrefix = (path: string): string => {
           for (const locale of localeCodes) {
@@ -664,12 +359,9 @@ ${check}`;
         };
 
         /**
-         * An alias is an extra path the SAME record answers on, so a clone that
-         * kept its source's aliases would answer on the unlocalized URL too —
-         * under `localePrefix: "always"` that URL is supposed to be gone. Each
-         * entry goes through the path rule: absolute ones are re-prefixed for
-         * this locale, relative child aliases stay relative, external ones are
-         * left alone.
+         * An alias is an extra path the SAME record answers on: absolute ones are
+         * re-prefixed for this locale, relative child aliases stay relative, external
+         * ones are left alone.
          */
         const localizeAlias = (alias: NuxtPage["alias"], locale: string): NuxtPage["alias"] => {
           const localizeEntry = (entry: string): string =>
@@ -681,14 +373,9 @@ ${check}`;
         };
 
         /**
-         * A redirect target that stays unlocalized drops the visitor out of the
-         * locale they were in. A string or a `path` location is rewritten like
-         * any path, an existing locale prefix included, so a target written as
-         * `/de/new` becomes this locale's `/en/new` rather than `/en/de/new`;
-         * a `name` location is retargeted at the clone of the same
-         * locale, because in `always` mode the unprefixed record it named no
-         * longer exists. A function redirect and a name no cloned page defines
-         * are the caller's own resolution and stay untouched.
+         * A string or `path` redirect target is rewritten like any path; a `name`
+         * location is retargeted at the clone of the same locale. A function redirect
+         * and a name no cloned page defines stay untouched.
          */
         const localizeRedirect = (
           redirect: NuxtPage["redirect"],
@@ -748,15 +435,11 @@ ${check}`;
         const rootPages = pages.filter(
           (page) => !isLocaleParamRoute(page.path) && !page.file?.includes("[locale]"),
         );
-
-        // Every name the clones will define, so a name-based redirect can tell
-        // a cloned target from one the module never touches.
         const clonedNames = collectNames(rootPages, new Set<string>());
 
         for (const locale of localeCodes) {
           const shouldPrefix =
             localePrefix === "always" || (localePrefix === "as-needed" && locale !== defaultLocale);
-
           if (shouldPrefix) {
             for (const page of rootPages) {
               localizedPages.push(clonePageWithPrefix(page, locale, clonedNames));
@@ -769,20 +452,15 @@ ${check}`;
         if (localePrefix === "always" && rootPages.length > 0) {
           // In `always` mode only prefixed routes may exist.
           for (let i = pages.length - 1; i >= 0; i--) {
-            if (rootPages.includes(pages[i])) {
+            if (rootPages.includes(pages[i]!)) {
               pages.splice(i, 1);
             }
           }
         }
 
-        const localeRouteIndex = pages.findIndex(
-          (page) => isLocaleParamRoute(page.path) || page.file?.includes("[locale]"),
-        );
-        if (localeRouteIndex !== -1) {
-          for (let i = pages.length - 1; i >= 0; i--) {
-            if (isLocaleParamRoute(pages[i].path) || pages[i].file?.includes("[locale]")) {
-              pages.splice(i, 1);
-            }
+        for (let i = pages.length - 1; i >= 0; i--) {
+          if (isLocaleParamRoute(pages[i]!.path) || pages[i]!.file?.includes("[locale]")) {
+            pages.splice(i, 1);
           }
         }
       });

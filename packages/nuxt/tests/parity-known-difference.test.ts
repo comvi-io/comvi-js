@@ -1,8 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-
-vi.mock("../src/runtime/utils/runtime", () => ({
-  isServer: vi.fn(() => false),
-}));
+import { describe, it, expect, beforeEach } from "vitest";
 
 import middleware from "../src/runtime/middleware/i18n.global";
 import {
@@ -10,8 +6,10 @@ import {
   setMockCookie,
   mockRuntimeConfig,
   getMockCookieWrites,
+  setMockI18n,
+  fakeInstance,
 } from "./mocks/nuxt-app";
-import { useCookie, useState } from "#app";
+import { useCookie, useNuxtApp } from "#app";
 
 /**
  * The ONE behavioural difference between `@comvi/next` and `@comvi/nuxt` that
@@ -28,6 +26,7 @@ import { useCookie, useState } from "#app";
 describe("known Next/Nuxt difference: prefixless path vs stored locale", () => {
   beforeEach(() => {
     resetMocks();
+    setMockI18n(fakeInstance("en"));
     mockRuntimeConfig.public.comvi.localePrefix = "as-needed";
   });
 
@@ -38,7 +37,7 @@ describe("known Next/Nuxt difference: prefixless path vs stored locale", () => {
 
     // No redirect: `/about` IS the `en` URL in as-needed mode.
     expect(result).toBeUndefined();
-    expect(useState<string>("i18n-locale").value).toBe("en");
+    expect((useNuxtApp().$i18n as { locale: string }).locale).toBe("en");
   });
 
   it("keeps the de cookie rather than overwriting it with the served locale", async () => {

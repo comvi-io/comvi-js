@@ -1,61 +1,36 @@
 <script setup lang="ts">
-// `<html lang dir>` comes from the module (`comvi.head`, on by default).
-const { t, isLoading } = useI18n();
-
-const navItems = [
-  { path: "/", label: "nav.home" },
-  { path: "/plurals", label: "nav.plurals" },
-  { path: "/rich-text", label: "nav.rich_text" },
-  { path: "/namespaces", label: "nav.namespaces" },
-  { path: "/rtl", label: "nav.rtl" },
-] as const;
-
+// `<html lang dir>` comes from the module (`comvi.head`, on by default); the SEO links from
+// `useLocaleHead()`.
+const { t, locale, setLocale } = useI18n();
+const switchLocalePath = useSwitchLocalePath();
 const localePath = useLocalePath();
+useLocaleHead({ baseUrl: "https://example.com" });
+// Layout state the e2e expects to survive navigations and locale switches (no remount).
+const count = ref(0);
+const SWITCHES = ["en", "uk", "de", "fr", "de-AT"];
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 font-sans">
-    <nav class="bg-white shadow mb-8 sticky top-0 z-50">
-      <div class="container mx-auto px-4 py-4 flex justify-between items-center">
-        <div class="flex items-center gap-2">
-          <h1 class="text-xl font-bold text-blue-600">Comvi Nuxt 4 Example</h1>
-        </div>
-        <div class="flex gap-4 items-center">
-          <div v-if="isLoading" class="text-sm text-gray-500 italic">
-            {{ t("common.loading") }}
-          </div>
-          <LanguageSwitcher />
-        </div>
-      </div>
-      <div class="container mx-auto px-4 border-t flex gap-2 overflow-x-auto py-2">
-        <NuxtLink
-          v-for="item in navItems"
-          :key="item.path"
-          :to="localePath(item.path)"
-          class="px-3 py-2 rounded text-sm hover:bg-gray-100 whitespace-nowrap transition-colors"
-          active-class="bg-blue-50 text-blue-700 font-medium"
-        >
-          {{ t(item.label) }}
-        </NuxtLink>
-      </div>
+  <div>
+    <nav>
+      <span data-testid="nav-locale">{{ locale }}</span>
+      <NuxtLinkLocale data-testid="nav-home" to="/">{{ t("nav.home") }}</NuxtLinkLocale>
+      <NuxtLink data-testid="nav-admin" :to="localePath('/admin')">admin</NuxtLink>
+      <NuxtLink data-testid="nav-account" :to="localePath('/account')">account</NuxtLink>
+      <NuxtLink data-testid="nav-plurals" :to="localePath('/plurals')">{{
+        t("nav.plurals")
+      }}</NuxtLink>
+      <NuxtLink
+        v-for="l in SWITCHES"
+        :key="l"
+        :data-testid="`switch-${l}`"
+        :to="switchLocalePath(l)"
+        >{{ l }}</NuxtLink
+      >
+      <NuxtLinkLocale data-testid="link-uk" to="/admin" locale="uk">uk admin</NuxtLinkLocale>
+      <button data-testid="direct-uk" @click="setLocale('uk').catch(() => {})">uk</button>
+      <button data-testid="layout-count" @click="count++">{{ count }}</button>
     </nav>
-
-    <main class="container mx-auto px-4 pb-12">
-      <div class="bg-white rounded-lg shadow p-6 min-h-[300px]">
-        <NuxtPage />
-      </div>
-    </main>
+    <main><NuxtPage /></main>
   </div>
 </template>
-
-<style>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.15s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-</style>

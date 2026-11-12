@@ -98,66 +98,6 @@ export declare const icuCompiler: MessageCompiler;
 `;
 
 /**
- * A miniature `@comvi/nuxt`, for the one relationship the registry emulation
- * turns on.
- *
- * `ComviNuxtInstanceRegistry` is EMPTY here, exactly as it is in the real package:
- * this package compiles without any app, and `ResolvedNuxtInstance` therefore falls
- * back to core's base `I18n` — which has no `registerLoader`. The module's
- * codegen is what fills the slot, by reading the host type off the app's
- * `comvi.i18n` factory, and `typecheck.mjs` emits the same declaration for a
- * fence group holding that file. So a group WITH the host fence must compile
- * `core.registerLoader(...)` and the same group WITHOUT it must report TS2339 —
- * a stub that gave the base host a `registerLoader` could not tell the two
- * apart, and the test would pass against tooling that does nothing.
- *
- * `loader()` widens, and `createI18n` does not: that is how the factory's return
- * type comes to differ from the fallback in the first place.
- */
-const NUXT_INDEX = `
-import type { I18n } from "@comvi/core";
-export type { I18n };
-
-export type LoaderFn = (locale: string, namespace: string) => Promise<unknown>;
-
-export interface I18nLoaderApi {
-  registerLoader(load: LoaderFn): void;
-}
-
-export interface ComviNuxtInstanceRegistry {}
-
-export type RegisteredNuxtInstance<Fallback extends I18n> = ComviNuxtInstanceRegistry extends {
-  instance: infer H;
-}
-  ? H extends I18n
-    ? H
-    : Fallback
-  : Fallback;
-
-export type ResolvedNuxtInstance = RegisteredNuxtInstance<I18n>;
-
-export interface NuxtI18nSetupContext<C extends I18n = ResolvedNuxtInstance> {
-  core: C;
-}
-
-export type NuxtI18nSetup<C extends I18n = ResolvedNuxtInstance> = (
-  context: NuxtI18nSetupContext<C>,
-) => void | Promise<void>;
-
-export type NuxtInstanceFactory = (options: { locale: string }) => I18n;
-`;
-
-const NUXT_I18N = `
-import type { I18n } from "@comvi/core";
-import type { I18nLoaderApi } from "@comvi/nuxt";
-export type { NuxtInstanceFactory, LoaderFn } from "@comvi/nuxt";
-export declare function createI18n(options: { locale: string }): I18n;
-export declare function loader(
-  map: Record<string, () => Promise<unknown>>,
-): <T>(i18n: T) => T & I18nLoaderApi;
-`;
-
-/**
  * Write the stub under `dir` and return `dir`, ready to be an `--sdk-root`.
  *
  * The `exports` map is real, not a `types` shortcut, because the driver resolves
@@ -191,30 +131,6 @@ export function writeStubSdk(dir) {
   fs.writeFileSync(path.join(core, "icu.d.ts"), CORE_ICU);
   for (const name of ["index", "loader", "plugins", "icu"]) {
     fs.writeFileSync(path.join(core, `${name}.js`), "export {};\n");
-  }
-
-  const nuxt = path.join(dir, "node_modules", "@comvi", "nuxt");
-  fs.mkdirSync(nuxt, { recursive: true });
-  fs.writeFileSync(
-    path.join(nuxt, "package.json"),
-    JSON.stringify(
-      {
-        name: "@comvi/nuxt",
-        version: "0.5.0",
-        type: "module",
-        exports: {
-          ".": { types: "./index.d.ts", default: "./index.js" },
-          "./i18n": { types: "./i18n.d.ts", default: "./i18n.js" },
-        },
-      },
-      null,
-      2,
-    ),
-  );
-  fs.writeFileSync(path.join(nuxt, "index.d.ts"), NUXT_INDEX);
-  fs.writeFileSync(path.join(nuxt, "i18n.d.ts"), NUXT_I18N);
-  for (const name of ["index", "i18n"]) {
-    fs.writeFileSync(path.join(nuxt, `${name}.js`), "export {};\n");
   }
 
   fs.writeFileSync(

@@ -1,23 +1,14 @@
 <script setup lang="ts">
-const { t, locale, locales, setLocale, isLoading } = useI18n();
+const { t, locale, isLoading } = useI18n();
+const { locales } = useRouteConfig();
 
-// The locale is part of the URL, so switching means navigating to this same
-// page under another prefix.
+// The locale is part of the URL, so switching is a navigation to this same page under
+// another prefix: the URL, the text, the cookie and <html lang> move together. The old
+// language stays on screen until the new one's catalogs are in. `router.push`, not
+// `navigateTo()`: while a switch is still loading, Nuxt answers a `navigateTo()` from a
+// click with the location only, and a second click would do nothing.
 const switchLocalePath = useSwitchLocalePath();
-
-// Only the newest click navigates: a slower, earlier switch must not land a
-// German page at the Ukrainian address.
-let latestSelect = 0;
-
-async function select(code: string) {
-  if (code === locale.value) return;
-  const request = ++latestSelect;
-  // Switch first, navigate second: the page changes language the moment the
-  // catalog arrives instead of waiting for the route to resolve.
-  await setLocale(code);
-  if (request !== latestSelect) return;
-  await navigateTo(switchLocalePath(code));
-}
+const router = useRouter();
 </script>
 
 <template>
@@ -29,7 +20,7 @@ async function select(code: string) {
         :key="code"
         :data-testid="`locale-${code}`"
         :aria-pressed="locale === code"
-        @click="select(code)"
+        @click="router.push(switchLocalePath(code))"
       >
         {{ code }}
       </button>

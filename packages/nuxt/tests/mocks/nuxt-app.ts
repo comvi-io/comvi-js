@@ -2,7 +2,6 @@ import { ref, reactive, computed, customRef } from "vue";
 import type {
   LocaleCookieConfig,
   LocaleDetectionConfig,
-  NuxtI18nPrivateRuntimeConfig,
   NuxtI18nRuntimeConfig,
 } from "../../src/types";
 import { runtimeLocaleKeys } from "./locale-options";
@@ -16,7 +15,7 @@ const stateStore = new Map<string, any>();
  */
 const defaultRuntimeConfig: {
   public: { comvi: NuxtI18nRuntimeConfig["comvi"] };
-  comvi: NuxtI18nPrivateRuntimeConfig["comvi"];
+  app: { baseURL: string };
 } = {
   public: {
     comvi: {
@@ -28,15 +27,10 @@ const defaultRuntimeConfig: {
       },
       defaultLocale: "en",
       localePrefix: "as-needed",
-      defaultNs: "default",
-      fallbackLocale: "en",
-      basicHtmlTags: ["strong", "em"],
       ...runtimeLocaleKeys(),
     },
   },
-  comvi: {
-    apiKey: undefined,
-  },
+  app: { baseURL: "/" },
 };
 
 const cloneRuntimeConfig = () => structuredClone(defaultRuntimeConfig);
@@ -99,6 +93,45 @@ export function setMockI18n(i18n: any) {
   mockNuxtApp.$i18n = i18n;
 }
 
+/**
+ * A stand-in instance whose `setLocale()` calls stay pending until the test settles each
+ * one: `land(i)` shows call i's locale and resolves it, `fail(i)` rejects it (the locale on
+ * screen stays), `resolve(i)` resolves it without switching (a superseded call in the core).
+ */
+export function deferredInstance(locale: string) {
+  const calls: Array<{ target: string; resolve: () => void; reject: (e: Error) => void }> = [];
+  const instance = {
+    locale,
+    get targets() {
+      return calls.map((c) => c.target);
+    },
+    setLocale: (target: string) =>
+      new Promise<void>((resolve, reject) => void calls.push({ target, resolve, reject })),
+    land(i: number) {
+      instance.locale = calls[i]!.target;
+      calls[i]!.resolve();
+    },
+    resolve(i: number) {
+      calls[i]!.resolve();
+    },
+    fail(i: number) {
+      calls[i]!.reject(new Error("load_failed"));
+    },
+  };
+  return instance;
+}
+
+/** A stand-in instance for the route middleware: its locale and a `setLocale()` that switches. */
+export function fakeInstance(locale: string) {
+  const instance = {
+    locale,
+    setLocale: async (next: string) => {
+      instance.locale = next;
+    },
+  };
+  return instance;
+}
+
 export function useState<T>(key: string, init?: () => T) {
   if (!stateStore.has(key)) {
     stateStore.set(key, ref(init ? init() : undefined));
@@ -156,8 +189,29 @@ export function setRouterResolveOverride(fn: ((to: any) => any) | null) {
   routerResolveOverride = fn;
 }
 
+/** The router's `afterEach` hooks; `endNavigation()` ends the navigation in progress. */
+const afterEachHooks: Array<() => void> = [];
+export function endNavigation() {
+  for (const hook of [...afterEachHooks]) hook();
+}
+
+let routerOverride: object | null = null;
+/** `useRouter()` returns this router (a real one) instead of the stub. */
+export function setRouterOverride(router: object | null) {
+  routerOverride = router;
+}
+
 export function useRouter() {
+  if (routerOverride) return routerOverride;
   return {
+    onError: () => () => {},
+    afterEach: (hook: () => void) => {
+      afterEachHooks.push(hook);
+      return () => {
+        const i = afterEachHooks.indexOf(hook);
+        if (i >= 0) afterEachHooks.splice(i, 1);
+      };
+    },
     push: () => Promise.resolve(),
     replace: () => Promise.resolve(),
     go: () => {},
@@ -218,6 +272,14 @@ export function useHead(config: any) {
   return computed(() => config.value || config);
 }
 
+export function createError(input: {
+  statusCode: number;
+  statusMessage?: string;
+  fatal?: boolean;
+}) {
+  return Object.assign(new Error(input.statusMessage), input);
+}
+
 export function navigateTo(path: string, options?: any) {
   return { path, ...options };
 }
@@ -260,6 +322,18 @@ function resetRuntimeConfig() {
 export function resetMocks() {
   stateStore.clear();
   mockNuxtApp.$i18n = null;
+  // What the module's runtime keeps on the app: its one cookie ref, the navigation count.
+  afterEachHooks.length = 0;
+  routerOverride = null;
+  for (const key of [
+    "_comviLocaleCookie",
+    "_comviNavigating",
+    "_comviNavigation",
+    "_comviTarget",
+    "_comviTargetEnds",
+    "payload",
+  ])
+    delete (mockNuxtApp as Record<string, unknown>)[key];
   cookieStore.clear();
   cookieOptions.clear();
   cookieWrites.clear();

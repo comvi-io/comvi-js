@@ -2,9 +2,7 @@ type ComviRuntimeConfig = {
   public: import("./types").NuxtI18nRuntimeConfig & {
     [key: string]: unknown;
   };
-  comvi: import("./types").NuxtI18nPrivateRuntimeConfig["comvi"] & {
-    [key: string]: unknown;
-  };
+  app?: { baseURL?: string };
   [key: string]: unknown;
 };
 
@@ -32,12 +30,14 @@ declare namespace NodeJS {
 declare module "#app" {
   export interface NuxtPayload {
     state?: Record<string, unknown>;
+    serverRendered?: boolean;
     [key: string]: unknown;
   }
 
   export interface NuxtApp {
     vueApp: {
       use(plugin: unknown): unknown;
+      runWithContext<T>(fn: () => T): T;
     };
     payload: NuxtPayload;
     /**
@@ -45,9 +45,10 @@ declare module "#app" {
      * per-request instance to the Nitro teardown through this event's context.
      * Nuxt's own type has `event` required; optional is the safer shim.
      */
-    ssrContext?: { event?: import("h3").H3Event; [key: string]: unknown };
+    ssrContext?: { event?: import("h3").H3Event; url?: string; [key: string]: unknown };
     hook(name: string, callback: (...args: unknown[]) => unknown): void;
-    $i18n: import("@comvi/vue").AnyVueI18n;
+    $i18n: import("@comvi/vue").VueI18n;
+    isHydrating?: boolean;
     [key: string]: unknown;
   }
 
@@ -84,8 +85,17 @@ declare module "#app" {
   export function useRoute(): NuxtRouteLike;
   export function useRouter(): {
     resolve(to: import("vue-router").RouteLocationRaw): import("vue-router").RouteLocationResolved;
+    afterEach(
+      hook: (to: unknown, from: unknown, failure?: { type: number } | void) => void,
+    ): () => void;
+    onError(hook: () => void): () => void;
   };
   export function useHead(input: unknown): void;
+  export function createError(input: {
+    statusCode: number;
+    statusMessage?: string;
+    fatal?: boolean;
+  }): Error;
   export function useRequestURL(): URL;
 }
 

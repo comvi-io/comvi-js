@@ -1,9 +1,8 @@
 import { useHead, useRuntimeConfig, useRoute, useRequestURL } from "#app";
-// A pure function of the locale string — no instance, no capability, no state. The
-// runtime already imports values from `@comvi/core`'s root (useI18n.ts), so
-// this adds no package edge and nothing that could pull the base instance in.
-import { getTextDirection } from "@comvi/core";
-import { useLocaleState } from "../utils/locale-state";
+import { useLocale } from "../utils/locale";
+// The core's direction of a tag (the one the instance derives `dir` from), applied to
+// the tag `lang` uses.
+import { dir as textDirection } from "@comvi/core/internal";
 import type { ComputedRef } from "vue";
 import { computed, watch } from "vue";
 import { stripLocalePrefix, buildLocalizedPath } from "../utils/locale-path";
@@ -68,7 +67,7 @@ export interface LocaleHeadOptions {
 export function useLocaleHead(options: LocaleHeadOptions = {}) {
   const config = useRuntimeConfig();
   const { locales, localeObjects, defaultLocale, localePrefix } = config.public.comvi;
-  const localeState = useLocaleState();
+  const current = useLocale();
   const route = useRoute();
 
   const {
@@ -101,7 +100,7 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
   };
 
   const headConfig = computed(() => {
-    const currentLocale = localeState.value || defaultLocale;
+    const currentLocale = current.value || defaultLocale;
     const localeObj = localeObjects[currentLocale];
     const baseUrl = getBaseUrl();
     const cleanPath = getCleanPath();
@@ -126,7 +125,7 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
       // documented as defaulting to "ltr" and `addDir` as on by default, and
       // omitting it honoured neither: an app configured the way the docs open
       // (`locales: ["en", "de"]`) shipped <html> with no direction at all.
-      htmlAttrs.dir = localeObj?.dir ?? getTextDirection(languageTag);
+      htmlAttrs.dir = localeObj?.dir ?? textDirection(languageTag);
     }
     if (Object.keys(htmlAttrs).length > 0) {
       head.htmlAttrs = htmlAttrs;

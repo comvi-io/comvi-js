@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
 /**
- * Driven by `run.mjs`, which builds and serves one Next test app and passes its address in
+ * Driven by `run.mjs`, which builds and serves one Next or Nuxt test app and passes its address in
  * `E2E_BASE_URL` (with the catalog mock's in `E2E_MOCK_URL`). One worker, no retries: a retry
  * would turn a flaky hydration into a green run.
  */
@@ -10,7 +10,7 @@ if (!baseURL) throw new Error("E2E_BASE_URL is not set — run this through `pnp
 
 export default defineConfig({
   testDir: ".",
-  testMatch: "next.spec.ts",
+  testMatch: process.env.E2E_SPEC ?? "next.spec.ts",
   fullyParallel: false,
   workers: 1,
   retries: 0,

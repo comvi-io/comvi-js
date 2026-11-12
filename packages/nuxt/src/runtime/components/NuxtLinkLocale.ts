@@ -1,8 +1,8 @@
 import { defineComponent, h, computed, type PropType } from "vue";
 import { NuxtLink } from "#components";
-import { useRuntimeConfig } from "#app";
+import { useNuxtApp, useRouter, useRuntimeConfig } from "#app";
 import { useLocalePath } from "../composables/useLocalePath";
-import { serializeLocaleCookie } from "../utils/locale-path";
+import { setTarget } from "../utils/target";
 
 /**
  * Prefixes the `to` prop with the current or specified locale, following the
@@ -37,24 +37,20 @@ export default defineComponent({
 
   setup(props, { slots, attrs }) {
     const localePath = useLocalePath();
-    const { localeCookie, locales } = useRuntimeConfig().public.comvi;
+    const { locales, localeCookie } = useRuntimeConfig().public.comvi;
+    const nuxtApp = useNuxtApp();
+    const router = useRouter();
 
-    // A link that names a locale is a locale switch, and the cookie is the
-    // record of the user's choice: the click writes it BEFORE the navigation.
-    // The route middleware resolves a URL that names no locale (the default
-    // locale's under `as-needed`, every URL under `never`) from this cookie,
-    // and would otherwise answer with the locale being switched away from.
-    // Written straight to `document.cookie`: a `useCookie()` ref is flushed
-    // asynchronously, and the middleware reads the document's value.
+    // A link that names a locale is a locale switch. The click records the locale for the
+    // navigation it starts (in memory, `utils/target.ts`): the route middleware resolves a
+    // URL that names no locale (every URL under `never`, the root under `as-needed`) from it.
+    // The cookie is written by the middleware once the switch has landed, so a switch that
+    // is superseded or aborted records nothing; a link to the page on screen switches when
+    // the router reports the duplicate. With `localeCookie: false` a click records nothing.
     const recordLocale = () => {
       const { locale } = props;
-      if (!locale || !localeCookie || !locales.includes(locale)) return;
-      document.cookie = serializeLocaleCookie(
-        localeCookie,
-        locale,
-        // A browser drops a `Secure` cookie set from a plain-HTTP page.
-        localeCookie.secure && location.protocol === "https:",
-      );
+      if (locale && localeCookie && locales.includes(locale))
+        setTarget(nuxtApp, router, locale, localizedTo.value);
     };
 
     const localizedTo = computed(() => {
@@ -71,8 +67,15 @@ export default defineComponent({
           onClick: (event: MouseEvent) => {
             onClick?.(event);
             // No `defaultPrevented` check: `RouterLink` has already called
-            // `preventDefault()` on every click it turns into a navigation.
-            recordLocale();
+            // `preventDefault()` on every click it turns into a navigation. A modified or
+            // non-primary click, a link with a `target` other than `_self` or an `external`
+            // one is a page load (NuxtLink renders a plain anchor): nothing to record in
+            // this document.
+            const { button, metaKey, ctrlKey, shiftKey, altKey } = event;
+            const { target, external } = rest as { target?: string; external?: unknown };
+            const load =
+              (external !== undefined && external !== false) || (!!target && target !== "_self");
+            if (!button && !metaKey && !ctrlKey && !shiftKey && !altKey && !load) recordLocale();
           },
         },
         slots,

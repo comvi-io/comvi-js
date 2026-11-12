@@ -14,13 +14,11 @@
     "types": ["vitest/globals", "node"],
     "paths": {
       "#app": ["./tests/mocks/nuxt-app.ts"],
-      "#build/comvi.setup": ["./tests/mocks/comvi-setup.ts"],
+      "#build/comvi.options": ["./tests/mocks/comvi-options.ts"],
       "#build/comvi.detection": ["./tests/mocks/comvi-detection.ts"],
-      "#build/comvi.i18n": ["./tests/mocks/comvi-i18n.ts"],
       "#components": ["./tests/mocks/nuxt-components.ts"],
-      "#comvi/setup": ["./tests/mocks/comvi-setup.ts"],
+      "#comvi/options": ["./tests/mocks/comvi-options.ts"],
       "#comvi/detection": ["./tests/mocks/comvi-detection.ts"],
-      "#comvi/i18n": ["./tests/mocks/comvi-i18n.ts"],
       "#imports": ["./tests/mocks/nitro-imports.ts"]
     }
   },

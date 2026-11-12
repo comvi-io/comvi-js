@@ -1690,3 +1690,59 @@ two limits change; every other row fits.
 
 vue-icu-cdn's ceiling (6,191) is not changed: the row measures exactly at it. fw-vue-full-composite
 has no ceiling; its baseline is the measurement above.
+
+## 2026-11-11: lot 7, Nuxt on the 0.8 core (owner-approved ceilings)
+
+Owner decision of 2026-11-11. The three 0.7 rows (`fw-nuxt-client-default`, `fw-nuxt-full-composite`,
+`fw-nuxt-i18n` of 0.7) named entries that no longer exist (`loadMessages`, `@comvi/core/icu`,
+`/loader`, `/plugins`) and are replaced by four rows of the 0.8 entries. Measured on `lot7/nuxt`
+@ `7ebe639b` (the click records no cookie, form B; the server query's first value; `83831cb3`: 10,239 / 10,817; `49db80b6`: 10,231 / 10,805), `TURBO_FORCE=true pnpm build`, `node --version` v24.22.1, two runs with the same
+figures. Budget = min(ceiling, ceil(measured × 1.05)), which is the ceiling for all four.
+
+| row            | measured (min / min+gz) | ceiling = budget |
+| -------------- | ----------------------- | ---------------- |
+| fw-nuxt-client | 23,383 / 10,368         | 10,436           |
+| fw-nuxt-server | 24,612 / 10,898         | 11,022           |
+| fw-nuxt-module | 9,025 / 3,467           | 3,537            |
+| fw-nuxt-i18n   | 1,190 / 716             | 731              |
+
+`fw-nuxt-client` is the FULL graph: core + `@comvi/vue` + the Nuxt runtime (plugin, route
+middleware), the routing composables, the `useFormat` formatters and the SEO helper
+`useLocaleHead`, `<T>` and `<NuxtLinkLocale>`. It is not the minimal weight of an app that calls
+only `t()`. `fw-nuxt-server` is for the record (no transfer cost); `fw-nuxt-module` is Node tooling.
+
+No optimisation pass in lot 7 (owner). Recorded candidates:
+
+- the `Accept-Language` parser (`resolveAcceptLanguage` of the vendored locale-routing) is in the
+  client bundle, which never has the header: a concrete candidate for a local reduction;
+- the `lang` / `dir` derivation exists twice (the plugin's `comvi.head` and `useLocaleHead()`):
+  deferred to the agreed SEO lot.
+
+API and behaviour are not changed for bytes.
+
+## 2026-11-12: lot 7, the `fw-nuxt-client` ceiling raised (owner)
+
+Owner decision of 2026-11-12. `<NuxtLinkLocale locale>` no longer writes the cookie on click: it
+keeps its locale in memory for the navigation it starts, and the middleware records the cookie
+after the switch lands (form B). An independent review on a real vue-router then required: a link
+to the URL on screen switches the instance directly (the router runs no guard for a duplicate);
+the target ends with its own navigation through one `afterEach` that skips a cancellation and an
+`onError` for a guard that throws; it matches a redirecting route record and ignores a trailing
+slash; it is read only with the cookie enabled. Together with the server's first query value the
+client row moved 10,239 → 10,491 B (form B +108, the query value +21, the review fixes +123) and
+no longer fit 10,436. The owner raised that ceiling only, to ceil(final measured × 1.02); the
+server, module and `/i18n` ceilings stay. Measured on `lot7/nuxt` @ `cc655b4c`,
+`TURBO_FORCE=true pnpm build`, `node --version` v24.22.1, two runs with the same figures.
+
+| row            | measured (min / min+gz) | ceiling (old → new)                   | budget = min(ceiling, ceil(× 1.05)) |
+| -------------- | ----------------------- | ------------------------------------- | ----------------------------------- |
+| fw-nuxt-client | 23,680 / 10,491         | 10,436 → 10,701 = ceil(10,491 × 1.02) | 10,701                              |
+| fw-nuxt-server | 24,877 / 11,010         | 11,022 (unchanged)                    | 11,022                              |
+| fw-nuxt-module | 9,024 / 3,465           | 3,537 (unchanged)                     | 3,537                               |
+| fw-nuxt-i18n   | 1,190 / 716             | 731 (unchanged)                       | 731                                 |
+
+Closing check, `lot7/nuxt` @ `1ebff22f` (same build, Node v24.22.1, two runs): the middleware's own
+redirect ends the link's target, and a link to the page on screen switches on the router's
+`duplicated` report instead of a string compare, which removes code. `fw-nuxt-client` 10,491 →
+**10,456** (23,658 min), `fw-nuxt-server` 11,010 → **10,977** (24,858 min); module and `/i18n`
+unchanged. Ceilings unchanged (client 10,701 stays as set from 10,491).

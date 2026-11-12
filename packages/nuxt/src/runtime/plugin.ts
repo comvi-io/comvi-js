@@ -1,255 +1,126 @@
-import { defineNuxtPlugin, useRuntimeConfig, useCookie } from "#app";
-import { useLocaleState } from "./utils/locale-state";
-import { runComviSetup } from "#build/comvi.setup";
-import { watch } from "vue";
-// The i18n instance is built by the BUILD-TIME template, never by a runtime
-// branch here: a static `createI18n` import in this module would pin nuxt's
-// default `@comvi/vue` construction path into every nuxt bundle, including apps
-// that configured their own `i18nModule`.
-import { createComviI18n } from "#build/comvi.i18n";
-import type { AnyVueI18n } from "@comvi/vue";
-import type { TranslationValue } from "@comvi/core";
-import { loadCatalogs, rememberFailedLoads } from "./utils/load-catalogs";
+import { createError, defineNuxtPlugin, useRequestHeaders, useRuntimeConfig } from "#app";
+import { createI18n, useI18n, type VueI18n } from "@comvi/vue";
+import { handover, type Handover } from "@comvi/core/ssr";
+import { config, options } from "#build/comvi.options";
+import { resolveAcceptLanguage } from "#build/comvi.detection";
+import { detectLocale } from "./utils/detect";
+import { useLocaleCookie } from "./utils/cookie";
 import { useHtmlAttrs } from "./utils/html-attrs";
-import { hasLoaderApi } from "@comvi/core";
-import { REQUEST_HOSTS_KEY, type RequestScopedInstance } from "./request-hosts-key";
-import {
-  EDITOR_INITIAL_MAPPINGS_GLOBAL,
-  toRecordOfNumbers,
-  readEditorMappings,
-} from "@comvi/core/editor-bridge";
-
-/** Server instances whose `addActiveNamespaces` already loads the fallback chain. */
-const chainLoadingInstances = new WeakSet<object>();
-
-const I18N_EDITOR_MAPPINGS_STATE_KEY = "__comvi_ice_mappings__";
-const I18N_MESSAGES_PAYLOAD_KEY = "__comvi_messages__";
-
-type TranslationsPayload = Record<string, Record<string, TranslationValue>>;
+import { track } from "./utils/instances";
+import { splitPathAndSuffix } from "./utils/locale-path";
 
 /**
- * Keyed by "locale:namespace"; values must be plain (not null-prototype)
- * objects or JSON serialization drops them.
+ * The instance of the app: one per request on the server, one per page load in the
+ * browser, created here before any component reads a translation.
+ *
+ * - Server: the locale is resolved from the request (URL, cookie, headers) BEFORE the
+ *   instance exists, so it starts in it; the render waits for its startup catalogs here
+ *   and for each `useI18n(ns)` in `onServerPrefetch` (`@comvi/vue`). `app:rendered`
+ *   writes the one snapshot, `payload.comvi = handover(i18n)`. The request's end destroys
+ *   the instance (the module's Nitro plugin).
+ * - Browser: the instance starts from that snapshot, once per app life, so hydration
+ *   asks the loader for nothing, a server `null` included. Nothing reads the payload again.
  */
-function serializeMessagesCache(
-  cacheMap: ReadonlyMap<string, Record<string, TranslationValue>>,
-): TranslationsPayload {
-  const result: TranslationsPayload = {};
-  for (const [key, translations] of cacheMap) {
-    result[key] = Object.fromEntries(Object.entries(translations));
-  }
-  return result;
-}
-
 export default defineNuxtPlugin({
   name: "@comvi/nuxt",
   enforce: "pre",
 
   async setup(nuxtApp) {
-    const config = useRuntimeConfig();
-    const publicConfig = config.public.comvi;
+    const runtime = useRuntimeConfig();
+    const routing = runtime.public.comvi;
+    const cookie = useLocaleCookie();
+    const payload = nuxtApp.payload.comvi as Handover | undefined;
+    const event = import.meta.server ? nuxtApp.ssrContext?.event : undefined;
+    // A catalog request of the recipe's loader (it sends `x-comvi-catalog`) that reached no
+    // server route: Nuxt renders it as a page, whose loader would ask for the same URL again,
+    // without end. It answers 404 instead, before any instance or load, so the loader that
+    // asked fails (`load_failed`). Observed: an HTML request gets the 404 with an empty shell
+    // (Nuxt's error render carries the header and stops here too); a JSON request gets Nitro's
+    // JSON error, no error render. It ends there either way.
+    if (import.meta.server && event?.headers?.get("x-comvi-catalog"))
+      throw createError({ statusCode: 404, statusMessage: "No catalog route" });
 
-    const privateConfig = import.meta.server ? config.comvi : undefined;
-
-    const localeState = useLocaleState(publicConfig.defaultLocale);
-
-    // Registered before the first `await`, while the plugin still runs inside
-    // the Nuxt app context `useHead` needs; the entry follows `localeState`.
-    if (publicConfig.head !== false) {
-      useHtmlAttrs(localeState, publicConfig.defaultLocale, publicConfig.localeObjects);
+    let locale = payload?.locale;
+    if (!locale) {
+      // No snapshot: a server render, or a browser with no server render (`ssr: false`, an
+      // SPA fallback page). The same resolver as the route middleware's.
+      const base = runtime.app?.baseURL?.replace(/\/$/, "") ?? "";
+      const raw = import.meta.server
+        ? String(nuxtApp.ssrContext?.url ?? "/")
+        : location.pathname + location.search;
+      const { pathname, suffix } = splitPathAndSuffix(raw);
+      // By segment: under base `/app`, `/app` and `/app/…` are the app's, `/apple` is not.
+      const path =
+        base && (pathname === base || pathname.startsWith(`${base}/`))
+          ? pathname.slice(base.length) || "/"
+          : pathname;
+      // A repeated parameter: its first value, as the route middleware reads `to.query`.
+      const params = new URLSearchParams(suffix.split("#")[0]);
+      const detected = detectLocale(
+        routing,
+        {
+          pathname: path,
+          query: Object.fromEntries([...params.keys()].map((key) => [key, params.get(key)])),
+          cookie: cookie?.value,
+          header: import.meta.server ? (name) => useRequestHeaders([name])[name] : undefined,
+        },
+        resolveAcceptLanguage,
+      );
+      locale = detected.locale;
+      const value = detected.keep ?? locale;
+      if (import.meta.server && cookie && cookie.value !== value) cookie.value = value;
     }
 
-    const cookieConfig = publicConfig.localeCookie;
-    const localeCookie = cookieConfig
-      ? useCookie(cookieConfig.name, {
-          maxAge: cookieConfig.maxAge,
-          path: "/",
-          sameSite: cookieConfig.sameSite,
-          domain: cookieConfig.domain,
-          // Secure in production, disabled in dev so localhost HTTP works
-          secure: import.meta.dev ? false : cookieConfig.secure,
-        })
-      : null;
+    const i18n = createI18n({ ...config, locale, ...options(event), ...payload });
 
-    const baseI18nOptions = {
-      locale: localeState.value,
-      fallbackLocale: publicConfig.fallbackLocale,
-      defaultNs: publicConfig.defaultNs,
-      // `||` for the same `""` runtime config makes of an unset option.
-      ns: publicConfig.ns || undefined,
-      devMode: import.meta.dev,
-      apiKey: privateConfig?.apiKey,
-      // Without a `i18nModule` the generated instance is core's BASE instance and has
-      // no loader, so `comvi.messages` is the only catalog it ever gets.
-      // `||`, not the value as-is: runtime config turns an unset option into
-      // `""` (a `NUXT_PUBLIC_COMVI_MESSAGES=` override does too), and core
-      // rejects a string catalog. `defaultParams` and `basicHtmlTags` below are
-      // truthy-checked for the same reason.
-      messages: publicConfig.messages || undefined,
-      tagInterpolation: publicConfig.basicHtmlTags
-        ? { basicHtmlTags: publicConfig.basicHtmlTags }
-        : undefined,
-      ssrLocale: localeState.value,
-    };
-    const i18n = publicConfig.defaultParams
-      ? createComviI18n({ ...baseI18nOptions, defaultParams: publicConfig.defaultParams })
-      : createComviI18n(baseI18nOptions);
-
-    const initialInContextEditorMappings = toRecordOfNumbers(
-      nuxtApp.payload?.state?.[I18N_EDITOR_MAPPINGS_STATE_KEY],
-    );
-
-    if (import.meta.server) {
-      // This instance is per-request on the server, and until now nothing destroyed
-      // it: `destroy()` ran only from the HMR dispose below, so a plugin
-      // installed on the SSR instance never cleaned up. Park it where the Nitro
-      // server plugin's teardown looks, so the request's app instance and the
-      // server utilities' instances go together, after the response.
-      const requestEvent = nuxtApp.ssrContext?.event;
-      if (requestEvent) {
-        const context = requestEvent.context as Record<string, unknown>;
-        const parked = context[REQUEST_HOSTS_KEY];
-        if (Array.isArray(parked)) {
-          (parked as RequestScopedInstance[]).push(i18n);
-        } else {
-          context[REQUEST_HOSTS_KEY] = [i18n] satisfies RequestScopedInstance[];
-        }
-      }
-
+    if (import.meta.server && event) {
+      track(event, i18n);
       nuxtApp.hook("app:rendered", () => {
-        const mappings = readEditorMappings(i18n)?.getKeyMappings();
-        if (mappings) {
-          if (!nuxtApp.payload.state) {
-            nuxtApp.payload.state = {};
-          }
-          nuxtApp.payload.state[I18N_EDITOR_MAPPINGS_STATE_KEY] = mappings;
-        }
-
-        const cacheMap = i18n.messagesCache.value;
-        if (cacheMap.size > 0) {
-          nuxtApp.payload[I18N_MESSAGES_PAYLOAD_KEY] = serializeMessagesCache(cacheMap);
-        }
-      });
-    }
-
-    if (!import.meta.server) {
-      if (initialInContextEditorMappings) {
-        (i18n as unknown as Record<string, unknown>)[EDITOR_INITIAL_MAPPINGS_GLOBAL] =
-          initialInContextEditorMappings;
-      }
-
-      const ssrMessages = nuxtApp.payload?.[I18N_MESSAGES_PAYLOAD_KEY] as
-        TranslationsPayload | undefined;
-      if (ssrMessages) {
-        i18n.addMessages(ssrMessages);
-      }
-    }
-
-    try {
-      await runComviSetup({
-        i18n,
-        core: i18n.core,
-        nuxtApp,
-        runtime: import.meta.server ? "server" : "client",
-        runtimeConfig: config,
-      });
-    } catch (error) {
-      i18n.reportError(error instanceof Error ? error : new Error(String(error)), {
-        source: "plugin",
-      });
-      console.error("[@comvi/nuxt] comvi.setup hook failed:", error);
-      // Fail fast: a failed setup can leave the app partially configured
-      // (missing loaders/hooks). Rethrow so init() does not run on a broken state.
-      throw error;
-    }
-
-    if (import.meta.server) rememberFailedLoads(i18n.core);
-
-    // Only after every plugin is registered.
-    await i18n.init();
-
-    if (import.meta.server) {
-      const core = i18n.core;
-      // `init()` loads the namespaces it was given for the locale and for the
-      // fallback chain. A namespace that became active another way, through a
-      // catalog `comvi.setup` added, was never loaded for the chain, so that
-      // is filled in here, before the render, and reaches the client through
-      // the payload with the rest. A pair that already failed in `init()` is
-      // not attempted again.
-      await loadCatalogs(core);
-      // A namespace a page activates DURING the render (`useI18nLoader()
-      // .addActiveNamespace(ns)`) is loaded by core for the locale and the
-      // chain. The wrapper below adds the same fill-in after it, for a
-      // namespace whose own catalog was already cached. The render waits for
-      // what a component awaits, not for anything collected before
-      // `app:rendered` (by then the HTML already holds the raw key), so the
-      // activation itself resolves only once the chain is in. This instance is the
-      // request's own, so the override never leaves the request; a `i18nModule`
-      // factory that returns one shared instance anyway gets it wrapped once, not
-      // once per request. One path still bypasses it: an `addActiveNamespaces`
-      // reference taken inside `comvi.setup`, which runs before this line, and
-      // called later. A `useI18nLoader()` bag acquired there is the same case.
-      if (hasLoaderApi(core) && !chainLoadingInstances.has(core)) {
-        chainLoadingInstances.add(core);
-        const activate = core.addActiveNamespaces.bind(core);
-        core.addActiveNamespaces = async (namespaces: string[]) => {
-          // In turn, not in parallel: core's activation loads the chain
-          // itself, and a reload racing it would cancel and refetch each pair.
-          await activate(namespaces);
-          await loadCatalogs(core, namespaces);
-        };
-      }
-    }
-
-    // Reads the instance, not the payload: a listener registered earlier (a
-    // `comvi.setup` hook's) may switch again synchronously, and its nested
-    // event is then delivered BEFORE this outer one, whose `to` is stale.
-    const unsubLocaleChanged = i18n.on("localeChanged", () => {
-      const current = i18n.locale.value;
-      localeState.value = current;
-      if (localeCookie) {
-        localeCookie.value = current;
-      }
-    });
-
-    // The middleware writes localeState; mirror it onto the instance.
-    const unwatchLocale = watch(
-      localeState,
-      async (newLocale) => {
-        if (newLocale && newLocale !== i18n.locale.value) {
-          await i18n.setLocale(newLocale);
-        }
-      },
-      { immediate: false },
-    );
-
-    // Cleanup on HMR to prevent memory leaks during hot reload
-    if (import.meta.hot) {
-      import.meta.hot.dispose(() => {
-        unsubLocaleChanged();
-        unwatchLocale();
-        // `dispose` is synchronous and HMR does not wait: fire-and-forget is
-        // the contract here, and `destroy()` resolves even when the instance's
-        // cleanup fails, so nothing can reach this as an unhandled rejection.
-        void i18n.destroy();
+        const snapshot = handover(i18n);
+        // The inline `comvi.messages` are in the browser's bundle already (the same
+        // `config`): a slot that is still that very catalog is left out, so no page carries
+        // it again (an absent slot is untouched by the browser's instance, which starts with
+        // it). A slot a server `add()` changed, or a nested inline catalog the core flattened
+        // into a copy, is handed over as usual.
+        const inline = snapshot.catalogs.default;
+        const bundled = config.messages ?? {};
+        if (inline)
+          for (const locale in bundled)
+            if (inline[locale] === bundled[locale]) delete inline[locale];
+        nuxtApp.payload.comvi = snapshot;
       });
     }
 
     nuxtApp.vueApp.use(i18n);
+    // The binding's own reactive slices of the instance (no hold outside a component).
+    const { locale: current } = nuxtApp.vueApp.runWithContext(() => useI18n());
 
-    return {
-      provide: {
-        i18n,
-      },
-    };
+    // Registered before the first `await`, while the plugin still runs inside the Nuxt
+    // app context `useHead` needs.
+    if (routing.head !== false) useHtmlAttrs(current, routing.localeObjects);
+
+    if (!import.meta.server && cookie) {
+      // A locale change outside a navigation (`setLocale()`, a `v-model` on `locale`) is
+      // recorded here; a navigation's own change is recorded by the route middleware,
+      // which knows whether the cookie keeps a stored preference.
+      let last = i18n.locale;
+      i18n.on(() => {
+        if (i18n.locale === last) return;
+        last = i18n.locale;
+        if (!(nuxtApp as unknown as { _comviNavigating?: number })._comviNavigating)
+          cookie.value = last;
+      });
+    }
+
+    await i18n.ready;
+
+    return { provide: { i18n } };
   },
 });
 
-// `$i18n` is an ambient channel — a component cannot know how the app composed
-// its instance — so the core is seen capability-free there; capabilities come from
-// `useI18nLoader()` / `useI18nPlugins()`, which verify them.
 declare module "#app" {
   interface NuxtApp {
-    $i18n: AnyVueI18n;
+    /** The app's i18n instance (`@comvi/vue`'s); outside a component, it holds nothing. */
+    $i18n: VueI18n;
   }
 }
