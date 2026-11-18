@@ -25,6 +25,9 @@ import {
   setMockCookie,
   setMockI18n,
   setMockRoute,
+  navigations,
+  navigateTo,
+  setNavigateToRouter,
   setRouterOverride,
 } from "./mocks/nuxt-app";
 import { useCookie, useNuxtApp } from "#app";
@@ -60,7 +63,15 @@ function slowInstance(locale: string, ms: Record<string, number> = {}) {
 /** A real router at `path`, the i18n middleware as its global guard (after `before`, if any). */
 async function standOn(
   path: string,
-  { before, ms }: { before?: NavigationGuardWithThis<undefined>; ms?: Record<string, number> } = {},
+  {
+    before,
+    after,
+    ms,
+  }: {
+    before?: NavigationGuardWithThis<undefined>;
+    after?: NavigationGuardWithThis<undefined>;
+    ms?: Record<string, number>;
+  } = {},
 ) {
   const router = createRouter({ history: createMemoryHistory(), routes: ROUTES });
   await router.push(path);
@@ -69,6 +80,7 @@ async function standOn(
   setMockCookie("i18n_locale", "en");
   if (before) router.beforeEach(before);
   router.beforeEach((to, from) => middleware(to, from) as never);
+  if (after) router.beforeEach(after);
   router.afterEach((to) => setMockRoute({ path: to.path, fullPath: to.fullPath }));
   setRouterOverride(router);
   setMockRoute({ path, fullPath: path });
@@ -299,5 +311,54 @@ describe("a link to the URL on screen while a switch loads (`always`), against a
     await sleep(0);
 
     expect([router.currentRoute.value.path, i18n.locale]).toEqual(["/uk/home", "uk"]);
+  });
+});
+
+describe("Nuxt's processing-middleware flag around the wait, against a real vue-router", () => {
+  // Nuxt's own client hooks: the flag is set before the middleware, deleted when a navigation
+  // ends; `navigateTo()` follows Nuxt's rule (the location only while the flag is set).
+  const app = () => useNuxtApp() as { _processingMiddleware?: boolean };
+  async function standWithNuxt(path: string, after?: NavigationGuardWithThis<undefined>) {
+    mockRuntimeConfig.public.comvi.localePrefix = "as-needed";
+    const stand = await standOn(path, {
+      before: () => void (app()._processingMiddleware = true),
+      after,
+      ms: { uk: 20 },
+    });
+    stand.router.afterEach(() => delete app()._processingMiddleware);
+    stand.router.onError(() => delete app()._processingMiddleware);
+    setNavigateToRouter(stand.router);
+    return stand;
+  }
+
+  it("a superseded switch's load that ends after the newer navigation landed leaves the user's navigateTo() working", async () => {
+    // An async page middleware on the switch's target, after the i18n middleware.
+    const { router } = await standWithNuxt("/admin", async (to) => {
+      if (to.path === "/uk/admin") await sleep(30);
+    });
+    const superseded = router.push("/uk/admin").catch(() => {});
+    await sleep(5);
+    await router.push("/home");
+    // The uk load ends (20 ms); the superseded navigation is in its page middleware now.
+    await sleep(20);
+    await navigateTo("/about");
+    await superseded;
+
+    expect([router.currentRoute.value.path, navigations]).toEqual(["/about", ["/about"]]);
+  });
+
+  it("the middleware's own redirect after a failed load is still a location, not a navigation", async () => {
+    const { router, i18n } = await standWithNuxt("/admin");
+    i18n.setLocale = async (next: string) => {
+      if (next === "uk") throw new Error("load_failed");
+      i18n.locale = next;
+    };
+    await router.push("/uk/admin").catch(() => {});
+
+    expect([router.currentRoute.value.path, i18n.locale, navigations]).toEqual([
+      "/admin",
+      "en",
+      [],
+    ]);
   });
 });

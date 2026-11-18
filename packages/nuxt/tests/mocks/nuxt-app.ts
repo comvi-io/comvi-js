@@ -280,7 +280,22 @@ export function createError(input: {
   return Object.assign(new Error(input.statusMessage), input);
 }
 
+/**
+ * Nuxt's client rule for `navigateTo()`, opt-in (`setNavigateToRouter`): while
+ * `_processingMiddleware` is set it answers with the location only; otherwise it navigates.
+ * Without a router it always answers with the location (the middleware's redirect).
+ */
+let navigateRouter: { push(to: string): Promise<unknown> } | null = null;
+export const navigations: string[] = [];
+export function setNavigateToRouter(router: { push(to: string): Promise<unknown> } | null) {
+  navigateRouter = router;
+}
+
 export function navigateTo(path: string, options?: any) {
+  if (navigateRouter && !(mockNuxtApp as Record<string, unknown>)._processingMiddleware) {
+    navigations.push(path);
+    return navigateRouter.push(path);
+  }
   return { path, ...options };
 }
 
@@ -325,12 +340,15 @@ export function resetMocks() {
   // What the module's runtime keeps on the app: its one cookie ref, the navigation count.
   afterEachHooks.length = 0;
   routerOverride = null;
+  navigateRouter = null;
+  navigations.length = 0;
   for (const key of [
     "_comviLocaleCookie",
     "_comviNavigating",
     "_comviNavigation",
     "_comviTarget",
     "_comviTargetEnds",
+    "_processingMiddleware",
     "payload",
   ])
     delete (mockNuxtApp as Record<string, unknown>)[key];

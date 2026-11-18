@@ -75,7 +75,8 @@ export default defineNuxtRouteMiddleware(async (to, from?: typeof to) => {
     // While a route middleware runs, Nuxt answers `navigateTo()` with the location only. The
     // load is not middleware work: the flag is off while it waits, so the user's
     // `navigateTo()` (a click, a `<select>`) navigates and supersedes this switch, as a link
-    // does (a superseded run's restore is undone by its cancelled navigation's `afterEach`).
+    // does. Only the latest run restores it: a superseded one would set it again over a newer
+    // navigation that has already ended, until its own navigation's remaining guards end.
     const processing = state._processingMiddleware;
     if (!import.meta.server) delete state._processingMiddleware;
     try {
@@ -84,7 +85,8 @@ export default defineNuxtRouteMiddleware(async (to, from?: typeof to) => {
       // Reported through `onError`; the locale on screen stays, and the URL follows it below.
     } finally {
       state._comviNavigating!--;
-      if (!import.meta.server) state._processingMiddleware = processing;
+      if (!import.meta.server && id === state._comviNavigation)
+        state._processingMiddleware = processing;
     }
     if (id !== state._comviNavigation) return;
   }
