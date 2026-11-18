@@ -1055,4 +1055,47 @@ describe("nuxt module setup", () => {
       );
     });
   });
+
+  describe("comvi.types", () => {
+    it("without it, registers no typegen hook", async () => {
+      const moduleDefinition = await importModule();
+      const nuxt = createNuxtStub();
+      await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+
+      expect(nuxt.hook.mock.calls.map(([name]: [string]) => name)).toEqual(["nitro:config"]);
+    });
+
+    it("hands the option and the module's defaultLocale to the wrapper", async () => {
+      const setupTypes = vi.fn();
+      vi.doMock("../src/typegen", () => ({ setupTypes }));
+      try {
+        const moduleDefinition = await importModule();
+        const nuxt = createNuxtStub();
+        const types = { from: "./i18n/locales" };
+        await moduleDefinition.setup({ locales: ["en", "de"], defaultLocale: "de", types }, nuxt);
+
+        expect(setupTypes).toHaveBeenCalledExactlyOnceWith(nuxt, types, "de");
+      } finally {
+        vi.doUnmock("../src/typegen");
+      }
+    });
+
+    it("registers its hooks on Nuxt, and an invalid option fails the setup", async () => {
+      const moduleDefinition = await importModule();
+      const nuxt = createNuxtStub();
+      nuxt.options.buildDir = join(ABSENT_ROOT_DIR, ".nuxt");
+      const types = { from: "./i18n/locales" };
+      await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en", types }, nuxt);
+      expect(nuxt.hook.mock.calls.map(([name]: [string]) => name).sort()).toEqual(
+        ["close", "nitro:config", "nitro:prepare:types", "prepare:types"].sort(),
+      );
+
+      await expect(
+        (await importModule()).setup(
+          { locales: ["en"], defaultLocale: "en", types: { from: "" } },
+          createNuxtStub(),
+        ),
+      ).rejects.toThrow("[@comvi/nuxt] `comvi.types.from` must name the catalogs directory");
+    });
+  });
 });

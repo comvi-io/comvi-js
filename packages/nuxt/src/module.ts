@@ -23,6 +23,7 @@ import type {
 } from "./types";
 import { DEFAULT_COOKIE_NAME } from "./runtime/defaults";
 import { detectionTemplate } from "./locale-options";
+import { setupTypes } from "./typegen";
 import {
   findUnknownRoutingOptionKeys,
   normalizeRoutingOptions,
@@ -36,6 +37,7 @@ export type ModuleOptions = Partial<NuxtI18nOptions>;
 // consumers resolving `@comvi/nuxt` receive.
 export type {
   NuxtI18nOptions,
+  NuxtI18nTypes,
   NuxtI18nFileOptions,
   I18nOptionsFactory,
   LocaleObject,
@@ -143,6 +145,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
         throw new Error(`[@comvi/nuxt] locale "${code}" is not a BCP 47 language tag.`);
       }
     }
+    if (options.types !== undefined) setupTypes(nuxt, options.types, options.defaultLocale);
 
     // A user module is addressed relative to srcDir first, then rootDir.
     const findUserModule = async (specifier: string): Promise<string | undefined> => {
