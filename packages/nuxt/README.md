@@ -87,6 +87,29 @@ For a two-line start, `comvi.messages: { en: { … }, uk: { … } }` in `nuxt.co
 `default` namespace without files; those catalogs are compiled into the app bundle, and no page payload
 carries a flat one again (a nested one, or one a server `add()` changed, is handed over as usual).
 
+## Typed translations
+
+`comvi.types` types the keys and params from the JSON catalogs, the ones the loader imports:
+
+```ts title="nuxt.config.ts" check=group=nuxt-types
+export default defineNuxtConfig({
+  modules: ["@comvi/nuxt"],
+  comvi: {
+    locales: ["en", "uk"],
+    defaultLocale: "en",
+    timeZone: "UTC",
+    types: { from: "./locales" }, // relative to the project root
+  },
+});
+```
+
+`nuxt prepare`, `nuxt typecheck` and `nuxt build` first write the declaration into Nuxt's build
+directory (`.nuxt/types/comvi.d.ts`), and `nuxt dev` rewrites it when a catalog changes. The module adds it to Nuxt's generated tsconfigs, so there is nothing
+to configure or commit. The types come from the `defaultLocale` catalogs (`sourceLocale` picks another).
+In `.vue` files and Nitro routes, an unknown key or namespace is a type error, and so is a call that
+leaves out a param its message uses. A broken catalog fails the build; `nuxt dev` reports it and keeps
+the last file. `out`, `fileTemplate` and `augment` are the options of `@comvi/vite-plugin`.
+
 ## A page that waits for its namespace
 
 `useI18n("account")` loads the page's namespace on the server render and, on a client navigation,
