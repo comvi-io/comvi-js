@@ -161,6 +161,33 @@ describe("comvi.types", () => {
     expect(read(a.out)).toBe(before);
   });
 
+  it("nuxt dev: a settings error typegen throws at start is reported, and prepare:types still resolves", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const types of [
+      { from: "./i18n/locales", augment: "bad name" },
+      { from: "./i18n/locales", fileTemplate: "messages.json" },
+    ]) {
+      error.mockClear();
+      const a = app({ dev: true });
+      setupTypes(a.nuxt, types, "en");
+      // Resolves: Nuxt goes on to write its own tsconfigs.
+      expect(await a.prepare()).toEqual([{ path: a.out }]);
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(String(error.mock.calls[0]![0])).toMatch(
+        /^\[@comvi\/nuxt\] (`augment` must be a module specifier|fileTemplate must contain \{languageTag\})/,
+      );
+    }
+    // The app declares no Comvi package.
+    error.mockClear();
+    const a = app({ dev: true });
+    write(a.root, "package.json", { name: "app" });
+    setupTypes(a.nuxt, { from: "./i18n/locales" }, "en");
+    await a.prepare();
+    expect(String(error.mock.calls[0]![0])).toMatch(
+      /^\[@comvi\/nuxt\] Generated types have to augment/,
+    );
+  });
+
   it("nuxt dev: one watcher follows the catalogs, reports errors and goes on, and closes with Nuxt", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const a = app({ dev: true });

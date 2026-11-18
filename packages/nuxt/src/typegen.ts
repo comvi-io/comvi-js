@@ -54,7 +54,14 @@ export function setupTypes(nuxt: Nuxt, types: NuxtI18nTypes, defaultLocale: stri
     references.push({ path: out });
     if (nuxt.options.dev) {
       // One watcher per Nuxt instance; a restarted dev server closes this one first.
-      watcher ??= watch(settings);
+      try {
+        watcher ??= watch(settings);
+      } catch (error) {
+        // A settings error (`augment`, `fileTemplate`, no declared Comvi package): dev
+        // reports it and goes on, and Nuxt still writes its own tsconfigs.
+        print({ level: "error", text: (error as Error).message });
+        return;
+      }
       return watcher.ready;
     }
     return (run ??= generate(settings).then(
