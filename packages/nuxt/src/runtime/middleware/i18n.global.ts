@@ -17,7 +17,12 @@ import { useLocaleCookie } from "../utils/cookie";
 import { targetFor } from "../utils/target";
 import { resolveAcceptLanguage } from "#build/comvi.detection";
 
-type Navigating = { _comviNavigating?: number; _comviNavigation?: number; _comviTarget?: unknown };
+type Navigating = {
+  _comviNavigating?: number;
+  _comviNavigation?: number;
+  _comviTarget?: unknown;
+  _processingMiddleware?: unknown;
+};
 
 /**
  * One direction: route → instance. Resolves the target's locale with the plugin's
@@ -64,12 +69,19 @@ export default defineNuxtRouteMiddleware(async (to, from?: typeof to) => {
   if (detected.locale !== i18n.locale || state._comviNavigating) {
     const id = (state._comviNavigation = (state._comviNavigation ?? 0) + 1);
     state._comviNavigating = (state._comviNavigating ?? 0) + 1;
+    // While a route middleware runs, Nuxt answers `navigateTo()` with the location only. The
+    // load is not middleware work: the flag is off while it waits, so the user's
+    // `navigateTo()` (a click, a `<select>`) navigates and supersedes this switch, as a link
+    // does (a superseded run's restore is undone by its cancelled navigation's `afterEach`).
+    const processing = state._processingMiddleware;
+    if (!import.meta.server) delete state._processingMiddleware;
     try {
       await i18n.setLocale(detected.locale);
     } catch {
       // Reported through `onError`; the locale on screen stays, and the URL follows it below.
     } finally {
       state._comviNavigating!--;
+      if (!import.meta.server) state._processingMiddleware = processing;
     }
     if (id !== state._comviNavigation) return;
   }

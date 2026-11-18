@@ -134,6 +134,7 @@ const UK = catalog("uk");
 const EN_ADMIN = catalog("en", "admin");
 const UK_ADMIN = catalog("uk", "admin");
 const DE_ADMIN = catalog("de", "admin");
+const FR_ADMIN = catalog("fr", "admin");
 const EN_ACCOUNT = catalog("en", "account");
 
 test("1: the recipe on the first render: text, $t, param, plural, nested rich text, formatting; hydration keeps it and asks for nothing", async ({
@@ -440,6 +441,95 @@ test("6e: after a cancelled <NuxtLinkLocale locale> click, the root resolves fro
   await page.waitForLoadState("networkidle");
   await expect(id(page, "nav-locale")).toHaveText("en");
   await expect(id(page, "title")).toHaveText(EN["home.title"]);
+  expect(await cookieOf(page)).toBe("en");
+});
+
+// The user's own code navigating while a switch loads: every way an app navigates is an
+// ordinary navigation that supersedes the pending switch (a `<NuxtLink>` is 6b).
+for (const [how, action] of [
+  ["router.push() from a click", (page: Page) => id(page, "push-plurals").click()],
+  ["navigateTo() from a click", (page: Page) => id(page, "goto-plurals").click()],
+  [
+    "await navigateTo() in an async handler",
+    (page: Page) => id(page, "await-goto-plurals").click(),
+  ],
+] as const) {
+  test(`6f: ${how} while a switch loads navigates and supersedes the switch`, async ({ page }) => {
+    await page.goto("/admin");
+    await hydrated(page);
+    await mock.mode({ hold: ["uk:admin"] });
+    await id(page, "switch-uk").click();
+    await expect.poll(mock.held).toContain("uk:admin");
+    await action(page);
+    await expect(page).toHaveURL(new RegExp(`${BASE}/plurals$`));
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(EN["plurals.title"]);
+    await mock.release("uk:admin");
+    await expect
+      .poll(async () => (await mock.log()).find((e) => e.pair === "uk:admin")?.status)
+      .toBe(200);
+    await page.waitForLoadState("networkidle");
+    await expect(page).toHaveURL(new RegExp(`${BASE}/plurals$`));
+    await expect(id(page, "nav-locale")).toHaveText("en");
+    expect(await cookieOf(page)).toBe("en");
+  });
+}
+
+test("6g: a <select> switcher on navigateTo() picking a second and a third language while the earlier ones load: the last lands", async ({
+  page,
+}) => {
+  await page.goto("/admin");
+  await hydrated(page);
+  await watchTexts(page, "admin-title");
+  await mock.mode({ hold: ["uk:admin", "de:admin"] });
+  await id(page, "select-locale").selectOption("uk");
+  await expect.poll(mock.held).toContain("uk:admin");
+  await id(page, "select-locale").selectOption("de");
+  await expect.poll(mock.held).toContain("de:admin");
+  await expect(page).toHaveURL(new RegExp(`${BASE}/admin$`));
+  // The superseded uk load ends while de still loads: the third pick still navigates.
+  await mock.release("uk:admin");
+  await expect
+    .poll(async () => (await mock.log()).find((e) => e.pair === "uk:admin")?.status)
+    .toBe(200);
+  await id(page, "select-locale").selectOption("fr");
+  await expect(page).toHaveURL(/\/fr\/admin$/);
+  await expect(id(page, "admin-title")).toHaveText(FR_ADMIN.welcome_admin);
+  await mock.release("de:admin");
+  await expect
+    .poll(async () => (await mock.log()).find((e) => e.pair === "de:admin")?.status)
+    .toBe(200);
+  await page.waitForLoadState("networkidle");
+  await expect(page).toHaveURL(/\/fr\/admin$/);
+  await expect(id(page, "nav-locale")).toHaveText("fr");
+  expect(await cookieOf(page)).toBe("fr");
+  const seen = await seenTexts(page);
+  expect(seen).not.toContain(UK_ADMIN.welcome_admin);
+  expect(seen).not.toContain(DE_ADMIN.welcome_admin);
+});
+
+test("6h: browser back and forward while a switch loads navigate and supersede the switch", async ({
+  page,
+}) => {
+  await page.goto("/plurals");
+  await hydrated(page);
+  await id(page, "nav-admin").click();
+  await expect(id(page, "admin-title")).toHaveText(EN_ADMIN.welcome_admin);
+  await mock.mode({ hold: ["uk:admin", "uk:default"] });
+  await id(page, "switch-uk").click();
+  await expect.poll(mock.held).toContain("uk:admin");
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`${BASE}/plurals$`));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(EN["plurals.title"]);
+  // Forward from a pending switch on this page: /uk/plurals waits for uk:default.
+  await id(page, "switch-uk").click();
+  await page.goForward();
+  await expect(page).toHaveURL(new RegExp(`${BASE}/admin$`));
+  await expect(id(page, "admin-title")).toHaveText(EN_ADMIN.welcome_admin);
+  await mock.release("uk:admin");
+  await mock.release("uk:default");
+  await page.waitForLoadState("networkidle");
+  await expect(page).toHaveURL(new RegExp(`${BASE}/admin$`));
+  await expect(id(page, "nav-locale")).toHaveText("en");
   expect(await cookieOf(page)).toBe("en");
 });
 

@@ -4,11 +4,9 @@ const { locales } = useRouteConfig();
 
 // The locale is part of the URL, so switching is a navigation to this same page under
 // another prefix: the URL, the text, the cookie and <html lang> move together. The old
-// language stays on screen until the new one's catalogs are in. `router.push`, not
-// `navigateTo()`: while a switch is still loading, Nuxt answers a `navigateTo()` from a
-// click with the location only, and a second click would do nothing.
+// language stays on screen until the new one's catalogs are in; a second click while it
+// loads supersedes it.
 const switchLocalePath = useSwitchLocalePath();
-const router = useRouter();
 </script>
 
 <template>
@@ -20,7 +18,7 @@ const router = useRouter();
         :key="code"
         :data-testid="`locale-${code}`"
         :aria-pressed="locale === code"
-        @click="router.push(switchLocalePath(code))"
+        @click="navigateTo(switchLocalePath(code))"
       >
         {{ code }}
       </button>

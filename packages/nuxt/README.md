@@ -80,8 +80,8 @@ Switching the language is a navigation: the URL, the text, the cookie and `<html
 together, and the old text stays until the new catalogs are in. `setLocale()` changes the instance
 only (the text and the cookie, not the URL; the next navigation applies the URL's locale): use it as
 the switch with `localePrefix: "never"`. A switch whose catalogs all fail keeps the locale on screen
-and its URL. Navigate with `<NuxtLink>` or `router.push`: a `navigateTo()` called while a language
-switch is pending is ignored (Nuxt returns the location without navigating).
+and its URL. A navigation started while a switch loads (a link, `router.push`, `navigateTo()`, the
+browser's back button) supersedes it.
 
 For a two-line start, `comvi.messages: { en: { … }, uk: { … } }` in `nuxt.config.ts` gives the
 `default` namespace without files; those catalogs are compiled into the app bundle, and no page payload
