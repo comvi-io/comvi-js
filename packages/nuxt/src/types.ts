@@ -114,7 +114,7 @@ export interface NuxtI18nOptions {
   types?: NuxtI18nTypes;
 }
 
-/** `comvi.types`: the same options as `@comvi/vite-plugin` and `withComvi({ types })`. */
+/** `comvi.types`: the options of `@comvi/vite-plugin`, with Nuxt's defaults for `out` and `sourceLocale`. */
 export interface NuxtI18nTypes {
   /**
    * The catalogs: a directory of JSON files (`<locale>.json` is the `default` namespace,
@@ -123,9 +123,10 @@ export interface NuxtI18nTypes {
    */
   from: string;
   /**
-   * The declaration file to write, resolved against `rootDir`. The default is in Nuxt's
-   * build directory, and the module adds it to the generated tsconfigs either way.
-   * @default '<buildDir>/types/comvi.d.ts'
+   * The declaration file to write, resolved against `rootDir`. The default is next to the
+   * tsconfigs Nuxt generates (`typesDir`, else `buildDir`); the module adds the file to
+   * them either way.
+   * @default '.nuxt/types/comvi.d.ts'
    */
   out?: string;
   /** The locale the types come from. @default the module's `defaultLocale` */

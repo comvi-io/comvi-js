@@ -103,12 +103,14 @@ export default defineNuxtConfig({
 });
 ```
 
-`nuxt prepare`, `nuxt typecheck` and `nuxt build` first write the declaration into Nuxt's build
-directory (`.nuxt/types/comvi.d.ts`), and `nuxt dev` rewrites it when a catalog changes. The module adds it to Nuxt's generated tsconfigs, so there is nothing
-to configure or commit. The types come from the `defaultLocale` catalogs (`sourceLocale` picks another).
-In `.vue` files and Nitro routes, an unknown key or namespace is a type error, and so is a call that
-leaves out a param its message uses. A broken catalog fails the build; `nuxt dev` reports it and keeps
-the last file. `out`, `fileTemplate` and `augment` are the options of `@comvi/vite-plugin`.
+`nuxt prepare`, `nuxt typecheck` and `nuxt build` first write the declaration to
+`.nuxt/types/comvi.d.ts`, next to the tsconfigs Nuxt generates, and `nuxt dev` rewrites it when a
+catalog changes. The module adds it to those tsconfigs, so there is nothing to configure or commit.
+The types come from the `defaultLocale` catalogs (`sourceLocale` picks another). In `.vue` files and
+Nitro routes, an unknown key or namespace is a type error, and so is a call that leaves out a param
+its message uses. A broken catalog fails `nuxt prepare`, `nuxt typecheck` and `nuxt build`;
+`nuxt dev` reports it and keeps the last file. `out`, `fileTemplate` and `augment` are the options
+of `@comvi/vite-plugin`.
 
 ## A page that waits for its namespace
 
