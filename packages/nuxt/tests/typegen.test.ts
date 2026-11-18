@@ -112,6 +112,15 @@ describe("comvi.types", () => {
     expect(direct.content).toBe(content);
   });
 
+  it("writes into typesDir when Nuxt builds elsewhere (a second Nuxt 4 production build)", async () => {
+    const a = app();
+    a.nuxt.options.buildDir = path.join(a.root, "node_modules/.cache/nuxt/.nuxt");
+    a.nuxt.options.typesDir = path.join(a.root, ".nuxt");
+    setupTypes(a.nuxt, { from: "./i18n/locales" }, "en");
+    expect(await a.prepare()).toEqual([{ path: a.out }]);
+    expect(read(a.out)).toContain('"hello": { "name": string | number };');
+  });
+
   it("an explicit sourceLocale, out, fileTemplate and augment win", async () => {
     const a = app();
     write(a.root, "catalogs/messages.en.json", { only: "Only {x}" });

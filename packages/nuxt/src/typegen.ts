@@ -34,7 +34,10 @@ export function setupTypes(nuxt: Nuxt, types: NuxtI18nTypes, defaultLocale: stri
     );
 
   const root = nuxt.options.rootDir;
-  const out = path.resolve(root, types.out ?? path.join(nuxt.options.buildDir, "types/comvi.d.ts"));
+  // Where Nuxt writes the tsconfigs: `typesDir` (Nuxt 4; a second production build moves
+  // `buildDir` to `node_modules/.cache/nuxt/.nuxt` and keeps them in `.nuxt`), else `buildDir`.
+  const typesDir = nuxt.options.typesDir || nuxt.options.buildDir;
+  const out = path.resolve(root, types.out ?? path.join(typesDir, "types/comvi.d.ts"));
   const settings = {
     from: types.from,
     out,

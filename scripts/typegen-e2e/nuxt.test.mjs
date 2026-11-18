@@ -235,6 +235,14 @@ function tsc(a, project) {
 
 const readOut = (a) => fs.readFileSync(path.join(a.dir, OUT), "utf8");
 
+/** The declaration `.nuxt/nuxt.d.ts` (what the app's tsconfig includes) references. */
+function referenced(a) {
+  const dts = fs.readFileSync(path.join(a.dir, ".nuxt/nuxt.d.ts"), "utf8");
+  const [, rel] = dts.match(/\/\/\/ <reference path="([^"]*comvi\.d\.ts)" \/>/) ?? [];
+  assert.ok(rel, dts);
+  return fs.readFileSync(path.resolve(a.dir, ".nuxt", rel), "utf8");
+}
+
 /** The diagnostics `out` reports for `file` (path relative to the app), by line. */
 function diagnostics(out, file) {
   const lines = [];
@@ -395,7 +403,7 @@ for (const version of VERSIONS) {
   });
 
   describe(`${version.label}, nuxt dev`, { timeout: 300_000 }, () => {
-    it("writes the declaration and follows en.json without a restart", async () => {
+    it("writes the declaration, reports a broken en.json and follows the repair, without a restart", async () => {
       const a = app(version);
       assert.equal(fs.existsSync(path.join(a.dir, OUT)), false);
       const server = await startServer(a);
@@ -410,6 +418,19 @@ for (const version of VERSIONS) {
         () => server.out,
       );
 
+      // A broken catalog: reported, the server goes on, the last file stays.
+      const before = readOut(a);
+      write(a.dir, "i18n/locales/en.json", '{ "hello": ');
+      await until(
+        () => /\[@comvi\/nuxt\] .*en\.json/.test(server.out),
+        "the reported error",
+        () => server.out,
+      );
+      assert.equal(server.child.exitCode, null);
+      assert.equal((await fetch(`http://127.0.0.1:${server.port}/`)).status, 200);
+      assert.equal(readOut(a), before);
+
+      // Repaired, with a new key.
       write(a.dir, "i18n/locales/en.json", JSON.stringify({ ...EN, added: "New {fresh}" }));
       await until(
         () => readOut(a).includes('"added": { "fresh": string | number };'),
@@ -425,7 +446,7 @@ for (const version of VERSIONS) {
   });
 
   describe(`${version.label}, nuxt build`, { timeout: 600_000 }, () => {
-    it("generates, keeps the generator out of the client, and fails on a broken catalog", () => {
+    it("generates, keeps the generator out of the client, regenerates where the tsconfig looks, fails on a broken catalog", () => {
       const a = app(version);
       const r = nuxt(a, ["build"]);
       assert.equal(r.status, 0, r.out);
@@ -435,15 +456,25 @@ for (const version of VERSIONS) {
       for (const text of [EMITTER_MARK, "comvi-typegen-"])
         assert.deepEqual(filesWith(path.join(output, "public"), text), [], text);
 
+      // A second build after a catalog change: Nuxt 4 builds it in a directory of its own
+      // (`node_modules/.cache/nuxt/.nuxt`, the first one's `.nuxt` exists) but keeps the
+      // tsconfigs in `.nuxt`. The file those reference has the new key.
+      write(a.dir, "i18n/locales/en.json", JSON.stringify({ ...EN, added: "New {fresh}" }));
+      const second = nuxt(a, ["build"]);
+      assert.equal(second.status, 0, second.out);
+      assert.match(referenced(a), /"added": \{ "fresh": string \| number \};/);
+
+      // A broken catalog fails every command that generates.
       write(a.dir, "i18n/locales/en.json", '{ "hello": ');
-      const broken = nuxt(a, ["build"]);
-      assert.notEqual(broken.status, 0, broken.out);
-      // A second production build of Nuxt 4 uses a build directory of its own, next to the
-      // first one's `.nuxt`.
-      assert.match(
-        broken.out,
-        /\[@comvi\/nuxt\] Cannot generate (node_modules\/\.cache\/nuxt\/)?\.nuxt\/types\/comvi\.d\.ts: .*en\.json: invalid JSON/,
-      );
+      for (const command of ["build", "prepare", "typecheck"]) {
+        const broken = nuxt(a, [command]);
+        assert.notEqual(broken.status, 0, `${command}: ${broken.out}`);
+        assert.match(
+          broken.out,
+          /\[@comvi\/nuxt\] Cannot generate \.nuxt\/types\/comvi\.d\.ts: .*en\.json: invalid JSON/,
+          command,
+        );
+      }
     });
   });
 }
