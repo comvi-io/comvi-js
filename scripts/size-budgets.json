@@ -472,14 +472,14 @@
       "entry": ["@comvi/nuxt"],
       "fixture": "framework/nuxt-module.ts",
       "external": ["@nuxt/kit", "@nuxt/schema", "node:*"],
-      "gzipBudgetBytes": 3537,
-      "ceilingBytes": 3537,
+      "gzipBudgetBytes": 14682,
+      "ceilingBytes": 14682,
       "baseline": {
-        "minBytes": 9024,
-        "gzipBytes": 3465,
-        "measuredAt": "2026-11-12"
+        "minBytes": 37667,
+        "gzipBytes": 14417,
+        "measuredAt": "2026-11-18"
       },
-      "note": "Node tooling, never shipped to a browser (lot 7): the build-time module @comvi/nuxt (dist/module.mjs) nuxt.config loads. Owner ceiling 3,537 (2026-11-11); budget = min(ceiling, ceil(3,465 × 1.05)) = 3,537; size-budgets.md 2026-11-11 lot 7."
+      "note": "Node tooling, never shipped to a browser (lot 7): the build-time module @comvi/nuxt (dist/module.mjs) nuxt.config loads, with the typegen generator of comvi.types inlined (as in @comvi/next/plugin, lot 6b; no code splitting). Owner ceiling 3,537 (2026-11-11), raised to 14,682 = ceil(14,394 × 1.02) (owner, 2026-11-18: lot 7 PR 2); budget = min(ceiling, ceil(14,417 × 1.05)) = 14,682; size-budgets.md 2026-11-18 lot 7 PR 2."
     },
     {
       "name": "fw-nuxt-i18n",
