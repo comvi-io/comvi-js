@@ -37,6 +37,9 @@ const ROUTES: RouteRecordRaw[] = [
   { path: "/old", redirect: "/admin" },
   { path: "/about", component: Stub },
   { path: "/uk/about", component: Stub },
+  ...["en", "uk"].flatMap((l) =>
+    ["home", "admin", "plurals"].map((page) => ({ path: `/${l}/${page}`, component: Stub })),
+  ),
 ];
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -245,5 +248,56 @@ describe("<NuxtLinkLocale locale> under `never`, against a real vue-router", () 
       undefined,
     ]);
     expect(getMockCookieWrites("i18n_locale")).toEqual(["en"]);
+  });
+});
+
+describe("a link to the URL on screen while a switch loads (`always`), against a real vue-router", () => {
+  beforeEach(() => {
+    mockRuntimeConfig.public.comvi.localePrefix = "always";
+  });
+
+  it("an ordinary link to the page on screen supersedes the pending switch: URL, locale and cookie stay together", async () => {
+    const { router, i18n } = await standOn("/en/home", { ms: { uk: 20 } });
+    const pending = click(router, "/uk/home");
+    await sleep(5);
+    await click(router, "/en/home");
+    await pending;
+    await sleep(30);
+
+    expect([router.currentRoute.value.path, i18n.locale, cookie()]).toEqual([
+      "/en/home",
+      "en",
+      "en",
+    ]);
+  });
+
+  it("a link to the page on screen while a switch to another page loads: the user stays on the page on screen", async () => {
+    const { router, i18n } = await standOn("/en/plurals", { ms: { uk: 20 } });
+    const pending = click(router, "/uk/admin");
+    await sleep(5);
+    await click(router, "/en/plurals");
+    await pending;
+    await sleep(30);
+
+    expect([router.currentRoute.value.path, i18n.locale, cookie()]).toEqual([
+      "/en/plurals",
+      "en",
+      "en",
+    ]);
+  });
+
+  it("a <NuxtLinkLocale locale> to the page on screen still switches for its own navigation", async () => {
+    const { router, i18n } = await standOn("/en/home");
+    const host = document.createElement("div");
+    const app = createApp({
+      render: () => h(NuxtLinkLocale as Component, { to: "/home", locale: "uk" }),
+    });
+    app.mount(host);
+    host.querySelector("a")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    app.unmount();
+    await router.push("/uk/home").catch(() => {});
+    await sleep(0);
+
+    expect([router.currentRoute.value.path, i18n.locale]).toEqual(["/uk/home", "uk"]);
   });
 });

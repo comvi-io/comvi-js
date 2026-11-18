@@ -533,6 +533,51 @@ test("6h: browser back and forward while a switch loads navigate and supersede t
   expect(await cookieOf(page)).toBe("en");
 });
 
+test("6i: a click on a link to the page on screen while a switch loads supersedes it: URL, text, <html lang> and cookie stay together", async ({
+  page,
+}) => {
+  await page.goto("/uk/admin");
+  await hydrated(page);
+  await watchTexts(page, "admin-title");
+  await mock.mode({ hold: ["de:admin"] });
+  await id(page, "switch-de").click();
+  await expect.poll(mock.held).toContain("de:admin");
+  // The admin link of the nav: the page on screen, `/uk/admin` (a duplicate navigation).
+  await id(page, "nav-admin").click();
+  await mock.release("de:admin");
+  await expect
+    .poll(async () => (await mock.log()).find((e) => e.pair === "de:admin")?.status)
+    .toBe(200);
+  await page.waitForLoadState("networkidle");
+  await expect(page).toHaveURL(/\/uk\/admin$/);
+  await expect(id(page, "nav-locale")).toHaveText("uk");
+  await expect(id(page, "admin-title")).toHaveText(UK_ADMIN.welcome_admin);
+  await expect(page.locator("html")).toHaveAttribute("lang", "uk-UA");
+  expect(await cookieOf(page)).toBe("uk");
+  expect(await seenTexts(page)).not.toContain(DE_ADMIN.welcome_admin);
+});
+
+test("6j: the current language of the switcher clicked while a <NuxtLinkLocale locale> to another page loads: the user stays on the page on screen", async ({
+  page,
+}) => {
+  await page.goto("/plurals");
+  await hydrated(page);
+  await mock.mode({ hold: ["uk:default"] });
+  await id(page, "link-uk").click();
+  await expect.poll(mock.held).toContain("uk:default");
+  await id(page, "switch-en").click();
+  await mock.release("uk:default");
+  await expect
+    .poll(async () => (await mock.log()).find((e) => e.pair === "uk:default")?.status)
+    .toBe(200);
+  await page.waitForLoadState("networkidle");
+  await expect(page).toHaveURL(new RegExp(`${BASE}/plurals$`));
+  await expect(id(page, "nav-locale")).toHaveText("en");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(EN["plurals.title"]);
+  await expect(page.locator("html")).toHaveAttribute("lang", "en-US");
+  expect(await cookieOf(page)).toBe("en");
+});
+
 test("7: a load error on a client navigation, nothing in the chain: unavailable, nothing unhandled; a revisit asks nothing; Retry loads", async ({
   page,
   asked,

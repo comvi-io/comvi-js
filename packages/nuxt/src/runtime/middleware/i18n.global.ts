@@ -4,6 +4,7 @@ import {
   navigateTo,
   useNuxtApp,
   useRequestHeaders,
+  useRouter,
 } from "#app";
 import {
   splitPathAndSuffix,
@@ -14,7 +15,7 @@ import {
 } from "../utils/locale-path";
 import { detectLocale } from "../utils/detect";
 import { useLocaleCookie } from "../utils/cookie";
-import { targetFor } from "../utils/target";
+import { targetFor, watchNavigations } from "../utils/target";
 import { resolveAcceptLanguage } from "#build/comvi.detection";
 
 type Navigating = {
@@ -69,6 +70,8 @@ export default defineNuxtRouteMiddleware(async (to, from?: typeof to) => {
   if (detected.locale !== i18n.locale || state._comviNavigating) {
     const id = (state._comviNavigation = (state._comviNavigation ?? 0) + 1);
     state._comviNavigating = (state._comviNavigating ?? 0) + 1;
+    // A link to the URL on screen runs no guard: the router's hooks let it supersede this.
+    if (!import.meta.server) watchNavigations(nuxtApp, useRouter());
     // While a route middleware runs, Nuxt answers `navigateTo()` with the location only. The
     // load is not middleware work: the flag is off while it waits, so the user's
     // `navigateTo()` (a click, a `<select>`) navigates and supersedes this switch, as a link
