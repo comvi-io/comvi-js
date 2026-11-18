@@ -6,10 +6,10 @@
     "types": ["node"],
     "paths": {
       "#app": ["./tests/mocks/nuxt-app.ts"],
-      "#build/comvi.setup": ["./tests/mocks/comvi-setup.ts"],
+      "#build/comvi.options": ["./tests/mocks/comvi-options.ts"],
       "#build/comvi.detection": ["./tests/mocks/comvi-detection.ts"],
       "#components": ["./tests/mocks/nuxt-components.ts"],
-      "#comvi/setup": ["./tests/mocks/comvi-setup.ts"],
+      "#comvi/options": ["./tests/mocks/comvi-options.ts"],
       "#comvi/detection": ["./tests/mocks/comvi-detection.ts"],
       "#imports": ["./tests/mocks/nitro-imports.ts"]
     }

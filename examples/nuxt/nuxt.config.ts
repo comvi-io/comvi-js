@@ -28,5 +28,7 @@ export default defineNuxtConfig({
     localePrefix: "always",
     // A key missing in one language shows the English text, never the key.
     fallbackLocale: "en",
+    // The server and the browser format dates in one zone.
+    timeZone: "UTC",
   },
 });

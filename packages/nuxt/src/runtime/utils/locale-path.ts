@@ -14,7 +14,6 @@ import { buildLocalizedPath as buildLocalizedPathShared } from "../_vendor/local
 
 export {
   extractLocaleFromPath,
-  serializeLocaleCookie,
   setQueryParamInSuffix,
   splitPathAndSuffix,
   stripLocalePrefix,

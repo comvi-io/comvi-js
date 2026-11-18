@@ -1,23 +1,12 @@
 <script setup lang="ts">
-const { t, locale, locales, setLocale, isLoading } = useI18n();
+const { t, locale, isLoading } = useI18n();
+const { locales } = useRouteConfig();
 
-// The locale is part of the URL, so switching means navigating to this same
-// page under another prefix.
+// The locale is part of the URL, so switching is a navigation to this same page under
+// another prefix: the URL, the text, the cookie and <html lang> move together. The old
+// language stays on screen until the new one's catalogs are in; a second click while it
+// loads supersedes it.
 const switchLocalePath = useSwitchLocalePath();
-
-// Only the newest click navigates: a slower, earlier switch must not land a
-// German page at the Ukrainian address.
-let latestSelect = 0;
-
-async function select(code: string) {
-  if (code === locale.value) return;
-  const request = ++latestSelect;
-  // Switch first, navigate second: the page changes language the moment the
-  // catalog arrives instead of waiting for the route to resolve.
-  await setLocale(code);
-  if (request !== latestSelect) return;
-  await navigateTo(switchLocalePath(code));
-}
 </script>
 
 <template>
@@ -29,7 +18,7 @@ async function select(code: string) {
         :key="code"
         :data-testid="`locale-${code}`"
         :aria-pressed="locale === code"
-        @click="select(code)"
+        @click="navigateTo(switchLocalePath(code))"
       >
         {{ code }}
       </button>

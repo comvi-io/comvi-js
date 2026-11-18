@@ -1,6 +1,6 @@
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NuxtPage } from "@nuxt/schema";
 
@@ -14,7 +14,7 @@ const nuxtKitMocks = {
   addTemplate: vi.fn<(template: NuxtTemplateStub) => ResolvedTemplateStub>(),
   addImports: vi.fn(),
   addComponent: vi.fn(),
-  addServerImportsDir: vi.fn(),
+  addServerImports: vi.fn(),
   addServerPlugin: vi.fn(),
   addRouteMiddleware: vi.fn(),
   extendPages: vi.fn(),
@@ -40,7 +40,7 @@ vi.mock("@nuxt/kit", () => ({
   addTemplate: (template: NuxtTemplateStub) => nuxtKitMocks.addTemplate(template),
   addImports: (...args: unknown[]) => nuxtKitMocks.addImports(...args),
   addComponent: (...args: unknown[]) => nuxtKitMocks.addComponent(...args),
-  addServerImportsDir: (...args: unknown[]) => nuxtKitMocks.addServerImportsDir(...args),
+  addServerImports: (...args: unknown[]) => nuxtKitMocks.addServerImports(...args),
   addServerPlugin: (...args: unknown[]) => nuxtKitMocks.addServerPlugin(...args),
   addRouteMiddleware: (...args: unknown[]) => nuxtKitMocks.addRouteMiddleware(...args),
   extendPages: (handler: (pages: NuxtPage[]) => void) => {
@@ -75,9 +75,15 @@ function createNuxtStub() {
   } as any;
 }
 
+/** The module definition; its `setup` gets the one required option unless a test sets it. */
 async function importModule() {
   vi.resetModules();
-  return (await import("../src/module")).default as any;
+  const definition = (await import("../src/module")).default as any;
+  return {
+    ...definition,
+    setup: (options: Record<string, unknown>, nuxt: unknown) =>
+      definition.setup({ timeZone: "UTC", ...options }, nuxt),
+  };
 }
 
 /** Templates are looked up by filename; their registration order is not a contract. */
@@ -87,19 +93,7 @@ function template(filename: string) {
   )?.[0];
 }
 
-const setupTemplateContents = () => template("comvi.setup.mjs")?.getContents();
-const hostTemplateContents = () => template("comvi.i18n.mjs")?.getContents();
-
-/**
- * `findPath` is consulted for BOTH conventions now, so a blanket
- * `mockResolvedValue(path)` would hand the setup file to the host branch too.
- * Resolve one specifier only, and nothing else.
- */
-function resolveOnly(...pairs: Array<[specifier: string, path: string]>) {
-  nuxtKitMocks.findPath.mockImplementation(
-    async (specifier: string) => pairs.find(([wanted]) => wanted === specifier)?.[1] ?? null,
-  );
-}
+const optionsTemplateContents = () => template("comvi.options.mjs")?.getContents();
 
 const tempDirs: string[] = [];
 
@@ -116,7 +110,7 @@ describe("nuxt module setup", () => {
     nuxtKitMocks.addTemplate.mockReset();
     nuxtKitMocks.addImports.mockReset();
     nuxtKitMocks.addComponent.mockReset();
-    nuxtKitMocks.addServerImportsDir.mockReset();
+    nuxtKitMocks.addServerImports.mockReset();
     nuxtKitMocks.addServerPlugin.mockReset();
     nuxtKitMocks.addRouteMiddleware.mockReset();
     nuxtKitMocks.extendPages.mockReset();
@@ -132,169 +126,9 @@ describe("nuxt module setup", () => {
     }));
   });
 
-  it("declares its Nuxt module identity and option defaults", async () => {
-    const moduleDefinition = await importModule();
-
-    expect(moduleDefinition.meta).toEqual({
-      name: "@comvi/nuxt",
-      configKey: "comvi",
-      compatibility: { nuxt: "^3.0.0 || ^4.0.0" },
-    });
-    expect(moduleDefinition.defaults).toEqual({
-      locales: [],
-      defaultLocale: "en",
-      localePrefix: "as-needed",
-      head: true,
-      defaultNs: "default",
-      icu: false,
-    });
-  });
-
-  it("configures runtime/app settings and registers runtime integrations", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    resolveOnly(["./comvi.setup.ts", "/app/comvi.setup.ts"]);
-
-    await moduleDefinition.setup(
-      {
-        locales: ["en", { code: "de", name: "Deutsch" }],
-        defaultLocale: "en",
-        localePrefix: "as-needed",
-        defaultNs: "common",
-        fallbackLocale: "en",
-        defaultParams: { formality: "formal" },
-        messages: { en: { greeting: "Hello" } },
-        apiKey: "secret-key",
-        setup: "./comvi.setup.ts",
-        localeCookie: { name: "locale_cookie", maxAge: 60 },
-        basicHtmlTags: ["strong", "em"],
-        head: false,
-      },
-      nuxt,
-    );
-
-    expect(nuxt.options.runtimeConfig.public.comvi).toMatchObject({
-      head: false,
-      locales: ["en", "de"],
-      localeObjects: {
-        en: { code: "en" },
-        de: { code: "de", name: "Deutsch" },
-      },
-      defaultLocale: "en",
-      localePrefix: "as-needed",
-      messages: { en: { greeting: "Hello" } },
-      defaultNs: "common",
-      fallbackLocale: "en",
-      defaultParams: { formality: "formal" },
-      basicHtmlTags: ["strong", "em"],
-      localeCookie: { name: "locale_cookie", maxAge: 60, secure: true, sameSite: "lax" },
-      localeDetection: { order: ["query", "cookie", "accept-language"] },
-    });
-    expect(nuxt.options.runtimeConfig.public.comvi).not.toHaveProperty("cookieName");
-    // Both were documented with CDN examples and read by no runtime code; the
-    // module loads nothing on the app's behalf, so they are gone rather than
-    // wired. A stale 0.4 config must not resurrect them through this object.
-    expect(nuxt.options.runtimeConfig.public.comvi).not.toHaveProperty("cdnUrl");
-    expect(nuxt.options.runtimeConfig.public.comvi).not.toHaveProperty("apiBaseUrl");
-    expect(nuxt.options.runtimeConfig.comvi).toEqual({ apiKey: "secret-key" });
-    expect(nuxt.options.appConfig.comvi).toEqual({
-      routing: {
-        locales: ["en", "de"],
-        localeObjects: {
-          en: { code: "en" },
-          de: { code: "de", name: "Deutsch" },
-        },
-        defaultLocale: "en",
-        localePrefix: "as-needed",
-        cookieName: "locale_cookie",
-      },
-    });
-
-    expect(nuxtKitMocks.addPlugin).toHaveBeenCalledWith({
-      src: "/resolved/./runtime/plugin",
-      mode: "all",
-    });
-    expect(nuxtKitMocks.addTemplate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        filename: "comvi.setup.mjs",
-        getContents: expect.any(Function),
-      }),
-    );
-    expect(nuxtKitMocks.addImports).toHaveBeenCalledWith([
-      { name: "useI18n", from: "/resolved/./runtime/composables/useI18n" },
-      { name: "useI18nLoader", from: "/resolved/./runtime/composables/capabilities" },
-      { name: "useI18nPlugins", from: "/resolved/./runtime/composables/capabilities" },
-      { name: "useLocaleHead", from: "/resolved/./runtime/composables/useLocaleHead" },
-      { name: "useLocalePath", from: "/resolved/./runtime/composables/useLocalePath" },
-      { name: "useLocaleRoute", from: "/resolved/./runtime/composables/useLocaleRoute" },
-      { name: "useRouteConfig", from: "/resolved/./runtime/composables/useRouteConfig" },
-      { name: "useSwitchLocalePath", from: "/resolved/./runtime/composables/useSwitchLocalePath" },
-    ]);
-    expect(nuxtKitMocks.addComponent).toHaveBeenNthCalledWith(1, {
-      name: "T",
-      filePath: "/resolved/./runtime/components/T",
-      export: "default",
-    });
-    expect(nuxtKitMocks.addComponent).toHaveBeenNthCalledWith(2, {
-      name: "NuxtLinkLocale",
-      filePath: "/resolved/./runtime/components/NuxtLinkLocale",
-      export: "default",
-    });
-    expect(nuxtKitMocks.addServerImportsDir).toHaveBeenCalledWith(
-      "/resolved/./runtime/server/utils",
-    );
-    // The per-request teardown is this plugin; unregistered, every request host
-    // on the server leaks its plugin cleanups again.
-    expect(nuxtKitMocks.addServerPlugin).toHaveBeenCalledWith(
-      "/resolved/./runtime/server/plugins/request-cleanup",
-    );
-    expect(nuxtKitMocks.addRouteMiddleware).toHaveBeenCalledWith({
-      name: "i18n",
-      path: "/resolved/./runtime/middleware/i18n.global",
-      global: true,
-    });
-  });
-
-  it("emits the user setup template with a default-export guard", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    resolveOnly(["./comvi.setup", "/app/comvi.setup.ts"]);
-
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
-
-    const contents = setupTemplateContents();
-
-    expect(contents).toContain('import userSetup from "/app/comvi.setup.ts";');
-    expect(contents).toContain("[@comvi/nuxt] comvi.setup must export a default function.");
-  });
-
   // The server utilities run in the Nitro build, where `#build/*` is refused:
   // an app whose `server/api` route called `useTranslation(event)` failed
   // `nuxt build`. `test-apps/nuxt4/server/api/translate.get.ts` is that route.
-  it("registers the three generated modules as Nitro virtual modules, with the templates' own contents", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    resolveOnly(["./comvi.setup", "/app/comvi.setup.ts"]);
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
-    const onNitroConfig = nuxt.hook.mock.calls.find(
-      ([name]: [string]) => name === "nitro:config",
-    )?.[1];
-    const nitroConfig = { virtual: { "#other/module": "export {}" } as Record<string, any> };
-
-    onNitroConfig(nitroConfig);
-
-    expect(Object.keys(nitroConfig.virtual)).toEqual([
-      "#other/module",
-      "#comvi/detection",
-      "#comvi/setup",
-      "#comvi/i18n",
-    ]);
-    expect(nitroConfig.virtual["#comvi/setup"]()).toBe(setupTemplateContents());
-    expect(nitroConfig.virtual["#comvi/i18n"]()).toBe(hostTemplateContents());
-    expect(nitroConfig.virtual["#comvi/detection"]()).toBe(
-      template("comvi.detection.mjs")?.getContents(),
-    );
-  });
 
   it("transpiles the runtime and pre-bundles the wrapper packages", async () => {
     const moduleDefinition = await importModule();
@@ -337,410 +171,11 @@ describe("nuxt module setup", () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it("looks a user module up in srcDir before falling back to rootDir", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    nuxtKitMocks.findPath.mockImplementation(
-      async (_specifier: string, options: { cwd: string; type: string }) =>
-        options.cwd === ABSENT_ROOT_DIR && options.type === "file" ? "/app/comvi.setup.ts" : null,
-    );
-
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
-
-    expect(nuxtKitMocks.findPath).toHaveBeenNthCalledWith(1, "./comvi.setup", {
-      cwd: ABSENT_SRC_DIR,
-      type: "file",
-    });
-    expect(setupTemplateContents()).toContain('import userSetup from "/app/comvi.setup.ts";');
-  });
-
-  it("generates a no-op setup template when setup option is omitted", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-
-    await moduleDefinition.setup(
-      {
-        locales: ["en"],
-        defaultLocale: "en",
-      },
-      nuxt,
-    );
-
-    expect(setupTemplateContents()).toContain("runComviSetup() {}");
-  });
-
-  it("auto-detects ./comvi.setup when setup option is omitted", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    resolveOnly(["./comvi.setup", "/app/comvi.setup.ts"]);
-
-    await moduleDefinition.setup(
-      {
-        locales: ["en"],
-        defaultLocale: "en",
-      },
-      nuxt,
-    );
-
-    expect(setupTemplateContents()).toContain('import userSetup from "/app/comvi.setup.ts";');
-  });
-
-  it("names the near-missed file when comvi.setup auto-detection resolved nothing", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    // A REAL tree, because the probe reads the directory. `findPath` never
-    // tries `.cjs`, so the file is present and still unreachable — the exact
-    // shape that used to produce an empty `runComviSetup() {}` with no
-    // explanation anywhere.
-    const srcDir = mkdtempSync(join(tmpdir(), "comvi-nuxt-near-miss-"));
-    tempDirs.push(srcDir);
-    writeFileSync(join(srcDir, "app.vue"), "");
-    writeFileSync(join(srcDir, "comvi.setup.cjs"), "");
-    nuxt.options.srcDir = srcDir;
-
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
-
-    expect(setupTemplateContents()).toContain("runComviSetup() {}");
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    const [message] = warnSpy.mock.calls[0] as [string];
-    expect(message).toContain(`Found "${join(srcDir, "comvi.setup.cjs")}"`);
-    expect(message).toContain('could not resolve "./comvi.setup"');
-    expect(message).toContain(srcDir);
-    expect(message).toContain("the comvi.setup hook is EMPTY");
-  });
-
-  it("does not report a comvi.setup.d.ts, a .bak or a directory as a near miss", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    // Each of these starts with "comvi.setup" and none is a hook Nuxt could
-    // have resolved: a prefix probe reported all three, and the reader went
-    // looking for a hook that was never there.
-    const srcDir = mkdtempSync(join(tmpdir(), "comvi-nuxt-not-near-miss-"));
-    tempDirs.push(srcDir);
-    writeFileSync(join(srcDir, "comvi.setup.d.ts"), "");
-    writeFileSync(join(srcDir, "comvi.setup.ts.bak"), "");
-    mkdirSync(join(srcDir, "comvi.setup.cjs"));
-    nuxt.options.srcDir = srcDir;
-
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
-
-    expect(setupTemplateContents()).toContain("runComviSetup() {}");
-    expect(warnSpy).not.toHaveBeenCalled();
-  });
-
-  it("auto-detects ./comvi.i18n when i18nModule is omitted and logs the path", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
-    resolveOnly(["./comvi.i18n", "/app/comvi.i18n.ts"]);
-
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
-
-    // The composed branch, from a file nuxt.config never named…
-    expect(hostTemplateContents()).toContain('import i18nFactory from "/app/comvi.i18n.ts";');
-    expect(hostTemplateContents()).not.toContain('from "@comvi/core"');
-    // …which is exactly why the path is said out loud at build time.
-    expect(infoSpy).toHaveBeenCalledTimes(1);
-    const [message] = infoSpy.mock.calls[0] as [string];
-    expect(message).toContain('"/app/comvi.i18n.ts"');
-    expect(message).toContain("auto-detected ./comvi.i18n");
-    expect(message).toContain("`i18nModule`");
-  });
-
-  it("looks the conventional host up in srcDir before rootDir", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    vi.spyOn(console, "info").mockImplementation(() => {});
-    nuxtKitMocks.findPath.mockImplementation(async (specifier: string, options: { cwd: string }) =>
-      specifier === "./comvi.i18n" && options.cwd === ABSENT_ROOT_DIR
-        ? "/root/comvi.i18n.ts"
-        : null,
-    );
-
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
-
-    expect(nuxtKitMocks.findPath).toHaveBeenCalledWith("./comvi.i18n", {
-      cwd: ABSENT_SRC_DIR,
-      type: "file",
-    });
-    expect(hostTemplateContents()).toContain('import i18nFactory from "/root/comvi.i18n.ts";');
-  });
-
-  it("lets an explicit i18nModule win over a conventional comvi.i18n", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
-    resolveOnly(
-      ["./custom.host.ts", "/app/custom.host.ts"],
-      ["./comvi.i18n", "/app/comvi.i18n.ts"],
-    );
-
-    await moduleDefinition.setup(
-      { locales: ["en"], defaultLocale: "en", i18nModule: "./custom.host.ts" },
-      nuxt,
-    );
-
-    expect(hostTemplateContents()).toContain('import i18nFactory from "/app/custom.host.ts";');
-    expect(hostTemplateContents()).not.toContain("/app/comvi.i18n.ts");
-    // The convention is not even consulted, and an explicit path is not "stray".
-    expect(nuxtKitMocks.findPath).not.toHaveBeenCalledWith("./comvi.i18n", expect.anything());
-    expect(infoSpy).not.toHaveBeenCalled();
-  });
-
-  it("names the near-missed file when comvi.i18n auto-detection resolved nothing", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const srcDir = mkdtempSync(join(tmpdir(), "comvi-nuxt-host-near-miss-"));
-    tempDirs.push(srcDir);
-    writeFileSync(join(srcDir, "comvi.i18n.cjs"), "");
-    // A `.d.ts` neighbour of the host file must not be the one reported either.
-    writeFileSync(join(srcDir, "comvi.i18n.d.ts"), "");
-    nuxt.options.srcDir = srcDir;
-
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
-
-    // The consequence of the miss: the BASE host, with none of the file's capabilities.
-    expect(hostTemplateContents()).toContain('import { createI18n } from "@comvi/vue";');
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    const [message] = warnSpy.mock.calls[0] as [string];
-    expect(message).toContain(`Found "${join(srcDir, "comvi.i18n.cjs")}"`);
-    expect(message).toContain('could not resolve "./comvi.i18n"');
-    expect(message).toContain(srcDir);
-    expect(message).toContain("the app runs on the BASE instance");
-    expect(message).toContain("`i18nModule`");
-  });
-
-  it("logs nothing about the host when no comvi.i18n file exists", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
-
-    expect(hostTemplateContents()).toContain('import { createI18n } from "@comvi/vue";');
-    expect(infoSpy).not.toHaveBeenCalled();
-    expect(warnSpy).not.toHaveBeenCalled();
-  });
-
-  it("throws when setup option points to missing file", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    nuxtKitMocks.findPath.mockResolvedValue(null);
-
-    await expect(
-      moduleDefinition.setup(
-        {
-          locales: ["en"],
-          defaultLocale: "en",
-          setup: "./missing.setup.ts",
-        },
-        nuxt,
-      ),
-    ).rejects.toThrow('Failed to resolve comvi.setup path: "./missing.setup.ts"');
-  });
-
-  it("stays quiet about icu when no i18nModule is configured", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en", icu: true }, nuxt);
-
-    expect(warnSpy).not.toHaveBeenCalled();
-  });
-
-  it("emits the base construction branch when i18nModule is unset", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
-
-    const contents = hostTemplateContents();
-
-    expect(contents).toContain('import { createI18n } from "@comvi/vue";');
-    expect(contents).toContain('import { createI18n as createCore } from "@comvi/core";');
-    expect(contents).not.toContain("createI18nFromCore");
-    // Single-entry policy as codegen: no capability subpath, no installer, no compiler.
-    expect(contents).not.toContain("@comvi/core/");
-    expect(contents).not.toContain(".use(");
-    expect(contents).not.toContain("compiler");
-  });
-
-  it("emits the ICU compiler into the default branch when icu is true", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en", icu: true }, nuxt);
-
-    const contents = hostTemplateContents();
-
-    // `compiler` is a constructor argument, so `.use()` cannot pipe it on afterwards.
-    expect(contents).toContain('import { icuCompiler } from "@comvi/core/icu";');
-    // Both hosts, or SSR and hydration compile the same catalog with two compilers.
-    expect(contents).toContain("createI18n({ ...options, compiler: icuCompiler })");
-    expect(contents).toContain("createCore({ ...options, compiler: icuCompiler })");
-    expect(contents).toContain('import { createI18n } from "@comvi/vue";');
-    expect(contents).not.toContain("createI18nFromCore");
-    expect(contents).not.toContain(".use(");
-  });
-
-  it("emits no ICU import when icu is left at its default", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-
-    // No `icu` key at all: what an app that never heard of the option gets.
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
-
-    const contents = hostTemplateContents();
-
-    // A codegen branch, so `@comvi/core/icu` never enters the graph — nothing to tree-shake.
-    expect(contents).not.toContain("@comvi/core/icu");
-    expect(contents).not.toContain("icuCompiler");
-    expect(contents).not.toContain("compiler");
-    expect(contents).toContain("return createI18n(options);");
-    expect(contents).toContain("return createCore(options);");
-  });
-
-  it("emits compiler: icuCompiler into the factory options when icu is true with i18nModule", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    resolveOnly(["./comvi.i18n.ts", "/app/comvi.i18n.ts"]);
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    await moduleDefinition.setup(
-      { locales: ["en"], defaultLocale: "en", icu: true, i18nModule: "./comvi.i18n.ts" },
-      nuxt,
-    );
-
-    // The option means the same thing on both branches now: nothing to warn about.
-    expect(warnSpy).not.toHaveBeenCalled();
-
-    const contents = hostTemplateContents();
-
-    expect(contents).toContain('import i18nFactory from "/app/comvi.i18n.ts";');
-    expect(contents).toContain('import { createI18nFromCore } from "@comvi/vue";');
-    expect(contents).toContain('import { icuCompiler } from "@comvi/core/icu";');
-    // The compiler is the LAST key: `{ ...options }` gets it, `{ ...options, compiler }` overrides it.
-    expect(contents).toContain("i18nFactory({ ...options, compiler: icuCompiler })");
-    expect(contents).not.toContain("i18nFactory(options)");
-  });
-
-  it("emits no ICU import on the i18nModule branch when icu is off", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    resolveOnly(["./comvi.i18n.ts", "/app/comvi.i18n.ts"]);
-
-    await moduleDefinition.setup(
-      { locales: ["en"], defaultLocale: "en", icu: false, i18nModule: "./comvi.i18n.ts" },
-      nuxt,
-    );
-
-    const contents = hostTemplateContents();
-
-    // Same codegen rule as the default branch: off means absent from the graph.
-    expect(contents).not.toContain("@comvi/core/icu");
-    expect(contents).not.toContain("icuCompiler");
-    expect(contents).toContain("i18nFactory(options)");
-  });
-
-  it("emits the composed-host branch and never imports @comvi/core itself when i18nModule is set", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    resolveOnly(["./comvi.i18n.ts", "/app/comvi.i18n.ts"]);
-
-    await moduleDefinition.setup(
-      { locales: ["en"], defaultLocale: "en", i18nModule: "./comvi.i18n.ts" },
-      nuxt,
-    );
-
-    const contents = hostTemplateContents();
-
-    expect(contents).toContain('import { createI18nFromCore } from "@comvi/vue";');
-    expect(contents).toContain('import i18nFactory from "/app/comvi.i18n.ts";');
-    // The whole point of branching at build time: no root import to tree-shake.
-    expect(contents).not.toContain('from "@comvi/core"');
-    expect(contents).toContain("comvi i18nModule must export a default function");
-    // The guard names the import that FIXES it, and it is the module's own
-    // subpath — @comvi/vue's createI18n is the wrapper the guard rejects.
-    expect(contents).toContain("must default-export a factory returning a core instance");
-    expect(contents).toContain('createI18n from "@comvi/nuxt/i18n"');
-    expect(contents).toContain("createI18n(options).use(loader(map))");
-    // A composed host honours the same nuxt.config the default branch does.
-    expect(contents).toContain("i18nFactory(options)");
-    expect(contents).toContain("createInstance({ ...options, locale })");
-  });
-
-  it("throws when i18nModule points to missing file", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    nuxtKitMocks.findPath.mockResolvedValue(null);
-
-    await expect(
-      moduleDefinition.setup(
-        {
-          locales: ["en"],
-          defaultLocale: "en",
-          i18nModule: "./missing.host.ts",
-        },
-        nuxt,
-      ),
-    ).rejects.toThrow('Failed to resolve comvi i18nModule path: "./missing.host.ts"');
-  });
-
-  it("merges private runtime config and keeps existing values when apiKey option is omitted", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-    nuxt.options.runtimeConfig.comvi = {
-      apiKey: "runtime-key",
-      customSecret: "keep-me",
-    };
-
-    await moduleDefinition.setup(
-      {
-        locales: ["en"],
-        defaultLocale: "en",
-      },
-      nuxt,
-    );
-
-    expect(nuxt.options.runtimeConfig.comvi).toEqual({
-      apiKey: "runtime-key",
-      customSecret: "keep-me",
-    });
-  });
-
-  it("publishes the inline catalog as public runtime config `messages`, the key NUXT_PUBLIC_COMVI_MESSAGES overrides", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-
-    await moduleDefinition.setup(
-      { locales: ["en"], defaultLocale: "en", messages: { en: { greeting: "Hello" } } },
-      nuxt,
-    );
-
-    const publicComvi = nuxt.options.runtimeConfig.public.comvi as Record<string, unknown>;
-    expect(publicComvi.messages).toEqual({ en: { greeting: "Hello" } });
-    expect(publicComvi).not.toHaveProperty("translation");
-    // Nuxt maps `runtimeConfig.public.<a>.<b>` to the env var NUXT_PUBLIC_<A>_<B>.
-    const envNames = Object.keys(publicComvi).map(
-      (key) => `NUXT_PUBLIC_COMVI_${key.replace(/[A-Z]/g, (c) => `_${c}`).toUpperCase()}`,
-    );
-    expect(envNames).toContain("NUXT_PUBLIC_COMVI_MESSAGES");
-    expect(envNames).not.toContain("NUXT_PUBLIC_COMVI_TRANSLATION");
-  });
-
   it("merges existing public runtime config and preserves runtime-only overrides", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
     nuxt.options.runtimeConfig.public.comvi = {
-      messages: { en: { greeting: "Runtime" } },
-      defaultNs: "runtime-default",
-      fallbackLocale: ["uk", "en"],
-      basicHtmlTags: ["strong"],
+      head: false,
       localeCookie: { name: "runtime_locale", maxAge: 30 },
       extraPublicField: "keep-me",
     };
@@ -749,28 +184,21 @@ describe("nuxt module setup", () => {
       {
         locales: ["en", "de"],
         defaultLocale: "en",
-        messages: { en: { greeting: "Module" } },
-        defaultNs: "module-default",
-        fallbackLocale: "en",
-        basicHtmlTags: ["em"],
         localeCookie: { name: "module_locale", maxAge: 60 },
       },
       nuxt,
     );
 
-    expect(nuxt.options.runtimeConfig.public.comvi).toMatchObject({
+    expect(nuxt.options.runtimeConfig.public.comvi).toEqual({
       locales: ["en", "de"],
+      localeObjects: { en: { code: "en" }, de: { code: "de" } },
       defaultLocale: "en",
       localePrefix: "as-needed",
-      messages: { en: { greeting: "Runtime" } },
-      defaultNs: "runtime-default",
-      fallbackLocale: ["uk", "en"],
-      basicHtmlTags: ["strong"],
+      head: false,
       localeCookie: { name: "runtime_locale", maxAge: 30, secure: true, sameSite: "lax" },
       localeDetection: { order: ["query", "cookie", "accept-language"] },
       extraPublicField: "keep-me",
     });
-    expect(nuxt.options.appConfig.comvi.routing.cookieName).toBe("runtime_locale");
   });
 
   it("falls back to the module's localeCookie when runtime config leaves it undefined", async () => {
@@ -795,66 +223,14 @@ describe("nuxt module setup", () => {
     });
   });
 
-  it("keeps the cookie and detection off, and app config names no cookie", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-
-    await moduleDefinition.setup(
-      { locales: ["en"], defaultLocale: "en", localeCookie: false, localeDetection: false },
-      nuxt,
-    );
-
-    expect(nuxt.options.runtimeConfig.public.comvi.localeDetection).toBe(false);
-    expect(nuxt.options.runtimeConfig.public.comvi.localeCookie).toBe(false);
-    expect(nuxt.options.appConfig.comvi.routing.cookieName).toBe(false);
-  });
-
-  it("carries an explicit localePrefix into the routing app config", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-
-    await moduleDefinition.setup(
-      { locales: ["en"], defaultLocale: "en", localePrefix: "always" },
-      nuxt,
-    );
-
-    expect(nuxt.options.appConfig.comvi.routing.localePrefix).toBe("always");
-  });
-
-  it("defaults the routing prefix mode and namespace when the options omit them", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
-
-    expect(nuxt.options.appConfig.comvi.routing.localePrefix).toBe("as-needed");
-    expect(nuxt.options.runtimeConfig.public.comvi.defaultNs).toBe("default");
-  });
-
-  it("leaves unset catalog options out of the public runtime config instead of writing undefined", async () => {
-    // Nitro normalizes an `undefined` runtime-config value to `""`, and core
-    // rejects `messages: ""` — every SSR page of an app that loads its
-    // catalogs through a host loader answered 500. Absent keys stay absent.
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
-
-    const publicComvi = nuxt.options.runtimeConfig.public.comvi;
-    for (const key of ["messages", "defaultParams", "basicHtmlTags"]) {
-      expect(publicComvi).not.toHaveProperty(key);
-    }
-    expect(Object.values(publicComvi)).not.toContain(undefined);
-  });
-
   it("drops an undefined value an existing public runtime config carries", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
-    nuxt.options.runtimeConfig.public.comvi = { messages: undefined };
+    nuxt.options.runtimeConfig.public.comvi = { head: undefined };
 
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en", head: undefined }, nuxt);
 
-    expect(nuxt.options.runtimeConfig.public.comvi).not.toHaveProperty("messages");
+    expect(nuxt.options.runtimeConfig.public.comvi).not.toHaveProperty("head");
   });
 
   it("keeps the app's own vite configuration while pre-bundling the wrappers", async () => {
@@ -1210,37 +586,15 @@ describe("nuxt module setup", () => {
       localePrefix: "always" as const,
       localeCookie: { maxAge: 60 },
       localeDetection: { queryParam: "lang" },
-      ns: ["common"],
     };
 
     await moduleDefinition.setup(input, nuxt);
 
-    const { locales, defaultLocale, localePrefix, localeCookie, localeDetection, ns } =
+    const { locales, defaultLocale, localePrefix, localeCookie, localeDetection } =
       nuxt.options.runtimeConfig.public.comvi;
-    expect({ locales, defaultLocale, localePrefix, localeCookie, localeDetection, ns }).toEqual(
+    expect({ locales, defaultLocale, localePrefix, localeCookie, localeDetection }).toEqual(
       normalizeRoutingOptions(input, { cookieNameDefault: "i18n_locale" }),
     );
-  });
-
-  it("forwards comvi.ns into public runtime config", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-
-    await moduleDefinition.setup(
-      { locales: ["en"], defaultLocale: "en", ns: ["common", "nav"] },
-      nuxt,
-    );
-
-    expect(nuxt.options.runtimeConfig.public.comvi.ns).toEqual(["common", "nav"]);
-  });
-
-  it("leaves ns out of runtime config when it is unset", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
-
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
-
-    expect(nuxt.options.runtimeConfig.public.comvi).not.toHaveProperty("ns");
   });
 
   describe("cloned aliases and redirects", () => {
@@ -1530,46 +884,175 @@ describe("nuxt module setup", () => {
     expect(extendPagesHandler).toBeUndefined();
   });
 
-  it("registers an explicit import for every composable file", async () => {
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
+  describe("0.8: one settings set, the instance is the module's", () => {
+    it("declares its identity and defaults", async () => {
+      const { meta, defaults } = await importModule();
 
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+      expect(meta.name).toBe("@comvi/nuxt");
+      expect(meta.configKey).toBe("comvi");
+      expect(defaults).toEqual({
+        locales: [],
+        defaultLocale: "en",
+        localePrefix: "as-needed",
+        head: true,
+      });
+    });
 
-    // Derived from the directory, not a hand-copied list: a composable added
-    // without an `addImports` entry has to fail here.
-    const composableModules = readdirSync(resolve(__dirname, "../src/runtime/composables"))
-      .filter((file) => file.endsWith(".ts"))
-      .map((file) => `/resolved/./runtime/composables/${file.replace(/\.ts$/, "")}`)
-      .sort();
-    const registered = nuxtKitMocks.addImports.mock.calls[0]?.[0] as Array<{
-      name: string;
-      from: string;
-    }>;
+    it("registers the plugin, @comvi/vue's composables, the routing composables, <T>, the Nitro utility and its request-end plugin", async () => {
+      const moduleDefinition = await importModule();
+      await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, createNuxtStub());
 
-    // `capabilities` registers two names from one file, so `from` is the seam.
-    expect([...new Set(registered.map((entry) => entry.from))].sort()).toEqual(composableModules);
-  });
+      expect(nuxtKitMocks.addPlugin).toHaveBeenCalledWith({
+        src: "/resolved/./runtime/plugin",
+        mode: "all",
+      });
+      expect(nuxtKitMocks.addImports.mock.calls.flat(2)).toEqual([
+        { name: "useI18n", from: "/resolved/./runtime/composables/useI18n" },
+        { name: "useFormat", from: "/resolved/./runtime/composables/useI18n" },
+        { name: "useLocaleHead", from: "/resolved/./runtime/composables/useLocaleHead" },
+        { name: "useLocalePath", from: "/resolved/./runtime/composables/useLocalePath" },
+        { name: "useLocaleRoute", from: "/resolved/./runtime/composables/useLocaleRoute" },
+        { name: "useRouteConfig", from: "/resolved/./runtime/composables/useRouteConfig" },
+        {
+          name: "useSwitchLocalePath",
+          from: "/resolved/./runtime/composables/useSwitchLocalePath",
+        },
+      ]);
+      expect(nuxtKitMocks.addComponent.mock.calls.map(([c]) => c.name)).toEqual([
+        "T",
+        "NuxtLinkLocale",
+      ]);
+      expect(nuxtKitMocks.addServerImports).toHaveBeenCalledWith([
+        { name: "useTranslation", from: "/resolved/./runtime/server/utils/useTranslation" },
+      ]);
+      expect(nuxtKitMocks.addServerPlugin).toHaveBeenCalledWith(
+        "/resolved/./runtime/server/plugins/comvi",
+      );
+      expect(nuxtKitMocks.addRouteMiddleware).toHaveBeenCalledWith({
+        name: "i18n",
+        path: "/resolved/./runtime/middleware/i18n.global",
+        global: true,
+      });
+    });
 
-  it("auto-imports exactly core's standalone formatters, through @comvi/nuxt/i18n", async () => {
-    const core = await import("@comvi/core");
-    const moduleDefinition = await importModule();
-    const nuxt = createNuxtStub();
+    it("the auto-imported useI18n and useFormat ARE @comvi/vue's", async () => {
+      const runtime = await import("../src/runtime/composables/useI18n");
+      const vue = await import("@comvi/vue");
+      const format = await import("@comvi/vue/format");
 
-    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+      expect(runtime.useI18n).toBe(vue.useI18n);
+      expect(runtime.useFormat).toBe(format.useFormat);
+    });
 
-    const coreFormatters = Object.keys(core)
-      .filter((name) => /^format[A-Z]/.test(name))
-      .sort();
-    const registered = nuxtKitMocks.addImports.mock.calls.flatMap(
-      ([entries]) => entries as Array<{ name: string; from: string }>,
-    );
-    const formatters = registered.filter((entry) => /^format[A-Z]/.test(entry.name));
+    it("requires timeZone, naming the fix", async () => {
+      const definition = (await importModule()) as any;
+      vi.resetModules();
+      const raw = (await import("../src/module")).default as any;
 
-    expect(coreFormatters.length).toBeGreaterThan(0);
-    expect(formatters.map((entry) => entry.name).sort()).toEqual(coreFormatters);
-    expect(new Set(formatters.map((entry) => entry.from))).toEqual(
-      new Set(["/resolved/./runtime/i18n"]),
-    );
+      await expect(
+        raw.setup({ locales: ["en"], defaultLocale: "en" }, createNuxtStub()),
+      ).rejects.toThrow(
+        '[@comvi/nuxt] `comvi.timeZone` is required: the server and the browser must format dates in one zone. Add it to nuxt.config, e.g. `comvi: { timeZone: "UTC" }`.',
+      );
+      await expect(
+        definition.setup({ locales: ["en"], timeZone: "Mars/Olympus" }, createNuxtStub()),
+      ).rejects.toThrow('[@comvi/nuxt] `comvi.timeZone` "Mars/Olympus" is not a time zone.');
+    });
+
+    it("refuses a locale that is not a language tag at build time, by name", async () => {
+      const moduleDefinition = await importModule();
+
+      await expect(
+        moduleDefinition.setup(
+          { locales: ["en", "en_US!"], defaultLocale: "en" },
+          createNuxtStub(),
+        ),
+      ).rejects.toThrow('[@comvi/nuxt] locale "en_US!" is not a BCP 47 language tag.');
+    });
+
+    it.each([
+      ["defaultParams", { brand: "Comvi" }, "params of `t()`"],
+      ["setup", "./comvi.setup.ts", "the `plugins` and `onError` options of `comvi.i18n.ts`"],
+      ["apiKey", "k", "a private server route that reads its key from private `runtimeConfig`"],
+      ["ns", ["admin"], "`namespaces`"],
+      ["defaultNs", "common", "nothing: the default namespace is `default`"],
+      ["icu", true, "nothing: ICU is the core's compiler"],
+      ["basicHtmlTags", ["b"], "tag handlers, `components` or slots of `<T>`"],
+    ])("a removed 0.7 option `%s` fails setup, naming what to write", async (key, value, use) => {
+      const moduleDefinition = await importModule();
+
+      await expect(
+        moduleDefinition.setup({ locales: ["en"], [key]: value }, createNuxtStub()),
+      ).rejects.toThrow(`[@comvi/nuxt] \`comvi.${key}\` is not an option: use ${use}.`);
+    });
+
+    it("writes the translation data into the generated options module, not into runtime config", async () => {
+      const moduleDefinition = await importModule();
+      const nuxt = createNuxtStub();
+      const data = {
+        timeZone: "Europe/Kyiv",
+        fallbackLocale: "en",
+        namespaces: ["common"],
+        formats: { number: { money: { style: "currency", currency: "EUR" } } },
+        messages: { en: { home: { title: "Hello" } } },
+      };
+      await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en", ...data }, nuxt);
+
+      const contents = optionsTemplateContents()!;
+      expect(contents).toContain("export const options = () => ({});");
+      expect(contents).toContain(`export const config = ${JSON.stringify(data)};`);
+      for (const key of Object.keys(data))
+        expect(nuxt.options.runtimeConfig.public.comvi).not.toHaveProperty(key);
+      // The Nitro build gets the same module under its own name.
+      const [[hook, register]] = nuxt.hook.mock.calls.filter(
+        ([name]: [string]) => name === "nitro:config",
+      );
+      expect(hook).toBe("nitro:config");
+      const nitroConfig: { virtual?: Record<string, () => string> } = {};
+      register(nitroConfig);
+      expect(nitroConfig.virtual!["#comvi/options"]!()).toBe(contents);
+    });
+
+    it("imports the options file the module found, with a check of its default export", async () => {
+      nuxtKitMocks.findPath.mockImplementation(
+        async (specifier: string, { cwd }: { cwd: string }) =>
+          specifier === "./comvi.i18n" && cwd === ABSENT_SRC_DIR ? "/app/comvi.i18n.ts" : null,
+      );
+      const moduleDefinition = await importModule();
+      await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, createNuxtStub());
+
+      const contents = optionsTemplateContents()!;
+      expect(contents).toContain('import factory from "/app/comvi.i18n.ts";');
+      expect(contents).toContain('if (typeof factory !== "function") throw new TypeError(');
+      expect(contents).toContain("export const options = factory;");
+    });
+
+    it("an explicit i18nModule that does not resolve is a build error", async () => {
+      const moduleDefinition = await importModule();
+
+      await expect(
+        moduleDefinition.setup(
+          { locales: ["en"], defaultLocale: "en", i18nModule: "./nope.ts" },
+          createNuxtStub(),
+        ),
+      ).rejects.toThrow('[@comvi/nuxt] Failed to resolve comvi i18nModule: "./nope.ts".');
+    });
+
+    it("names a comvi.i18n file it found but could not resolve", async () => {
+      const dir = mkdtempSync(join(tmpdir(), "comvi-nuxt-near-miss-"));
+      tempDirs.push(dir);
+      writeFileSync(join(dir, "comvi.i18n.cts"), "");
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const moduleDefinition = await importModule();
+      const nuxt = createNuxtStub();
+      nuxt.options.srcDir = dir;
+      await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `Found "${join(dir, "comvi.i18n.cts")}" but could not resolve "./comvi.i18n"`,
+        ),
+      );
+    });
   });
 });

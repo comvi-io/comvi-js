@@ -5,46 +5,36 @@
  * on an event carrying the same URL, cookies and headers. Settings go through
  * the shared `normalizeRoutingOptions`, as the module's do, so a row tests what
  * an app writing those options in `nuxt.config` gets.
- * `packages/next/tests/routing-policy-contract.test.ts` runs the same rows
- * through next.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createI18n as createCoreI18n } from "@comvi/core";
-import { attachLoader } from "@comvi/core/loader";
 import {
   COOKIE_CONTROL_CASES,
   DEFAULT_COOKIE,
   DETECTION_PRECEDENCE_CASES,
-  HELPER_CATALOGS,
-  HELPER_DEFAULT_NS,
-  HELPER_RESULT_KEYS,
   POLICY_DEFAULT_LOCALE,
   POLICY_LOCALES,
-  SERVER_HELPER_CASES,
   type PolicyRequest,
   type RoutingPolicySettings,
 } from "@comvi/test-utils/routingPolicyContract";
 import { ACCEPT_LANGUAGE_CASES } from "@comvi/test-utils/acceptLanguageTable";
 import {
+  fakeInstance,
   getMockCookieOptions,
   getMockCookieWrites,
   mockRuntimeConfig,
   resetMocks,
   setMockCookie,
+  setMockI18n,
   setMockRequestHeaders,
+  useNuxtApp,
 } from "./mocks/nuxt-app";
-import { useState } from "#app";
-import { createComviCore, resetComviI18nMock } from "./mocks/comvi-i18n";
-import { resetComviSetupMock } from "./mocks/comvi-setup";
-import { nodeResponseStub } from "./mocks/node-response";
+import { setNitroRuntimeConfig } from "./mocks/nitro-imports";
+import { setComviOptions } from "./mocks/comvi-options";
 import { runtimeLocaleKeys } from "./mocks/locale-options";
 import middleware from "../src/runtime/middleware/i18n.global";
 import { useTranslation } from "../src/runtime/server/utils/useTranslation";
 import type { NuxtI18nRuntimeConfig } from "../src/types";
-
-// The contract is about requests, so the middleware runs as it does in SSR.
-vi.mock("../src/runtime/utils/runtime", () => ({ isServer: () => true }));
 
 /** What h3 would read off a real event: the request this row describes. */
 interface ContractEvent {
@@ -53,6 +43,7 @@ interface ContractEvent {
 vi.mock("h3", () => ({
   getCookie: (event: ContractEvent, name: string) => cookiesOf(event.request)[name],
   getHeader: (event: ContractEvent, name: string) => event.request.headers?.[name.toLowerCase()],
+  getQuery: (event: ContractEvent) => event.request.query ?? {},
 }));
 
 const NUXT_DEFAULT_COOKIE = "i18n_locale";
@@ -77,16 +68,15 @@ const runtimeComvi = (
     localeObjects: {},
     defaultLocale: locales[0] ?? POLICY_DEFAULT_LOCALE,
     localePrefix: "as-needed",
-    defaultNs: HELPER_DEFAULT_NS,
-    fallbackLocale: locales[0] ?? POLICY_DEFAULT_LOCALE,
     localeCookie,
     localeDetection,
   };
 };
 
-/** The locale the route middleware rendered, and the cookie it wrote, if any. */
+/** The locale the route middleware rendered (on the server), and the cookie it wrote, if any. */
 const runMiddleware = async (comvi: NuxtI18nRuntimeConfig["comvi"], request: PolicyRequest) => {
   resetMocks();
+  setMockI18n(fakeInstance(comvi.defaultLocale));
   mockRuntimeConfig.public.comvi = comvi;
   const cookies = cookiesOf(request);
   for (const [name, value] of Object.entries(cookies)) setMockCookie(name, value);
@@ -117,34 +107,20 @@ const runMiddleware = async (comvi: NuxtI18nRuntimeConfig["comvi"], request: Pol
         }
       : null;
 
-  return { locale: useState<string>("i18n-locale").value, written };
+  return { locale: (useNuxtApp().$i18n as { locale: string }).locale, written };
 };
 
 /** `useTranslation(event)` on an event carrying the same request. */
-const runHelper = async (
-  comvi: NuxtI18nRuntimeConfig["comvi"],
-  request: PolicyRequest,
-  options?: Parameters<typeof useTranslation>[1],
-) => {
-  const event = {
-    path: `${request.path}${search(request.query)}`,
-    request,
-    node: { res: nodeResponseStub() },
-    context: { runtimeConfig: { public: { comvi }, comvi: {} } },
-  };
-  return useTranslation(event as never, options);
+const runHelper = async (comvi: NuxtI18nRuntimeConfig["comvi"], request: PolicyRequest) => {
+  setNitroRuntimeConfig({ public: { comvi } });
+  const event = { path: `${request.path}${search(request.query)}`, request, context: {} };
+  return useTranslation(event as never);
 };
 
 beforeEach(() => {
-  resetComviI18nMock();
-  resetComviSetupMock();
-  createComviCore.mockImplementation((options: Record<string, unknown>) => {
-    const host = attachLoader(createCoreI18n(options as never));
-    host.registerLoader(async (locale: string, ns: string) => ({
-      ...HELPER_CATALOGS[`${locale}:${ns}`],
-    }));
-    return host;
-  });
+  // The contract is about requests, so the middleware runs as it does in SSR.
+  vi.stubGlobal("__COMVI_TEST_SERVER__", true);
+  setComviOptions({}, () => ({ loader: async () => ({}) }));
 });
 
 describe("routing-policy contract (nuxt): B6 detection precedence", () => {
@@ -182,21 +158,5 @@ describe("routing-policy contract (nuxt): B8 cookie control", () => {
       middleware: locale,
       helper: locale,
     });
-  });
-});
-
-describe("routing-policy contract (nuxt): B10 server helper result", () => {
-  it.each(SERVER_HELPER_CASES)("$why", async ({ options, calls }) => {
-    const result = await runHelper(runtimeComvi({}), { path: "/" }, options);
-
-    expect(Object.keys(result).sort()).toEqual([...HELPER_RESULT_KEYS]);
-    expect(result.locale).toBe(options.locale);
-    for (const call of calls) {
-      if ("t" in call) {
-        expect(result.t(call.t as never, call.params as never)).toBe(call.expected);
-      } else {
-        expect(result.hasTranslation(call.has, call.params)).toBe(call.expected);
-      }
-    }
   });
 });

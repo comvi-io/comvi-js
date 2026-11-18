@@ -43,13 +43,8 @@ export default defineConfig({
     unstubGlobals: true,
     environment: "happy-dom",
     include: ["tests/**/*.{test,test-d}.ts"],
-    // `tests/types-keys-via-binding/**` is a type-only program with its own
-    // tsconfig (`tsconfig.keys-via-binding.json`, run from `test:types`). It
-    // must stay out of this one: it carries a `declare module "@comvi/nuxt"`
-    // block, which is global to whichever program contains it and would close
-    // the key registry for every other file here.
-    // vitest's own defaults are restated: naming `exclude` replaces them.
-    exclude: ["**/node_modules/**", "**/dist/**", "tests/types-keys-via-binding/**"],
+    setupFiles: ["tests/setup.ts"],
+    exclude: ["**/node_modules/**", "**/dist/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
@@ -67,14 +62,12 @@ export default defineConfig({
   resolve: {
     alias: {
       "#app": resolve(__dirname, "./tests/mocks/nuxt-app.ts"),
-      "#build/comvi.setup": resolve(__dirname, "./tests/mocks/comvi-setup.ts"),
-      "#build/comvi.i18n": resolve(__dirname, "./tests/mocks/comvi-i18n.ts"),
+      "#build/comvi.options": resolve(__dirname, "./tests/mocks/comvi-options.ts"),
       "#build/comvi.detection": resolve(__dirname, "./tests/mocks/comvi-detection.ts"),
       "#components": resolve(__dirname, "./tests/mocks/nuxt-components.ts"),
-      // The Nitro build's names for the same three generated modules, and
-      // Nitro's own auto-import entry: what the server utilities import.
-      "#comvi/setup": resolve(__dirname, "./tests/mocks/comvi-setup.ts"),
-      "#comvi/i18n": resolve(__dirname, "./tests/mocks/comvi-i18n.ts"),
+      // The Nitro build's names for the same generated modules, and Nitro's own
+      // auto-import entry: what the server utility imports.
+      "#comvi/options": resolve(__dirname, "./tests/mocks/comvi-options.ts"),
       "#comvi/detection": resolve(__dirname, "./tests/mocks/comvi-detection.ts"),
       "#imports": resolve(__dirname, "./tests/mocks/nitro-imports.ts"),
     },

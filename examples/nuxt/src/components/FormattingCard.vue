@@ -1,5 +1,7 @@
 <script setup lang="ts">
-const { t, locale, formatNumber, formatDate } = useI18n();
+const { t, locale } = useI18n();
+// The formatters in the language on screen; dates in the app's one time zone (comvi.timeZone).
+const { number, date } = useFormat();
 
 const released = new Date("2026-09-01T00:00:00Z");
 const price = computed(() =>
@@ -12,8 +14,8 @@ const price = computed(() =>
     <p class="widget">
       {{
         t("stats.summary", {
-          views: formatNumber(1234567),
-          date: formatDate(released, { dateStyle: "long", timeZone: "UTC" }),
+          views: number(1234567),
+          date: date(released, { dateStyle: "long" }),
         })
       }}
     </p>

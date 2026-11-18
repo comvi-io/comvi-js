@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-vi.mock("../src/runtime/utils/runtime", () => ({
-  isServer: vi.fn(() => false),
-}));
-
 import middleware from "../src/runtime/middleware/i18n.global";
 import {
   resetMocks,
@@ -14,14 +10,23 @@ import {
   getMockCookieOptions,
   getMockCookieWrites,
   setLocaleOptions,
+  fakeInstance,
+  deferredInstance,
 } from "./mocks/nuxt-app";
 import { setCustomResolveAcceptLanguage } from "./mocks/comvi-detection";
-import { useCookie, useState } from "#app";
-import { isServer } from "../src/runtime/utils/runtime";
+import { useCookie, useNuxtApp, useRouter } from "#app";
+import { setTarget } from "../src/runtime/utils/target";
 
 const setServerMode = (value: boolean) => {
-  (isServer as unknown as ReturnType<typeof vi.fn>).mockReturnValue(value);
+  vi.stubGlobal("__COMVI_TEST_SERVER__", value);
 };
+
+/** The locale of the app's instance after the run: what the page renders in. */
+const rendered = () => ({
+  get value() {
+    return (useNuxtApp().$i18n as { locale: string }).locale;
+  },
+});
 
 interface RouteStub {
   path: string;
@@ -36,6 +41,7 @@ const runMiddleware = (route: RouteStub) => middleware({ params: {}, ...route })
 describe("i18n middleware", () => {
   beforeEach(() => {
     resetMocks();
+    setMockI18n(fakeInstance("en"));
     setServerMode(false);
   });
 
@@ -49,7 +55,7 @@ describe("i18n middleware", () => {
 
     expect(result).toEqual({ path: "/de?x=1#top", redirectCode: 302 });
 
-    const localeState = useState<string>("i18n-locale");
+    const localeState = rendered();
     expect(localeState.value).toBe("de");
   });
 
@@ -62,7 +68,7 @@ describe("i18n middleware", () => {
     });
 
     expect(result).toBeUndefined();
-    const localeState = useState<string>("i18n-locale");
+    const localeState = rendered();
     expect(localeState.value).toBe("en");
   });
 
@@ -108,7 +114,7 @@ describe("i18n middleware", () => {
 
     expect(result).toBeUndefined();
 
-    const localeState = useState<string>("i18n-locale");
+    const localeState = rendered();
     expect(localeState.value).toBe("en");
   });
 
@@ -118,7 +124,9 @@ describe("i18n middleware", () => {
       mockLocale.value = lang;
     });
     setMockI18n({
-      locale: mockLocale,
+      get locale() {
+        return mockLocale.value;
+      },
       setLocale,
     });
     setMockCookie("i18n_locale", "de");
@@ -129,7 +137,7 @@ describe("i18n middleware", () => {
     });
 
     expect(setLocale).toHaveBeenCalledWith("de");
-    const localeState = useState<string>("i18n-locale");
+    const localeState = rendered();
     expect(localeState.value).toBe("de");
   });
 
@@ -154,7 +162,7 @@ describe("i18n middleware", () => {
     });
 
     expect(result).toBeUndefined();
-    const localeState = useState<string>("i18n-locale");
+    const localeState = rendered();
     expect(localeState.value).toBe("de");
   });
 
@@ -165,7 +173,7 @@ describe("i18n middleware", () => {
     });
 
     expect(result).toBeUndefined();
-    const localeState = useState<string>("i18n-locale");
+    const localeState = rendered();
     expect(localeState.value).toBe("de");
   });
 
@@ -182,7 +190,7 @@ describe("i18n middleware", () => {
     });
 
     expect(result).toEqual({ path: "/uk", redirectCode: 302 });
-    const localeState = useState<string>("i18n-locale");
+    const localeState = rendered();
     expect(localeState.value).toBe("uk");
   });
 
@@ -203,7 +211,7 @@ describe("i18n middleware", () => {
     });
 
     expect(result).toBeUndefined();
-    const localeState = useState<string>("i18n-locale");
+    const localeState = rendered();
     expect(localeState.value).toBe("en");
   });
 
@@ -220,7 +228,7 @@ describe("i18n middleware", () => {
     });
 
     expect(result).toBeUndefined();
-    const localeState = useState<string>("i18n-locale");
+    const localeState = rendered();
     expect(localeState.value).toBe("en");
   });
 
@@ -234,7 +242,7 @@ describe("i18n middleware", () => {
     });
 
     expect(result).toEqual({ path: "/uk", redirectCode: 302 });
-    const localeState = useState<string>("i18n-locale");
+    const localeState = rendered();
     expect(localeState.value).toBe("uk");
   });
 
@@ -258,7 +266,7 @@ describe("i18n middleware", () => {
     });
 
     expect(result).toBeUndefined();
-    const localeState = useState<string>("i18n-locale");
+    const localeState = rendered();
     expect(localeState.value).toBe("de");
   });
 
@@ -281,14 +289,14 @@ describe("i18n middleware", () => {
     });
 
     expect(result).toBeUndefined();
-    const localeState = useState<string>("i18n-locale");
+    const localeState = rendered();
     expect(localeState.value).toBe("en");
   });
 
   it("does not update i18n when locale already matches", async () => {
     const setLocale = vi.fn(async () => {});
     setMockI18n({
-      locale: { value: "en" },
+      locale: "en",
       setLocale,
     });
 
@@ -338,7 +346,7 @@ describe("i18n middleware", () => {
       throw new Error("Network error");
     });
     setMockI18n({
-      locale: { value: "en" },
+      locale: "en",
       setLocale,
     });
     setMockCookie("i18n_locale", "de");
@@ -349,12 +357,10 @@ describe("i18n middleware", () => {
     });
 
     expect(result).toBeUndefined();
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to switch language"),
-      "Network error",
-    );
+    // Reported through the instance's `onError`: the middleware adds no console output.
+    expect(warnSpy).not.toHaveBeenCalled();
 
-    const localeState = useState<string>("i18n-locale");
+    const localeState = rendered();
     expect(localeState.value).toBe("en");
     const localeCookie = useCookie("i18n_locale");
     expect(localeCookie.value).toBe("en");
@@ -366,7 +372,7 @@ describe("i18n middleware", () => {
       throw new Error("Network error");
     });
     setMockI18n({
-      locale: { value: "en" },
+      locale: "en",
       setLocale,
     });
 
@@ -376,11 +382,9 @@ describe("i18n middleware", () => {
     });
 
     expect(result).toEqual({ path: "/about?x=1#top", redirectCode: 302 });
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to switch language"),
-      "Network error",
-    );
-    const localeState = useState<string>("i18n-locale");
+    // Reported through the instance's `onError`: the middleware adds no console output.
+    expect(warnSpy).not.toHaveBeenCalled();
+    const localeState = rendered();
     expect(localeState.value).toBe("en");
     const localeCookie = useCookie("i18n_locale");
     expect(localeCookie.value).toBe("en");
@@ -403,7 +407,12 @@ describe("i18n middleware", () => {
     const setLocale = vi.fn(async (lang: string) => {
       mockLocale.value = lang;
     });
-    setMockI18n({ locale: mockLocale, setLocale });
+    setMockI18n({
+      get locale() {
+        return mockLocale.value;
+      },
+      setLocale,
+    });
     setMockCookie("i18n_locale", "de");
 
     const result = await runMiddleware({
@@ -413,7 +422,7 @@ describe("i18n middleware", () => {
 
     expect(result).toBeUndefined();
     expect(setLocale).toHaveBeenCalledWith("en");
-    const localeState = useState<string>("i18n-locale");
+    const localeState = rendered();
     expect(localeState.value).toBe("en");
   });
 
@@ -422,7 +431,12 @@ describe("i18n middleware", () => {
     const setLocale = vi.fn(async (lang: string) => {
       mockLocale.value = lang;
     });
-    setMockI18n({ locale: mockLocale, setLocale });
+    setMockI18n({
+      get locale() {
+        return mockLocale.value;
+      },
+      setLocale,
+    });
     setMockCookie("i18n_locale", "de");
 
     await runMiddleware({
@@ -432,7 +446,7 @@ describe("i18n middleware", () => {
 
     const localeCookie = useCookie("i18n_locale");
     expect(localeCookie.value).toBe("de");
-    const localeState = useState<string>("i18n-locale");
+    const localeState = rendered();
     expect(localeState.value).toBe("en");
   });
 
@@ -441,7 +455,12 @@ describe("i18n middleware", () => {
     const setLocale = vi.fn(async (lang: string) => {
       mockLocale.value = lang;
     });
-    setMockI18n({ locale: mockLocale, setLocale });
+    setMockI18n({
+      get locale() {
+        return mockLocale.value;
+      },
+      setLocale,
+    });
     setMockCookie("i18n_locale", "en");
 
     await runMiddleware({
@@ -459,7 +478,12 @@ describe("i18n middleware", () => {
     const setLocale = vi.fn(async (lang: string) => {
       mockLocale.value = lang;
     });
-    setMockI18n({ locale: mockLocale, setLocale });
+    setMockI18n({
+      get locale() {
+        return mockLocale.value;
+      },
+      setLocale,
+    });
     setMockCookie("i18n_locale", "de");
 
     await runMiddleware({
@@ -520,7 +544,7 @@ describe("i18n middleware", () => {
 
       expect(result).toBeUndefined();
       expect(getMockCookieOptions("i18n_locale")).toBeUndefined();
-      expect(useState<string>("i18n-locale").value).toBe("en");
+      expect(rendered().value).toBe("en");
     });
 
     it("ignores a stored preference at the root path when useCookie is disabled", async () => {
@@ -530,7 +554,7 @@ describe("i18n middleware", () => {
       const result = await runMiddleware({ path: "/", fullPath: "/" });
 
       expect(result).toBeUndefined();
-      expect(useState<string>("i18n-locale").value).toBe("en");
+      expect(rendered().value).toBe("en");
     });
   });
 
@@ -555,7 +579,7 @@ describe("i18n middleware", () => {
       const result = await runMiddleware({ path: "/de/about", fullPath: "/de/about" });
 
       expect(result).toBeUndefined();
-      expect(useState<string>("i18n-locale").value).toBe("de");
+      expect(rendered().value).toBe("de");
     });
 
     it("skips header detection entirely when browser detection is disabled", async () => {
@@ -566,7 +590,7 @@ describe("i18n middleware", () => {
       const result = await runMiddleware({ path: "/", fullPath: "/" });
 
       expect(result).toBeUndefined();
-      expect(useState<string>("i18n-locale").value).toBe("en");
+      expect(rendered().value).toBe("en");
     });
 
     it("resolves the fallback locale when the request sends no Accept-Language header", async () => {
@@ -576,7 +600,7 @@ describe("i18n middleware", () => {
       const result = await runMiddleware({ path: "/", fullPath: "/" });
 
       expect(result).toBeUndefined();
-      expect(useState<string>("i18n-locale").value).toBe("en");
+      expect(rendered().value).toBe("en");
     });
   });
 
@@ -591,7 +615,7 @@ describe("i18n middleware", () => {
 
   it("does not rewrite the cookie when the preserved preference is still intact", async () => {
     const setLocale = vi.fn(async () => {});
-    setMockI18n({ locale: { value: "de" }, setLocale });
+    setMockI18n({ locale: "de", setLocale });
     setMockCookie("i18n_locale", "de");
 
     await runMiddleware({ path: "/plurals", fullPath: "/plurals" });
@@ -604,16 +628,14 @@ describe("i18n middleware", () => {
     const setLocale = vi.fn(async () => {
       throw new Error("Network error");
     });
-    setMockI18n({ locale: { value: "de" }, setLocale });
+    setMockI18n({ locale: "de", setLocale });
     setMockCookie("i18n_locale", "en");
 
     const result = await runMiddleware({ path: "/plurals", fullPath: "/plurals" });
 
     expect(result).toEqual({ path: "/de/plurals", redirectCode: 302 });
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to switch language"),
-      "Network error",
-    );
+    // Reported through the instance's `onError`: the middleware adds no console output.
+    expect(warnSpy).not.toHaveBeenCalled();
     expect(useCookie("i18n_locale").value).toBe("de");
   });
 
@@ -638,7 +660,7 @@ describe("i18n middleware", () => {
       });
 
       expect(result).toBeUndefined();
-      const localeState = useState<string>("i18n-locale");
+      const localeState = rendered();
       expect(localeState.value).toBe("de");
     });
 
@@ -653,7 +675,7 @@ describe("i18n middleware", () => {
       });
 
       expect(result).toEqual({ path: "/uk?lang=uk", redirectCode: 302 });
-      const localeState = useState<string>("i18n-locale");
+      const localeState = rendered();
       expect(localeState.value).toBe("uk");
     });
 
@@ -667,7 +689,7 @@ describe("i18n middleware", () => {
       });
 
       expect(result).toBeUndefined();
-      const localeState = useState<string>("i18n-locale");
+      const localeState = rendered();
       expect(localeState.value).toBe("de");
     });
 
@@ -689,7 +711,7 @@ describe("i18n middleware", () => {
       });
 
       expect(secondResult).toBeUndefined();
-      const localeState = useState<string>("i18n-locale");
+      const localeState = rendered();
       expect(localeState.value).toBe("en");
     });
 
@@ -712,7 +734,7 @@ describe("i18n middleware", () => {
       });
 
       expect(secondResult).toBeUndefined();
-      const localeState = useState<string>("i18n-locale");
+      const localeState = rendered();
       expect(localeState.value).toBe("de");
     });
 
@@ -726,7 +748,7 @@ describe("i18n middleware", () => {
       });
 
       expect(result).toEqual({ path: "/de/about?lang=de", redirectCode: 302 });
-      const localeState = useState<string>("i18n-locale");
+      const localeState = rendered();
       expect(localeState.value).toBe("de");
     });
 
@@ -741,7 +763,7 @@ describe("i18n middleware", () => {
       });
 
       expect(result).toEqual({ path: "/de?lang=xx", redirectCode: 302 });
-      const localeState = useState<string>("i18n-locale");
+      const localeState = rendered();
       expect(localeState.value).toBe("de");
     });
 
@@ -751,7 +773,7 @@ describe("i18n middleware", () => {
       const result = await runMiddleware({ path: "/about", fullPath: "/about" });
 
       expect(result).toBeUndefined();
-      expect(useState<string>("i18n-locale").value).toBe("en");
+      expect(rendered().value).toBe("en");
     });
 
     it("leaves the redirect suffix untouched when the URL carries no locale query parameter", async () => {
@@ -790,7 +812,7 @@ describe("i18n middleware", () => {
       });
 
       expect(result).toBeUndefined();
-      const localeState = useState<string>("i18n-locale");
+      const localeState = rendered();
       expect(localeState.value).toBe("en");
     });
   });
@@ -799,6 +821,7 @@ describe("i18n middleware", () => {
 describe("i18n middleware: localeCookie and localeDetection, the shared vocabulary", () => {
   beforeEach(() => {
     resetMocks();
+    setMockI18n(fakeInstance("en"));
     setServerMode(true);
     setCustomResolveAcceptLanguage(undefined);
   });
@@ -817,7 +840,7 @@ describe("i18n middleware: localeCookie and localeDetection, the shared vocabula
 
     await runMiddleware({ path: "/", fullPath: "/" });
 
-    expect(useState<string>("i18n-locale").value).toBe("uk");
+    expect(rendered().value).toBe("uk");
   });
 
   it("ignores an unknown order entry instead of reading Accept-Language for it", async () => {
@@ -826,7 +849,7 @@ describe("i18n middleware: localeCookie and localeDetection, the shared vocabula
 
     await runMiddleware({ path: "/", fullPath: "/" });
 
-    expect(useState<string>("i18n-locale").value).toBe("en");
+    expect(rendered().value).toBe("en");
   });
 
   it("reads the locale from headerName when header is in the order", async () => {
@@ -836,7 +859,7 @@ describe("i18n middleware: localeCookie and localeDetection, the shared vocabula
 
     await runMiddleware({ path: "/", fullPath: "/" });
 
-    expect(useState<string>("i18n-locale").value).toBe("uk");
+    expect(rendered().value).toBe("uk");
   });
 
   it("does not read headerName unless header is in the order", async () => {
@@ -845,7 +868,7 @@ describe("i18n middleware: localeCookie and localeDetection, the shared vocabula
 
     await runMiddleware({ path: "/", fullPath: "/" });
 
-    expect(useState<string>("i18n-locale").value).toBe("en");
+    expect(rendered().value).toBe("en");
   });
 
   it("uses the app's resolveAcceptLanguage with the default locale", async () => {
@@ -856,7 +879,7 @@ describe("i18n middleware: localeCookie and localeDetection, the shared vocabula
     await runMiddleware({ path: "/", fullPath: "/" });
 
     expect(custom).toHaveBeenCalledWith("uk", ["en", "de", "uk"], "en");
-    expect(useState<string>("i18n-locale").value).toBe("de");
+    expect(rendered().value).toBe("de");
   });
 
   it("localeCookie: false neither reads nor writes the cookie", async () => {
@@ -865,7 +888,7 @@ describe("i18n middleware: localeCookie and localeDetection, the shared vocabula
 
     await runMiddleware({ path: "/", fullPath: "/" });
 
-    expect(useState<string>("i18n-locale").value).toBe("en");
+    expect(rendered().value).toBe("en");
     expect(getMockCookieOptions("i18n_locale")).toBeUndefined();
   });
 
@@ -888,5 +911,119 @@ describe("i18n middleware: localeCookie and localeDetection, the shared vocabula
       secure: true,
     });
     expect(useCookie("LANG").value).toBe("de");
+  });
+});
+
+describe("i18n middleware: a pending switch and the navigations after it", () => {
+  beforeEach(() => {
+    resetMocks();
+    setServerMode(false);
+  });
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("a navigation in the locale on screen supersedes a pending switch: it asks for that locale, the stale run records nothing", async () => {
+    const i18n = deferredInstance("en");
+    setMockI18n(i18n);
+    setMockCookie("i18n_locale", "en");
+
+    const first = runMiddleware({ path: "/uk/admin", fullPath: "/uk/admin" });
+    await tick();
+    expect(i18n.targets).toEqual(["uk"]);
+    const second = runMiddleware({ path: "/plurals", fullPath: "/plurals" });
+    await tick();
+    // The newer navigation asks for the locale on screen, which ends uk's pending switch.
+    expect(i18n.targets).toEqual(["uk", "en"]);
+    i18n.resolve(0);
+    i18n.land(1);
+
+    expect(await first).toBeUndefined();
+    expect(await second).toBeUndefined();
+    expect(i18n.locale).toBe("en");
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["en"]);
+  });
+
+  it("a switch that fails redirects to the URL of the locale on screen and records it", async () => {
+    const i18n = deferredInstance("en");
+    setMockI18n(i18n);
+    setMockCookie("i18n_locale", "en");
+
+    const run = runMiddleware({ path: "/uk/admin", fullPath: "/uk/admin?x=1" });
+    await tick();
+    i18n.fail(0);
+
+    expect(await run).toEqual({ path: "/admin?x=1", redirectCode: 302 });
+    expect(useCookie("i18n_locale").value).toBe("en");
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["en"]);
+  });
+
+  it("a superseded switch that FAILS after a navigation in the locale on screen redirects and records nothing", async () => {
+    const i18n = deferredInstance("en");
+    setMockI18n(i18n);
+    setMockCookie("i18n_locale", "en");
+
+    const first = runMiddleware({ path: "/uk/admin", fullPath: "/uk/admin" });
+    await tick();
+    const second = runMiddleware({ path: "/plurals", fullPath: "/plurals" });
+    await tick();
+    // uk's switch rejects after the newer navigation: the stale run must not redirect.
+    i18n.fail(0);
+    expect(await first).toBeUndefined();
+    i18n.land(1);
+    expect(await second).toBeUndefined();
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["en"]);
+  });
+
+  it("a <NuxtLinkLocale locale> switch superseded by a navigation in the locale on screen records that locale", async () => {
+    const i18n = deferredInstance("en");
+    setMockI18n(i18n);
+    setMockCookie("i18n_locale", "en");
+    // The link's click: its locale for the navigation it started; no cookie write.
+    setTarget(useNuxtApp(), useRouter(), "uk", "/uk/admin");
+
+    const first = runMiddleware({ path: "/uk/admin", fullPath: "/uk/admin" });
+    await tick();
+    const second = runMiddleware({ path: "/plurals", fullPath: "/plurals" });
+    await tick();
+    i18n.resolve(0);
+    i18n.land(1);
+    await first;
+    await second;
+
+    expect(useCookie("i18n_locale").value).toBe("en");
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["en"]);
+  });
+
+  it("a real stored preference survives an unrelated cancelled switch (en on screen, cookie uk)", async () => {
+    const i18n = deferredInstance("en");
+    setMockI18n(i18n);
+    setMockCookie("i18n_locale", "uk");
+
+    const first = runMiddleware({ path: "/de/admin", fullPath: "/de/admin" });
+    await tick();
+    const second = runMiddleware({ path: "/plurals", fullPath: "/plurals" });
+    await tick();
+    i18n.resolve(0);
+    i18n.land(1);
+    await first;
+    await second;
+
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["uk"]);
+  });
+
+  it("a real stored preference survives a cancelled switch away from it (uk on screen, cookie uk)", async () => {
+    const i18n = deferredInstance("uk");
+    setMockI18n(i18n);
+    setMockCookie("i18n_locale", "uk");
+
+    const first = runMiddleware({ path: "/plurals", fullPath: "/plurals" });
+    await tick();
+    const second = runMiddleware({ path: "/about", fullPath: "/about" });
+    await tick();
+    i18n.resolve(0);
+    i18n.land(1);
+    await first;
+    await second;
+
+    expect(getMockCookieWrites("i18n_locale")).toEqual(["uk"]);
   });
 });

@@ -1,204 +1,89 @@
 import type { H3Event } from "h3";
-import { getCookie, getHeader } from "h3";
-import { hasLoaderApi } from "@comvi/core";
-import type { TranslationParams } from "@comvi/core";
-import type { NuxtServerInstance } from "../../../types";
-import { getServerRuntimeConfig } from "./runtime-config";
-import { getRequestI18n } from "./request-i18n";
-import { loadCatalogs } from "../../utils/load-catalogs";
-import { resolveAcceptLanguage } from "../../utils/resolve-locale";
+import { getCookie, getHeader, getQuery } from "h3";
+import { createI18n, type I18n, type RichParts, type TFor } from "@comvi/core";
+import { useRuntimeConfig } from "#imports";
+import { config, options } from "#comvi/options";
+import { resolveAcceptLanguage } from "#comvi/detection";
+import type { NuxtI18nRuntimeConfig } from "../../../types";
+import { detectLocale } from "../../utils/detect";
 import { extractLocaleFromPath } from "../../utils/locale-path";
-import { resolveAcceptLanguage as customResolveAcceptLanguage } from "#comvi/detection";
+import { track } from "../../utils/instances";
 
-export interface UseTranslationOptions {
-  /**
-   * Namespace bound into `t()` when a call names none. Defaults to the
-   * module's `defaultNs`.
-   *
-   * `ns` is the word the whole library uses — core's `t(key, { ns })`,
-   * `hasTranslation`'s `{ ns }`, and `@comvi/next`'s `getI18n({ ns })` — so the
-   * two server helpers no longer differ by vocabulary alone. See
-   * `docs/design/next-nuxt-parity.md`.
-   *
-   * An empty string counts as NOT GIVEN: `ns: ""` falls back to `defaultNs`.
-   */
-  ns?: string;
-
-  /** Overrides detection. */
+export interface UseTranslationOptions<NS extends string = "default"> {
+  /** The namespace of `t()`; default `default`. */
+  ns?: NS;
+  /** Overrides detection; must be one of `comvi.locales`. */
   locale?: string;
 }
 
-/**
- * ONE signature, keyed through core's `AcceptedKey` / `ArgsFor` pair exactly as
- * every client binding is — see `AcceptedKey` for why the key union is spelled
- * out inline rather than named.
- */
-export interface ServerTranslationFunction {
-  <
-    K extends
-      | {
-          [P in import("@comvi/core").AcceptedKey]: P;
-        }[import("@comvi/core").AcceptedKey]
-      | import("@comvi/core").NamespacedKeys<N>,
-    N extends import("@comvi/core").Namespaces = never,
-  >(
-    key: K,
-    ...params: import("@comvi/core").ArgsFor<K, undefined, {}, N>
-  ): string;
-}
-
-export interface UseTranslationResult {
-  t: ServerTranslationFunction;
+export interface UseTranslationResult<NS extends string = "default"> {
+  /** `t()` of the namespace, in the request's locale. */
+  t: TFor<NS, RichParts>;
   locale: string;
-  hasTranslation: (key: string, opts?: { locale?: string; ns?: string }) => boolean;
+  dir: "ltr" | "rtl";
+  /** The request's instance of that locale; ended with the request. */
+  i18n: I18n;
 }
 
-/**
- * The name `@comvi/next` uses for the same result, `{ t, hasTranslation,
- * locale }`; type-only, 0 B. See `docs/design/next-nuxt-parity.md`.
- */
-export type ServerI18n = UseTranslationResult;
+const KEY = "__comviByLocale";
 
 /**
- * Server-side translation utility for API routes and server middleware.
+ * Translation in a Nitro route (auto-imported in `server/`).
  *
- * Locale precedence: the explicit `locale` option, then a locale prefix on the
- * request path, then `localeDetection.order` (the query parameter, the cookie,
- * a configured header, Accept-Language), then `defaultLocale` — the route
- * middleware's order. A prefixless path is NOT read as the default locale here,
- * as the middleware reads a page URL under `as-needed`: an API route has no
- * locale prefix to omit.
+ * Locale: the `locale` option, then a locale prefix on the request path, then
+ * `localeDetection.order` (the query parameter, the cookie, a configured header,
+ * Accept-Language), then `defaultLocale` — the page's resolver, except that a prefixless
+ * path is not read as the default locale (an API route has no prefix to omit).
+ *
+ * One instance per (request, locale), from the same `comvi` config and the same
+ * `comvi.i18n.ts` factory, called with this `event`: a second call in the request gets the
+ * same instance. The request's end destroys it (the module's Nitro plugin); a load still
+ * in flight is aborted then. A failed load is reported through `onError`, and `t()`
+ * renders what the fallback chain has.
  *
  * @example
- * ```typescript
- * // server/api/hello.ts
+ * ```ts
+ * // server/api/hello.get.ts
  * export default defineEventHandler(async (event) => {
- *   const { t, locale } = await useTranslation(event)
- *   return {
- *     message: t('api.hello'),
- *     locale
- *   }
- * })
- * ```
- *
- * @example
- * ```typescript
- * // With an explicit namespace
- * const { t } = await useTranslation(event, { ns: 'api' })
- * return { message: t('hello') }
+ *   const { t, locale } = await useTranslation(event);
+ *   return { message: t("api.hello"), locale };
+ * });
  * ```
  */
-export async function useTranslation(
+export async function useTranslation<NS extends string = "default">(
   event: H3Event,
-  options: UseTranslationOptions = {},
-): Promise<UseTranslationResult> {
-  const config = getServerRuntimeConfig(event);
-  const publicConfig = config.public.comvi;
-
-  const {
-    locales = [],
-    defaultLocale = "en",
-    defaultNs = "default",
-    localeCookie: cookieConfig,
-    localeDetection: detectConfig,
-  } = publicConfig;
-  // `||`, not `??`: an empty `ns` counts as not given, as in `@comvi/next`.
-  const namespace = options.ns || defaultNs;
-
-  const accept = (candidate: string | null | undefined): string | undefined =>
-    candidate && locales.includes(candidate) ? candidate : undefined;
-
-  // The URL first, as in the route middleware: a locale prefix on the path,
-  // then the sources in order. `event.path` carries the query string.
-  const url = new URL(event.path || "/", "http://localhost");
-  let locale = options.locale || extractLocaleFromPath(url.pathname, locales);
-
-  for (const source of detectConfig ? detectConfig.order : []) {
-    if (locale) break;
-    if (source === "query") {
-      const queryParam = detectConfig ? detectConfig.queryParam : undefined;
-      locale = queryParam ? accept(url.searchParams.get(queryParam)) : undefined;
-    } else if (source === "cookie") {
-      locale = cookieConfig ? accept(getCookie(event, cookieConfig.name)) : undefined;
-    } else if (source === "header") {
-      const headerName = detectConfig ? detectConfig.headerName : undefined;
-      locale = headerName ? accept(getHeader(event, headerName)) : undefined;
-    } else if (source === "accept-language") {
-      const acceptLanguage = getHeader(event, "accept-language");
-      locale = acceptLanguage
-        ? (customResolveAcceptLanguage ?? resolveAcceptLanguage)(
-            acceptLanguage,
-            locales,
-            defaultLocale,
-          )
-        : undefined;
-    }
-  }
-
-  const resolvedLocale = locale || defaultLocale;
-
-  const i18n = await getRequestI18n(event, resolvedLocale);
-
-  // The fallback chain too, whether or not the primary catalog was cached:
-  // otherwise a key present only in a fallback catalog renders as the raw key.
-  // In turn, not in parallel: the primary path activates the namespace, and
-  // core's activation loads the chain itself, so a chain reload racing it would
-  // cancel and refetch each pair. Run after it, `loadCatalogs` only fills in
-  // what the activation did not attempt (a primary that was already cached).
-  if (!i18n.hasLocale(resolvedLocale, namespace)) {
-    await loadMessagesForLocale(i18n, resolvedLocale, [namespace]);
-  }
-  await loadCatalogs(i18n, [namespace]);
-
-  const t: ServerTranslationFunction = ((key: string, params?: TranslationParams) => {
-    // `as never` because the key is a RUNTIME string: once an app generates
-    // types, core's key parameter is the union of its literals and a `string`
-    // matches none of them. Same idiom as every wrapper's `<T>` — and the
-    // reason `tsconfig.keys-closed.json` exists, since with the registry OPEN
-    // this call is permissive and the mistake is invisible.
-    const result = i18n.t(
-      key as never,
-      {
-        ...params,
-        locale: resolvedLocale,
-        ns: params?.ns ?? namespace,
-      } as never,
+  { ns, locale }: UseTranslationOptions<NS> = {},
+): Promise<UseTranslationResult<NS>> {
+  const routing = (useRuntimeConfig(event) as { public: NuxtI18nRuntimeConfig }).public.comvi;
+  const { locales, localeCookie } = routing;
+  if (locale !== undefined && !locales.includes(locale)) {
+    throw new RangeError(
+      `[@comvi/nuxt] useTranslation: locale "${locale}" is not one of comvi.locales (${locales.join(", ")})`,
     );
-    return typeof result === "string" ? result : String(result);
-  }) as ServerTranslationFunction;
-
-  const hasTranslation = (key: string, opts?: { locale?: string; ns?: string }) => {
-    return i18n.hasTranslation(key, opts?.locale ?? resolvedLocale, opts?.ns ?? namespace);
-  };
-
-  return { t, locale: resolvedLocale, hasTranslation };
-}
-
-/**
- * The instance may have no loader at all: the generated default `#build/comvi.i18n`
- * builds core's BASE instance, and only a `i18nModule` factory composes
- * `@comvi/core/loader` onto it. Without the capability there is nothing to load
- * — whatever `comvi.setup` put in the catalog is already there — so this
- * returns instead of calling a member the instance does not have.
- */
-async function loadMessagesForLocale(
-  i18n: NuxtServerInstance,
-  locale: string,
-  namespaces: string[],
-): Promise<void> {
-  if (i18n.locale !== locale) {
-    await i18n.setLocale(locale);
   }
+  const path = (event.path || "/").split("?")[0]!;
+  const target =
+    locale ??
+    extractLocaleFromPath(path, locales) ??
+    detectLocale(
+      routing,
+      {
+        query: getQuery(event),
+        cookie: localeCookie ? getCookie(event, localeCookie.name) : undefined,
+        header: (name) => getHeader(event, name),
+      },
+      resolveAcceptLanguage,
+    ).locale;
 
-  if (!hasLoaderApi(i18n)) {
-    return;
+  const context = event.context as Record<string, Map<string, I18n> | undefined>;
+  const byLocale = (context[KEY] ||= new Map());
+  let i18n = byLocale.get(target);
+  if (!i18n) {
+    i18n = track(event, createI18n({ ...config, locale: target, ...options(event) }));
+    byLocale.set(target, i18n);
   }
-
-  for (const ns of namespaces) {
-    try {
-      await i18n.addActiveNamespace(ns);
-    } catch (error) {
-      console.warn(`[@comvi/nuxt] Failed to load ${locale}:${ns}:`, error);
-    }
-  }
+  const n = (ns || "default") as NS;
+  // Reported through `onError`; `t()` renders the fallback chain's text or the key.
+  await i18n.load(n).catch(() => {});
+  return { t: i18n.ns(n), locale: i18n.locale, dir: i18n.dir, i18n };
 }

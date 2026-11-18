@@ -12,17 +12,20 @@
  *   test-apps/next     Next 15, middleware.ts
  *   test-apps/next16   Next 16, proxy.ts
  *   test-apps/nuxt     Nuxt 3
- *   test-apps/nuxt4    Nuxt 4, plus a Nitro route using the server utilities
+ *   test-apps/nuxt4    Nuxt 4 (test-apps/nuxt is the same app on Nuxt 3)
  *
  * Fails closed: a missing build, a server that does not come up, a status,
  * redirect, `<html lang>` or text that differs from the expectation, or an
  * installed framework of the wrong major, is a failure. Exit 1 on any.
  *
  * The Next apps then run `next.spec.ts` in Chromium (the lot 6a scenarios, owner brief
- * 2026-11-06 §8). Both read their catalogs from `catalog-mock.mjs` on a fixed port
- * (`MOCK_PORT`): the browser's loader URL is inlined at `next build`, so the build and the
- * served app must see the same mock. `test-apps/next16/src` must equal `test-apps/next/src`
- * but for `proxy.ts` in place of `middleware.ts` (preflight).
+ * 2026-11-06 §8), the Nuxt apps `nuxt.spec.ts` (the lot 7 scenarios, owner brief 2026-11-11
+ * §5). All read their catalogs from `catalog-mock.mjs` on a fixed port (`MOCK_PORT`): the
+ * browser's loader URL is inlined at `next build`, so the build and the served app must see
+ * the same mock; a Nuxt app reads it through its own catalog route (`NUXT_COMVI_SOURCE`).
+ * `test-apps/next16/src` must equal `test-apps/next/src` but for `proxy.ts` in place of
+ * `middleware.ts`, and `test-apps/nuxt/{app,server}` must equal `test-apps/nuxt4`'s
+ * (preflight).
  *
  *   node scripts/test-apps-smoke/run.mjs [--only <app>[,<app>]] [--no-build]
  */
@@ -44,6 +47,7 @@ const NEXT_ENV = {
   NEXT_PUBLIC_COMVI_E2E_CATALOGS: MOCK_URL,
   NEXT_TELEMETRY_DISABLED: "1",
 };
+const NUXT_ENV = { NUXT_COMVI_SOURCE: MOCK_URL, NUXT_TELEMETRY_DISABLED: "1" };
 
 const EN_TITLE = "Comvi i18n Example";
 const UK_TITLE = "Приклад Comvi i18n";
@@ -90,6 +94,28 @@ function commonChecks({ lang }) {
 }
 
 const NEXT_LANG = { en: "en", uk: "uk", ar: "ar" };
+
+/** The Nuxt apps: the common checks, plus a Nitro route on `useTranslation(event)`. */
+function nuxtChecks() {
+  const translate = { locale: "uk", home: UK_HOME, adminTitle: "Панель адміністратора" };
+  return [
+    ...commonChecks({ lang: NUXT_LANG }),
+    {
+      name: "Nitro /api/translate follows Accept-Language: uk",
+      path: "/api/translate",
+      headers: { "accept-language": "uk" },
+      status: 200,
+      json: { ...translate, hasHome: true, sameInstance: true },
+    },
+    {
+      name: "Nitro /api/translate follows the locale cookie (de)",
+      path: "/api/translate",
+      headers: { cookie: "i18n_locale=de" },
+      status: 200,
+      json: { locale: "de", home: "Startseite", adminTitle: "Admin-Dashboard" },
+    },
+  ];
+}
 const NUXT_LANG = { en: "en-US", uk: "uk-UA", ar: "ar-SA", arDir: true };
 
 const APPS = {
@@ -104,29 +130,14 @@ const APPS = {
     sameSrcAs: "next",
     checks: commonChecks({ lang: NEXT_LANG }),
   },
-  nuxt: { kind: "nuxt", framework: "nuxt", major: 3, checks: commonChecks({ lang: NUXT_LANG }) },
-  nuxt4: {
+  nuxt: {
     kind: "nuxt",
     framework: "nuxt",
-    major: 4,
-    checks: [
-      ...commonChecks({ lang: NUXT_LANG }),
-      {
-        name: "Nitro /api/translate follows Accept-Language: uk",
-        path: "/api/translate",
-        headers: { "accept-language": "uk" },
-        status: 200,
-        json: { locale: "uk", home: UK_HOME, adminTitle: "Панель адміністратора", hasHome: true },
-      },
-      {
-        name: "Nitro /api/translate follows the locale cookie (de)",
-        path: "/api/translate",
-        headers: { cookie: "i18n_locale=de" },
-        status: 200,
-        json: { locale: "de", home: "Startseite", adminTitle: "Admin-Dashboard", hasHome: true },
-      },
-    ],
+    major: 3,
+    sameSrcAs: "nuxt4",
+    checks: nuxtChecks(),
   },
+  nuxt4: { kind: "nuxt", framework: "nuxt", major: 4, checks: nuxtChecks() },
 };
 
 function parseArgs(argv) {
@@ -178,7 +189,7 @@ function startServer(app, dir, port) {
     detached: true,
     env: {
       ...process.env,
-      ...(app.kind === "next" ? NEXT_ENV : {}),
+      ...(app.kind === "next" ? NEXT_ENV : NUXT_ENV),
       PORT: String(port),
       HOST: "127.0.0.1",
       NODE_ENV: "production",
@@ -381,12 +392,14 @@ function preflight(name, app, dir) {
     if (!fs.existsSync(path.join(dir, file))) problems.push(`${file} is missing`);
   for (const file of app.forbidFiles ?? [])
     if (fs.existsSync(path.join(dir, file))) problems.push(`${file} must not exist`);
-  if (app.sameSrcAs) problems.push(...srcDrift(path.join(ROOT, "test-apps", app.sameSrcAs), dir));
+  if (app.sameSrcAs)
+    for (const sub of app.kind === "next" ? ["src"] : ["app", "server"])
+      problems.push(...srcDrift(path.join(ROOT, "test-apps", app.sameSrcAs), dir, sub));
   return problems;
 }
 
-/** Files of `a/src` and `b/src` that differ, but for the middleware/proxy file convention. */
-export function srcDrift(a, b) {
+/** Files of `a/<sub>` and `b/<sub>` that differ, but for the middleware/proxy file convention. */
+export function srcDrift(a, b, sub = "src") {
   const list = (root, dir = "") =>
     fs
       .readdirSync(path.join(root, dir), { withFileTypes: true })
@@ -394,13 +407,13 @@ export function srcDrift(a, b) {
         e.isDirectory() ? list(root, path.join(dir, e.name)) : [path.join(dir, e.name)],
       );
   const skip = new Set(["middleware.ts", "proxy.ts"]);
-  const files = new Set([...list(path.join(a, "src")), ...list(path.join(b, "src"))]);
+  const files = new Set([...list(path.join(a, sub)), ...list(path.join(b, sub))]);
   const out = [];
   for (const f of files) {
     if (skip.has(f)) continue;
-    const [x, y] = [a, b].map((r) => path.join(r, "src", f));
+    const [x, y] = [a, b].map((r) => path.join(r, sub, f));
     if (!fs.existsSync(x) || !fs.existsSync(y) || !fs.readFileSync(x).equals(fs.readFileSync(y)))
-      out.push(`src/${f} differs from test-apps/${path.basename(a)}/src/${f}`);
+      out.push(`${sub}/${f} differs from test-apps/${path.basename(a)}/${sub}/${f}`);
   }
   return out;
 }
@@ -423,8 +436,8 @@ function run(command, args, options) {
   });
 }
 
-/** Runs `next.spec.ts` against the served app; its output on failure. */
-async function browserScenarios(name, dir, base) {
+/** Runs `next.spec.ts` / `nuxt.spec.ts` against the served app; its output on failure. */
+async function browserScenarios(name, app, dir, base) {
   const run_ = await run(
     path.join(ROOT, "node_modules/.bin/playwright"),
     ["test", "-c", path.join(HERE, "playwright.config.ts")],
@@ -437,6 +450,7 @@ async function browserScenarios(name, dir, base) {
         E2E_APP_DIR: dir,
         E2E_LOCALES_DIR: LOCALES,
         E2E_OUTPUT_DIR: path.join(ROOT, "test-results/test-apps-smoke", name),
+        E2E_SPEC: `${app.kind}.spec.ts`,
       },
     },
   );
@@ -504,11 +518,18 @@ async function smoke(name) {
       }
       results.push({ name: `${check.name} (${check.path})`, problems });
     }
-    if (app.kind === "next")
-      results.push({
-        name: "next.spec.ts (lot 6a scenarios, Chromium)",
-        problems: await browserScenarios(name, dir, `http://localhost:${server.port}`),
-      });
+    results.push({
+      name:
+        app.kind === "next"
+          ? "next.spec.ts (lot 6a scenarios, Chromium)"
+          : "nuxt.spec.ts (lot 7 scenarios, Chromium)",
+      problems: await browserScenarios(
+        name,
+        app,
+        dir,
+        `http://${app.kind === "next" ? "localhost" : "127.0.0.1"}:${server.port}`,
+      ),
+    });
   } finally {
     await server.stop();
   }
