@@ -86,7 +86,11 @@ declare module "#app" {
   export function useRouter(): {
     resolve(to: import("vue-router").RouteLocationRaw): import("vue-router").RouteLocationResolved;
     afterEach(
-      hook: (to: unknown, from: unknown, failure?: { type: number } | void) => void,
+      hook: (
+        to: import("vue-router").RouteLocationNormalized,
+        from: unknown,
+        failure?: { type: number } | void,
+      ) => void,
     ): () => void;
     onError(hook: () => void): () => void;
   };

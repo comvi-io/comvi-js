@@ -17,8 +17,9 @@ type State = {
   _comviTargetEnds?: true;
   $i18n: { setLocale(locale: string): Promise<unknown> };
 };
+type To = { path: string; redirectedFrom?: { path: string } };
 interface RouterLike {
-  afterEach(hook: (to: unknown, from: unknown, failure?: { type: number } | void) => void): unknown;
+  afterEach(hook: (to: To, from: unknown, failure?: { type: number } | void) => void): unknown;
   onError(hook: () => void): unknown;
 }
 
@@ -31,11 +32,13 @@ export function setTarget(nuxtApp: object, router: RouterLike, locale: string, p
     state._comviTargetEnds = true;
     // Failure types (vue-router 4 and 5): `8` cancelled keeps the target for the navigation
     // that superseded it; `16` duplicated is a link to the page on screen, where no guard runs:
-    // the switch happens here (the plugin records the cookie when it lands).
-    router.afterEach((_to, _from, failure) => {
+    // the switch happens here when the duplicate is the click's own navigation (the plugin
+    // records the cookie when it lands).
+    router.afterEach((to, _from, failure) => {
       if (failure?.type === 8) return;
-      if (failure?.type === 16 && state._comviTarget)
-        state.$i18n.setLocale(state._comviTarget.locale).catch(() => {});
+      // No click on a server: `targetFor` stays out of the server graph.
+      const locale = !import.meta.server && failure?.type === 16 && targetFor(nuxtApp, to);
+      if (locale) state.$i18n.setLocale(locale).catch(() => {});
       delete state._comviTarget;
     });
     router.onError(() => delete state._comviTarget);
@@ -44,10 +47,7 @@ export function setTarget(nuxtApp: object, router: RouterLike, locale: string, p
 }
 
 /** The click's locale when `to` (or the route it was redirected from) is its target. */
-export const targetFor = (
-  nuxtApp: object,
-  to: { path: string; redirectedFrom?: { path: string } },
-): string | undefined => {
+export const targetFor = (nuxtApp: object, to: To): string | undefined => {
   const pending = (nuxtApp as State)._comviTarget;
   return pending && pending.path === bare((to.redirectedFrom ?? to).path)
     ? pending.locale

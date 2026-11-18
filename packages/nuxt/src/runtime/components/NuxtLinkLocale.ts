@@ -74,7 +74,7 @@ export default defineComponent({
             const { button, metaKey, ctrlKey, shiftKey, altKey } = event;
             const { target, external } = rest as { target?: string; external?: unknown };
             const load =
-              (external !== undefined && external !== false) || (!!target && target !== "_self");
+              (external != null && external !== false) || (!!target && target !== "_self");
             if (!button && !metaKey && !ctrlKey && !shiftKey && !altKey && !load) recordLocale();
           },
         },

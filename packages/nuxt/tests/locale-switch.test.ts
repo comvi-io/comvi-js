@@ -261,10 +261,13 @@ describe("a clicked <NuxtLinkLocale locale>", () => {
     },
   );
 
-  it("a link with target=_self is this window: the choice applies and is recorded", async () => {
+  it.each([
+    ["target=_self", { target: "_self" }],
+    ["external=null (NuxtLink: unset, internal)", { external: null }],
+  ])("a link with %s is this window: the choice applies and is recorded", async (_name, attrs) => {
     standOn("/de/about", "de");
 
-    clickLink({ to: "/", locale: "en", target: "_self" });
+    clickLink({ to: "/", locale: "en", ...attrs });
 
     expect(await middleware(route("/"), route("/de/about"))).toBeUndefined();
     expect(getMockCookieWrites("i18n_locale")).toEqual(["de", "en"]);

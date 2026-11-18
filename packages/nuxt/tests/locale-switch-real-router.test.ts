@@ -158,6 +158,44 @@ describe("<NuxtLinkLocale locale> under `never`, against a real vue-router", () 
     expect([router.currentRoute.value.path, i18n.locale, cookie()]).toEqual(["/admin", "en", "en"]);
   });
 
+  it("an ordinary link to the page on screen while a locale link is pending does not take that link's locale", async () => {
+    const { router, i18n } = await standOn("/home", { before: async () => void (await sleep(20)) });
+    const pending = click(router, "/admin", "uk");
+    await sleep(5);
+    await click(router, "/home");
+    // The duplicate is reported while the locale link still waits in the guard ahead.
+    await sleep(1);
+    expect(i18n.locale).toBe("en");
+    await pending;
+    await sleep(30);
+
+    expect([router.currentRoute.value.path, i18n.locale, cookie(), target()]).toEqual([
+      "/home",
+      "en",
+      "en",
+      undefined,
+    ]);
+  });
+
+  it("a locale click that starts no navigation (prevented) is not taken by a later duplicate navigation", async () => {
+    const { router, i18n } = await standOn("/home");
+    const host = document.createElement("div");
+    const app = createApp({
+      render: () => h(NuxtLinkLocale as Component, { to: "/admin", locale: "uk" }),
+    });
+    app.mount(host);
+    host.querySelector("a")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    app.unmount();
+    await router.push("/home").catch(() => {});
+    await sleep(0);
+
+    expect([router.currentRoute.value.path, i18n.locale, target()]).toEqual([
+      "/home",
+      "en",
+      undefined,
+    ]);
+  });
+
   it("a link to a route record that redirects still switches", async () => {
     const { router, i18n } = await standOn("/home");
     await click(router, "/old", "uk");
