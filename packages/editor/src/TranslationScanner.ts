@@ -385,6 +385,7 @@ export class TranslationScanner {
    */
   private processTextRuns(textNodes: Text[]): void {
     const processed = new Set<Text>();
+    const elements = new Set<Element>();
     textNodes.forEach((textNode) => {
       textRun(textNode).forEach((member) => {
         if (!processed.has(member)) {
@@ -392,6 +393,25 @@ export class TranslationScanner {
           this.processTextNode(member);
         }
       });
+      const element = getNearestElementNode(textNode);
+      const corresponding = element && findCorrespondingNode(element);
+      if (corresponding) elements.add(corresponding);
+    });
+    // A pair's preview and closing node live on its OPENING node, which a change after the
+    // pair's parts (the text before the closing frame, the closing frame itself) does not
+    // touch: read every pair opener of the element again.
+    elements.forEach((element) => {
+      for (const [node, data] of this.registry.get(element)?.nodes ?? []) {
+        if (
+          node instanceof Text &&
+          !processed.has(node) &&
+          node.isConnected &&
+          (data.close || data.markers?.some((marker) => marker.close))
+        ) {
+          processed.add(node);
+          this.processTextNode(node);
+        }
+      }
     });
   }
 
