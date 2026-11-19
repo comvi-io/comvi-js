@@ -1143,16 +1143,6 @@
     {
       "package": "packages/editor",
       "file": "src/composables/useTranslations.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (!translationsToAdd[cacheKey]) {",
-      "lineHint": 116,
-      "kind": "equivalent",
-      "reason": "-> `true`. `cacheKey` is `${langCode}:${namespace}` built inside `Object.entries(data.translations).forEach`, so each key is visited once and the slot is always fresh; re-creating it unconditionally writes the same object. Hand-applied: full package suite green.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/composables/useTranslations.ts",
       "mutators": ["OptionalChaining"],
       "snippet": "const singular = state.value.data!.translations[langCode]?.other || \"\";",
       "lineHint": 332,
@@ -1493,36 +1483,6 @@
     {
       "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
-      "mutators": ["ConditionalExpression", "BlockStatement"],
-      "snippet": "if (this.targetElement.nodeType === Node.DOCUMENT_NODE) {",
-      "lineHint": 173,
-      "kind": "equivalent",
-      "reason": "equivalent: skipping the document branch falls through to `targetElement.contains(node)`, and `document.contains(node)` gives the same answer for every host that can reach this code.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/DOMWatcher.ts",
-      "mutators": ["ConditionalExpression", "BlockStatement"],
-      "snippet": "if (node === this.targetElement) {",
-      "lineHint": 177,
-      "kind": "equivalent",
-      "reason": "equivalent: falling through leaves `targetElement.contains(node)`, and Node.contains(self) is true — the same answer the self-check returns.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/DOMWatcher.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "return typeof this.targetElement.contains === \"function\" && this.targetElement.contains(node);",
-      "lineHint": 181,
-      "kind": "equivalent",
-      "reason": "equivalent: `typeof contains === \"function\"` is true for every Node that can be a target, so the guard never changes the result.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/DOMWatcher.ts",
       "mutators": ["BlockStatement", "ConditionalExpression"],
       "snippet": "if (!this.isObserving) {",
       "lineHint": 185,
@@ -1633,16 +1593,6 @@
     {
       "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
-      "mutators": ["ConditionalExpression", "EqualityOperator"],
-      "snippet": "if (newlyObservedRoots.size > 0) {",
-      "lineHint": 343,
-      "kind": "equivalent",
-      "reason": "unobservable: emitInitialScans over an empty array emits nothing, so gating it on size > 0 changes no emission (unlike the four event emissions above it, which are killed).",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/DOMWatcher.ts",
       "mutators": ["BlockStatement", "ConditionalExpression"],
       "snippet": "if (!this.isObserving) {",
       "lineHint": 349,
@@ -1662,16 +1612,6 @@
     },
     {
       "package": "packages/editor",
-      "file": "src/DOMWatcher.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "\"[@comvi/editor] Target element not available for initial scan\",",
-      "lineHint": 383,
-      "kind": "equivalent",
-      "reason": "unreachable: `this.targetElement = options.targetElement || document` is always truthy, so the warning branch is dead. Exercising it needs a constructor seam (needs-seam).",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["ObjectLiteral"],
       "snippet": "const DEFAULT_HIGHLIGHT_STYLE: HighlightStyle = {",
@@ -1683,29 +1623,9 @@
     {
       "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
-      "mutators": ["LogicalOperator"],
-      "snippet": "if (this.activeHighlight && this.activeElement) {",
-      "lineHint": 75,
-      "kind": "equivalent",
-      "reason": "equivalent: activeHighlight and activeElement are written and cleared as a pair (ensureOverlayExists / removeHighlightOverlay), so they are never independently truthy.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/ElementHighlighter.ts",
       "mutators": ["ObjectLiteral"],
       "snippet": "document.addEventListener(\"keydown\", this.handleKeyEvent, {",
       "lineHint": 89,
-      "kind": "equivalent",
-      "reason": "the listener flag has no observable effect: `passive` only forbids preventDefault(), and neither handleKeyEvent nor handleScroll ever calls it. happy-dom additionally ignores the option object when matching listeners.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/ElementHighlighter.ts",
-      "mutators": ["BooleanLiteral"],
-      "snippet": "passive: true,",
-      "lineHint": 90,
       "kind": "equivalent",
       "reason": "the listener flag has no observable effect: `passive` only forbids preventDefault(), and neither handleKeyEvent nor handleScroll ever calls it. happy-dom additionally ignores the option object when matching listeners.",
       "round": 5
@@ -1784,76 +1704,6 @@
       "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["CallExpression"],
-      "snippet": "this.scrollableContainers.clear();",
-      "lineHint": 377,
-      "kind": "equivalent",
-      "reason": "unobservable: the set is only read by cleanupScrollListeners, removeEventListener for a container that no longer holds the listener is a no-op, and every re-registration goes through Set.add.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/ElementHighlighter.ts",
-      "mutators": ["ObjectLiteral", "BooleanLiteral"],
-      "snippet": "window.addEventListener(\"scroll\", this.handleScroll, { passive: true });",
-      "lineHint": 400,
-      "kind": "equivalent",
-      "reason": "the listener flag has no observable effect: `passive` only forbids preventDefault(), and neither handleKeyEvent nor handleScroll ever calls it. happy-dom additionally ignores the option object when matching listeners.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/ElementHighlighter.ts",
-      "mutators": ["ObjectLiteral"],
-      "snippet": "container.addEventListener(\"scroll\", this.handleScroll, {",
-      "lineHint": 404,
-      "kind": "equivalent",
-      "reason": "the listener flag has no observable effect: `passive` only forbids preventDefault(), and neither handleKeyEvent nor handleScroll ever calls it. happy-dom additionally ignores the option object when matching listeners.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/ElementHighlighter.ts",
-      "mutators": ["BooleanLiteral"],
-      "snippet": "passive: true,",
-      "lineHint": 405,
-      "kind": "equivalent",
-      "reason": "the listener flag has no observable effect: `passive` only forbids preventDefault(), and neither handleKeyEvent nor handleScroll ever calls it. happy-dom additionally ignores the option object when matching listeners.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/ElementHighlighter.ts",
-      "mutators": ["ObjectLiteral"],
-      "snippet": "container.addEventListener(\"scroll\", this.handleScroll, {",
-      "lineHint": 427,
-      "kind": "equivalent",
-      "reason": "the listener flag has no observable effect: `passive` only forbids preventDefault(), and neither handleKeyEvent nor handleScroll ever calls it. happy-dom additionally ignores the option object when matching listeners.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/ElementHighlighter.ts",
-      "mutators": ["BooleanLiteral"],
-      "snippet": "passive: true,",
-      "lineHint": 428,
-      "kind": "equivalent",
-      "reason": "the listener flag has no observable effect: `passive` only forbids preventDefault(), and neither handleKeyEvent nor handleScroll ever calls it. happy-dom additionally ignores the option object when matching listeners.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/ElementHighlighter.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "window.removeEventListener(\"scroll\", this.handleScroll);",
-      "lineHint": 469,
-      "kind": "equivalent",
-      "reason": "unobservable: handleScroll's debounced body is guarded by `activeHighlight && activeElement`, both null once the overlay is gone, and addEventListener de-duplicates the identical (type, handler) pair when the next overlay re-adds it.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/ElementHighlighter.ts",
-      "mutators": ["CallExpression"],
       "snippet": "this.highlightedElements.clear();",
       "lineHint": 476,
       "kind": "equivalent",
@@ -1868,16 +1718,6 @@
       "lineHint": 477,
       "kind": "equivalent",
       "reason": "unobservable after cleanup(): the highlighter is terminal once cleaned up — every DOM listener is gone, so nothing can read the cleared registries again.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/ElementHighlighter.ts",
-      "mutators": ["CallExpression"],
-      "snippet": "this.debouncedScrollHandler.cancel();",
-      "lineHint": 479,
-      "kind": "equivalent",
-      "reason": "unobservable: line 475's removeHighlightOverlay() has already nulled activeHighlight, so a still-pending debounced reposition takes the early return and does nothing.",
       "round": 5
     },
     {
@@ -1954,50 +1794,10 @@
       "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["StringLiteral"],
-      "snippet": "window.removeEventListener(\"scroll\", this.handleScroll);",
-      "lineHint": 493,
-      "kind": "equivalent",
-      "reason": "unobservable: handleScroll's debounced body is guarded by `activeHighlight && activeElement`, both null once the overlay is gone, and addEventListener de-duplicates the identical (type, handler) pair when the next overlay re-adds it.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/ElementHighlighter.ts",
-      "mutators": ["StringLiteral"],
       "snippet": "window.removeEventListener(\"blur\", this.handleWindowBlur);",
       "lineHint": 494,
       "kind": "equivalent",
       "reason": "unobservable: a handler left attached by the mutated removal can only reach removeHighlightOverlay(), and activeHighlight is already null after line 475 — no overlay can be created again because the mouseover listener is removed.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/ElementHighlighter.ts",
-      "mutators": ["CallExpression"],
-      "snippet": "this.cleanupScrollListeners();",
-      "lineHint": 496,
-      "kind": "equivalent",
-      "reason": "redundant: containers only ever enter scrollableContainers together with an active overlay, so line 475's removeHighlightOverlay() already ran cleanupScrollListeners().",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/utils/encoding.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (!text) return \"\";",
-      "lineHint": 5,
-      "kind": "equivalent",
-      "reason": "equivalent. The only falsy `string` input is `\"\"`, and the fall-through produces the same answer: the strip loop leaves `\"\"` untouched and `.trim()` returns `\"\"`. The StringLiteral mutant on the same line IS observable and is killed by `removeInvisibleCharacters() > returns an empty string for empty input`.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/utils/encoding.ts",
-      "mutators": ["Regex", "StringLiteral"],
-      "snippet": "const regex = new RegExp(char.replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\"), \"g\");",
-      "lineHint": 10,
-      "kind": "equivalent",
-      "reason": "equivalent. INVISIBLE_CHARS holds no regex metacharacter, so the escaping `replace` is a no-op with either the original class or `\"\"` as the replacement. Hand-probed in happy-dom: the negated-class mutant yields `\"\\\\<char>\"`, whose RegExp is an identity escape that still strips the character, so the stripped output is byte-identical.",
       "round": 5
     },
     {
@@ -2078,66 +1878,6 @@
       "lineHint": 89,
       "kind": "equivalent",
       "reason": "equivalent. Only the left-operand `false` variant survives: `false || node.contains(ownerElement)` still answers true for the owner element itself, because an element contains itself. Hand-applied: full suite 723/723 green.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/encoding/TranslationKeyEncoder.ts",
-      "mutators": ["ArithmeticOperator"],
-      "snippet": "for (let i = 0; i <= text.length - ENCODING_LENGTH; i++) {",
-      "lineHint": 68,
-      "kind": "equivalent",
-      "reason": "equivalent. The extra windows read past the end of the string; `text[i + j]` is undefined, which fails the INVISIBLE_CHARS membership check, so `isEncodedKey` stays false and no extra key is produced. Hand-applied: full suite 723/723 green.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/encoding/TranslationKeyEncoder.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "let invisibleChars = \"\";",
-      "lineHint": 96,
-      "kind": "equivalent",
-      "reason": "equivalent. The seeded literal is visible ASCII, so every scan window overlapping it fails the membership check; the ids found are exactly the same, only at shifted offsets. Hand-applied: full suite 723/723 green.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/encoding/TranslationKeyEncoder.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "for (let i = 0; i < text.length; i++) {",
-      "lineHint": 97,
-      "kind": "equivalent",
-      "reason": "equivalent. The extra iteration reads `text[text.length]`, which is undefined and is not a member of INVISIBLE_CHARS, so nothing is appended. Hand-applied: full suite 723/723 green.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/encoding/TranslationKeyEncoder.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (num === 0) return INVISIBLE_CHARS[0]!;",
-      "lineHint": 156,
-      "kind": "equivalent",
-      "reason": "equivalent. Without the shortcut `numberToBase5(0)` returns `\"\"` instead of one zero-digit, and `encode()` left-pads both to the identical 8 zero-digit string. Hand-applied: full suite 723/723 green.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/encoding/TranslationKeyEncoder.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "for (let i = 0; i < base5Str.length; i++) {",
-      "lineHint": 171,
-      "kind": "equivalent",
-      "reason": "equivalent. The extra iteration hits `INVISIBLE_CHARS.indexOf(undefined) === -1` and takes the `continue`. Hand-applied: full suite 723/723 green.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/encoding/TranslationKeyEncoder.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (digit === -1) continue;",
-      "lineHint": 173,
-      "kind": "equivalent",
-      "reason": "equivalent. `base5ToNumber` is private and only ever receives all-invisible substrings — validated char by char in `scanForKeys`, filtered by construction in `extractAllIds` — so `digit === -1` is unreachable. Hand-applied: full suite 723/723 green.",
       "round": 5
     },
     {
@@ -2258,212 +1998,6 @@
       "lineHint": 236,
       "kind": "equivalent",
       "reason": "equivalent. The mutant keeps `new Set(...)`, so the de-duplication the public behaviour depends on survives (pinned by `should process a root listed twice in one batch only once`); only `.filter(Boolean)` goes, and a falsy entry is off-contract for the declared `Node[]`. Hand-applied: full suite 723/723 green.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/TranslationScanner.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "attributeNode !== null && containsInvisibleCharacters(attributeNode.value),",
-      "lineHint": 158,
-      "kind": "equivalent",
-      "reason": "equivalent — only the LEFT-operand `true` variant survives. The preceding `.filter((name) => element.hasAttribute(name))` guarantees `element.getAttributeNode(name)` is non-null, so `attributeNode !== null` is always true. The right-operand `true` and the LogicalOperator `||` variants both drop the encoded-marker check and are killed by `should remove a stale attribute registration when its value is edited in place`.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": [
-        "ConditionalExpression",
-        "LogicalOperator",
-        "EqualityOperator",
-        "StringLiteral",
-        "BlockStatement"
-      ],
-      "snippet": "if (!target || (typeof target !== \"object\" && typeof target !== \"function\")) {",
-      "lineHint": 43,
-      "kind": "equivalent",
-      "reason": "equivalent (7 mutants). `attachMappingsBridge` has exactly one call site — `attachMappingsBridge(i18n)` inside the plugin — so `target` is always the host object: the guard can never be taken, and skipping it cannot change what the object path does. Its second operand (`typeof target !== \"function\"`) is never even evaluated, which is why four of the seven are NoCoverage. CHECKED: each hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["ConditionalExpression", "BlockStatement"],
-      "snippet": "if (!i18n.hasLocale(locale, namespace)) {",
-      "lineHint": 61,
-      "kind": "equivalent",
-      "reason": "equivalent (2 mutants). Pure short-circuit: core's `getMessages` answers `{}` for a locale/namespace pair it does not hold, so running the body for an unloaded pair enqueues nothing. CHECKED: each hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["ConditionalExpression", "BlockStatement"],
-      "snippet": "if (pendingCombinedKeys.size === 0) {",
-      "lineHint": 81,
-      "kind": "equivalent",
-      "reason": "equivalent (2 mutants). Pure short-circuit: with an empty pending set the rest of `flushPendingKeys` sorts an empty array, clears an empty set and registers nothing. CHECKED: each hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["CallExpression"],
-      "snippet": "pendingCombinedKeys.clear();",
-      "lineHint": 86,
-      "kind": "equivalent",
-      "reason": "equivalent. `registerKey` returns the id a key already holds, so a later flush that still carries the previous keys re-derives exactly the same ids in the same sorted order. Not clearing leaks memory, which no assertion can see.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["ConditionalExpression", "BlockStatement"],
-      "snippet": "if (separatorIndex === -1) {",
-      "lineHint": 90,
-      "kind": "equivalent",
-      "reason": "equivalent (2 mutants). Unreachable: every pending entry is built as `${namespace}:${key}`, so `indexOf(\":\")` is never -1. The sibling `separatorIndex === 1` mutant IS killed — see tests/plugin-runtime.test.ts > \"assigns ids in sorted key order under a single-character namespace\". CHECKED: each hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["OptionalChaining"],
-      "snippet": "if (typeof process !== \"undefined\" && process.env?.NODE_ENV === \"production\") {",
-      "lineHint": 134,
-      "kind": "equivalent",
-      "reason": "equivalent. `process.env` is either never reached (when `process` is undefined the `&&` short-circuits — pinned by tests/plugin-runtime.test.ts > \"starts the editor in a browser bundle that has no process global\") or a real object, so `?.` versus `.` can never differ. The two other mutants on this line are killed by that same test. CHECKED: hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["BlockStatement", "CallExpression"],
-      "snippet": "const unsubscribeLocaleChanged = i18n.on(\"localeChanged\", () => {",
-      "lineHint": 171,
-      "kind": "equivalent",
-      "reason": "equivalent (2 mutants, lines 171-172). The locale-change re-enqueue is redundant with the `namespaceLoaded` subscription: a locale only reaches `getLoadedLocales()` through an add/load that already enqueued its keys, and `registerKey` is idempotent, so re-enqueueing assigns no new id. Covered and pinned by tests/plugin-runtime.test.ts > \"keeps every id it already assigned across a locale change\"; the subscription itself (event name and teardown) is pinned by the two \"unsubscribes every host event\" tests. CHECKED: each hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["UpdateOperator", "CallExpression"],
-      "snippet": "const runtimeId = ++runtimeIdCounter;",
-      "lineHint": 221,
-      "kind": "equivalent",
-      "reason": "equivalent (3 mutants, lines 221, 222, 230). `activeBrowserEditorRuntimes` has exactly one reader — the `size === 0` half of the L155 guard — whose only effect is a reset that is a no-op wherever it is reached, so the counter's sign and the add/delete pair are unobservable. Flagged in the lot report as dead bookkeeping. CHECKED: each hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (host[EDITOR_MAPPINGS_GLOBAL]) {",
-      "lineHint": 232,
-      "kind": "equivalent",
-      "reason": "equivalent. `delete` of an absent own property is a no-op, so dropping the presence check cannot change the host. The mutants that SKIP the delete are killed by tests/plugin-runtime.test.ts > \"withdraws the bridge when the runtime is torn down\". CHECKED: hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/standalone.ts",
-      "mutators": ["ConditionalExpression", "LogicalOperator", "BlockStatement"],
-      "snippet": "if (locales.length === 0 || namespaces.length === 0) {",
-      "lineHint": 114,
-      "kind": "equivalent",
-      "reason": "equivalent (5 mutants). Pure short-circuit: `namespaces` always holds at least the default namespace, and with zero loaded locales the `Promise.all` below maps over nothing, so `updates` stays empty and no `addMessages` follows. Pinned from the outside by tests/standalone-runtime.test.ts > \"pushes no update at all when the page has no translations loaded\". CHECKED: each hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/standalone.ts",
-      "mutators": ["ConditionalExpression", "BlockStatement"],
-      "snippet": "if (!i18n.hasLocale(locale, namespace)) {",
-      "lineHint": 157,
-      "kind": "equivalent",
-      "reason": "equivalent (2 mutants). Pure short-circuit: `getMessages` answers `{}` for a pair the host does not hold, and the `Object.keys(translations).length > 0` check three lines down already excludes an empty catalog — pinned by tests/standalone-runtime.test.ts > \"leaves an empty loaded namespace out of the re-added catalog\". CHECKED: each hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/comviHook.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (prevId !== undefined && prevId !== resolvedId) {",
-      "lineHint": 116,
-      "kind": "equivalent",
-      "reason": "equivalent (first operand → true). `prevId !== undefined` is false only on an instance's first sighting, where the guarded `instances.delete(prevId)` deletes the key `undefined` — a no-op. Mutating the SECOND operand would delete-and-reinsert a re-announced instance and move it to the end of the registry; that is killed by tests/comviHook.test.ts > \"keeps a re-announced instance in place, so get() still resolves the first one\". CHECKED: hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/comviHook.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (version !== undefined && hook.version === undefined) {",
-      "lineHint": 122,
-      "kind": "equivalent",
-      "reason": "equivalent (first operand → true). When `version` is undefined the guarded assignment writes `undefined` over a `hook.version` that is already undefined. The first-version-wins half is killed by tests/comviHook.test.ts > \"keeps the first core version it sees when a later envelope disagrees\" and \"does not erase a known version when a later envelope carries none\". CHECKED: hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/comviHook.ts",
-      "mutators": ["ConditionalExpression", "BlockStatement"],
-      "snippet": "if (!instance) {",
-      "lineHint": 128,
-      "kind": "equivalent",
-      "reason": "equivalent (2 mutants, in `untrack`). Pure short-circuit: with no instance the lookup below is `idsByInstance.get(undefined)`, which is always undefined because every tracked id is a string, so nothing is untracked either way. The mutants that make `untrack` return EARLY for a real instance are killed by the remove()/unregister() tests. CHECKED: each hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/comviHook.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (id !== undefined) {",
-      "lineHint": 132,
-      "kind": "equivalent",
-      "reason": "equivalent (→ true). Resolved ids are always strings, so for an untracked instance the guarded `idsByInstance.delete(undefined)` / `instances.delete(undefined)` pair is a no-op on both maps. The `→ false` mutant, which would stop `remove()` removing anything, is killed. CHECKED: hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/comviHook.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (hook.version === undefined && typeof legacy.version === \"string\") {",
-      "lineHint": 175,
-      "kind": "equivalent",
-      "reason": "equivalent (first operand → true). `drainLegacyRegistry` only ever runs against the hook `ensureComviHook` just created, whose `version` is undefined by construction, so the first operand is always true anyway. Mutating the `typeof legacy.version === \"string\"` half would copy a non-string version across; that is killed by tests/comviHook.test.ts > \"ignores a legacy version that is not a string\". CHECKED: hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/comviHook.ts",
-      "mutators": ["ConditionalExpression", "BlockStatement"],
-      "snippet": "if (!id) {",
-      "lineHint": 185,
-      "kind": "equivalent",
-      "reason": "equivalent (2 mutants, in the COMVI_READY listener). Pure short-circuit: with no id the lookup is `legacyInstances.get(undefined)`, and a v1 registry keys its map by real instance ids, so the result is undefined and nothing is registered. The `→ true` mutant, which would ignore every COMVI_READY, is killed by \"mirrors an instance that reaches the legacy registry after the swap, on COMVI_READY\". CHECKED: each hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/comviHook.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (instance) {",
-      "lineHint": 189,
-      "kind": "equivalent",
-      "reason": "equivalent (→ true). `hook.register(id, undefined)` is caught by `track`'s own object guard, so registering a legacy-map miss is a no-op — pinned from the outside by \"ignores a COMVI_READY naming an id the legacy registry does not hold\". CHECKED: hand-applied, full suite green, restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/comviHook.ts",
-      "mutators": ["ConditionalExpression", "EqualityOperator"],
-      "snippet": "const first = g.length > 0 ? toInstance(g[0] as ComviQueueEntry | I18n) : null;",
-      "lineHint": 247,
-      "kind": "equivalent",
-      "reason": "equivalent (2 mutants). On an empty queue `g[0]` is undefined and `toInstance(undefined)` returns null — exactly the `: null` arm — so widening the length test changes nothing. The mutants that drop the version from a NON-empty queue are killed by \"reports a raw queue's length and its first envelope's version\". CHECKED: each hand-applied, full suite green, restored byte-identically.",
       "round": 5
     },
     {
@@ -2864,116 +2398,6 @@
       "lineHint": 416,
       "kind": "equivalent",
       "reason": "equivalent. The predicate of `Object.values(currentForms).find(...)` guards a fallback value read out of a `Record<string, string>`: every value in a select/plural form map is a string (the composable writes only strings into it), so `typeof value === \"string\"` is true for the first element either way and `find` returns the same one. Same finding as lot u1. Hand-applied at the report's exact offsets (the replacement placed as Stryker places it, parenthesised), full package suite green (1361/1361), src restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/encoding/TranslationKeyEncoder.ts",
-      "mutators": ["BlockStatement", "ConditionalExpression", "EqualityOperator"],
-      "snippet": "for (let j = 0; j < encodedPart.length; j++) {",
-      "lineHint": 109,
-      "kind": "equivalent",
-      "reason": "equivalent. Dead-by-construction validation. `invisibleChars` is built one loop earlier by keeping only characters that pass `INVISIBLE_CHARS.includes(...)`, so every character of every `encodedPart` slice taken out of it is invisible: the inner membership test can never fail, `isValidEncoding` can never be set to false, and `if (isValidEncoding)` is always taken. Emptying or skipping the inner loop, forcing either condition, and flipping the assignment therefore all leave `extractAllIds` returning the same ids and advancing `i` the same way (pinned by the round-trip and interleaved-text cases in tests/TranslationKeyEncoder.test.ts). Same finding as lot d2. Hand-applied at the report's exact offsets (the replacement placed as Stryker places it, parenthesised), full package suite green (1361/1361), src restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/encoding/TranslationKeyEncoder.ts",
-      "mutators": ["BlockStatement", "ConditionalExpression"],
-      "snippet": "if (!INVISIBLE_CHARS.includes(encodedPart[j] as (typeof INVISIBLE_CHARS)[number])) {",
-      "lineHint": 110,
-      "kind": "equivalent",
-      "reason": "equivalent. Dead-by-construction validation. `invisibleChars` is built one loop earlier by keeping only characters that pass `INVISIBLE_CHARS.includes(...)`, so every character of every `encodedPart` slice taken out of it is invisible: the inner membership test can never fail, `isValidEncoding` can never be set to false, and `if (isValidEncoding)` is always taken. Emptying or skipping the inner loop, forcing either condition, and flipping the assignment therefore all leave `extractAllIds` returning the same ids and advancing `i` the same way (pinned by the round-trip and interleaved-text cases in tests/TranslationKeyEncoder.test.ts). Same finding as lot d2. Hand-applied at the report's exact offsets (the replacement placed as Stryker places it, parenthesised), full package suite green (1361/1361), src restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/encoding/TranslationKeyEncoder.ts",
-      "mutators": ["BooleanLiteral"],
-      "snippet": "isValidEncoding = false;",
-      "lineHint": 111,
-      "kind": "equivalent",
-      "reason": "equivalent. Dead-by-construction validation. `invisibleChars` is built one loop earlier by keeping only characters that pass `INVISIBLE_CHARS.includes(...)`, so every character of every `encodedPart` slice taken out of it is invisible: the inner membership test can never fail, `isValidEncoding` can never be set to false, and `if (isValidEncoding)` is always taken. Emptying or skipping the inner loop, forcing either condition, and flipping the assignment therefore all leave `extractAllIds` returning the same ids and advancing `i` the same way (pinned by the round-trip and interleaved-text cases in tests/TranslationKeyEncoder.test.ts). Same finding as lot d2. Hand-applied at the report's exact offsets (the replacement placed as Stryker places it, parenthesised), full package suite green (1361/1361), src restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/encoding/TranslationKeyEncoder.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (isValidEncoding) {",
-      "lineHint": 116,
-      "kind": "equivalent",
-      "reason": "equivalent. Dead-by-construction validation. `invisibleChars` is built one loop earlier by keeping only characters that pass `INVISIBLE_CHARS.includes(...)`, so every character of every `encodedPart` slice taken out of it is invisible: the inner membership test can never fail, `isValidEncoding` can never be set to false, and `if (isValidEncoding)` is always taken. Emptying or skipping the inner loop, forcing either condition, and flipping the assignment therefore all leave `extractAllIds` returning the same ids and advancing `i` the same way (pinned by the round-trip and interleaved-text cases in tests/TranslationKeyEncoder.test.ts). Same finding as lot d2. Hand-applied at the report's exact offsets (the replacement placed as Stryker places it, parenthesised), full package suite green (1361/1361), src restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["ConditionalExpression", "EqualityOperator"],
-      "snippet": "activeBrowserEditorRuntimes.size === 0 &&",
-      "lineHint": 155,
-      "kind": "equivalent",
-      "reason": "equivalent. The runtime-set operand is dead bookkeeping because the reset it guards is a no-op wherever it can run. The body is `resetEncoder()`, and the second operand `Object.keys(getKeyMappings()).length === 0` only lets it run on an EMPTY encoder — and an empty map always means a nextId of 1, because every writer moves the two together (`reset()` sets nextId 1, `loadMappings(m)` sets it to max(id)+1, i.e. 1 for `{}`, and `registerKey` only raises it while adding to the map). So skipping the reset, running it for a different runtime count, or forcing this operand true all reset nothing. The variants that DO matter — the whole condition forced true/false, the `&&` turned into `||`, and both mutants of the mappings operand — are killed by 'keeps the ids an earlier browser runtime assigned when a later one installs'. Same finding as lot e1 (dead bookkeeping / needs-seam). Hand-applied at the report's exact offsets (the replacement placed as Stryker places it, parenthesised), full package suite green (1361/1361), src restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["BlockStatement"],
-      "snippet": ") {",
-      "lineHint": 157,
-      "kind": "equivalent",
-      "reason": "equivalent. The runtime-set operand is dead bookkeeping because the reset it guards is a no-op wherever it can run. The body is `resetEncoder()`, and the second operand `Object.keys(getKeyMappings()).length === 0` only lets it run on an EMPTY encoder — and an empty map always means a nextId of 1, because every writer moves the two together (`reset()` sets nextId 1, `loadMappings(m)` sets it to max(id)+1, i.e. 1 for `{}`, and `registerKey` only raises it while adding to the map). So skipping the reset, running it for a different runtime count, or forcing this operand true all reset nothing. The variants that DO matter — the whole condition forced true/false, the `&&` turned into `||`, and both mutants of the mappings operand — are killed by 'keeps the ids an earlier browser runtime assigned when a later one installs'. Same finding as lot e1 (dead bookkeeping / needs-seam). Hand-applied at the report's exact offsets (the replacement placed as Stryker places it, parenthesised), full package suite green (1361/1361), src restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["CallExpression"],
-      "snippet": "resetEncoder();",
-      "lineHint": 159,
-      "kind": "equivalent",
-      "reason": "equivalent. The runtime-set operand is dead bookkeeping because the reset it guards is a no-op wherever it can run. The body is `resetEncoder()`, and the second operand `Object.keys(getKeyMappings()).length === 0` only lets it run on an EMPTY encoder — and an empty map always means a nextId of 1, because every writer moves the two together (`reset()` sets nextId 1, `loadMappings(m)` sets it to max(id)+1, i.e. 1 for `{}`, and `registerKey` only raises it while adding to the map). So skipping the reset, running it for a different runtime count, or forcing this operand true all reset nothing. The variants that DO matter — the whole condition forced true/false, the `&&` turned into `||`, and both mutants of the mappings operand — are killed by 'keeps the ids an earlier browser runtime assigned when a later one installs'. Same finding as lot e1 (dead bookkeeping / needs-seam). Hand-applied at the report's exact offsets (the replacement placed as Stryker places it, parenthesised), full package suite green (1361/1361), src restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["CallExpression"],
-      "snippet": "enqueueLoadedKeys(i18n, pendingCombinedKeys);",
-      "lineHint": 172,
-      "kind": "equivalent",
-      "reason": "equivalent. This is the re-enqueue inside the `localeChanged` handler, not the one at install (L166, killed). Every path that loads keys also emits `namespaceLoaded`, and the subscription on the line above enqueues exactly the same (locale, namespace) keys; `registerKey` is idempotent for a key that already has an id, so re-enqueueing after a locale change can only re-offer keys the pending set or the encoder already holds. Checked: 'keeps every id it already assigned across a locale change' and 'registers the keys of a namespace loaded after install at the next translation' both stay green with the call removed. Hand-applied at the report's exact offsets (the replacement placed as Stryker places it, parenthesised), full package suite green (1361/1361), src restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["CallExpression"],
-      "snippet": "activeBrowserEditorRuntimes.add(runtimeId);",
-      "lineHint": 222,
-      "kind": "equivalent",
-      "reason": "equivalent. `activeBrowserEditorRuntimes` has exactly one reader, the `size === 0` operand at L155, and that operand can only decide whether an EMPTY encoder is reset — a no-op either way (see the L155 entry). So neither adding the runtime id on install nor deleting it on teardown has any observable effect: no export reads the set, and the teardown that follows is otherwise identical. Same finding as lot e1 (dead bookkeeping / needs-seam). Hand-applied at the report's exact offsets (the replacement placed as Stryker places it, parenthesised), full package suite green (1361/1361), src restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["CallExpression"],
-      "snippet": "activeBrowserEditorRuntimes.delete(runtimeId);",
-      "lineHint": 230,
-      "kind": "equivalent",
-      "reason": "equivalent. `activeBrowserEditorRuntimes` has exactly one reader, the `size === 0` operand at L155, and that operand can only decide whether an EMPTY encoder is reset — a no-op either way (see the L155 entry). So neither adding the runtime id on install nor deleting it on teardown has any observable effect: no export reads the set, and the teardown that follows is otherwise identical. Same finding as lot e1 (dead bookkeeping / needs-seam). Hand-applied at the report's exact offsets (the replacement placed as Stryker places it, parenthesised), full package suite green (1361/1361), src restored byte-identically.",
-      "round": 5
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/standalone.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "options.instanceId ? `Instance ID: ${options.instanceId}` : \"No instances registered.\",",
-      "lineHint": 209,
-      "kind": "equivalent",
-      "reason": "equivalent. Dead branch: the `: \"No instances registered.\"` arm needs `options.instanceId` falsy AND `comviHook.get(undefined)` returning nothing, but the guard six lines above already returned when `comviHook.instances.size === 0`, and `get()` with no id returns `instances.values().next().value` — always an instance for a non-empty map. The reachable arm (`Instance ID: ...`) IS killed by 'fails closed when the requested instance id is not registered'. Stryker: NoCoverage. Hand-applied at the report's exact offsets (the replacement placed as Stryker places it, parenthesised), full package suite green (1361/1361), src restored byte-identically.",
       "round": 5
     },
     {
@@ -4244,78 +3668,6 @@
     {
       "file": "src/content/detector.ts",
       "kind": "equivalent",
-      "reason": "track() and untrack() re-apply the same object guard to the value, so an envelope with a null/primitive `i` is discarded either way; no caller can observe toInstance returning `{instance: <not an object>}` instead of null. BlockStatement -> {} drops the `return null` and falls through to the same line 88 return, which is exactly the ConditionalExpression -> false case, so it is equivalent for the same reason.",
-      "package": "apps/chrome-extension",
-      "mutators": ["ConditionalExpression", "LogicalOperator", "BlockStatement"],
-      "snippet": "if (!entry.i || typeof entry.i !== \"object\") {",
-      "lineHint": 85
-    },
-    {
-      "file": "src/content/detector.ts",
-      "kind": "equivalent",
-      "reason": "anonymous instance ids are opaque; a descending counter produces the same one-slot-per-instance behaviour as an ascending one.",
-      "package": "apps/chrome-extension",
-      "mutators": ["UpdateOperator"],
-      "snippet": "id ?? idsByInstance.get(instance) ?? instance.instanceId ?? `comvi-anon-${++anonCounter}`;",
-      "lineHint": 108
-    },
-    {
-      "file": "src/content/detector.ts",
-      "kind": "equivalent",
-      "reason": "PARTIAL LINE - only `prevId !== undefined`->true is equivalent (the whole-condition and second-operand mutants, the LogicalOperator and the EqualityOperator ARE killed). Forcing it true only adds `instances.delete(undefined)`, and resolvedId is always a string so no entry is ever keyed undefined.",
-      "package": "apps/chrome-extension",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (prevId !== undefined && prevId !== resolvedId) {",
-      "lineHint": 110
-    },
-    {
-      "file": "src/content/detector.ts",
-      "kind": "equivalent",
-      "reason": "PARTIAL LINE - only `version !== undefined`->true is equivalent (whole-condition, second operand and LogicalOperator ARE killed). It only lets `hook.version = undefined` run when hook.version is already undefined.",
-      "package": "apps/chrome-extension",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (version !== undefined && hook.version === undefined) {",
-      "lineHint": 115
-    },
-    {
-      "file": "src/content/detector.ts",
-      "kind": "equivalent",
-      "reason": "untrack's early return is redundant: `idsByInstance.get(undefined)` is undefined, so the `id !== undefined` guard below returns without touching either map. BlockStatement -> {} drops the `return` and falls into that same guard, so it is equivalent for the same reason (track() only ever keys idsByInstance with a non-null object).",
-      "package": "apps/chrome-extension",
-      "mutators": ["ConditionalExpression", "BlockStatement"],
-      "snippet": "if (!instance) {",
-      "lineHint": 121
-    },
-    {
-      "file": "src/content/detector.ts",
-      "kind": "equivalent",
-      "reason": "when id is undefined both deletes are no-ops: the instance is absent from idsByInstance and no entry is ever keyed undefined in instances.",
-      "package": "apps/chrome-extension",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (id !== undefined) {",
-      "lineHint": 125
-    },
-    {
-      "file": "src/content/detector.ts",
-      "kind": "equivalent",
-      "reason": "emptying adoptComviGlobal's catch returns undefined instead of null; its only caller tests truthiness (`if (hook)`), so both are indistinguishable.",
-      "package": "apps/chrome-extension",
-      "mutators": ["BlockStatement"],
-      "snippet": "} catch {",
-      "lineHint": 184
-    },
-    {
-      "file": "src/content/detector.ts",
-      "kind": "equivalent",
-      "reason": "PARTIAL LINE - only ->true is equivalent (->false and the BlockStatement mutant ARE killed). notifyDetected is never reached with detected === false, so the guard's false arm is unreachable defensive code.",
-      "package": "apps/chrome-extension",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (status.detected) {",
-      "lineHint": 239
-    },
-    {
-      "file": "src/content/detector.ts",
-      "kind": "equivalent",
       "reason": "PARTIAL LINE - the StringLiteral mutant (empty id) IS killed. A descending counter and an unsliced random suffix both still produce ids that are unique per request and inside the bridge's 128-char limit, which is the id's entire contract.",
       "package": "apps/chrome-extension",
       "mutators": ["UpdateOperator", "MethodExpression"],
@@ -5086,36 +4438,6 @@
       "lineHint": 134,
       "kind": "equivalent",
       "reason": "The FIRST literal only, `\"zero\"` -> `\"\"` (the other five are killed). CATEGORY_ORDER has one reader, `Object.keys(categorized).sort((a, b) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b))`. Dropping \"zero\" from the list makes `indexOf(\"zero\")` return -1 instead of 0, and -1 sorts it ahead of every other category exactly as 0 did; `Intl.PluralRules.select()` can only return the six CLDR categories, so nothing else ever ties with it at -1. CHECKED: hand-applied, 58 files / 1377 tests green; a sweep of 75 locales ran both comparators over each locale's category set and produced identical orderings."
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["ConditionalExpression", "LogicalOperator"],
-      "snippet": "isBrowserRuntime &&",
-      "lineHint": 163,
-      "kind": "equivalent",
-      "reason": "equivalent. `TranslationKeyEncoder` empties its two maps only together with `nextId = 1` (`reset()`, and `loadMappings({})` sets `nextId = maxId + 1 = 1`), and `registerKey` always fills both maps, so an encoder whose `getMappings()` is empty is already in the reset state. The third clause of this condition (`Object.keys(encoder.getMappings()).length === 0`) is left intact by every mutant here, so `encoder.reset()` only ever runs on an encoder it cannot change. Hand-applied (call removed; first two clauses forced true), full package suite green (1626/1626), src restored byte-identically.",
-      "round": 6
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["CallExpression"],
-      "snippet": "encoder.reset();",
-      "lineHint": 168,
-      "kind": "equivalent",
-      "reason": "equivalent. `TranslationKeyEncoder` empties its two maps only together with `nextId = 1` (`reset()`, and `loadMappings({})` sets `nextId = maxId + 1 = 1`), and `registerKey` always fills both maps, so an encoder whose `getMappings()` is empty is already in the reset state. The third clause of this condition (`Object.keys(encoder.getMappings()).length === 0`) is left intact by every mutant here, so `encoder.reset()` only ever runs on an encoder it cannot change. Hand-applied (call removed; first two clauses forced true), full package suite green (1626/1626), src restored byte-identically.",
-      "round": 6
-    },
-    {
-      "package": "packages/editor",
-      "file": "src/index.ts",
-      "mutators": ["CallExpression"],
-      "snippet": "bridgeUsers.delete(i18n);",
-      "lineHint": 253,
-      "kind": "equivalent",
-      "reason": "equivalent. `bridgeUsers` is a WeakMap read only as `(bridgeUsers.get(i18n) ?? 0)`, so an entry left at 0 and a missing entry read the same: the next install on that host counts 0 + 1 either way, and the next teardown deletes the bridge at 0 either way. The WeakMap is not reachable from outside the module and holds the host weakly, so the left-over entry has no observable. Hand-applied, full package suite green (1626/1626), src restored byte-identically.",
-      "round": 6
     },
     {
       "package": "packages/editor",
