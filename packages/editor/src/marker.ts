@@ -63,7 +63,8 @@ export function encodeFrame(inst: string, ns: string, key: string, close = false
   return out + String.fromCodePoint(END);
 }
 
-const utf8Strict = new TextDecoder("utf-8", { fatal: true });
+// `ignoreBOM`: a component that starts with U+FEFF keeps it (a key or namespace is text, not a stream).
+const utf8Strict = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
 /** One `%`-encoded component, or null when it is not one. */
 function decodeComponent(text: string): string | null {

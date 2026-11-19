@@ -76,6 +76,10 @@ describe("decodeFrames: round trip and grammar", () => {
     ["~ | % in every component", "a~|%", "n|s%", "k~|%y"],
     ["emoji key", "", "default", "👩\u200D💻.title"],
     ["empty key", "", "default", ""],
+    // Review finding (lot 8): TextDecoder drops a leading BOM unless told not to.
+    ["a leading U+FEFF in inst", "\uFEFFcomvi-2", "default", "save"],
+    ["a leading U+FEFF in ns", "", "\uFEFFshop", "save"],
+    ["a leading U+FEFF in key", "", "default", "\uFEFFsave"],
   ])("%s → decodes to what was encoded", (_name, inst, ns, key) => {
     expect(keys(`text${encodeFrame(inst, ns, key)}`)).toEqual([{ inst, ns, key, close: false }]);
   });
