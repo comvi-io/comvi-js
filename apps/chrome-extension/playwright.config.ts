@@ -3,7 +3,8 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./gate-e",
   testMatch: "**/*.spec.ts",
-  testIgnore: "**/system-platform.spec.ts",
+  // The real-platform gate and the three-engine layout check have configs of their own.
+  testIgnore: ["**/system-platform.spec.ts", "**/layout-engines.spec.ts"],
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   // Security-boundary flakes must fail immediately; JSON still records timing.

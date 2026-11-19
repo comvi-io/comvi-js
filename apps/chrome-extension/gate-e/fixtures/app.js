@@ -35,6 +35,15 @@ function render(i18n, root) {
     if (el.dataset.ns) params.ns = el.dataset.ns;
     if (el.dataset.rich !== undefined) params.b = bold;
     if (el.dataset.markers === "off") params.markers = false;
+    // One element, two translations: a rich pair, then a plain string after it.
+    if (el.dataset.combo !== undefined) {
+      el.replaceChildren(
+        ...nodes(i18n.t(el.dataset.k, { b: bold })),
+        " · ",
+        ...nodes(i18n.t(el.dataset.combo)),
+      );
+      continue;
+    }
     el.replaceChildren(...nodes(i18n.t(el.dataset.k, params)));
   }
 }

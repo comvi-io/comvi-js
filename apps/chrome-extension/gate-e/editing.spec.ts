@@ -63,6 +63,7 @@ test("edit a plain string: the right key, namespace and locale reach the platfor
       expect((await platformStore()).default["home.title"]).toEqual({
         en: "Welcome back",
         de: "Willkommen",
+        "pt-BR": "Bem-vindo",
       });
       await closeDialog(page);
     });
@@ -296,3 +297,41 @@ test("after a new server snapshot and a client navigation the editor sees the cu
     expect(contextRequests(await apiLog())).toEqual([]);
   });
 });
+
+/**
+ * Owner update 2026-11-19, item 3b: the platform spells a language differently from the app's
+ * locale. A SUCCESSFUL save must not leave the page on the old text: the editor finds the app's
+ * own pair canonically and writes into it with the app's spelling, without a second pair.
+ */
+for (const [app, platform] of [
+  ["pt-br", "pt-BR"],
+  ["pt-BR", "pt-br"],
+] as const) {
+  test(`a save on an app running ${app} against a platform answering ${platform} updates the page`, async () => {
+    await withGateE({}, async (launched, popups) => {
+      await configureMock({ platformLocale: platform });
+      const { page, tabId } = await openSite(launched, `/app?locale=${app}`);
+      await expect.poll(() => visibleText(page, "#A-title"), POLL).toBe("Bem-vindo");
+      await enable(launched, popups, page, tabId);
+
+      await openEditor(page, "#A-title");
+      await expect(field(page, "Portuguese")).toHaveValue("Bem-vindo", POLL);
+      await typeInto(page, "Portuguese", "Bem-vindo de volta");
+      expect(await save(page)).toContain("Saved");
+      await closeDialog(page);
+
+      expect(saves(await apiLog())).toEqual([
+        expect.objectContaining({
+          key: "home.title",
+          translations: { [platform]: { value: "Bem-vindo de volta", status: "not_reviewed" } },
+        }),
+      ]);
+      await expect.poll(() => visibleText(page, "#A-title"), POLL).toBe("Bem-vindo de volta");
+      const pairs = await page.evaluate(() =>
+        Object.keys((globalThis as any).__COMVI__[0].x.state().c.default).sort(),
+      );
+      // The app's chain (app → pt → en) and no pair spelled the platform's way.
+      expect(pairs).toEqual(["en", "pt", app].sort());
+    });
+  });
+}

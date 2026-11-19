@@ -21,6 +21,7 @@
     "gate-e:build:system": "COMVI_OUT_DIR=dist-system COMVI_TEST_PAGE_ORIGIN=http://127.0.0.1:8791 vite build --mode gate-e",
     "gate-e:serve": "node gate-e/mock-api-server.mjs",
     "test:e2e": "pnpm gate-e:build && playwright test",
+    "test:layout-engines": "playwright test --config playwright.engines.config.ts",
     "test:system:platform": "pnpm gate-e:build:system && playwright test --config playwright.system.config.ts",
     "zip": "pnpm build && COMVI_EXPECT_API_ORIGIN=https://api.comvi.io vitest run src/__tests__/artifacts.test.ts && cd dist && zip -r ../comvi-extension.zip ."
   },

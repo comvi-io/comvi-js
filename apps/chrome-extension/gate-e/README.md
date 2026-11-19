@@ -102,6 +102,26 @@ rendered by `t()` and re-rendered on every publish) carry the lot-8 checklist:
 | `session.spec.ts`   | A whole session, a client navigation and a reload included: no request to `/v1/context/*`, and none asked for on the page side; the API key on no page surface (DOM with shadow roots, markers, console, every event of the channel, storage, URL)                                                                                                                                                                                               |
 | `layout.spec.ts`    | Marked output has the width, height, line count, overflow width and pixels of unmarked output: a long Latin sentence, Thai ending in ZWSP, Persian ending in ZWNJ, Arabic (also two messages joined inside one word), an ellipsis box, rich output. The numbers go to `test-results/**/marker-layout.json`                                                                                                                                       |
 
+`extents.spec.ts` updates a rich translation the ordinary ways (a save, the
+trailing text and closing frame rewritten in place, the closing side replaced)
+in an element that also holds a plain string, and checks the result a user
+sees: the bold part opens the rich key alone, the rest offers both keys once,
+the key selector previews the text now on the page, and the highlight box is
+that element's. `editing.spec.ts` also saves Portuguese against a platform that
+spells it `pt-BR` while the app runs `pt-br`, and the other way round: the page
+shows the saved text.
+
+### The marker layout in three engines
+
+`pnpm test:layout-engines` (`playwright.engines.config.ts`) runs only
+`layout-engines.spec.ts`, in Chromium, Firefox and WebKit: the layout cases
+marked by the editor's own `dist/standalone.iife.js`, activated on the page
+directly. The extension is not loaded there. It writes
+`test-results/**/marker-layout-<engine>.json`. Chromium and Firefox measure
+identical boxes and pixels; WebKit does not (Arabic widens and loses its
+joining at a frame, and the glyph before a frame shapes differently), and the
+check fails there until that is decided.
+
 ### Adding the framework rows
 
 The pages are plain modules on purpose: one per scenario, no bundler. A

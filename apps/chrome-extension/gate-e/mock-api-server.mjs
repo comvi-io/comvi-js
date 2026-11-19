@@ -28,6 +28,7 @@ const DIR = dirname(fileURLToPath(import.meta.url));
 // a second copy of core, with its own module instances.
 const CORE_DIST = join(DIR, "../../../packages/core/dist");
 const FIXTURES = join(DIR, "fixtures");
+const EDITOR_DIST = join(DIR, "../../../packages/editor/dist");
 
 const CDN_ALLOWED = "script-src 'self' https://cdn.jsdelivr.net";
 
@@ -66,6 +67,11 @@ const SITE_PAGES = {
   "/no-devtools": { body: "app", scripts: ["/fixtures/plain.js"] },
   // Marker layout measurements (fixtures/layout.js).
   "/layout": { body: "layout", scripts: ["/fixtures/layout.js"] },
+  // The same cases marked by the editor's standalone build alone (the three-engine check).
+  "/layout-standalone": {
+    body: "layout",
+    scripts: ["/fixtures/layout.js", "/fixtures/layout-standalone.js"],
+  },
 };
 
 const BODIES = {
@@ -78,6 +84,7 @@ const BODIES = {
     '<p id="A-missing" data-k="missing.key"></p>',
     '<p id="A-common" data-k="save" data-ns="common"></p>',
     '<p id="A-rich" data-k="rich.terms" data-rich></p>',
+    '<p id="A-combo" data-k="rich.terms" data-combo="nav.about"></p>',
     '<div id="route"></div>',
     "</section>",
     '<section id="region-B" class="region"><h1 id="B-title" data-k="home.title"></h1></section>',
@@ -107,7 +114,7 @@ function sitePage({ body, scripts }) {
 
 const SEED = {
   default: {
-    "home.title": { en: "Welcome home", de: "Willkommen" },
+    "home.title": { en: "Welcome home", de: "Willkommen", "pt-BR": "Bem-vindo" },
     "nav.about": { en: "About us", de: "Über uns" },
     "only.en": { en: "Only in English" },
     "rich.terms": { en: "Read the <b>terms</b> now", de: "Lies die <b>Bedingungen</b> jetzt" },
@@ -130,14 +137,24 @@ const REGION_CATALOGS = {
 /** @type {Record<string, Record<string, Record<string, string>>>} */
 let store = structuredClone(SEED);
 
+/**
+ * How the platform spells Portuguese (Brazil) in its answers (`/__config?platformLocale=`).
+ * The store keeps `pt-BR`; catalogs are found whatever the app's spelling, as a CDN that
+ * serves `pt-br` and `pt-BR` alike would.
+ */
+let platformLocale = "pt-BR";
+const same = (a, b) => a.toLowerCase().replace(/_/g, "-") === b.toLowerCase().replace(/_/g, "-");
+const storeLocale = (locale) => (same(locale, "pt-BR") ? "pt-BR" : locale);
+const answerLocale = (locale) => (locale === "pt-BR" ? platformLocale : locale);
+
 /** A flat key → value catalog of (locale, ns), nested at every dot, as a CDN serves it. */
 function catalog(locale, ns) {
   const flat =
     REGION_CATALOGS[`${locale}/${ns}`] ??
     Object.fromEntries(
       Object.entries(store[ns] ?? {})
-        .filter(([, values]) => values[locale] !== undefined)
-        .map(([key, values]) => [key, values[locale]]),
+        .filter(([, values]) => values[storeLocale(locale)] !== undefined)
+        .map(([key, values]) => [key, values[storeLocale(locale)]]),
     );
   const nested = {};
   for (const [key, value] of Object.entries(flat)) {
@@ -162,7 +179,7 @@ function keyRecord(ns, key) {
     createdAt: "",
     updatedAt: "",
     translations: Object.fromEntries(
-      Object.entries(values).map(([locale, value]) => [locale, { ...meta, value }]),
+      Object.entries(values).map(([locale, value]) => [answerLocale(locale), { ...meta, value }]),
     ),
   };
 }
@@ -252,7 +269,9 @@ const server = createServer(async (req, res) => {
       ? fileUnder(CORE_DIST, path.slice(path.indexOf("/", 1) + 1))
       : path.startsWith("/fixtures/")
         ? fileUnder(FIXTURES, path.slice("/fixtures/".length))
-        : null;
+        : path.startsWith("/editor/")
+          ? fileUnder(EDITOR_DIST, path.slice("/editor/".length))
+          : null;
   if (code) {
     // Read per request: a missing build must fail the page load, loudly.
     return send(res, 200, readFileSync(code, "utf8"), {
@@ -261,7 +280,7 @@ const server = createServer(async (req, res) => {
         : "application/javascript; charset=utf-8",
     });
   }
-  if (path.startsWith("/core/") || path.startsWith("/core2/") || path.startsWith("/fixtures/")) {
+  if (/^\/(core2?|fixtures|editor)\//.test(path)) {
     return send(res, 404, { error: `not built: ${path}` });
   }
   const catalogPath = /^\/catalog\/([\w-]+)\/([\w-]+)\.json$/.exec(path);
@@ -284,6 +303,7 @@ const server = createServer(async (req, res) => {
     heldProjectsDelivered = 0;
     nextLocalesResponseBytes = 0;
     failSaves = 0;
+    platformLocale = "pt-BR";
     store = structuredClone(SEED);
     return send(res, 200, { ok: true });
   }
@@ -309,6 +329,7 @@ const server = createServer(async (req, res) => {
       nextLocalesResponseBytes = localesBytes;
     }
     if (Number.isFinite(saves) && saves >= 0) failSaves = saves;
+    platformLocale = url.searchParams.get("platformLocale") ?? platformLocale;
     return send(res, 200, { nextProjectDelayMs, nextLocalesResponseBytes, failSaves });
   }
 
@@ -349,6 +370,7 @@ const server = createServer(async (req, res) => {
         locales: [
           { code: "en", name: "English" },
           { code: "de", name: "German" },
+          { code: platformLocale, name: "Portuguese" },
         ],
       });
     }
@@ -377,7 +399,7 @@ const server = createServer(async (req, res) => {
       }
       const values = ((store[payload.namespace] ??= {})[payload.key] ??= {});
       for (const [locale, entry] of Object.entries(payload.translations ?? {})) {
-        values[locale] = entry.value;
+        values[storeLocale(locale)] = entry.value;
       }
       return send(res, 200, keyRecord(payload.namespace, payload.key));
     }
