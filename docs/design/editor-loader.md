@@ -87,7 +87,7 @@ to every visitor of a site that composes it, the editor only to the translator w
   built by the editor's hook. No server render carries a frame; `mark(null)` on Disable
   re-renders the app's output without them (a string the app kept elsewhere keeps its frames
   until it is rendered again); a value pasted from the page into the edit form has its complete
-  recognised markers removed on save. Marked text measures the same as unmarked in Chromium; in WebKit a frame
+  recognised markers removed on save. Marked text measures the same as unmarked in Chromium; in WebKit on macOS a frame
   changes the neighbouring glyph's shaping and breaks Arabic joining during a session, a known
   defect recorded in Gate E (`layout-engines.spec.ts`, `test.fail`).
 - **Context collection is off (D4).** No session opens `/v1/context/handshake` or

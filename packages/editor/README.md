@@ -72,7 +72,7 @@ pasted from it keeps its leftover tag characters, a limit of this version. A key
 a lone surrogate is read back as U+FFFD.
 
 The extension runs in Chromium, where marked text measures and draws the same as unmarked
-text. In WebKit a frame changes the shaping of the neighbouring glyph during an editing session
+text. In WebKit on macOS a frame changes the shaping of the neighbouring glyph during an editing session
 and breaks Arabic joining, a known defect; without an editor session no page carries a frame in
 any browser.
 

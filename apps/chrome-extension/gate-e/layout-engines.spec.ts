@@ -17,11 +17,17 @@ import {
  *
  * Chromium, the engine the extension runs in, must measure marked output identical to
  * unmarked. Firefox is an extra check of the format, with no promise that the extension is
- * supported there. WebKit is a KNOWN DEFECT (owner decision 2026-11-19): during an editing
- * session a frame changes the shaping of the neighbouring glyph and breaks Arabic joining.
- * WebKit is outside the editor's supported way of working; the defect is to be returned to
- * before the editor is supported there. `test.fail` keeps the reproduction: it reports when
- * WebKit stops failing, and the measured values are never asserted as intended behaviour.
+ * supported there. WebKit ON macOS is a KNOWN DEFECT (owner decision 2026-11-19): during an
+ * editing session a frame changes the shaping of the neighbouring glyph and breaks Arabic
+ * joining. WebKit is outside the editor's supported way of working; the defect is to be
+ * returned to before the editor is supported there. `test.fail` keeps that reproduction on
+ * macOS: it reports when WebKit stops failing, and its values are never asserted as intended.
+ * Linux WebKit (the CI runner) did not reproduce it: there the comparison is measured and
+ * reported, neither asserted as a defect nor counted as WebKit being neutral.
+ *
+ * Every run also records whether the engine SHAPED Arabic at all (the joined word narrower
+ * than its letters set apart): without a shaping Arabic font the Arabic rows on that
+ * platform are not evidence either way, and the test says so.
  */
 /** Loads the page, waits for the editor's marking, measures and records every case. */
 async function measured(page: Page, engine: string) {
@@ -33,8 +39,38 @@ async function measured(page: Page, engine: string) {
     .toBe(true);
   const after = await measureAll(page);
   const pixels = await identicalPixels(page, Object.keys(after));
-  await record(`marker-layout-${engine}.json`, { after, pixels });
-  return { after, pixels };
+  const shaping = await arabicShaping(page);
+  await record(`marker-layout-${engine}-${process.platform}.json`, { after, pixels, shaping });
+  if (!shaping.shaped) {
+    test.info().annotations.push({
+      type: "not evidence",
+      description: `${engine} on ${process.platform} did not shape Arabic (joined ${shaping.joined} px, letters apart ${shaping.apart} px): the Arabic rows prove nothing here`,
+    });
+  }
+  return { after, pixels, shaping };
+}
+
+/**
+ * Whether the engine joins Arabic here: the word كتب is narrower joined than its three
+ * letters each in a box of its own (isolated forms). Equal widths mean no shaping font.
+ */
+async function arabicShaping(page: Page) {
+  return page.evaluate(() => {
+    const span = (text: string) => {
+      const s = document.createElement("span");
+      s.lang = "ar";
+      s.dir = "rtl";
+      s.style.font = "16px sans-serif";
+      s.textContent = text;
+      document.body.append(s);
+      const width = s.getBoundingClientRect().width;
+      s.remove();
+      return width;
+    };
+    const joined = span("كتب");
+    const apart = [..."كتب"].reduce((sum, letter) => sum + span(letter), 0);
+    return { joined, apart, shaped: Math.abs(apart - joined) > 0.5 };
+  });
 }
 
 // Required in every engine, WebKit included: the page loads, the editor marks, the control
@@ -48,12 +84,25 @@ test("the editor marks every case, the control stays unmarked, and lines and hei
 });
 
 test("marked output keeps the width and the pixels of unmarked output", async ({ page }, info) => {
-  // Only the known defect is expected to fail here: the prerequisites are the test above.
+  const webkit = info.project.name === "webkit";
+  // Only the known defect is expected to fail here, and only where it was measured: the
+  // prerequisites are the test above.
   test.fail(
-    info.project.name === "webkit",
-    "known defect, owner decision 2026-11-19: in WebKit a frame changes the neighbouring glyph's shaping and breaks Arabic joining",
+    webkit && process.platform === "darwin",
+    "known defect, owner decision 2026-11-19: in WebKit on macOS a frame changes the neighbouring glyph's shaping and breaks Arabic joining",
   );
   const { after, pixels } = await measured(page, info.project.name);
+  if (webkit && process.platform !== "darwin") {
+    // Not reproduced in Linux WebKit: reported, neither a defect nor a neutrality claim.
+    const differs = Object.entries(after)
+      .filter(([key, { plain, marked }]) => !pixels[key] || plain.width !== marked.width)
+      .map(([key]) => key);
+    test.info().annotations.push({
+      type: "reported, not a support claim",
+      description: `WebKit on ${process.platform}: cases whose width or pixels differ: ${differs.join(", ") || "none"}`,
+    });
+    return;
+  }
   // Before marking both boxes of a case are the same unmarked render, so the plain box after
   // is the baseline: unchanged means marked equals plain.
   const baseline = Object.fromEntries(
