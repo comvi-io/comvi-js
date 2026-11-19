@@ -7,6 +7,7 @@ import {
   getTranslation,
   saveTranslation,
 } from "../src/services/translationService";
+import { encodeFrame } from "../src/marker";
 
 const TIMESTAMP = "2026-01-01T00:00:00.000Z";
 
@@ -273,6 +274,60 @@ describe("translationService", () => {
     await saveTranslation("home.title", "default", { en: { other: "Updated title" } }, false);
 
     expect(sentBody(fetchMock).translations.en.value).toBe("Updated title");
+  });
+
+  // Text copied from a marked page carries the editor's frames; pasted into the form, they
+  // must not reach the platform (and through the save's answer, the page's catalog).
+  it("sends a value pasted from the marked page without its frames, natural ZWSP/ZWNJ kept", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue(mockOkResponse(makeKeyResponse({ key: "home.title" })));
+    const open = encodeFrame("", "default", "home.title");
+    const close = encodeFrame("", "default", "rich.terms", true);
+
+    await saveTranslation(
+      "home.title",
+      "default",
+      { en: { other: `${open}Welcome\u200B back` }, fa: { other: `خوش\u200Cآمدید${close}` } },
+      false,
+    );
+    expect(sentBody(fetchMock).translations).toEqual({
+      en: { value: "Welcome\u200B back", status: "not_reviewed" },
+      fa: { value: "خوش\u200Cآمدید", status: "not_reviewed" },
+    });
+
+    fetchMock.mockClear();
+    await saveTranslation(
+      "home.title",
+      "default",
+      { en: { other: "x" } },
+      false,
+      undefined,
+      undefined,
+      undefined,
+      {
+        en: `Read the <b>terms</b>${open} now`,
+      },
+    );
+    expect(sentBody(fetchMock).translations.en.value).toBe("Read the <b>terms</b> now");
+  });
+
+  it("a pasted frame alone is no change: nothing is sent", async () => {
+    const fetchMock = vi.mocked(fetch);
+    const open = encodeFrame("", "default", "home.title");
+    const sent = await saveTranslation(
+      "home.title",
+      "default",
+      { en: { other: `${open}Welcome` } },
+      false,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { en: "Welcome" },
+      false,
+    );
+    expect(sent).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("should send select-only translations as ICU select", async () => {

@@ -12,6 +12,7 @@ import {
   DEFAULT_SELECT_VARIABLE,
 } from "../utils/icuParser";
 import { apiFetch } from "./apiClient";
+import { stripFrames } from "../marker";
 
 export class DemoModeError extends Error {
   constructor(operation: string) {
@@ -290,9 +291,12 @@ export async function saveTranslation(
   try {
     const apiTranslations: Record<string, { value: string; status: string }> = {};
     Object.entries(translations).forEach(([langCode, forms]) => {
-      const value =
+      // Text copied from the marked page carries the editor's frames: they never reach the
+      // platform, nor, through the save's answer, the page's catalog.
+      const value = stripFrames(
         verbatim?.[langCode] ??
-        generateLanguageValue(forms, isPlural, pluralVariable, selectConfigs?.[langCode]);
+          generateLanguageValue(forms, isPlural, pluralVariable, selectConfigs?.[langCode]),
+      );
       const cleared =
         stored !== undefined &&
         stored[langCode] === undefined &&
