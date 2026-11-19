@@ -172,6 +172,36 @@ describe("a pair inside one text node (all-string parts joined)", () => {
   });
 });
 
+// Review findings (lot 8): a closing frame split between adjacent text nodes after the
+// parts; and a same-node pair with text around it.
+describe("a closing frame split between adjacent text nodes", () => {
+  const cut = (frame: string, at: number) => [frame.slice(0, at), frame.slice(at)];
+  it.each([
+    ["inside the payload", 10],
+    ["between the start character and the payload", 2],
+  ])("split %s → the pair keeps its extent and preview", async (_name, at) => {
+    const [head, tail] = cut(close("buy"), at);
+    const a = el("a", text("Buy"));
+    const p = render(el("p", text(open("buy")), a, text(` now${head}`), text(tail!)));
+
+    expect({
+      opened: await altClickOpens(a),
+      preview: [...core.getRegistry().get(p)!.nodes.values()][0]!.textPreview,
+    }).toEqual({ opened: { modal: "default:buy", into: page.i18n }, preview: "Buy now" });
+  });
+});
+
+describe("a pair inside one text node with text around it", () => {
+  it("prefix · open · value · close · suffix → the preview is the value", async () => {
+    const p = render(el("p", text(`Price: ${open("joined")}Buy now${close("joined")} today`)));
+
+    expect({
+      opened: await altClickOpens(p),
+      preview: [...core.getRegistry().get(p)!.nodes.values()][0]!.textPreview,
+    }).toEqual({ opened: { modal: "default:joined", into: page.i18n }, preview: "Buy now" });
+  });
+});
+
 describe("a pair with its closing frame missing", () => {
   it("an opening frame alone reads as a suffix: clickable, preview is the text before it", async () => {
     const p = render(el("p", text(`Before${open("lone")}`), el("a", text("part"))));

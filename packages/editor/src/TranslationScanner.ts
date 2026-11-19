@@ -19,6 +19,8 @@ interface DecodedMarker extends KeyInfo {
   start: number;
   /** The text node holding the closing frame of a rich pair that spans nodes. */
   close?: Text;
+  /** Closed by a later closing frame of the same text: the preview is the text between. */
+  paired?: boolean;
 }
 
 const sameKey = (a: KeyInfo, b: KeyInfo): boolean =>
@@ -33,24 +35,43 @@ const preview = (text: string): string => stripFrames(text).trim();
  * nest.
  */
 function findClose(open: KeyInfo, last: Text): { node: Text; before: string } | undefined {
-  let depth = 0;
-  let before = "";
+  const texts: Text[] = [];
   for (let sibling = last.nextSibling; sibling; sibling = sibling.nextSibling) {
-    const texts: Text[] = [];
     if (sibling.nodeType === Node.TEXT_NODE) texts.push(sibling as Text);
     else {
       const walker = createTreeWalker(sibling, NodeFilter.SHOW_TEXT);
       for (let node = walker.nextNode(); node; node = walker.nextNode()) texts.push(node as Text);
     }
-    for (const text of texts) {
-      const value = text.nodeValue ?? "";
-      for (const frame of decodeFrames(value)) {
-        if (!sameKey(frame, open)) continue;
-        if (!frame.close) depth++;
-        else if (depth-- === 0) return { node: text, before: before + value.slice(0, frame.start) };
+  }
+  let depth = 0;
+  let before = "";
+  // Adjacent text siblings are read as one string, so a frame split across them decodes; the
+  // closing frame is reported on the node where it starts.
+  for (let i = 0; i < texts.length;) {
+    const run = [texts[i]!];
+    while (
+      i + run.length < texts.length &&
+      run[run.length - 1]!.nextSibling === texts[i + run.length]
+    )
+      run.push(texts[i + run.length]!);
+    i += run.length;
+    const value = run.map((text) => text.nodeValue ?? "").join("");
+    for (const frame of decodeFrames(value)) {
+      if (!sameKey(frame, open)) continue;
+      if (!frame.close) depth++;
+      else if (depth-- === 0) {
+        let offset = 0;
+        let node = run[0]!;
+        for (const text of run) {
+          const length = (text.nodeValue ?? "").length;
+          node = text;
+          if (frame.start < offset + length) break;
+          offset += length;
+        }
+        return { node, before: before + value.slice(0, frame.start) };
       }
-      before += value;
     }
+    before += value;
   }
   return undefined;
 }
@@ -95,6 +116,7 @@ function decodeMarkers(text: string, from = 0, to = text.length, run?: Text[]): 
         key,
         start: frame.start,
         close: found?.node,
+        ...(pairedIn ? { paired: true } : {}),
         textPreview: pairedIn
           ? preview(text.slice(frame.end, pairedIn.start))
           : found
@@ -124,7 +146,7 @@ function toNodeData(markers: DecodedMarker[], wholePreview: string): NodeData | 
     ...(m.close ? { close: m.close } : {}),
   });
   if (distinct.length === 1) {
-    return data(first, first.close ? first.textPreview : wholePreview);
+    return data(first, first.close || first.paired ? first.textPreview : wholePreview);
   }
   return { ...data(first), markers: distinct.map((m) => data(m)) };
 }
