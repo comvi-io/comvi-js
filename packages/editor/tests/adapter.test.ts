@@ -257,6 +257,52 @@ describe("following the queue after activation", () => {
   });
 });
 
+describe("the marking hook", () => {
+  /** The hook the editor hands to `x.mark`, captured from a handle the test owns. */
+  function capturedHook() {
+    let hook: ((out: unknown, key: string, ns: string) => unknown) | undefined;
+    win.__COMVI__ = [
+      {
+        v: "0.8.0",
+        i: { add: () => {} },
+        x: {
+          p: 2,
+          kind: "comvi",
+          mark: (fn: typeof hook) => (hook = fn ?? hook),
+          state: () => ({}),
+        },
+      },
+    ];
+    activate({ refreshMessages: false });
+    return hook!;
+  }
+
+  it("a string → the string with one suffix frame", () => {
+    const out = capturedHook()("Save", "save", "default");
+
+    expect(decodeFrames(out as string).map((f) => [f.key, f.close])).toEqual([["save", false]]);
+  });
+
+  it("rich parts → a NEW array [open, ...parts, close]; the input array is not touched", () => {
+    const part = { tag: "a" };
+    const parts = Object.freeze(["Read ", part, " now"]);
+
+    const out = capturedHook()(parts, "read", "default") as unknown[];
+
+    expect({
+      newArray: out !== parts,
+      input: [...parts],
+      middle: out.slice(1, -1),
+      ends: [out[0], out[out.length - 1]].map((f) => decodeFrames(f as string)[0]?.close),
+    }).toEqual({
+      newArray: true,
+      input: ["Read ", part, " now"],
+      middle: ["Read ", part, " now"],
+      ends: [false, true],
+    });
+  });
+});
+
 describe("instance ids (editor-internal)", () => {
   it("one instance → empty id; a second appears → the first is re-marked comvi-1, the second gets comvi-2", () => {
     const a = make();

@@ -218,12 +218,27 @@ importers:
       '@comvi/core':
         specifier: workspace:*
         version: link:../core
+      '@comvi/react':
+        specifier: workspace:*
+        version: link:../react
+      '@comvi/solid':
+        specifier: workspace:*
+        version: link:../solid
+      '@comvi/svelte':
+        specifier: workspace:*
+        version: link:../svelte
       '@comvi/test-utils':
         specifier: workspace:*
         version: link:../../tooling/test-utils
+      '@comvi/vue':
+        specifier: workspace:*
+        version: link:../vue
       '@lucide/vue':
         specifier: ^1.61.0
         version: 1.61.0(vue@3.5.44(typescript@6.0.2))
+      '@sveltejs/vite-plugin-svelte':
+        specifier: ^7.3.1
+        version: 7.3.1(svelte@5.57.2(@typescript-eslint/types@8.72.0))(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
@@ -254,9 +269,21 @@ importers:
       happy-dom:
         specifier: ^21.0.4
         version: 21.0.4
+      react:
+        specifier: ^19.3.1
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.3.1
+        version: 19.3.1(react@19.3.1)
       reka-ui:
         specifier: ^2.11.0
         version: 2.11.0(vue@3.5.44(typescript@6.0.2))
+      solid-js:
+        specifier: ^1.9.17
+        version: 1.9.17
+      svelte:
+        specifier: ^5.57.2
+        version: 5.57.2(@typescript-eslint/types@8.72.0)
       tailwind-merge:
         specifier: ^3.7.0
         version: 3.7.0

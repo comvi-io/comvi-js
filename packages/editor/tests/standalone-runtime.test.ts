@@ -213,6 +213,42 @@ describe("activate() defaults", () => {
   });
 });
 
+describe("the API key stays out of the page", () => {
+  it("not in the DOM, in any frame, in a log line or in the lifecycle event", async () => {
+    const KEY = "sk_live_must_not_leak_0123456789";
+    const i18n = makeI18n();
+    const lines: unknown[] = [];
+    for (const level of ["log", "info", "warn", "error", "debug"] as const)
+      vi.spyOn(console, level).mockImplementation((...args) => void lines.push(args));
+    const events: unknown[] = [];
+    const onEvent = (event: Event) => events.push((event as CustomEvent).detail);
+    window.addEventListener(EDITOR_LIFECYCLE_EVENT, onEvent);
+
+    const result = activate({ apiKey: KEY, refreshMessages: false });
+    const paragraph = renderText(i18n.t("hello"));
+    await hoverLabel(paragraph);
+    const frames = decodeFrames(document.body.innerHTML + i18n.t("hello"));
+    stopOf(result)();
+    window.removeEventListener(EDITOR_LIFECYCLE_EVENT, onEvent);
+
+    expect({
+      dom: document.documentElement.outerHTML.includes(KEY),
+      frames: JSON.stringify(frames).includes(KEY),
+      logs: JSON.stringify(lines).includes(KEY),
+      events: JSON.stringify(events).includes(KEY),
+      result: JSON.stringify(result).includes(KEY),
+      framesSeen: frames.length > 0,
+    }).toEqual({
+      dom: false,
+      frames: false,
+      logs: false,
+      events: false,
+      result: false,
+      framesSeen: true,
+    });
+  });
+});
+
 describe("context collection is off (owner D4)", () => {
   it("the result reports collectContext: false", () => {
     makeI18n();

@@ -1,19 +1,25 @@
 import { defineConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { resolve } from "path";
 import pkg from "./package.json";
 
 export default defineConfig({
-  plugins: [vue()],
+  // Svelte compiles the fixtures of tests/bindings (the real bindings' rich output).
+  plugins: [vue(), svelte()],
   define: {
     __VERSION__: JSON.stringify(pkg.version),
   },
   resolve: {
+    // Solid and Svelte resolve their client builds only under `browser` (happy-dom is one).
+    conditions: ["browser", "development"],
     alias: {
       "@": resolve(__dirname, "./src"),
     },
   },
   test: {
+    // Run through Vite, not Node, so Solid resolves its reactive browser build.
+    server: { deps: { inline: [/solid-js/, /@comvi\/solid/] } },
     globals: true,
     restoreMocks: true,
     unstubEnvs: true,
