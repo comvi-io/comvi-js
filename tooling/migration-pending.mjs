@@ -6,16 +6,18 @@
  * Lot 1a replaced `@comvi/core` with the new compile/locale foundation, lot 1b added
  * `createI18n`, the instance and the `/cdn`, `/plugins`, `/format`, `/devtools` subpaths,
  * lot 1c rebuilt `@comvi/react` and moved the React and vanilla examples, lot 4 rebuilt
- * `@comvi/vue` and moved the Vue example and test app, and lot 5 did the same for
- * `@comvi/solid` and `@comvi/svelte` with their SSR examples.
+ * `@comvi/vue` and moved the Vue example and test app, lot 5 did the same for
+ * `@comvi/solid` and `@comvi/svelte` with their SSR examples, lots 6–7 moved Next and Nuxt,
+ * and lot 8 rebuilt `@comvi/editor` and the Chrome extension on protocol 2 (the list is empty
+ * since then; the mechanism stays for the docs below until lot 10).
  * Until a package's lot lands, every repo gate leaves it out EXPLICITLY:
  *
  *   - turbo tasks (build, test, lint, typecheck, coverage): `scripts/turbo-active.mjs`
  *     appends `--filter=!<name>` for each entry;
  *   - per-package gates (package contracts, publint, types exports, inlined version,
  *     size rows): skip the entry and print it with its reason;
- *   - gates that exist only for pending packages (bundler matrix, strict consumer,
- *     node entries, docs snippet types, examples e2e, test-apps smoke, Gate E):
+ *   - gates that need a package that may be pending (strict consumer, docs quickstart;
+ *     the docs snippet gates report a pending package's README as advisory instead):
  *     `exitIfPending()` prints the reason and exits 0 (the perf A/B runs again since
  *     lot 1b, across core generations);
  *   - multi-shard gates (examples e2e per framework, test-apps smoke per app, bundler
@@ -31,10 +33,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const MIGRATION_PENDING = {
-  "@comvi/editor": "lot 8: editor on protocol 2 (adapter done; un-pended with the extension)",
-  "@comvi/chrome-extension": "lot 8: detector, popup and Gate E on protocol 2",
-};
+export const MIGRATION_PENDING = {};
 
 /**
  * Documents (repo-relative) whose code fences use API that is MIGRATION_PENDING. A
@@ -85,7 +84,7 @@ export function packageName(dirOrName) {
  */
 export const PENDING_CAPABILITIES = {
   "fixtures-08":
-    "examples, test apps and bundler-matrix fixtures still on the 0.7 API move to the 0.8 createI18n with their binding's lot (next: lot 6, nuxt: lot 7, the editor: lot 8)",
+    "examples, test apps and bundler-matrix fixtures still on the 0.7 API move to the 0.8 createI18n with their binding's lot",
 };
 
 /**
@@ -213,11 +212,6 @@ export const EXAMPLES_E2E_MATRIX = [
 /** The test apps of `pnpm test-apps:smoke` (scripts/test-apps-smoke/run.mjs APPS). */
 export const TEST_APPS = ["next", "next16", "nuxt", "nuxt4"];
 
-/** CI job switches for single-shard jobs: a job runs only when nothing it needs is pending. */
-export const CI_JOBS = {
-  extension: ["@comvi/editor", "@comvi/chrome-extension"],
-};
-
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv.includes("--github-output")) {
     const quiet = () => {};
@@ -225,9 +219,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       (e) => activeShards([e.framework], exampleNeeds, "examples-e2e", quiet).length === 1,
     );
     const lines = [
-      ...Object.entries(CI_JOBS).map(
-        ([job, needs]) => `${job}=${needs.some((n) => pendingReason(n)) ? "pending" : "active"}`,
-      ),
       // A JSON matrix of the ACTIVE examples-e2e shards (`[]` when none is active).
       `examples_e2e_matrix=${JSON.stringify(examples)}`,
       // Comma-separated active test apps (empty when none is active).

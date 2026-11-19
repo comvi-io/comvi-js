@@ -43,6 +43,22 @@
       "outputs": [],
       "dependsOn": ["^build"]
     },
+    // Gate E serves the built core, editor and framework fixtures to Chromium: every
+    // workspace package the extension declares is built first (`^build`), so no manual
+    // pre-step decides which dist is fresh. Never cached: it is a browser run.
+    "@comvi/chrome-extension#test:e2e": {
+      "outputs": [],
+      "dependsOn": ["^build"],
+      "cache": false,
+      // playwright.config.ts reads CI (forbidOnly, reporters, no server reuse).
+      "passThroughEnv": ["CI", "PLAYWRIGHT_*"]
+    },
+    "@comvi/chrome-extension#test:release": {
+      "outputs": [],
+      "dependsOn": ["^build"],
+      "cache": false,
+      "passThroughEnv": ["CI", "PLAYWRIGHT_*"]
+    },
     "//#size": {
       "outputs": [],
       // The framework fixtures (scripts/size-fixtures/framework/) resolve every

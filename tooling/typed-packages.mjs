@@ -19,6 +19,12 @@
 // attw would report an unresolvable specifier here if a `.d.ts` still imported
 // one.
 //
+// `editor` is published but has no types to gate: its only export is
+// `./standalone.iife.js`, a classic script the extension puts on a page (it sets
+// `window.ComviInContextEditor`), with no module and no declaration file. Its
+// tarball is checked by the package contracts, publint and the inlined-version
+// gate.
+//
 // All packages are ESM-only — there is no `.d.cts`/`require` condition anymore.
 export const TYPED_PACKAGES = [
   "core",
