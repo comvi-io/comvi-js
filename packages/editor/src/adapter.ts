@@ -121,6 +121,21 @@ export function isLoaded(s: HandleState, ns: string, locale: string): boolean {
   return Boolean(s.c[ns]?.[locale]) && !s.ld.includes(locale + "\0" + ns);
 }
 
+const canonical = (locale: string): string => locale.toLowerCase().replace(/_/g, "-");
+
+/**
+ * The app's own spelling of a platform language among its loaded pairs of `ns`: the pair
+ * itself when it is loaded, else the ONE loaded pair whose locale matches it canonically
+ * (case and `_`/`-`: the platform says `pt-BR`, the app runs `pt-br`). `undefined` when no
+ * pair matches, or when two do and neither is exact — that is not guessed.
+ */
+export function appLocale(s: HandleState, ns: string, locale: string): string | undefined {
+  if (isLoaded(s, ns, locale)) return locale;
+  const wanted = canonical(locale);
+  const same = Object.keys(s.c[ns] ?? {}).filter((l) => canonical(l) === wanted);
+  return same.length === 1 && isLoaded(s, ns, same[0]!) ? same[0] : undefined;
+}
+
 /** A live editor session over the page's instances. */
 export class Session {
   private targets = new Map<object, Target & { entries: unknown[] }>();
@@ -163,7 +178,8 @@ export class Session {
       return;
     }
     for (const [locale, value] of Object.entries(byLocale)) {
-      if (isLoaded(s, ns, locale)) target.i.add(locale, { [key]: value }, ns);
+      const pair = appLocale(s, ns, locale);
+      if (pair !== undefined) target.i.add(pair, { [key]: value }, ns);
     }
   }
 
