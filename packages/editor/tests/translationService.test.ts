@@ -278,7 +278,7 @@ describe("translationService", () => {
 
   // Text copied from a marked page carries the editor's frames; pasted into the form, they
   // must not reach the platform (and through the save's answer, the page's catalog).
-  it("sends a value pasted from the marked page without its frames, natural ZWSP/ZWNJ kept", async () => {
+  it("removes the complete recognised markers of a value pasted from the marked page, natural ZWSP/ZWNJ kept", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValue(mockOkResponse(makeKeyResponse({ key: "home.title" })));
     const open = encodeFrame("", "default", "home.title");

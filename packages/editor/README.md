@@ -53,7 +53,7 @@ naming its instance, namespace and key, and a scanner maps the frames back to ke
 Pass `{ markers: false }` to one `t()` call, or `markers={false}` to `<T>`, for a string that is
 compared, measured or drawn to a canvas; it is then not editable in context. Markers are not
 removed from strings the app sends elsewhere, such as a document title or the clipboard; text
-copied from the page into the edit modal is saved without them.
+copied from the page into the edit modal has its complete recognised markers removed on save.
 
 Marking starts in the browser when the editor is enabled: a server render never carries a frame.
 **Text rendered only by a Next.js Server Component is not editable in context**: the browser never
@@ -66,9 +66,10 @@ after that has none. A string the app kept elsewhere while the editor was on (a 
 set once, a value written to the DOM by hand or copied into a store or an input) keeps its frames
 until the app renders it again or the page reloads.
 
-Only whole frames are removed from a saved value. A marked string the app cut (with `slice`, for
-example) leaves stray tag characters, and text pasted from it is saved with them. A key whose
-name holds a lone surrogate is read back as U+FFFD.
+Complete recognised markers are removed from a value on save; natural ZWSP, ZWNJ and ZWJ stay.
+A damaged marker (a marked string the app cut, with `slice` for example) is not recognised: text
+pasted from it keeps its leftover tag characters, a limit of this version. A key whose name holds
+a lone surrogate is read back as U+FFFD.
 
 The extension runs in Chromium, where marked text measures and draws the same as unmarked
 text. In WebKit a frame changes the shaping of the neighbouring glyph during an editing session

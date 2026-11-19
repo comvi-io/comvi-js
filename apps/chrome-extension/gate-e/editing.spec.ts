@@ -339,7 +339,7 @@ for (const [app, platform] of [
 
 // Owner decision 2026-11-19 (3c): markers never reach catalogs or saved translations, even
 // when the translator copies the text from the marked page into the form.
-test("text copied from the marked page and pasted into the form is saved without its frames", async () => {
+test("text copied from the marked page and pasted into the form has its complete recognised markers removed on save", async () => {
   await withGateE({}, async (launched, popups) => {
     const { page, tabId } = await openSite(launched, "/app");
     await enable(launched, popups, page, tabId);

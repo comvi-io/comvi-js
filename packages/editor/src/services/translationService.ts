@@ -291,8 +291,9 @@ export async function saveTranslation(
   try {
     const apiTranslations: Record<string, { value: string; status: string }> = {};
     Object.entries(translations).forEach(([langCode, forms]) => {
-      // Text copied from the marked page carries the editor's frames: they never reach the
-      // platform, nor, through the save's answer, the page's catalog.
+      // Text copied from the marked page carries the editor's frames: the complete recognised
+      // ones are removed here, so they reach neither the platform nor, through the save's
+      // answer, the page's catalog. A damaged frame is not recognised and is sent as it is.
       const value = stripFrames(
         verbatim?.[langCode] ??
           generateLanguageValue(forms, isPlural, pluralVariable, selectConfigs?.[langCode]),
