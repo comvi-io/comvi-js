@@ -339,6 +339,23 @@ describe("activate() translation refresh", () => {
     expect(i18n.t("hello", { markers: false })).toBe("Hello from the platform");
   });
 
+  // Review question (lot 8, Fable K), checked against the mock answer only: the refresh asks
+  // with the app's spelling (`pt-br`) and the platform answers under its own (`pt-BR`). The
+  // answer is written to the app's pair, under the app's spelling.
+  it("an answer under the platform's spelling of the locale refreshes the app's own pair", async () => {
+    const i18n = pageInstance({ locale: "pt-br", messages: { "pt-br": { hello: "Olá" } } });
+    instances.push(i18n);
+    fetchApiTranslationsMock.mockResolvedValue(
+      new Map([["pt-BR:default", { hello: "Olá da plataforma" }]]),
+    );
+
+    activate({ apiKey: "test-key" });
+    await settleRefresh();
+
+    expect(fetchApiTranslationsMock.mock.calls.map(([, locale]) => locale)).toEqual(["pt-br"]);
+    expect(i18n.t("hello", { markers: false })).toBe("Olá da plataforma");
+  });
+
   it("a pair the platform returns but the instance never loaded is not written (its own load stays)", async () => {
     const loader = vi.fn<Loader>(async (_locale, ns) =>
       ns === "shop" ? { cart: "Cart" } : ({} as Record<string, string>),
