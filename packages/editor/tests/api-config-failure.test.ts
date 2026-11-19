@@ -90,6 +90,38 @@ describe("activate() startup failure", () => {
   });
 });
 
+// Review finding (lot 8): Session marks every instance and owns push/splice on the queue
+// before Core is built and started; a start that throws must take all of it back.
+describe("activate() failure after marking", () => {
+  it("the initial scan throws → markers, queue wrappers and the session are gone, and the next activate works once", () => {
+    const i18n = makeI18n();
+    const queue = (window as unknown as { __COMVI__: unknown[] }).__COMVI__;
+    const own = Object.getOwnPropertyNames(queue).sort();
+    const realStart = Core.prototype.start;
+    const start = vi.spyOn(Core.prototype, "start").mockImplementationOnce(() => {
+      throw new Error("scan failed");
+    });
+
+    expect(() => activate({ refreshMessages: false })).toThrow("scan failed");
+
+    expect({
+      active: isActive(),
+      session: getSession(),
+      text: i18n.t("hello"),
+      own: Object.getOwnPropertyNames(queue).sort(),
+    }).toEqual({ active: false, session: null, text: "Hello", own });
+
+    start.mockImplementation(realStart);
+    const result = activate({ refreshMessages: false });
+    expect(result.ok).toBe(true);
+    expect(i18n.t("hello")).not.toBe("Hello");
+    expect(activate({ refreshMessages: false })).toMatchObject({
+      ok: false,
+      code: "already-active",
+    });
+  });
+});
+
 describe("deactivate() teardown failure", () => {
   it("resetApiConfig throws, nothing else fails → deactivation rethrows the reset failure", () => {
     makeI18n();

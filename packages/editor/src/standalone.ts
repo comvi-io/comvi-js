@@ -193,26 +193,32 @@ export function activate(options: ActivateOptions = {}): ActivateResult {
   if (!found.ok) return fail(found.code);
 
   const apiKey = options.transport ? undefined : options.apiKey?.trim();
+  // The session marks every instance and owns push/splice on the queue at once: whatever
+  // fails after that takes all of it back before the failure leaves.
   const session = new Session(found.q, found.found);
-  const core = new Core(
-    {
-      targetElement: options.targetElement || document.body,
-      tagAttributes: options.tagAttributes,
-      debug: options.debug,
-      highlightStyle: options.highlightStyle,
-    },
-    session,
-  );
-  const scopeId = core.getInstanceId();
+  let core: Core | undefined;
+  let scopeId: string;
   try {
+    core = new Core(
+      {
+        targetElement: options.targetElement || document.body,
+        tagAttributes: options.tagAttributes,
+        debug: options.debug,
+        highlightStyle: options.highlightStyle,
+      },
+      session,
+    );
+    scopeId = core.getInstanceId();
     initApiConfig(apiKey, scopeId, { transport: options.transport, baseUrl: options.apiBaseUrl });
+    core.start();
   } catch (error) {
-    core.stop();
-    session.stop();
+    try {
+      core?.stop();
+    } finally {
+      session.stop();
+    }
     throw error;
   }
-
-  core.start();
   active = { core, session };
   activeLifecycleCallback = options.onLifecycle;
   notifyLifecycle({ state: "activated" });
