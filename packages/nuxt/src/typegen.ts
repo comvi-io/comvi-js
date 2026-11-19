@@ -28,6 +28,15 @@ function print({ level, text }: GenerateMessage): void {
 }
 
 export function setupTypes(nuxt: Nuxt, types: NuxtI18nTypes, defaultLocale: string): void {
+  // The versions the declaration is verified on: older ones keep it where their tsconfigs do
+  // not look (4.0–4.5, a second build) or give Nitro no reference (3.x before 3.16).
+  const version = (nuxt as { _version?: string })._version;
+  const [major, minor = 0, patch = 0] = String(version).split(".").map(Number);
+  if ((major === 3 && minor * 1000 + patch < 21011) || (major === 4 && minor < 6))
+    throw new Error(
+      `${PREFIX} \`comvi.types\` needs Nuxt 3.21.11+ or 4.6.0+, and this app has Nuxt ${version}. ` +
+        "Upgrade Nuxt or remove `comvi.types`: translations work on this version without it.",
+    );
   if (typeof types?.from !== "string" || types.from === "")
     throw new TypeError(
       `${PREFIX} \`comvi.types.from\` must name the catalogs directory, e.g. "./i18n/locales"`,

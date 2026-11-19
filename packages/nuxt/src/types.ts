@@ -108,7 +108,8 @@ export interface NuxtI18nOptions {
   /**
    * Typed translations: the module writes a declaration from local JSON catalogs before
    * the app is type-checked (`nuxt prepare`, `nuxt typecheck`, `nuxt build`) and keeps it
-   * current in `nuxt dev`. Unset: nothing is generated.
+   * current in `nuxt dev`. Unset: nothing is generated. Needs Nuxt 3.21.11+ or 4.6.0+: on an
+   * older Nuxt the module's setup fails.
    * @example { from: "./i18n/locales" }
    */
   types?: NuxtI18nTypes;

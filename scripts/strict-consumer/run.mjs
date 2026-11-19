@@ -63,7 +63,7 @@ function link(target, linkPath) {
  * An app that declares `declares` and has exactly those packages linked into
  * its `node_modules` — nothing else is reachable from the app root.
  */
-function makeApp({ declares }) {
+function makeApp({ declares, node10 = false }) {
   const app = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-strict-consumer-"));
   appRoots.push(app);
 
@@ -94,8 +94,11 @@ function makeApp({ declares }) {
       {
         compilerOptions: {
           target: "ES2022",
-          module: "NodeNext",
-          moduleResolution: "nodenext",
+          ...(node10
+            ? // What Nuxt 3.7–3.9 write into `.nuxt/tsconfig.json` by default; TypeScript 6
+              // reports node10 as deprecated (TS5107) unless told to ignore it.
+              { module: "ESNext", moduleResolution: "node", ignoreDeprecations: "6.0" }
+            : { module: "NodeNext", moduleResolution: "nodenext" }),
           strict: true,
           noEmit: true,
           skipLibCheck: false,
@@ -177,8 +180,8 @@ function report(text) {
  * An app declaring exactly `specifier` gets declarations that augment it, and
  * those declarations close the key union.
  */
-async function declaredPackageCase(specifier) {
-  const app = makeApp({ declares: [specifier] });
+async function declaredPackageCase(specifier, { node10 = false } = {}) {
+  const app = makeApp({ declares: [specifier], node10 });
   await generate(app);
 
   const generated = fs.readFileSync(path.join(app, "comvi.d.ts"), "utf8");
@@ -201,8 +204,8 @@ async function declaredPackageCase(specifier) {
   if (!unknown.output.includes("TS2345")) {
     failures.push("expected TS2345 for the unknown key");
   }
-  if (unknown.output.includes("TS2882")) {
-    failures.push("TypeScript could not resolve the augmented module (TS2882)");
+  if (/TS2307|TS2882/.test(unknown.output)) {
+    failures.push("TypeScript could not resolve the declared package (TS2307/TS2882)");
   }
 
   return failures;
@@ -217,6 +220,14 @@ const cases = [
     name: "B. an app declaring only @comvi/nuxt, whose Catalogs is a named re-export",
     package: "@comvi/nuxt",
     run: () => declaredPackageCase("@comvi/nuxt"),
+  },
+  {
+    // Nuxt 3.7–3.9 resolve with node10 unless `typescriptBundlerResolution` is set, and
+    // node10 reads no `exports`: without a top-level `types` the package does not resolve,
+    // the declaration attaches to nothing and every key compiles.
+    name: "B2. the same @comvi/nuxt app under node10 resolution (Nuxt 3.7–3.9's default)",
+    package: "@comvi/nuxt",
+    run: () => declaredPackageCase("@comvi/nuxt", { node10: true }),
   },
   {
     name: "C. an app declaring @comvi/core directly",

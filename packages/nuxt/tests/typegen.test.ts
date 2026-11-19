@@ -86,6 +86,23 @@ describe("comvi.types", () => {
     }
   });
 
+  it("refuses a Nuxt older than 3.21.11 (3.x) or 4.6.0 (4.x), naming the version, before any hook", () => {
+    for (const version of ["3.7.0", "3.16.0", "3.21.10", "4.0.0", "4.5.2"]) {
+      const a = app();
+      a.nuxt._version = version;
+      expect(() => setupTypes(a.nuxt, { from: "./i18n/locales" }, "en"), version).toThrow(
+        `[@comvi/nuxt] \`comvi.types\` needs Nuxt 3.21.11+ or 4.6.0+, and this app has Nuxt ${version}. Upgrade Nuxt or remove \`comvi.types\`: translations work on this version without it.`,
+      );
+      expect(a.nuxt.hook).not.toHaveBeenCalled();
+    }
+    for (const version of ["3.21.11", "3.22.0", "4.6.0", "4.6.2", "4.7.1"]) {
+      const a = app();
+      a.nuxt._version = version;
+      expect(() => setupTypes(a.nuxt, { from: "./i18n/locales" }, "en"), version).not.toThrow();
+      expect(a.nuxt.hook).toHaveBeenCalled();
+    }
+  });
+
   it("writes <buildDir>/types/comvi.d.ts from `from` under rootDir, in defaultLocale, and references it", async () => {
     const a = app();
     setupTypes(a.nuxt, { from: "./i18n/locales" }, "de");

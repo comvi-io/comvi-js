@@ -1065,6 +1065,25 @@ describe("nuxt module setup", () => {
       expect(nuxt.hook.mock.calls.map(([name]: [string]) => name)).toEqual(["nitro:config"]);
     });
 
+    it("on a Nuxt too old for it, fails the setup with it and changes nothing without it", async () => {
+      const moduleDefinition = await importModule();
+      const nuxt = createNuxtStub();
+      (nuxt as { _version?: string })._version = "3.7.0";
+      await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+      expect(nuxt.hook.mock.calls.map(([name]: [string]) => name)).toEqual(["nitro:config"]);
+
+      const old = createNuxtStub();
+      (old as { _version?: string })._version = "4.0.0";
+      await expect(
+        (await importModule()).setup(
+          { locales: ["en"], defaultLocale: "en", types: { from: "./i18n/locales" } },
+          old,
+        ),
+      ).rejects.toThrow(
+        "[@comvi/nuxt] `comvi.types` needs Nuxt 3.21.11+ or 4.6.0+, and this app has Nuxt 4.0.0.",
+      );
+    });
+
     it("hands the option and the module's defaultLocale to the wrapper", async () => {
       const setupTypes = vi.fn();
       vi.doMock("../src/typegen", () => ({ setupTypes }));
