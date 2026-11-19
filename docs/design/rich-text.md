@@ -69,9 +69,10 @@ Markup comes only from tags, through their handlers or `components`. A param key
 is that tag's handler, not a `{name}` value:
 
 ```tsx
+import { T } from "@comvi/react";
 // Before: "Hello, {name}!"   t("greeting", { name: <strong>Olena</strong> })
 // After:  "Hello, <strong>{name}</strong>!"
-<T i18nKey="greeting" name="Olena" components={{ strong: "strong" }} />
+<T i18nKey="greeting" name="Olena" components={{ strong: "strong" }} />;
 ```
 
 **`<T markers={false}>` keeps the in-context editor's invisible markers out of one result**, the

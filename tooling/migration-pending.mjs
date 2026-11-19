@@ -36,32 +36,51 @@ import { fileURLToPath } from "node:url";
 export const MIGRATION_PENDING = {};
 
 /**
- * Documents (repo-relative) whose code fences use API that is MIGRATION_PENDING. A
- * README of a pending package is pending by its package; these are the others. Their
- * findings in `pnpm check:snippets` are reported as advisory `migration-pending/*`.
+ * Documents (repo-relative) whose docs-snippets findings are advisory until lot 10, each with
+ * the EXACT rule ids that are advisory there and why. Every other finding in these documents,
+ * and every finding in any other document, blocks (`pnpm check:snippets`,
+ * `pnpm check:snippets:types`; `scripts/check-snippets.mjs`). A README of a pending package is
+ * advisory as a whole (`pendingReason`); none is pending today.
+ *
+ *   - LINT_07: pages already on the 0.8 API. Only the two LINT rules that still require the 0.7
+ *     composition are advisory; their type-check and every other rule block.
+ *   - CORE_07: pages that still document the 0.7 core API (checked against their content on
+ *     2026-11-19); the rules listed per page are the ones that page fails today.
  */
-const CORE_07_DOCS =
-  "documents the 0.7 core API (.use() composition, the capability subpaths); the 0.8 API landed in lot 1b, the pages are rewritten in lot 10";
 const LINT_07_RULES =
   "on the 0.8 API since lot 1c (React), lot 4 (Vue), lot 5 (Solid, Svelte), lot 6a (Next) and lot 7 (Nuxt); the docs-snippets rules still require the 0.7 composition (`.use(installer)`, `compiler: icuCompiler`) — they move to 0.8 with the docs in lot 10";
 const CDN_08_ROOT =
   "its Connect to Comvi section is on the 0.8 API since lot 2c (`loader: cdn(url)` from @comvi/core/cdn, the 0.7 fetch loader is gone); the docs-snippets rules still require the 0.7 composition (`.use(installer)`) — they move to 0.8 with the docs in lot 10";
+const CORE_07_DOCS =
+  "documents the 0.7 core API (.use() composition, the capability subpaths); the 0.8 API landed in lot 1b, the pages are rewritten in lot 10";
+/** The two docs-snippets LINT rules that still require the 0.7 composition. */
+const LINT_07 = ["required/use-composition", "required/icu-compiler"];
+const lint07 = { reason: LINT_07_RULES, rules: LINT_07 };
+const core07 = (...rules) => ({ reason: CORE_07_DOCS, rules });
 export const MIGRATION_PENDING_DOCS = {
-  "README.md": CDN_08_ROOT,
-  "packages/core/README.md": CORE_07_DOCS,
-  "packages/react/README.md": LINT_07_RULES,
-  "packages/next/README.md": LINT_07_RULES,
-  "packages/nuxt/README.md": LINT_07_RULES,
-  "packages/vue/README.md": LINT_07_RULES,
-  "packages/solid/README.md": LINT_07_RULES,
-  "packages/svelte/README.md": LINT_07_RULES,
-  "packages/vite-plugin/README.md": LINT_07_RULES,
-  "examples/README.md": LINT_07_RULES,
-  "docs/design/composition.md": CORE_07_DOCS,
-  "docs/design/formatting.md": CORE_07_DOCS,
-  "docs/design/icu.md": CORE_07_DOCS,
-  "docs/design/rich-text.md": CORE_07_DOCS,
-  "docs/design/ssr.md": CORE_07_DOCS,
+  "README.md": { reason: CDN_08_ROOT, rules: LINT_07 },
+  "packages/react/README.md": lint07,
+  "packages/next/README.md": lint07,
+  "packages/nuxt/README.md": lint07,
+  "packages/vue/README.md": lint07,
+  "packages/solid/README.md": lint07,
+  "packages/svelte/README.md": lint07,
+  "packages/vite-plugin/README.md": lint07,
+  "examples/README.md": lint07,
+  // The README's banner says it: the 0.7 API (`i18n.init()`, `.use()`), rewritten in lot 10.
+  "packages/core/README.md": core07("required/use-composition", "typecheck/error"),
+  // `.use(installer)` as the composition verb, `@comvi/core/loader`, `@comvi/plugin-fetch-loader`.
+  "docs/design/composition.md": core07("banned/unresolved-comvi-import", "typecheck/error"),
+  // Formatters imported from the 0.7 `@comvi/core` root.
+  "docs/design/formatting.md": core07("banned/unresolved-comvi-import", "typecheck/error"),
+  // `compiler: icuCompiler` from the 0.7 `@comvi/core/icu`.
+  "docs/design/icu.md": core07("banned/unresolved-comvi-import", "typecheck/error"),
+  // The 0.7 per-framework SSR helpers (`createNextI18n` and its siblings).
+  "docs/design/ssr.md": core07(
+    "banned/unresolved-comvi-import",
+    "typecheck/error",
+    "typecheck/sfc-error",
+  ),
 };
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -131,10 +150,15 @@ export function pendingReason(dirOrName) {
   return PENDING_CAPABILITIES[dirOrName] ?? MIGRATION_PENDING[packageName(dirOrName)];
 }
 
-/** Why a repo-relative document is pending, or `undefined`. */
-export function pendingDocReason(file) {
+/**
+ * Why a finding of `rule` in the repo-relative document `file` is advisory, or `undefined`
+ * when it blocks: only a rule listed for that document in MIGRATION_PENDING_DOCS, or any rule
+ * in the README of a pending package.
+ */
+export function pendingDocReason(file, rule) {
   const rel = file.split(path.sep).join("/");
-  if (MIGRATION_PENDING_DOCS[rel]) return MIGRATION_PENDING_DOCS[rel];
+  const entry = MIGRATION_PENDING_DOCS[rel];
+  if (entry) return entry.rules.includes(rule) ? entry.reason : undefined;
   const m = /^packages\/([^/]+)\/README\.md$/.exec(rel);
   return m ? pendingReason(m[1]) : undefined;
 }
