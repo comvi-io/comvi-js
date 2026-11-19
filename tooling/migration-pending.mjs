@@ -32,8 +32,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const MIGRATION_PENDING = {
-  "@comvi/plugin-in-context-editor": "lot 8: editor on the internal hook v2",
-  "@comvi/chrome-extension": "lot 8: depends on @comvi/plugin-in-context-editor",
+  "@comvi/editor": "lot 8: editor on protocol 2 (adapter done; un-pended with the extension)",
+  "@comvi/chrome-extension": "lot 8: detector, popup and Gate E on protocol 2",
 };
 
 /**
@@ -215,7 +215,7 @@ export const TEST_APPS = ["next", "next16", "nuxt", "nuxt4"];
 
 /** CI job switches for single-shard jobs: a job runs only when nothing it needs is pending. */
 export const CI_JOBS = {
-  extension: ["@comvi/plugin-in-context-editor", "@comvi/chrome-extension"],
+  extension: ["@comvi/editor", "@comvi/chrome-extension"],
 };
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -30,5 +30,4 @@ export const TYPED_PACKAGES = [
   "nuxt",
   "cli",
   "vite-plugin",
-  "plugin-in-context-editor",
 ];

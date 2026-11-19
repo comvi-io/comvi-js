@@ -193,7 +193,7 @@ export async function activateEditor(
 
 const EDITOR_BUILD = resolve(
   import.meta.dirname,
-  "../../../packages/plugin-in-context-editor/dist/standalone.iife.js",
+  "../../../packages/editor/dist/standalone.iife.js",
 );
 
 /**

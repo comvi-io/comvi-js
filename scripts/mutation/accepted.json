@@ -61,7 +61,7 @@
       "round": 4
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["BlockStatement", "ConditionalExpression"],
       "snippet": "if (!mapped) {",
@@ -71,7 +71,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "return \"generic\";",
@@ -81,7 +81,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "aside: \"generic\",",
@@ -91,7 +91,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "header: \"generic\",",
@@ -101,7 +101,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "footer: \"generic\",",
@@ -111,7 +111,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "main: \"generic\",",
@@ -121,7 +121,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["OptionalChaining"],
       "snippet": "if (labelledBy && el.ownerDocument?.getElementById(labelledBy)) {",
@@ -131,7 +131,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (role) {",
@@ -141,7 +141,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["OptionalChaining", "StringLiteral"],
       "snippet": "const tag = current.tagName?.toLowerCase() ?? \"\";",
@@ -151,7 +151,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["OptionalChaining"],
       "snippet": "current.getAttribute(\"aria-label\") || headingEl?.textContent?.trim(),",
@@ -161,7 +161,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "(element as HTMLInputElement).type !== \"textarea\");",
@@ -171,7 +171,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["BlockStatement", "ConditionalExpression"],
       "snippet": "if (!rawText) {",
@@ -181,7 +181,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["MethodExpression", "OptionalChaining"],
       "snippet": "const rawText = el.element.textContent?.trim().slice(0, MAX_NEIGHBOR_TEXT_LENGTH + 1);",
@@ -191,7 +191,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "relativePosition = dx > 0 ? \"right\" : \"left\";",
@@ -201,7 +201,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["Regex"],
       "snippet": "const GENERIC_NOISE = /^(ok|yes|no|more|back|next|item|value|text|\\d+)$/i;",
@@ -211,7 +211,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["ArrayDeclaration"],
       "snippet": "const SEMANTIC_STOP_TAGS = new Set([",
@@ -221,7 +221,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"button\",",
@@ -231,7 +231,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"a\",",
@@ -241,7 +241,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"label\",",
@@ -251,7 +251,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"input\",",
@@ -261,7 +261,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"textarea\",",
@@ -271,7 +271,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"select\",",
@@ -281,7 +281,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"h1\",",
@@ -291,7 +291,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"h2\",",
@@ -301,7 +301,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"h3\",",
@@ -311,7 +311,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"h4\",",
@@ -321,7 +321,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"h5\",",
@@ -331,7 +331,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"h6\",",
@@ -341,7 +341,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"th\",",
@@ -351,7 +351,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"caption\",",
@@ -361,7 +361,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"figcaption\",",
@@ -371,7 +371,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"legend\",",
@@ -381,7 +381,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"summary\",",
@@ -391,7 +391,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"dt\",",
@@ -401,7 +401,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"li\",",
@@ -411,7 +411,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["ObjectLiteral"],
       "snippet": "const CONTAINER_TAG_MAP: Record<string, ContainerType> = {",
@@ -421,7 +421,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "dialog: \"dialog\",",
@@ -431,7 +431,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "form: \"form\",",
@@ -441,7 +441,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "fieldset: \"fieldset\",",
@@ -451,7 +451,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "table: \"table\",",
@@ -461,7 +461,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "thead: \"table\",",
@@ -471,7 +471,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "tbody: \"table\",",
@@ -481,7 +481,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "nav: \"nav\",",
@@ -491,7 +491,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "section: \"titled-section\",",
@@ -501,7 +501,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "article: \"titled-section\",",
@@ -511,7 +511,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["ArrayDeclaration"],
       "snippet": "const INTERACTIVE_ARIA_ROLES = new Set([",
@@ -521,7 +521,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"button\",",
@@ -531,7 +531,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"link\",",
@@ -541,7 +541,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"menuitem\",",
@@ -551,7 +551,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"menuitemcheckbox\",",
@@ -561,7 +561,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"menuitemradio\",",
@@ -571,7 +571,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"tab\",",
@@ -581,7 +581,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"option\",",
@@ -591,7 +591,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"checkbox\",",
@@ -601,7 +601,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"radio\",",
@@ -611,7 +611,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"switch\",",
@@ -621,7 +621,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"combobox\",",
@@ -631,7 +631,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["Regex"],
       "snippet": "const PII_PATTERN = /[@\\d]{5,}|^\\+?\\d[\\d\\s-]{7,}/;",
@@ -641,7 +641,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/signals.ts",
       "mutators": ["Regex"],
       "snippet": "const MOSTLY_NUMERIC = /^\\d[\\d\\s.,%-]*$/;",
@@ -651,7 +651,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/gate.ts",
       "mutators": ["StringLiteral"],
       "snippet": "const FIELD_SEPARATOR = \"::\";",
@@ -661,7 +661,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/targetType.ts",
       "mutators": ["Regex"],
       "snippet": "const SECONDARY_PATTERN = /cancel|back|close|dismiss|skip|later|no[_-]?thanks/i;",
@@ -671,7 +671,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/screenGroup.ts",
       "mutators": ["Regex"],
       "snippet": "const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;",
@@ -681,7 +681,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/screenGroup.ts",
       "mutators": ["Regex"],
       "snippet": "const LONG_HEX_PATTERN = /^[0-9a-f]{16,}$/i;",
@@ -691,7 +691,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/screenGroup.ts",
       "mutators": ["Regex"],
       "snippet": "const NUMERIC_PATTERN = /^\\d+$/;",
@@ -701,7 +701,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/screenGroup.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (segment.length === 0) {",
@@ -711,7 +711,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/screenGroup.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (UUID_PATTERN.test(segment)) return true;",
@@ -721,7 +721,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/screenGroup.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (resolver) {",
@@ -731,7 +731,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/screenGroup.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (typeof value === \"string\" && value.trim().length > 0) {",
@@ -741,7 +741,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/enumerate.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (tagName === \"input\") {",
@@ -751,7 +751,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/hash/observation-hash.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "if (a.key < b.key) return -1;",
@@ -761,7 +761,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/hash/observation-hash.ts",
       "mutators": ["ConditionalExpression", "EqualityOperator"],
       "snippet": "if (a.key > b.key) return 1;",
@@ -771,7 +771,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/hash/observation-hash.ts",
       "mutators": ["ArithmeticOperator"],
       "snippet": "dv.setUint32(total - 8, Math.floor(bitLen / 0x100000000));",
@@ -781,7 +781,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/hash/observation-hash.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "for (let t = 16; t < 64; t++) {",
@@ -791,7 +791,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/transport.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (items.length === 0) {",
@@ -801,7 +801,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/transport.ts",
       "mutators": ["ArrayDeclaration"],
       "snippet": "return [[]];",
@@ -811,7 +811,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/transport.ts",
       "mutators": ["ArrayDeclaration"],
       "snippet": "for (const entry of data.entries ?? []) {",
@@ -821,7 +821,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/transport.ts",
       "mutators": ["ArrayDeclaration"],
       "snippet": "for (const screenGroupEntry of entry.screenGroups ?? []) {",
@@ -831,7 +831,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/transport.ts",
       "mutators": ["ArrayDeclaration"],
       "snippet": "for (const updated of data.updated ?? []) {",
@@ -841,7 +841,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/transport.ts",
       "mutators": ["ArrayDeclaration"],
       "snippet": "for (const resend of data.resend ?? []) {",
@@ -851,7 +851,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/transport.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "origin: typeof location !== \"undefined\" ? location.origin : \"\",",
@@ -861,7 +861,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/transport.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (isDemoMode(this.scopeId) || pass.length === 0) {",
@@ -871,7 +871,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/transport.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "for (let i = 0; i < batchCount; i++) {",
@@ -881,7 +881,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/transport.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (isDemoMode(this.scopeId) || pass.length === 0) {",
@@ -891,7 +891,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/triggers.ts",
       "mutators": ["ConditionalExpression", "LogicalOperator"],
       "snippet": "restoreHistoryPatch ||",
@@ -901,7 +901,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/triggers.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "typeof window === \"undefined\" ||",
@@ -911,7 +911,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/triggers.ts",
       "mutators": ["ConditionalExpression", "OptionalChaining"],
       "snippet": "typeof window.history?.pushState !== \"function\"",
@@ -921,7 +921,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/triggers.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "private mutationSinceLastPass = false;",
@@ -931,7 +931,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/triggers.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "if (typeof window !== \"undefined\") {",
@@ -941,7 +941,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/triggers.ts",
       "mutators": ["ObjectLiteral", "BooleanLiteral"],
       "snippet": "window.addEventListener(\"resize\", this.scheduleMutation, { passive: true });",
@@ -951,7 +951,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/triggers.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (!this.started) {",
@@ -961,7 +961,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/Collector.ts",
       "mutators": ["ArrayDeclaration"],
       "snippet": "private lastPass: PassItem[] = [];",
@@ -971,7 +971,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/Collector.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "if (typeof window !== \"undefined\") {",
@@ -981,7 +981,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/Collector.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "if (typeof window !== \"undefined\") {",
@@ -991,7 +991,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/Collector.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "const rootDocument = typeof document !== \"undefined\" ? document : null;",
@@ -1001,7 +1001,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/Collector.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (!rootDocument) {",
@@ -1011,7 +1011,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/Collector.ts",
       "mutators": ["StringLiteral"],
       "snippet": "const signature = computeVisibleSetSignature(targets, \"\");",
@@ -1021,7 +1021,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "for (let i = 0; i <= 30; i++) {",
@@ -1031,7 +1031,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["MethodExpression", "ArrowFunction", "ArithmeticOperator"],
       "snippet": "numbers.sort((a, b) => a - b);",
@@ -1041,7 +1041,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["MethodExpression", "ArrowFunction", "ArithmeticOperator"],
       "snippet": "examples[category] = numbers.sort((a, b) => a - b);",
@@ -1051,7 +1051,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "if (category === \"zero\" && numbers.includes(0) && numbers.length < 3) {",
@@ -1061,7 +1061,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["ConditionalExpression", "LogicalOperator", "EqualityOperator"],
       "snippet": "numbers.some((n) => n > 0 && n < 1) &&",
@@ -1071,7 +1071,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["ConditionalExpression", "EqualityOperator"],
       "snippet": "numbers.some((n) => n > 1 && n < 2)",
@@ -1081,7 +1081,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "if (numbers.length < 3) {",
@@ -1091,7 +1091,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["ConditionalExpression", "MethodExpression", "StringLiteral", "BlockStatement"],
       "snippet": "else if (normalizedLocale.startsWith(\"ar\") && numbers.includes(11) && numbers.includes(99)) {",
@@ -1101,7 +1101,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["StringLiteral"],
       "snippet": "explanation = \"Used for numbers 11-99\";",
@@ -1111,7 +1111,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useSelectPresets.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "variable === preset.variable || variable.toLowerCase() === preset.variable.toLowerCase();",
@@ -1121,7 +1121,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useToast.ts",
       "mutators": ["UpdateOperator"],
       "snippet": "const id = nextId++;",
@@ -1131,7 +1131,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslations.ts",
       "mutators": ["UpdateOperator"],
       "snippet": "const requestId = ++latestLoadRequestId;",
@@ -1141,7 +1141,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslations.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (!translationsToAdd[cacheKey]) {",
@@ -1151,7 +1151,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslations.ts",
       "mutators": ["OptionalChaining"],
       "snippet": "const singular = state.value.data!.translations[langCode]?.other || \"\";",
@@ -1161,7 +1161,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/EditModal.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "const isOpen = ref(false);",
@@ -1171,7 +1171,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/EditModal.ts",
       "mutators": ["StringLiteral"],
       "snippet": "const currentKey = ref<string>(\"\");",
@@ -1181,7 +1181,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/EditModal.ts",
       "mutators": ["StringLiteral"],
       "snippet": "const currentNs = ref<string>(\"\");",
@@ -1191,7 +1191,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/EditModal.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (container) {",
@@ -1201,7 +1201,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/EditModal.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "isOpen.value = true;",
@@ -1211,7 +1211,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/EditModal.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (!container) {",
@@ -1221,7 +1221,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/KeySelector.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "const isOpen = ref(false);",
@@ -1231,7 +1231,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTheme.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "if (typeof document !== \"undefined\" && document.documentElement.classList.contains(\"dark\")) {",
@@ -1241,7 +1241,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTheme.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "typeof window !== \"undefined\" &&",
@@ -1251,7 +1251,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["BlockStatement", "CallExpression"],
       "snippet": "parts.push(escapeHtml(token.value));",
@@ -1261,7 +1261,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["MethodExpression"],
       "snippet": "const tagName = match[2]!.toLowerCase();",
@@ -1271,7 +1271,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "const isSelfClosing = match[3] === \"/\" || match[0].endsWith(\"/>\");",
@@ -1281,7 +1281,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["ArrayDeclaration"],
       "snippet": "const openStack: Array<{ name: string; start: number }> = [];",
@@ -1291,7 +1291,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "for (let i = openStack.length - 1; i > matchIndex; i--) {",
@@ -1301,7 +1301,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["ArrayDeclaration"],
       "snippet": "const usedRanges: Array<{ start: number; end: number }> = [];",
@@ -1311,7 +1311,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "(start >= range.start && start < range.end) ||",
@@ -1321,7 +1321,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "(end > range.start && end <= range.end) ||",
@@ -1331,7 +1331,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "(start <= range.start && end >= range.end),",
@@ -1341,7 +1341,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["ConditionalExpression", "LogicalOperator"],
       "snippet": "if (status && !isOverlapping(tag.start, tag.end)) {",
@@ -1351,7 +1351,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["ObjectLiteral"],
       "snippet": "usedRanges.push({ start, end });",
@@ -1361,7 +1361,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (!text) return \"\";",
@@ -1371,7 +1371,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (tokens.length === 0) {",
@@ -1381,7 +1381,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["ConditionalExpression", "EqualityOperator"],
       "snippet": "if (token.start > lastEnd) {",
@@ -1391,7 +1391,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "if (token.type !== \"text\") {",
@@ -1401,7 +1401,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["ConditionalExpression", "EqualityOperator"],
       "snippet": "if (lastEnd < text.length) {",
@@ -1411,7 +1411,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "if (restoreAttachShadowPatch || typeof Element === \"undefined\") {",
@@ -1421,7 +1421,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "if (this.isObserving || typeof MutationObserver === \"undefined\") {",
@@ -1431,7 +1431,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["BlockStatement", "ConditionalExpression"],
       "snippet": "if (!this.isObserving) {",
@@ -1441,7 +1441,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (this.detachShadowRootAttachedListener) {",
@@ -1451,7 +1451,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["MethodExpression"],
       "snippet": "attrs.forEach((attr) => attributesToWatch.add(attr.toLowerCase()));",
@@ -1461,7 +1461,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "return false;",
@@ -1471,7 +1471,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["BlockStatement", "ConditionalExpression"],
       "snippet": "if (this.observers.has(root)) {",
@@ -1481,7 +1481,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "return false;",
@@ -1491,7 +1491,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (this.targetElement.nodeType === Node.DOCUMENT_NODE) {",
@@ -1501,7 +1501,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (node === this.targetElement) {",
@@ -1511,7 +1511,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "return typeof this.targetElement.contains === \"function\" && this.targetElement.contains(node);",
@@ -1521,7 +1521,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["BlockStatement", "ConditionalExpression"],
       "snippet": "if (!this.isObserving) {",
@@ -1531,7 +1531,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "root.nodeType !== Node.DOCUMENT_NODE &&",
@@ -1541,7 +1541,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["BlockStatement"],
       "snippet": ") {",
@@ -1551,7 +1551,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (root.nodeType === Node.ELEMENT_NODE) {",
@@ -1561,7 +1561,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["BlockStatement", "ConditionalExpression", "LogicalOperator"],
       "snippet": "if (!current || visited.has(current)) {",
@@ -1571,7 +1571,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["CallExpression"],
       "snippet": "visited.add(current);",
@@ -1581,7 +1581,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (!visited.has(shadowRoot)) {",
@@ -1591,7 +1591,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (removedRoot !== this.targetElement) {",
@@ -1601,7 +1601,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (mutation.type === \"attributes\" && mutation.target.nodeType === Node.ELEMENT_NODE) {",
@@ -1611,7 +1611,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["CallExpression"],
       "snippet": "removedNodes.add(node);",
@@ -1621,7 +1621,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (descendant instanceof Node) {",
@@ -1631,7 +1631,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["ConditionalExpression", "EqualityOperator"],
       "snippet": "if (newlyObservedRoots.size > 0) {",
@@ -1641,7 +1641,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["BlockStatement", "ConditionalExpression"],
       "snippet": "if (!this.isObserving) {",
@@ -1651,7 +1651,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["BlockStatement", "ConditionalExpression"],
       "snippet": "if (!this.targetElement) {",
@@ -1661,7 +1661,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["StringLiteral"],
       "snippet": "\"[@comvi/plugin-in-context-editor] Target element not available for initial scan\",",
@@ -1671,7 +1671,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["ObjectLiteral"],
       "snippet": "const DEFAULT_HIGHLIGHT_STYLE: HighlightStyle = {",
@@ -1681,7 +1681,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["LogicalOperator"],
       "snippet": "if (this.activeHighlight && this.activeElement) {",
@@ -1691,7 +1691,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["ObjectLiteral"],
       "snippet": "document.addEventListener(\"keydown\", this.handleKeyEvent, {",
@@ -1701,7 +1701,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "passive: true,",
@@ -1711,7 +1711,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["ObjectLiteral", "BooleanLiteral"],
       "snippet": "document.addEventListener(\"keyup\", this.handleKeyEvent, { passive: true });",
@@ -1721,7 +1721,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (event instanceof MouseEvent) {",
@@ -1731,7 +1731,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["ConditionalExpression", "LogicalOperator", "StringLiteral"],
       "snippet": "if (typeof ShadowRoot !== \"undefined\" && rootNode instanceof ShadowRoot) {",
@@ -1741,7 +1741,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (typeof event.composedPath === \"function\") {",
@@ -1751,7 +1751,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (registered) {",
@@ -1761,7 +1761,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["BlockStatement", "ConditionalExpression"],
       "snippet": "if (!element) {",
@@ -1771,7 +1771,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["CallExpression"],
       "snippet": "event.stopPropagation();",
@@ -1781,7 +1781,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["CallExpression"],
       "snippet": "this.scrollableContainers.clear();",
@@ -1791,7 +1791,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["ObjectLiteral", "BooleanLiteral"],
       "snippet": "window.addEventListener(\"scroll\", this.handleScroll, { passive: true });",
@@ -1801,7 +1801,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["ObjectLiteral"],
       "snippet": "container.addEventListener(\"scroll\", this.handleScroll, {",
@@ -1811,7 +1811,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "passive: true,",
@@ -1821,7 +1821,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["ObjectLiteral"],
       "snippet": "container.addEventListener(\"scroll\", this.handleScroll, {",
@@ -1831,7 +1831,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "passive: true,",
@@ -1841,7 +1841,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["StringLiteral"],
       "snippet": "window.removeEventListener(\"scroll\", this.handleScroll);",
@@ -1851,7 +1851,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["CallExpression"],
       "snippet": "this.highlightedElements.clear();",
@@ -1861,7 +1861,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["CallExpression"],
       "snippet": "this.elementKeyMap.clear();",
@@ -1871,7 +1871,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["CallExpression"],
       "snippet": "this.debouncedScrollHandler.cancel();",
@@ -1881,7 +1881,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["ArrowFunction"],
       "snippet": "this.unsubscribers.forEach((unsubscribe) => unsubscribe());",
@@ -1891,7 +1891,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["StringLiteral"],
       "snippet": "document.removeEventListener(\"keyup\", this.handleKeyEvent);",
@@ -1901,7 +1901,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["ObjectLiteral"],
       "snippet": "document.removeEventListener(\"mouseover\", this.handleMouseOver, {",
@@ -1911,7 +1911,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "capture: true,",
@@ -1921,7 +1921,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["StringLiteral", "ObjectLiteral"],
       "snippet": "document.removeEventListener(\"mouseout\", this.handleMouseOut, {",
@@ -1931,7 +1931,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "capture: true,",
@@ -1941,7 +1941,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["ObjectLiteral", "BooleanLiteral"],
       "snippet": "document.removeEventListener(\"click\", this.handleClick, { capture: true });",
@@ -1951,7 +1951,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["StringLiteral"],
       "snippet": "window.removeEventListener(\"scroll\", this.handleScroll);",
@@ -1961,7 +1961,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["StringLiteral"],
       "snippet": "window.removeEventListener(\"blur\", this.handleWindowBlur);",
@@ -1971,7 +1971,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/ElementHighlighter.ts",
       "mutators": ["CallExpression"],
       "snippet": "this.cleanupScrollListeners();",
@@ -1981,7 +1981,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/encoding.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (!text) return \"\";",
@@ -1991,7 +1991,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/encoding.ts",
       "mutators": ["Regex", "StringLiteral"],
       "snippet": "const regex = new RegExp(char.replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\"), \"g\");",
@@ -2001,7 +2001,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/debounce.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (args) {",
@@ -2011,7 +2011,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/domHelpers.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "for (let i = 0; i < element.attributes.length; i++) {",
@@ -2021,7 +2021,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/domHelpers.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (attr) {",
@@ -2031,7 +2031,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/domHelpers.ts",
       "mutators": ["BlockStatement", "ConditionalExpression"],
       "snippet": "if (node.nodeType === Node.DOCUMENT_NODE) {",
@@ -2041,7 +2041,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/domHelpers.ts",
       "mutators": ["LogicalOperator"],
       "snippet": "return node.ownerDocument || document;",
@@ -2051,7 +2051,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/domHelpers.ts",
       "mutators": ["BlockStatement", "ConditionalExpression", "CallExpression"],
       "snippet": "if (visitedRoots.has(currentRoot)) {",
@@ -2061,7 +2061,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/domHelpers.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (!ownerElement) return false;",
@@ -2071,7 +2071,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/domHelpers.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (node === ownerElement || node.contains(ownerElement)) {",
@@ -2081,7 +2081,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/encoding/TranslationKeyEncoder.ts",
       "mutators": ["ArithmeticOperator"],
       "snippet": "for (let i = 0; i <= text.length - ENCODING_LENGTH; i++) {",
@@ -2091,7 +2091,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/encoding/TranslationKeyEncoder.ts",
       "mutators": ["StringLiteral"],
       "snippet": "let invisibleChars = \"\";",
@@ -2101,7 +2101,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/encoding/TranslationKeyEncoder.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "for (let i = 0; i < text.length; i++) {",
@@ -2111,7 +2111,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/encoding/TranslationKeyEncoder.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (num === 0) return INVISIBLE_CHARS[0]!;",
@@ -2121,7 +2121,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/encoding/TranslationKeyEncoder.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "for (let i = 0; i < base5Str.length; i++) {",
@@ -2131,7 +2131,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/encoding/TranslationKeyEncoder.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (digit === -1) continue;",
@@ -2141,7 +2141,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationRegistry.ts",
       "mutators": ["ConditionalExpression", "LogicalOperator"],
       "snippet": "if (removedNode instanceof Node && !(removedNode instanceof Attr)) {",
@@ -2151,7 +2151,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationRegistry.ts",
       "mutators": ["ArrayDeclaration"],
       "snippet": "const elementsToRemove: Element[] = [];",
@@ -2161,7 +2161,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationRegistry.ts",
       "mutators": ["ArrayDeclaration"],
       "snippet": "const elementsToCleanup: Element[] = [];",
@@ -2171,7 +2171,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationRegistry.ts",
       "mutators": ["ConditionalExpression", "LogicalOperator"],
       "snippet": "if (node instanceof Node && !(node instanceof Attr)) {",
@@ -2181,7 +2181,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationRegistry.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (node instanceof Attr) {",
@@ -2191,7 +2191,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationScanner.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (node) {",
@@ -2201,7 +2201,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationScanner.ts",
       "mutators": ["ConditionalExpression", "EqualityOperator"],
       "snippet": "if (removedNodesSet.size > 0) {",
@@ -2211,7 +2211,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationScanner.ts",
       "mutators": ["BlockStatement", "ConditionalExpression"],
       "snippet": "if (!text) {",
@@ -2221,7 +2221,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationScanner.ts",
       "mutators": ["MethodExpression"],
       "snippet": "const tagName = element.tagName.toLowerCase();",
@@ -2231,7 +2231,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationScanner.ts",
       "mutators": ["BlockStatement", "ConditionalExpression", "LogicalOperator", "StringLiteral"],
       "snippet": "if (selector === \"*\" || selector === tagName) {",
@@ -2241,7 +2241,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationScanner.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "} else if (currentNode.nodeType === Node.ELEMENT_NODE) {",
@@ -2251,7 +2251,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationScanner.ts",
       "mutators": ["MethodExpression"],
       "snippet": "const uniqueNodes = Array.from(new Set(nodes.filter(Boolean)));",
@@ -2261,7 +2261,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationScanner.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "attributeNode !== null && containsInvisibleCharacters(attributeNode.value),",
@@ -2271,7 +2271,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": [
         "ConditionalExpression",
@@ -2287,7 +2287,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (!i18n.hasLocale(locale, namespace)) {",
@@ -2297,7 +2297,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (pendingCombinedKeys.size === 0) {",
@@ -2307,7 +2307,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["CallExpression"],
       "snippet": "pendingCombinedKeys.clear();",
@@ -2317,7 +2317,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (separatorIndex === -1) {",
@@ -2327,7 +2327,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["OptionalChaining"],
       "snippet": "if (typeof process !== \"undefined\" && process.env?.NODE_ENV === \"production\") {",
@@ -2337,7 +2337,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["BlockStatement", "CallExpression"],
       "snippet": "const unsubscribeLocaleChanged = i18n.on(\"localeChanged\", () => {",
@@ -2347,7 +2347,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["UpdateOperator", "CallExpression"],
       "snippet": "const runtimeId = ++runtimeIdCounter;",
@@ -2357,7 +2357,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (host[EDITOR_MAPPINGS_GLOBAL]) {",
@@ -2367,7 +2367,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/standalone.ts",
       "mutators": ["ConditionalExpression", "LogicalOperator", "BlockStatement"],
       "snippet": "if (locales.length === 0 || namespaces.length === 0) {",
@@ -2377,7 +2377,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/standalone.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (!i18n.hasLocale(locale, namespace)) {",
@@ -2387,7 +2387,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/comviHook.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (prevId !== undefined && prevId !== resolvedId) {",
@@ -2397,7 +2397,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/comviHook.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (version !== undefined && hook.version === undefined) {",
@@ -2407,7 +2407,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/comviHook.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (!instance) {",
@@ -2417,7 +2417,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/comviHook.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (id !== undefined) {",
@@ -2427,7 +2427,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/comviHook.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (hook.version === undefined && typeof legacy.version === \"string\") {",
@@ -2437,7 +2437,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/comviHook.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (!id) {",
@@ -2447,7 +2447,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/comviHook.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (instance) {",
@@ -2457,7 +2457,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/comviHook.ts",
       "mutators": ["ConditionalExpression", "EqualityOperator"],
       "snippet": "const first = g.length > 0 ? toInstance(g[0] as ComviQueueEntry | I18n) : null;",
@@ -2467,7 +2467,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/constants/index.ts",
       "mutators": ["StringLiteral"],
       "snippet": "input: [\"placeholder\", \"alt\", \"title\"],",
@@ -2477,7 +2477,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/config/api.ts",
       "mutators": ["StringLiteral"],
       "snippet": "const DEFAULT_CONFIG_SCOPE = \"__default__\";",
@@ -2487,7 +2487,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/config/api.ts",
       "mutators": ["OptionalChaining"],
       "snippet": "baseUrl: options?.baseUrl ? stripTrailingSlash(options.baseUrl) : resolveBaseUrl(),",
@@ -2497,7 +2497,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/config/highlight.ts",
       "mutators": ["StringLiteral"],
       "snippet": "export const DEFAULT_HIGHLIGHT_BORDER_COLOR = \"#D97706\";",
@@ -2507,7 +2507,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/config/highlight.ts",
       "mutators": ["StringLiteral"],
       "snippet": "export const DEFAULT_HIGHLIGHT_BACKGROUND_COLOR = \"rgba(217, 119, 6, 0.12)\";",
@@ -2517,7 +2517,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/services/translationService.ts",
       "mutators": ["BlockStatement", "ConditionalExpression", "EqualityOperator"],
       "snippet": "if (separatorIndex <= 0) {",
@@ -2527,7 +2527,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/icuParser.ts",
       "mutators": ["Regex"],
       "snippet": "const variableMatch = content.match(/^(\\w+),\\s*select,\\s*(.+)$/s);",
@@ -2537,7 +2537,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/icuParser.ts",
       "mutators": ["MethodExpression"],
       "snippet": "let remaining = selectSection.trim();",
@@ -2547,7 +2547,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/icuParser.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "while (remaining.length > 0) {",
@@ -2557,7 +2557,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/languageSelectionStorage.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (!stored) return fallback;",
@@ -2567,7 +2567,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/languageSelectionStorage.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (!Array.isArray(storedCodes)) return fallback;",
@@ -2577,7 +2577,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/languageSelectionStorage.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "typeof code === \"string\" && availableLanguages.some((language) => language.code === code),",
@@ -2587,7 +2587,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/Core.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (editModalModule) return Promise.resolve(editModalModule);",
@@ -2597,7 +2597,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/Core.ts",
       "mutators": ["BlockStatement"],
       "snippet": "(error: unknown) => {",
@@ -2607,7 +2607,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/Core.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (keySelectorModule) return Promise.resolve(keySelectorModule);",
@@ -2617,7 +2617,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/Core.ts",
       "mutators": ["BlockStatement"],
       "snippet": "(error: unknown) => {",
@@ -2627,7 +2627,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/Core.ts",
       "mutators": ["CallExpression"],
       "snippet": "this.translationScanner.destroy();",
@@ -2637,7 +2637,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/Core.ts",
       "mutators": ["CallExpression"],
       "snippet": "this.eventBus.removeAllListeners();",
@@ -2647,7 +2647,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationRegistry.ts",
       "mutators": ["BlockStatement", "ConditionalExpression"],
       "snippet": "if (!element) {",
@@ -2657,7 +2657,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationScanner.ts",
       "mutators": ["MethodExpression"],
       "snippet": "return attributeNames",
@@ -2667,7 +2667,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationScanner.ts",
       "mutators": ["ConditionalExpression", "EqualityOperator"],
       "snippet": "node.nodeType === Node.ELEMENT_NODE &&",
@@ -2677,7 +2677,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationScanner.ts",
       "mutators": ["MethodExpression"],
       "snippet": "IGNORED_NODES.includes((node as Element).nodeName.toLowerCase())",
@@ -2687,7 +2687,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/TranslationScanner.ts",
       "mutators": ["BlockStatement"],
       "snippet": ") {",
@@ -2697,7 +2697,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/enumerate.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "typeof window !== \"undefined\" ? window.innerWidth || document.documentElement.clientWidth : 0;",
@@ -2707,7 +2707,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/enumerate.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "typeof window !== \"undefined\" ? window.innerHeight || document.documentElement.clientHeight : 0;",
@@ -2717,7 +2717,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/transport.ts",
       "mutators": ["BlockStatement"],
       "snippet": "} catch {",
@@ -2727,7 +2727,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/collector/triggers.ts",
       "mutators": ["BlockStatement"],
       "snippet": ") {",
@@ -2737,7 +2737,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "else if (!numbers.includes(0) && numbers.includes(1) && numbers.some((n) => n > 0 && n < 1)) {",
@@ -2747,7 +2747,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "else if (!numbers.includes(0) && numbers.includes(1) && numbers.some((n) => n > 0 && n < 1)) {",
@@ -2757,7 +2757,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["MethodExpression"],
       "snippet": "} else if (numbers.includes(1) && numbers.filter((n) => Number.isInteger(n)).length === 1) {",
@@ -2767,7 +2767,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["ConditionalExpression", "LogicalOperator"],
       "snippet": "numbers.includes(2) &&",
@@ -2777,7 +2777,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["LogicalOperator"],
       "snippet": "numbers.includes(5) &&",
@@ -2787,7 +2787,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["LogicalOperator"],
       "snippet": "else if (normalizedLocale.startsWith(\"ar\") && numbers.includes(11) && numbers.includes(99)) {",
@@ -2797,7 +2797,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["LogicalOperator"],
       "snippet": "else if (numbers.includes(1000000) && numbers.includes(2000000) && !numbers.includes(1)) {",
@@ -2807,7 +2807,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "} else if (category === \"other\") {",
@@ -2817,7 +2817,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["ObjectLiteral"],
       "snippet": "const pluralRule = new Intl.PluralRules(normalizedCode, { type: \"cardinal\" });",
@@ -2827,7 +2827,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["ObjectLiteral"],
       "snippet": "const pluralRule = new Intl.PluralRules(normalizedCode, { type: \"cardinal\" });",
@@ -2837,7 +2837,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslationHighlighter.ts",
       "mutators": ["BlockStatement"],
       "snippet": "} else {",
@@ -2847,7 +2847,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslations.ts",
       "mutators": ["OptionalChaining"],
       "snippet": "const current = state.value.data?.translations?.[languageCode]?.[formKey] ?? \"\";",
@@ -2857,7 +2857,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/useTranslations.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "(value): value is string => typeof value === \"string\",",
@@ -2867,7 +2867,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/encoding/TranslationKeyEncoder.ts",
       "mutators": ["BlockStatement", "ConditionalExpression", "EqualityOperator"],
       "snippet": "for (let j = 0; j < encodedPart.length; j++) {",
@@ -2877,7 +2877,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/encoding/TranslationKeyEncoder.ts",
       "mutators": ["BlockStatement", "ConditionalExpression"],
       "snippet": "if (!INVISIBLE_CHARS.includes(encodedPart[j] as (typeof INVISIBLE_CHARS)[number])) {",
@@ -2887,7 +2887,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/encoding/TranslationKeyEncoder.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "isValidEncoding = false;",
@@ -2897,7 +2897,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/encoding/TranslationKeyEncoder.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (isValidEncoding) {",
@@ -2907,7 +2907,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["ConditionalExpression", "EqualityOperator"],
       "snippet": "activeBrowserEditorRuntimes.size === 0 &&",
@@ -2917,7 +2917,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["BlockStatement"],
       "snippet": ") {",
@@ -2927,7 +2927,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["CallExpression"],
       "snippet": "resetEncoder();",
@@ -2937,7 +2937,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["CallExpression"],
       "snippet": "enqueueLoadedKeys(i18n, pendingCombinedKeys);",
@@ -2947,7 +2947,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["CallExpression"],
       "snippet": "activeBrowserEditorRuntimes.add(runtimeId);",
@@ -2957,7 +2957,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["CallExpression"],
       "snippet": "activeBrowserEditorRuntimes.delete(runtimeId);",
@@ -2967,7 +2967,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/standalone.ts",
       "mutators": ["StringLiteral"],
       "snippet": "options.instanceId ? `Instance ID: ${options.instanceId}` : \"No instances registered.\",",
@@ -2977,7 +2977,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/debounce.ts",
       "mutators": ["BlockStatement", "ConditionalExpression", "EqualityOperator"],
       "snippet": "if (timeoutId !== null) {",
@@ -2987,7 +2987,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/debounce.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (maxTimeoutId !== null) {",
@@ -2997,7 +2997,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/debounce.ts",
       "mutators": ["BlockStatement", "ConditionalExpression", "EqualityOperator"],
       "snippet": "if (timeoutId !== null) {",
@@ -3007,7 +3007,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/debounce.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (maxTimeoutId !== null) {",
@@ -3017,7 +3017,7 @@
       "round": 5
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/domHelpers.ts",
       "mutators": ["CallExpression"],
       "snippet": "visitedRoots.add(currentRoot);",
@@ -5043,7 +5043,7 @@
       "reason": "both surviving directions force the merge branch, which only decides whether to ALLOCATE. With no direct props `{ ...local.params }` has the same entries as `local.params` (and `{}` where it was undefined, which `hasParams` reads as empty just the same), and `prepareTranslation` copies whatever it is handed into its own transport — so no interpolation input and no rendered output can differ. Verified by applying both mutants by hand: 152/152 solid tests still pass each time. (The `-> false` direction, which would drop the direct props, is killed.)"
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/validation.ts",
       "mutators": ["StringLiteral"],
       "snippet": "const sourceVariables = extractVariables(sourceForms[0] || \"\");",
@@ -5052,7 +5052,7 @@
       "reason": "The `\"\"` fallback -> `\"Stryker was here!\"`. That value is read only by `extractVariables`, which returns the placeholders a string contains; the seed carries no `{…}`, `%…%` and no `<n>`, so both spellings produce the empty set and nothing downstream can tell them apart. CHECKED: hand-applied, 58 files / 1377 tests green, restored byte-identically."
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/validation.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (match[1]) {",
@@ -5061,7 +5061,7 @@
       "reason": "`if (true)`. The capture group of every pattern is `[^{}]+`, `[^%]+` or `\\d+`, each of which needs at least one character, so a successful match always has a non-empty group 1 and the guard is never false. It survives as a TypeScript narrowing device — `match[1]` is typed `string | undefined`, and deleting the guard would trade it for a non-null assertion. CHECKED: hand-applied, 58 files / 1377 tests green, restored byte-identically."
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/validation.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "for (let i = 0; i < a.length; i++) {",
@@ -5070,7 +5070,7 @@
       "reason": "`i <= a.length`. The line above returns early unless the two arrays are the same length, so the extra iteration compares `a[a.length]` with `b[a.length]` — `undefined !== undefined` is false — and the loop then exits with the same verdict. CHECKED: hand-applied, 58 files / 1377 tests green, restored byte-identically."
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/utils/icuParser.ts",
       "mutators": ["EqualityOperator"],
       "snippet": "while (i < remaining.length && depth > 0) {",
@@ -5079,7 +5079,7 @@
       "reason": "`i <= remaining.length`. A balanced arm exits on `depth === 0` long before `i` reaches the end, so the mutant only bites on an unbalanced one — and there `remaining[remaining.length]` is undefined, neither brace branch fires, and `i` ends at `length + 1`. Both `remaining.slice(0, i)` and `remaining.slice(i)` clamp, so the arm text and the leftover are identical to the `i === length` case the original stops at. This is the line the earlier campaign flagged as a `parseICUSelect` off-by-one; the defect itself was fixed (the `depth === 0 ? i - 1 : i` branch and its comment), and what is left is the loop bound, which is equivalent. CHECKED: hand-applied, 58 files / 1377 tests green, restored byte-identically."
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/composables/usePluralRules.ts",
       "mutators": ["StringLiteral"],
       "snippet": "const CATEGORY_ORDER = [\"zero\", \"one\", \"two\", \"few\", \"many\", \"other\"];",
@@ -5088,7 +5088,7 @@
       "reason": "The FIRST literal only, `\"zero\"` -> `\"\"` (the other five are killed). CATEGORY_ORDER has one reader, `Object.keys(categorized).sort((a, b) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b))`. Dropping \"zero\" from the list makes `indexOf(\"zero\")` return -1 instead of 0, and -1 sorts it ahead of every other category exactly as 0 did; `Intl.PluralRules.select()` can only return the six CLDR categories, so nothing else ever ties with it at -1. CHECKED: hand-applied, 58 files / 1377 tests green; a sweep of 75 locales ran both comparators over each locale's category set and produced identical orderings."
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["ConditionalExpression", "LogicalOperator"],
       "snippet": "isBrowserRuntime &&",
@@ -5098,7 +5098,7 @@
       "round": 6
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["CallExpression"],
       "snippet": "encoder.reset();",
@@ -5108,7 +5108,7 @@
       "round": 6
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/index.ts",
       "mutators": ["CallExpression"],
       "snippet": "bridgeUsers.delete(i18n);",
@@ -5118,7 +5118,7 @@
       "round": 6
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/KeySelector.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (instanceId !== undefined && ownerInstanceId !== undefined) {",
@@ -5128,7 +5128,7 @@
       "round": 6
     },
     {
-      "package": "packages/plugin-in-context-editor",
+      "package": "packages/editor",
       "file": "src/KeySelector.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "isOpen.value = false;",

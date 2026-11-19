@@ -30,9 +30,10 @@ export const PRODUCTION_CONDITIONS = ["production", "import", "module", "browser
  * time, so it reaches these graphs as next's own bytes, through no exports map.
  */
 export const DEFAULT_PACKAGE_ROOTS = Object.fromEntries(
-  ["core", "react", "solid", "svelte", "vue", "next", "nuxt", "plugin-in-context-editor"].map(
-    (dir) => [`@comvi/${dir}`, path.join(REPO_ROOT, "packages", dir)],
-  ),
+  ["core", "react", "solid", "svelte", "vue", "next", "nuxt"].map((dir) => [
+    `@comvi/${dir}`,
+    path.join(REPO_ROOT, "packages", dir),
+  ]),
 );
 
 function escapeRegExp(value) {

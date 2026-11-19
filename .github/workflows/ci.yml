@@ -281,7 +281,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Builds @comvi/plugin-in-context-editor first via turbo `^build` — the
+      # Builds @comvi/editor first via turbo `^build` — the
       # bundle Gate E loads.
       # The production origin is scoped to THIS step: vite's loadEnv lets process.env
       # override .env.gate-e, so a job-level value would also poison the Gate E build

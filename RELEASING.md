@@ -32,6 +32,13 @@ that path today.
       they were read there on 2026-10-04 and nothing in CI exercises them. Then run the RC rehearsal
       (section 2) first. It uses the same staging-and-promotion code with `next`, so a green RC
       proves the OIDC dist-tag path before GA depends on it.
+- [ ] **`@comvi/editor` is a new npm name (0.8, lot 8).** It replaces
+      `@comvi/plugin-in-context-editor` and has never been published, so npm has no trusted
+      publisher for it yet. Before the first publish of 0.8 (the RC rehearsal included), the owner
+      creates the package on npmjs.com and adds this repository's `release.yml` as its trusted
+      publisher, with **Allow npm dist-tag** on. Without it the train stops at `@comvi/editor`.
+      The old name is no longer in the workspace or the `fixed` group and must never receive a
+      0.8 version.
 - [ ] Read the pending changesets. `pnpm exec changeset status --verbose` shows the version the cut
       will produce. With `@changesets/cli` 3, a plugin peer range that the next version falls
       outside of makes changesets bump the peer dependents by patch, no longer by major (cli 2
@@ -172,15 +179,16 @@ skipped. So a rehearsal dispatched from a release branch with the input forgotte
   npm dist-tag rm @comvi/<pkg> next
   ```
 
-      The 10 published names are `cli`, `core`, `next`, `nuxt`, `plugin-in-context-editor`,
-      `react`, `solid`, `svelte`, `vite-plugin`, `vue`. None of them is a new npm name — the only
-      two brand-new names 0.5 introduced are the two that are now workspace-private — so no
-      per-package OIDC trusted-publishing setup is outstanding before a publish.
+      The 10 published names are `cli`, `core`, `editor`, `next`, `nuxt`, `react`, `solid`,
+      `svelte`, `vite-plugin`, `vue`.
       `@comvi/plugin-fetch-loader` and `@comvi/plugin-locale-detector` left the monorepo in
       0.8 (lot 2c; `@comvi/core/cdn` and `@comvi/core/plugins` replace them): the 0.8.0 release
       deprecates them on npm (R3-11) with the owner's confirmation —
       `npm deprecate @comvi/plugin-fetch-loader "Moved into @comvi/core/cdn since 0.8.0"`, and
       `@comvi/plugin-locale-detector` → `@comvi/core/plugins` the same way.
+      `@comvi/plugin-in-context-editor` left in 0.8 too (lot 8: renamed, standalone only); the
+      owner deprecates it once `@comvi/editor` 0.8.0 is on npm —
+      `npm deprecate @comvi/plugin-in-context-editor "Renamed to @comvi/editor since 0.8.0; loaded by the Comvi browser extension"`.
 
 - [ ] Re-snapshot the test manifest, and keep the post-release observation window.
 

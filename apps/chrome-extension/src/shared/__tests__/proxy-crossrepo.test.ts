@@ -50,7 +50,7 @@ describe("machine-readable discovery contract", () => {
 describe("SDK telemetry wire fixture", () => {
   it("matches the SDK-generated canonical fixture", () => {
     const sdkFixtureUrl = new URL(
-      "../../../../../packages/plugin-in-context-editor/src/collector/hash/wire-observation.fixture.json",
+      "../../../../../packages/editor/src/collector/hash/wire-observation.fixture.json",
       import.meta.url,
     );
     expect(JSON.parse(readFileSync(sdkFixtureUrl, "utf8"))).toEqual(wireFixture);

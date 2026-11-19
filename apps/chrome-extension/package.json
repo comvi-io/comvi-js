@@ -25,7 +25,7 @@
     "zip": "pnpm build && COMVI_EXPECT_API_ORIGIN=https://api.comvi.io vitest run src/__tests__/artifacts.test.ts && cd dist && zip -r ../comvi-extension.zip ."
   },
   "devDependencies": {
-    "@comvi/plugin-in-context-editor": "workspace:*",
+    "@comvi/editor": "workspace:*",
     "@playwright/test": "1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/chrome": "^0.3.6",

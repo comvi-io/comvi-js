@@ -61,10 +61,7 @@ test("a rewritten example or bundler case does not need fixtures-08; the others 
   assert.deepEqual(bundlerCaseNeeds("react-default", ["@comvi/core"]), ["@comvi/core"]);
   assert.deepEqual(bundlerCaseNeeds("vue-default", ["@comvi/vue"]), ["@comvi/vue"]);
   assert.deepEqual(bundlerCaseNeeds("next-client-default", ["@comvi/next"]), ["@comvi/next"]);
-  assert.deepEqual(bundlerCaseNeeds("editor-production", ["@comvi/plugin-in-context-editor"]), [
-    "fixtures-08",
-    "@comvi/plugin-in-context-editor",
-  ]);
+  assert.deepEqual(bundlerCaseNeeds("a-0.7-case", ["@comvi/core"]), ["fixtures-08", "@comvi/core"]);
 });
 
 test("a test app runs once it is active, independently of the others", () => {
