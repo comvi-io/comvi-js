@@ -63,8 +63,11 @@ export async function instanceData(page: Page): Promise<string> {
       queue.map(({ x }) => {
         const state = x.state();
         const pairs: Record<string, unknown> = {};
-        for (const locale of Object.keys(state.c ?? {})) {
-          for (const ns of state.ns ?? []) pairs[`${locale}/${ns}`] = x.read(ns, locale);
+        // `c` is namespace → locale → slot (contract `stateFields`).
+        for (const [ns, locales] of Object.entries(state.c ?? {})) {
+          for (const locale of Object.keys(locales as object)) {
+            pairs[`${ns}/${locale}`] = x.read(ns, locale);
+          }
         }
         return { state, pairs };
       }),
@@ -203,13 +206,30 @@ export async function frameworkRow(
     for (const request of await apiLog()) {
       expect(TAG_CHARACTER.test(request.body ?? ""), request.path).toBe(false);
     }
-    expect(TAG_CHARACTER.test(await instanceData(page))).toBe(false);
+    const data = await instanceData(page);
+    // Not vacuous: every loaded pair was read back through x.read().
+    expect(Object.keys(JSON.parse(data)[0].pairs)).toEqual(
+      expect.arrayContaining(["default/en", "common/en"]),
+    );
+    expect(TAG_CHARACTER.test(data)).toBe(false);
   });
 
+  // What the app wrote once, outside its rendering (a title set once, a value written to the
+  // DOM by hand): Disable re-renders the app's output, not this.
+  await page.evaluate(() => {
+    const kept = document.createElement("p");
+    kept.id = "kept";
+    kept.textContent = document.getElementById("A-title")!.textContent;
+    document.body.append(kept);
+  });
   await disable(launched, popups, page, tabId);
 
   await test.step("after Disable the rendered strings lose their frames and new output has none", async () => {
-    await expect.poll(() => allFrames(page), POLL).toEqual([]);
+    await expect.poll(() => framesIn(page, "#region-A"), POLL).toEqual([]);
+    // The documented limit: a string the app kept outside its rendering keeps its frame.
+    expect(await framesIn(page, "#kept")).toEqual(plain("default", "home.title"));
+    await page.locator("#kept").evaluate((el) => el.remove());
+    expect(await allFrames(page)).toEqual([]);
     expect(await visibleText(page, "#A-common")).toBe("Store it");
     await page.locator("#more").click();
     await expect(page.locator("#A-late")).toHaveText("About us", POLL);
