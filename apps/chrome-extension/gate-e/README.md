@@ -165,10 +165,16 @@ WebKit. CI runs both after Gate E.
   to unmarked (boxes and pixels, Arabic included). Required.
 - Firefox: measured identical too. An extra check of the format; it promises no
   support of the extension in Firefox.
+- `layout-engines.spec.ts` is two tests. The first is required in every engine,
+  WebKit included: the page loads, the editor marks every case, the control box
+  (`{ markers: false }`) carries no frame and the marked box its frames, and the
+  line count and the height are unchanged. The second compares width and pixels;
+  only it is the expected failure in WebKit. The cases include a string ending in
+  an emoji and one ending in a tag-sequence flag (identical in all three engines).
 - WebKit: a known defect (owner decision 2026-11-19). During an editing session a
   frame changes the shaping of the neighbouring glyph and breaks Arabic joining
   (Arabic widens by about 7 px). WebKit is outside the editor's supported way of
-  working; the layout test is marked `test.fail` there, so it reports when WebKit
+  working; the width-and-pixels test is marked `test.fail` there, so it reports when WebKit
   stops failing and its measured values are never asserted as intended. Without an
   editor session WebKit renders no frame (`no-session.spec.ts`).
 

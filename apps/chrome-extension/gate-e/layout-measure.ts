@@ -98,11 +98,31 @@ export async function record(name: string, value: unknown): Promise<void> {
   console.log(`[${name}] ${JSON.stringify(value)}`);
 }
 
+/**
+ * What any engine must show before the layout is compared: the control box is unmarked
+ * (`{ markers: false }` works), the marked box carries its frames, and marking changes
+ * neither the line count nor the height.
+ */
+export function expectMarkedAgainstControl(after: Measures): void {
+  for (const [key, { plain, marked }] of Object.entries(after)) {
+    expect({ key, plain: plain.frames, marked: marked.frames }).toEqual({
+      key,
+      plain: 0,
+      marked: FRAMES[key] ?? 1,
+    });
+    expect({ key, lines: marked.lines, height: marked.height }).toEqual({
+      key,
+      lines: plain.lines,
+      height: plain.height,
+    });
+  }
+}
+
 /** Marked equals unmarked, box by box; the unmarked box did not move. */
 export function expectUnchanged(before: Measures, after: Measures): void {
+  expectMarkedAgainstControl(after);
   for (const [key, { plain, marked }] of Object.entries(after)) {
     expect({ key, ...plain }).toEqual({ key, ...before[key]!.plain });
-    expect({ key, frames: marked.frames }).toEqual({ key, frames: FRAMES[key] ?? 1 });
     const { frames: _p, ...plainBox } = plain;
     const { frames: _m, ...markedBox } = marked;
     expect({ key, ...markedBox }).toEqual({ key, ...plainBox });

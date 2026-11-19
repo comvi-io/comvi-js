@@ -23,6 +23,10 @@ export const CASES = {
   arabicB: ["بيت", null],
   ellipsis: ["A long single line that cannot fit into its narrow box at all", "box ellipsis"],
   rich: ["Read the <b>terms and conditions</b> carefully before you continue reading", "box"],
+  // A suffix frame right after an emoji, and after a tag-sequence flag (England: U+1F3F4, tag
+  // characters, U+E007F CANCEL TAG): the frame must not join an emoji sequence on screen.
+  emoji: ["Saved \u{1F389}", "box"],
+  flag: ["Go \u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}", "box"],
 };
 
 const bold = (chunks) => {
