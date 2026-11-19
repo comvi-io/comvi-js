@@ -1664,7 +1664,7 @@
       "package": "packages/editor",
       "file": "src/DOMWatcher.ts",
       "mutators": ["StringLiteral"],
-      "snippet": "\"[@comvi/plugin-in-context-editor] Target element not available for initial scan\",",
+      "snippet": "\"[@comvi/editor] Target element not available for initial scan\",",
       "lineHint": 383,
       "kind": "equivalent",
       "reason": "unreachable: `this.targetElement = options.targetElement || document` is always truthy, so the warning branch is dead. Exercising it needs a constructor seam (needs-seam).",
