@@ -1,0 +1,40 @@
+/* Gate E site pages: no inline style anywhere, so a strict style-src holds. */
+body {
+  font:
+    16px/1.5 "Helvetica Neue",
+    Arial,
+    sans-serif;
+  margin: 2rem;
+}
+.region {
+  border: 1px solid #ccc;
+  padding: 0.5rem 1rem;
+  margin: 0.5rem 0;
+}
+/* Layout cases: shrink-to-fit boxes, so a box's width follows its text. */
+/* Plain above marked, both at the same x: their pixels can be compared. */
+.case {
+  margin: 0.75rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.box {
+  display: inline-block;
+  max-width: 160px;
+  vertical-align: top;
+  font-size: 15px;
+  line-height: 20px;
+}
+.box.ellipsis {
+  width: 120px;
+  max-width: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.box.wide {
+  max-width: none;
+  white-space: nowrap;
+}

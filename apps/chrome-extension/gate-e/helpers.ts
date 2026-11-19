@@ -6,7 +6,7 @@ import {
   type Page,
   type Worker,
 } from "@playwright/test";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -191,57 +191,82 @@ export async function activateEditor(
   }
 }
 
-const EDITOR_BUILD = resolve(
-  import.meta.dirname,
-  "../../../packages/editor/dist/standalone.iife.js",
-);
+const EDITOR_DIR = resolve(import.meta.dirname, "../../../packages/editor");
+const EDITOR_BUILD = resolve(EDITOR_DIR, "dist/standalone.iife.js");
+
+/** The exact editor version the extension under test was built with (D3). */
+export const EDITOR_VERSION: string = JSON.parse(
+  readFileSync(resolve(EDITOR_DIR, "package.json"), "utf8"),
+).version;
+
+/** The one URL the page's core may request on Enable: the exact version, no query. */
+export const EDITOR_URL = `https://cdn.jsdelivr.net/npm/@comvi/editor@${EDITOR_VERSION}/dist/standalone.iife.js`;
 
 /**
- * The URL the page's `devtools()` hook loads the editor from: any version, and
- * the `?comvi=<hour>` cache salt it appends on `latest`.
+ * How the mock CDN answers the editor request:
+ * `local-build` the built `packages/editor/dist/standalone.iife.js`; `unreachable` a network
+ * failure; `not-found` a 404; `never` no answer at all (the detector's time limit);
+ * `throws` a script that throws before it defines anything; `no-global` a script that runs
+ * and defines nothing.
  */
-const EDITOR_CDN_URL =
-  /^https:\/\/cdn\.jsdelivr\.net\/npm\/@comvi\/plugin-in-context-editor@[^/]+\/dist\/standalone\.iife\.js(\?.*)?$/;
+export type CdnMode =
+  "local-build" | "unreachable" | "not-found" | "never" | "throws" | "no-global";
+
+export interface MockCdn {
+  mode: CdnMode;
+  /** Every URL the page requested from the CDN host, in order. */
+  readonly requests: string[];
+}
 
 /**
- * Stand in for jsDelivr: the extension carries no editor, the page's own
- * Comvi SDK loads it from the CDN. Every request for it is answered with the
- * locally built editor (or refused, for the unreachable-CDN case), so the gate
- * tests the editor of this commit and never touches the network. Nothing in
- * the extension or the SDK knows about this. Returns the URLs requested.
+ * Stand in for jsDelivr: the extension carries no editor, the page's own core loads it from
+ * the CDN. Requests are answered by Playwright route interception, so the gate tests the
+ * editor of this commit and never touches the network; nothing in the extension or core knows
+ * about this. Anything else on the CDN host is refused.
  */
-export async function serveEditorFromLocalBuild(
+export async function mockEditorCdn(
   context: BrowserContext,
-  cdn: "local-build" | "unreachable" = "local-build",
-): Promise<string[]> {
+  mode: CdnMode = "local-build",
+): Promise<MockCdn> {
   if (!existsSync(EDITOR_BUILD)) {
-    throw new Error(
-      `No editor build at ${EDITOR_BUILD}. Run: pnpm exec turbo run build --filter @comvi/plugin-in-context-editor`,
-    );
+    throw new Error(`No editor build at ${EDITOR_BUILD}. Run: pnpm --filter @comvi/editor build`);
   }
-  const requested: string[] = [];
-  // Anything else on the CDN host is a request the harness does not expect.
+  const cdn: MockCdn = { mode, requests: [] };
+  const script = (body: string) => ({
+    status: 200,
+    contentType: "application/javascript; charset=utf-8",
+    headers: { "access-control-allow-origin": "*" },
+    body,
+  });
   await context.route("https://cdn.jsdelivr.net/**", (route) => {
     const url = route.request().url();
-    requested.push(url);
-    if (cdn === "unreachable" || !EDITOR_CDN_URL.test(url)) return route.abort("failed");
-    return route.fulfill({
-      path: EDITOR_BUILD,
-      contentType: "application/javascript; charset=utf-8",
-      headers: { "access-control-allow-origin": "*" },
-    });
+    cdn.requests.push(url);
+    if (url !== EDITOR_URL || cdn.mode === "unreachable") return route.abort("failed");
+    switch (cdn.mode) {
+      case "never":
+        return undefined;
+      case "not-found":
+        return route.fulfill({ status: 404, body: "Not Found" });
+      case "throws":
+        return route.fulfill(script('throw new Error("gate-e: the CDN served a broken script");'));
+      case "no-global":
+        return route.fulfill(script("/* gate-e: not the editor */"));
+      default:
+        return route.fulfill({ ...script(""), body: readFileSync(EDITOR_BUILD, "utf8") });
+    }
   });
-  return requested;
+  return cdn;
 }
 
 /** Launch Chromium with the unpacked Gate E build and return its worker and extension id. */
 export async function launchGateE(
-  options: { backForwardCache?: boolean; cdn?: "local-build" | "unreachable" } = {},
+  options: { backForwardCache?: boolean; cdn?: CdnMode } = {},
 ): Promise<{
   context: BrowserContext;
   worker: Worker;
   extensionId: string;
   debuggingPort: number;
+  cdn: MockCdn;
   /** Every URL the page requested from the editor CDN. */
   cdnRequests: string[];
 }> {
@@ -260,14 +285,15 @@ export async function launchGateE(
     // restores cached documents, which is the case under test.
     ...(options.backForwardCache ? { ignoreDefaultArgs: ["--disable-back-forward-cache"] } : {}),
   });
-  const cdnRequests = await serveEditorFromLocalBuild(context, options.cdn);
+  const cdn = await mockEditorCdn(context, options.cdn);
   const worker = await extensionWorker(context);
   return {
     context,
     worker,
     extensionId: new URL(worker.url()).host,
     debuggingPort,
-    cdnRequests,
+    cdn,
+    cdnRequests: cdn.requests,
   };
 }
 

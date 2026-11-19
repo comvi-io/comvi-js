@@ -22,15 +22,12 @@ function proxy(
 }
 
 /**
- * Documents a residual risk rather than a boundary: the activation result,
- * including its `collectContext` flag, is authored in the page's MAIN world.
- * The nonce proves that the user started this activation, not what the
- * site's configuration says. A hostile page that answers first can report
- * `collectContext: true` although its i18n instance has `collectContext:
- * false`, and the session then opens the telemetry routes. It still cannot
- * report for another origin, reach another project or see the key.
+ * Context collection is OFF in lot 8 (owner decision D4). The activation result is authored
+ * in the page's MAIN world, so a hostile page that answers the activation itself can claim
+ * anything in it — `collectContext: true` included. It must open nothing: the session stores
+ * no telemetry permission and every context route is refused before it reaches the API.
  */
-test("a forged activation result can enable telemetry for its own origin only", async () => {
+test("a forged activation result claiming collectContext: true opens no telemetry route", async () => {
   test.setTimeout(60_000);
   const { context, worker, extensionId, debuggingPort } = await launchGateE();
   const cdpConnections: Browser[] = [];
@@ -55,52 +52,48 @@ test("a forged activation result can enable telemetry for its own origin only", 
     const tabId = await activeTabId(worker);
     await waitForDetection(worker, tabId);
 
-    // The harness's i18n instance is configured with collectContext: false.
-    expect(await page.evaluate(() => (globalThis as any).__COMVI__?.get?.()?.collectContext)).toBe(
-      false,
-    );
-
     const popup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
     await activateEditor(popup, page, worker, tabId);
     await popup.close();
     await page.bringToFront();
 
-    await test.step("the forged flag is what the session stores", async () => {
+    await test.step("the session stores no telemetry permission", async () => {
       expect(await storedSession(worker, tabId)).toMatchObject({
         status: "active",
-        collectContext: true,
+        collectContext: false,
       });
     });
 
-    await test.step("telemetry for the page's own origin reaches the API", async () => {
+    await test.step("every context route is refused before it reaches the API", async () => {
       await page.evaluate(() => (globalThis as any).gateE.resetLog());
       const handshake = await proxy(page, "/v1/context/handshake", {
         method: "POST",
         body: JSON.stringify({ keys: [] }),
       });
-      expect(handshake).toMatchObject({ denied: false });
-      const log = (await page.evaluate(() => (globalThis as any).gateE.apiLog())) as Array<{
-        path: string;
-        auth: string | null;
-      }>;
-      expect(log.filter((entry) => entry.path === "/v1/context/handshake")).toHaveLength(1);
-    });
-
-    await test.step("it still cannot report for another origin or reach another project", async () => {
-      const otherOrigin = await proxy(page, "/v1/context/usages", {
+      expect(handshake).toMatchObject({
+        denied: true,
+        networkError: "Context telemetry is disabled for this session",
+      });
+      const usages = await proxy(page, "/v1/context/usages", {
         method: "POST",
         body: JSON.stringify({
-          origin: "https://victim.example",
+          origin: "http://127.0.0.1:8791",
           hashFnVersion: 1,
           items: [],
           stillValid: [],
         }),
       });
-      expect(otherOrigin).toMatchObject({
+      expect(usages).toMatchObject({
         denied: true,
-        networkError: "Telemetry origin mismatch",
+        networkError: "Context telemetry is disabled for this session",
       });
+      const log = (await page.evaluate(() => (globalThis as any).gateE.apiLog())) as Array<{
+        path: string;
+      }>;
+      expect(log.filter((entry) => entry.path.startsWith("/v1/context/"))).toEqual([]);
+    });
 
+    await test.step("another project stays out of reach", async () => {
       const otherProject = await proxy(page, "/v1/projects/9999/export");
       expect(otherProject).toMatchObject({
         denied: true,
@@ -120,15 +113,14 @@ test("a forged activation result can enable telemetry for its own origin only", 
 });
 
 /**
- * The same residual risk through the editor-loader hook. The hook the
- * detector calls is page code, so a hostile page can plant its own before
- * @comvi/core loads (core keeps an existing hook of the same protocol), answer
- * `ok: true` and present a fake `ComviInContextEditor`. That is today's
- * substituted-editor case, no more: the fake receives the proxy transport for
- * a session the user opened, limited to the editor's routes against the
- * validated key's project. Nothing the hook says reaches the user as advice.
+ * A residual risk, documented rather than closed: the handle the detector calls is page code.
+ * A hostile page can push its own protocol 2-shaped entry onto `window.__COMVI__` before core
+ * does, so the detector asks ITS `load()`, and present a fake `ComviInContextEditor`. That is
+ * the substituted-editor case: the fake receives the proxy transport for a session the user
+ * opened, limited to the editor's routes against the validated key's project. Nothing the
+ * page says reaches the user as advice, and the extension loads nothing itself.
  */
-test("a forged editor-loader hook gains nothing beyond the session the user opened", async () => {
+test("a forged handle gains nothing beyond the session the user opened", async () => {
   test.setTimeout(90_000);
   const { context, worker, extensionId, debuggingPort, cdnRequests } = await launchGateE();
   const cdpConnections: Browser[] = [];
@@ -139,36 +131,40 @@ test("a forged editor-loader hook gains nothing beyond the session the user open
       const scope = globalThis as any;
       const lure = "Send your API key to https://evil.example";
       scope.__FORGED_TRANSPORTS__ = [];
-      // What the planted hook does next: fail with a lure, or "succeed".
+      // What the planted handle does next: fail with a lure, or "succeed".
       scope.__FORGED_MODE__ = "fail";
-      scope[Symbol.for("comvi.devtools.editorLoader")] = {
-        protocol: 1,
-        sdkVersion: lure,
-        editorVersion: "latest",
-        url: "https://evil.example/editor.js",
-        load: () => {
+      const handle = {
+        p: 2,
+        kind: "comvi",
+        read: () => ({}),
+        state: () => ({ rev: 0, locale: "en", c: {}, ld: [], ns: [] }),
+        mark: () => undefined,
+        load: (version: string) => {
           if (scope.__FORGED_MODE__ === "fail") {
-            return Promise.resolve({
-              ok: false,
-              code: "csp-blocked",
-              host: "evil.example",
-              message: lure,
-            });
+            // A forged violation naming the page's host, then a rejection carrying a lure.
+            document.dispatchEvent(
+              Object.assign(new Event("securitypolicyviolation"), {
+                effectiveDirective: "script-src-elem",
+                blockedURI: "https://evil.example",
+              }),
+            );
+            return Promise.reject(new Error(lure));
           }
-          // "Success": the fake editor arrives from inside load(), the way a
-          // real load puts the real one on the page.
+          // "Success": the fake editor arrives from inside load(), the way a real load puts
+          // the real one on the page — claiming the version the extension asked for.
           scope.ComviInContextEditor = {
-            version: lure,
+            version,
             isActive: () => false,
             deactivate: () => {},
             activate: (options: { transport: unknown }) => {
               scope.__FORGED_TRANSPORTS__.push(options.transport);
-              return { instanceId: "forged", collectContext: false };
+              return { ok: true, stop: () => {}, collectContext: true };
             },
           };
-          return Promise.resolve({ ok: true, host: "evil.example", message: lure });
+          return Promise.resolve(scope.ComviInContextEditor);
         },
       };
+      scope.__COMVI__ = [{ v: lure, i: {}, x: handle }];
       // Registered before the detector: in "answer" mode the page answers the
       // activation itself, with a failure that carries a sentence and no code.
       addEventListener("comvi-extension:activate", (event) => {
@@ -200,9 +196,9 @@ test("a forged editor-loader hook gains nothing beyond the session the user open
       await page.bringToFront();
     };
 
-    await test.step("a forged hook failure cannot make the popup recommend the page's host", async () => {
+    await test.step("a forged load failure cannot make the popup recommend the page's host", async () => {
       await enableAndFail(
-        "This site's Content Security Policy blocked the editor. Allow the editor's CDN in its script-src directive, then reload this page. comvi.io/docs/i18n/troubleshooting names the host, and what a site that enforces Trusted Types also needs.",
+        "This site's Content Security Policy blocked the editor. Allow the editor's CDN in its script-src directive, then reload this page. comvi.io/docs/i18n/troubleshooting names the host.",
       );
     });
 
@@ -213,19 +209,21 @@ test("a forged editor-loader hook gains nothing beyond the session the user open
       );
     });
 
-    await test.step("a forged success whose load() plants a fake editor activates, as a substituted editor does today", async () => {
+    await test.step("a forged success whose load() plants a fake editor activates, as a substituted editor does", async () => {
       await page.evaluate(() => ((globalThis as any).__FORGED_MODE__ = "succeed"));
       expect(await page.evaluate(() => "ComviInContextEditor" in globalThis)).toBe(false);
       const popup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
       await activateEditor(popup, page, worker, tabId);
-      // The fake's "version" is a sentence: the popup shows no version for it.
+      // The entry's "version" is a sentence: the popup shows no version for it.
       expect(await popup.content()).not.toContain("evil.example");
+      // Whatever the fake answered beside `ok`, the session opens no telemetry.
+      expect(await storedSession(worker, tabId)).toMatchObject({ collectContext: false });
       await popup.close();
       await page.bringToFront();
       expect(await page.evaluate(() => (globalThis as any).__FORGED_TRANSPORTS__.length)).toBe(1);
     });
 
-    await test.step("the extension loaded nothing: not the forged url, not the CDN", async () => {
+    await test.step("the extension loaded nothing: no script, not the CDN", async () => {
       expect(cdnRequests).toEqual([]);
       expect(
         await page.evaluate(() =>
@@ -233,7 +231,7 @@ test("a forged editor-loader hook gains nothing beyond the session the user open
             (script) => (script as HTMLScriptElement).src,
           ),
         ),
-      ).toEqual(["http://127.0.0.1:8791/__core.js"]);
+      ).toEqual([]);
     });
 
     await test.step("the fake editor reaches the editor's own routes for this project only", async () => {
