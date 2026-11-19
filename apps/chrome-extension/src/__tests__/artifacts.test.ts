@@ -146,6 +146,15 @@ describe.skipIf(!runSuite)(
       ).toEqual([]);
     });
 
+    // The run above sees only globals created by assignment or `var`/function; a top-level
+    // `let`, `const` or `class` lives in the script's lexical scope, not on window. The
+    // bundle as a whole is one arrow-function wrapper, so it has no top level of its own.
+    it.each(["bridge.js", "detector.js"])("%s is one function wrapper, start to end", (bundle) => {
+      const code = read(bundle).trim();
+      expect(code.startsWith("(() => {"), bundle).toBe(true);
+      expect(code.endsWith("})();"), bundle).toBe(true);
+    });
+
     // Gate E builds record START_SESSION outcomes for race specs; release must not.
     it("worker bundle carries no Gate E test hook", () => {
       expect(read("background.js")).not.toContain("__gateE");
