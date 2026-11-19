@@ -23,3 +23,4 @@ scripts/docs-snippets/__fixtures__
 scripts/size-compare/results-*.json
 scripts/size-compare/results-*.md
 scripts/typegen-e2e/.next-apps
+scripts/typegen-e2e/.nuxt-apps

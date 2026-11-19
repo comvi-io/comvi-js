@@ -18,8 +18,9 @@
 ---
 
 Nuxt 3.7+ and Nuxt 4 on Node 22.20+, or the newer Node your Nuxt requires. Verified: Nuxt 3.7.0,
-3.21.11, 4.0.0 and 4.6.0 on Node 22.22.3; Nuxt 3.21.11 and 4.6.2 on Node 24.22.1. Three limits outside
-the module are listed under [Version notes](#version-notes).
+3.21.11, 4.0.0 and 4.6.0 on Node 22.22.3; Nuxt 3.21.11 and 4.6.2 on Node 24.22.1. Typed translations
+(`comvi.types`) need Nuxt 3.21.11+ or 4.6.0+. The limits outside the module are listed under
+[Version notes](#version-notes).
 
 `@comvi/nuxt` is the Comvi i18n module for Nuxt 3 and 4: it creates one i18n instance per request,
 renders the page's translations on the server, starts the browser from that render, and clones your
@@ -86,6 +87,35 @@ browser's back button) supersedes it.
 For a two-line start, `comvi.messages: { en: { … }, uk: { … } }` in `nuxt.config.ts` gives the
 `default` namespace without files; those catalogs are compiled into the app bundle, and no page payload
 carries a flat one again (a nested one, or one a server `add()` changed, is handed over as usual).
+
+## Typed translations
+
+`comvi.types` types the keys and params from the JSON catalogs, the ones the loader imports:
+
+```ts title="nuxt.config.ts" check=group=nuxt-types
+export default defineNuxtConfig({
+  modules: ["@comvi/nuxt"],
+  comvi: {
+    locales: ["en", "uk"],
+    defaultLocale: "en",
+    timeZone: "UTC",
+    types: { from: "./locales" }, // relative to the project root
+  },
+});
+```
+
+`nuxt prepare`, `nuxt typecheck` and `nuxt build` first write the declaration to
+`.nuxt/types/comvi.d.ts`, next to the tsconfigs Nuxt generates, and `nuxt dev` rewrites it when a
+catalog changes. The module adds it to those tsconfigs, so there is nothing to configure or commit.
+The types come from the `defaultLocale` catalogs (`sourceLocale` picks another). In `.vue` files and
+Nitro routes, an unknown key or namespace is a type error, and so is a call that leaves out a param
+its message uses. A broken catalog fails `nuxt prepare`, `nuxt typecheck` and `nuxt build`;
+`nuxt dev` reports it and keeps the last file. `out`, `fileTemplate` and `augment` are the options
+of `@comvi/vite-plugin`.
+
+`comvi.types` needs Nuxt 3.21.11+ or 4.6.0+ (verified: 3.21.11, 4.6.0 and 4.6.2). On an older Nuxt
+the module's setup fails with an error that names the installed version; without `comvi.types` the
+app runs on that Nuxt as before.
 
 ## A page that waits for its namespace
 
@@ -185,6 +215,10 @@ presets and `nuxt generate` are unverified (neither supported nor excluded).
 - Older Nuxt versions print their own `[nuxt] error caught during app initialization` with
   `Page not found` when a 404 page hydrates (observed: Nuxt 3.7.0, 3.21.0 and 4.0.0, with or without
   the module; not in 3.21.11 or 4.6.x).
+- Nuxt 3.7 to 3.9 write `moduleResolution: "Node"` into `.nuxt/tsconfig.json` unless
+  `experimental.typescriptBundlerResolution` is on (3.10 switched the default). The module's own types
+  resolve there (verified: Nuxt 3.7.0 with TypeScript 5.9.3); `useFormat()` is typed as `any`.
+  TypeScript 6 rejects that setting (TS5107), so `nuxt typecheck` on it needs TypeScript 5.
 - The server and the browser format dates with their own Intl data: a server Node whose ICU/CLDR
   differs from the visitor's browser can render a different date text and cause a hydration mismatch
   (observed: Node 22.20.0, CLDR 47, against Chromium, CLDR 48, for an `es` long date with a short

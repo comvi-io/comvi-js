@@ -104,6 +104,41 @@ export interface NuxtI18nOptions {
    * @example './comvi.i18n.ts'
    */
   i18nModule?: string;
+
+  /**
+   * Typed translations: the module writes a declaration from local JSON catalogs before
+   * the app is type-checked (`nuxt prepare`, `nuxt typecheck`, `nuxt build`) and keeps it
+   * current in `nuxt dev`. Unset: nothing is generated. Needs Nuxt 3.21.11+ or 4.6.0+: on an
+   * older Nuxt the module's setup fails.
+   * @example { from: "./i18n/locales" }
+   */
+  types?: NuxtI18nTypes;
+}
+
+/** `comvi.types`: the options of `@comvi/vite-plugin`, with Nuxt's defaults for `out` and `sourceLocale`. */
+export interface NuxtI18nTypes {
+  /**
+   * The catalogs: a directory of JSON files (`<locale>.json` is the `default` namespace,
+   * `<namespace>/<locale>.json` the others), or a wire schema v2 file such as
+   * `.comvi/schema.json` from `comvi pull`. Resolved against the project's `rootDir`.
+   */
+  from: string;
+  /**
+   * The declaration file to write, resolved against `rootDir`. The default is next to the
+   * tsconfigs Nuxt generates (`typesDir`, else `buildDir`); the module adds the file to
+   * them either way.
+   * @default '.nuxt/types/comvi.d.ts'
+   */
+  out?: string;
+  /** The locale the types come from. @default the module's `defaultLocale` */
+  sourceLocale?: string;
+  /** Maps a file to its locale and namespace. @default '{namespace}/{languageTag}.json' */
+  fileTemplate?: string;
+  /**
+   * The module the declaration augments. By default the Comvi package the app's
+   * `package.json` declares (`@comvi/nuxt` in a Nuxt app).
+   */
+  augment?: string;
 }
 
 /**

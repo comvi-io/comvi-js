@@ -214,7 +214,8 @@ jobs:
       # key reaches tsc, broken JSON keeps the file, an unchanged declaration is not
       # rewritten, two watchers of one file write it from one process), and
       # `withComvi({ types })` under real `next dev` / `next build` on Next 15 and 16,
-      # webpack and Turbopack.
+      # webpack and Turbopack, and `comvi.types` under real `nuxt prepare` / `typecheck` /
+      # `dev` / `build` on Nuxt 3 and 4 (vue-tsc on real `.vue` files).
       - name: Typegen e2e (built artifacts)
         run: pnpm typegen:e2e
 

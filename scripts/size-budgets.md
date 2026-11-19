@@ -1746,3 +1746,22 @@ redirect ends the link's target, and a link to the page on screen switches on th
 `duplicated` report instead of a string compare, which removes code. `fw-nuxt-client` 10,491 →
 **10,456** (23,658 min), `fw-nuxt-server` 11,010 → **10,977** (24,858 min); module and `/i18n`
 unchanged. Ceilings unchanged (client 10,701 stays as set from 10,491).
+
+## 2026-11-18: lot 7 PR 2, the `fw-nuxt-module` ceiling raised (owner)
+
+Owner decision of 2026-11-18. `comvi.types` inlines the typegen generator into `dist/module.mjs`,
+as `@comvi/next/plugin` does (lot 6b): no code splitting. The row moved 3,465 → 14,394 B with the
+first form; the owner set the ceiling to ceil(14,394 × 1.02) = 14,682. After the review fixes (the
+file follows `typesDir`; a settings error in `nuxt dev` is reported) it measures 14,417. The client,
+server and `/i18n` rows are unchanged. Measured on `lot7/nuxt-typegen` @ `72dedd66`,
+`TURBO_FORCE=true pnpm build`, `node --version` v24.22.1, two runs with the same figures.
+
+| row            | measured (min / min+gz) | ceiling (old → new)                  | budget = min(ceiling, ceil(× 1.05)) |
+| -------------- | ----------------------- | ------------------------------------ | ----------------------------------- |
+| fw-nuxt-client | 23,895 / 10,534         | 10,701 (unchanged)                   | 10,701                              |
+| fw-nuxt-server | 24,827 / 10,974         | 11,022 (unchanged)                   | 11,022                              |
+| fw-nuxt-module | 37,667 / 14,417         | 3,537 → 14,682 = ceil(14,394 × 1.02) | 14,682                              |
+| fw-nuxt-i18n   | 1,190 / 716             | 731 (unchanged)                      | 731                                 |
+
+Measured once and not shipped: with the generator as a lazily imported chunk, `module.mjs` alone was
+3,889 B (still over 3,537).

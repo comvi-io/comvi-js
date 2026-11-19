@@ -111,3 +111,5 @@ docs/reviews/
 
 # scripts/typegen-e2e/next.test.mjs: throwaway Next apps (inside the repo, so Next finds the workspace root)
 scripts/typegen-e2e/.next-apps
+# scripts/typegen-e2e/nuxt.test.mjs: throwaway Nuxt apps (inside the repo, for the workspace's packages)
+scripts/typegen-e2e/.nuxt-apps
