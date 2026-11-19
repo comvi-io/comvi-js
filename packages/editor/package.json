@@ -35,8 +35,7 @@
     "access": "public"
   },
   "exports": {
-    "./standalone.iife.js": "./dist/standalone.iife.js",
-    "./package.json": "./package.json"
+    "./standalone.iife.js": "./dist/standalone.iife.js"
   },
   "sideEffects": [
     "./dist/standalone.iife.js"
