@@ -16,11 +16,17 @@ import { EXPECTED_CONTENT_SCRIPTS } from "../shared/__fixtures__/manifest-conten
 const PACKAGE_DIR = process.cwd();
 const DIST = resolve(PACKAGE_DIR, "dist");
 const BUILT_MANIFEST = resolve(DIST, "manifest.json");
+// The detector bakes in this package's version (owner decision D3, vite.config.ts).
+const EDITOR_PACKAGE = resolve(PACKAGE_DIR, "../../packages/editor/package.json");
 const hasDist = existsSync(BUILT_MANIFEST);
 
 /** Every input the build copies or bundles into dist/. */
 function newestSourceMtime(): number {
-  const files = [resolve(PACKAGE_DIR, "manifest.json"), resolve(PACKAGE_DIR, "vite.config.ts")];
+  const files = [
+    resolve(PACKAGE_DIR, "manifest.json"),
+    resolve(PACKAGE_DIR, "vite.config.ts"),
+    EDITOR_PACKAGE,
+  ];
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (entry.name === "__tests__" || entry.name === "__fixtures__") continue;
@@ -149,6 +155,21 @@ describe.skipIf(!runSuite)(
         'files: ["bridge.js"]',
         'files: ["detector.js"]',
       ]);
+    });
+
+    // Owner decision D3: the exact compatible editor version is a constant of the
+    // build, taken from the workspace @comvi/editor. No `latest`, no runtime lookup.
+    it("detector asks for exactly the workspace @comvi/editor version", () => {
+      const version: string = JSON.parse(readFileSync(EDITOR_PACKAGE, "utf8")).version;
+      const detector = read("detector.js");
+      const declared = [...detector.matchAll(/\bEDITOR_VERSION = "([^"]*)"/g)].map((m) => m[1]);
+      expect(declared).toEqual([version]);
+      expect(detector).toContain("load.call(handle, EDITOR_VERSION)");
+      expect(detector).not.toMatch(/["']latest["']/);
+      // No other bundle carries the constant: the popup and the worker load nothing.
+      for (const file of scripts().filter((name) => name !== "detector.js")) {
+        expect(read(file), file).not.toContain("EDITOR_VERSION");
+      }
     });
 
     it.each(["bridge.js", "detector.js"])(

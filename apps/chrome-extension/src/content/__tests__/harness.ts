@@ -36,7 +36,8 @@ export function createPageWindow(): PageWindow {
       for (const listener of [...(listeners.get(event.type) ?? [])]) {
         listener(event);
       }
-      return true;
+      // As a real EventTarget answers: false once a listener cancelled it.
+      return !event.defaultPrevented;
     },
     listenerCount(type) {
       return (listeners.get(type) ?? []).length;
@@ -44,6 +45,38 @@ export function createPageWindow(): PageWindow {
     setTimeout,
     clearTimeout,
   };
+}
+
+/** A plain event target standing in for the page's `document`. */
+export function createPageDocument(): Pick<
+  PageWindow,
+  "addEventListener" | "removeEventListener" | "dispatchEvent" | "listenerCount"
+> {
+  const { addEventListener, removeEventListener, dispatchEvent, listenerCount } =
+    createPageWindow();
+  return { addEventListener, removeEventListener, dispatchEvent, listenerCount };
+}
+
+/** A protocol 2 handle as `devtools()` builds it, every member a spy. */
+export function protocol2Handle(overrides: Record<string, unknown> = {}) {
+  return {
+    p: 2,
+    kind: "comvi",
+    read: vi.fn(() => ({})),
+    state: vi.fn(() => ({ rev: 0, locale: "en", c: {}, ld: [], ns: [] })),
+    mark: vi.fn(),
+    load: vi.fn(() => new Promise(() => {})),
+    ...overrides,
+  };
+}
+
+/** A protocol 2 queue entry `{ v, i, x }`; `i` and `x` are spies. */
+export function protocol2Entry(
+  x: Record<string, unknown> = protocol2Handle(),
+  i: Record<string, unknown> = { add: vi.fn(), t: vi.fn(), destroy: vi.fn() },
+  v = "0.8.0",
+) {
+  return { v, i, x };
 }
 
 /** Collect the details of every `type` event the page sees, newest last. */

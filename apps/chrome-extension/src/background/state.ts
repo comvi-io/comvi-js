@@ -12,6 +12,8 @@
  * which is exactly the lifetime session authority should have.
  */
 
+import type { PageSupport } from "../shared/messages";
+
 export type SessionStatus = "pending" | "active";
 
 /** A proxy session created by the popup via START_SESSION. */
@@ -22,7 +24,7 @@ export interface SessionRecord {
   apiKey: string;
   /** Project id captured during key validation. */
   projectId?: string | number;
-  /** Page-reported context-collection setting (advisory, not a boundary). */
+  /** Whether the telemetry routes are open: always false in lot 8 (owner decision D4). */
   collectContext: boolean;
   /** Single-use activation nonce; travels popup -> bridge -> SW, never the page. */
   nonce: string;
@@ -40,8 +42,8 @@ export interface SessionRecord {
 export interface TabState {
   comviDetected: boolean;
   version?: string;
-  /** Whether the page can supply the editor; absent while unknown. */
-  editorAvailable?: boolean;
+  /** What the detected entries speak; absent while unknown. */
+  support?: PageSupport;
   /** Top-level Chrome document identity that owns this cached state. */
   documentId?: string;
 }

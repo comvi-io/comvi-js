@@ -1,39 +1,41 @@
 import { describe, it, expect } from "vitest";
-import { asActivationFailureCode, asDisplayVersion, editorAvailability } from "../activation";
+import { asActivationFailureCode, asDisplayVersion, asPageSupport } from "../activation";
 
-describe("editorAvailability", () => {
-  it("is true for a page with a loader hook", () => {
-    expect(editorAvailability({ editorLoaded: false, editorLoader: { protocol: 1 } })).toBe(true);
+describe("asPageSupport", () => {
+  it.each(["compatible", "old-protocol", "unknown-protocol"])("keeps %s", (support) => {
+    expect(asPageSupport(support)).toBe(support);
   });
 
-  it("is true for a page that already carries the editor, hook or not", () => {
-    expect(editorAvailability({ editorLoaded: true, editorLoader: null })).toBe(true);
-  });
-
-  it("is false once the detector looked and found neither", () => {
-    expect(editorAvailability({ editorLoaded: false, editorLoader: null })).toBe(false);
-  });
-
-  it("is unknown for a status that does not mention the loader", () => {
-    expect(editorAvailability({ editorLoaded: false })).toBeUndefined();
-    expect(editorAvailability({})).toBeUndefined();
+  it.each([
+    ["another word", "newer"],
+    ["a protocol number", 2],
+    ["an object that prints as one", { toString: () => "compatible" }],
+    ["nothing", undefined],
+  ])("drops %s", (_label, value) => {
+    expect(asPageSupport(value)).toBeUndefined();
   });
 });
 
 describe("asActivationFailureCode", () => {
   it.each([
     "csp-blocked",
+    "trusted-types",
     "load-error",
     "timeout",
     "no-global",
-    "invalid-editor-version",
-    "no-loader",
+    "bad-version",
+    "old-protocol",
+    "unknown-protocol",
+    "no-instance",
   ])("keeps the known code %s", (code) => {
     expect(asActivationFailureCode(code)).toBe(code);
   });
 
   it.each([
     ["an unknown code", "run-this"],
+    // 0.7 codes: the loader slot and the app's editor pin are gone in 0.8.
+    ["the 0.7 no-loader code", "no-loader"],
+    ["the 0.7 invalid-editor-version code", "invalid-editor-version"],
     ["a number", 3],
     ["an object", {}],
     ["nothing", undefined],

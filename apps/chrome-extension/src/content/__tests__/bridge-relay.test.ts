@@ -45,7 +45,7 @@ describe("ISOLATED-world bridge page-event relay", () => {
       version: "1.2.3",
       instanceCount: 2,
       editorActive: false,
-      editorLoaded: true,
+      support: "compatible",
     });
 
     expect(relayed()).toEqual([
@@ -54,8 +54,8 @@ describe("ISOLATED-world bridge page-event relay", () => {
         payload: {
           comviDetected: true,
           editorActive: false,
-          editorLoaded: true,
-          editorLoader: null,
+          support: "compatible",
+          editorVersion: undefined,
           version: "1.2.3",
           instanceCount: 2,
         },
@@ -78,8 +78,8 @@ describe("ISOLATED-world bridge page-event relay", () => {
         payload: {
           comviDetected: true,
           editorActive: false,
-          editorLoaded: false,
-          editorLoader: null,
+          support: undefined,
+          editorVersion: undefined,
           version: undefined,
           instanceCount: 1,
         },
@@ -94,13 +94,13 @@ describe("ISOLATED-world bridge page-event relay", () => {
     expect(relayed().map((message) => message.type)).toEqual(["COMVI_DETECTED"]);
   });
 
-  it("announces detection again when a later status first shows a loader hook", () => {
-    dispatch("comvi-extension:status", { detected: true, editorLoader: null });
-    dispatch("comvi-extension:status", { detected: true, editorLoader: { protocol: 1 } });
-    dispatch("comvi-extension:status", { detected: true, editorLoader: { protocol: 1 } });
+  it("announces detection again when a later status speaks another protocol", () => {
+    dispatch("comvi-extension:status", { detected: true, support: "old-protocol" });
+    dispatch("comvi-extension:status", { detected: true, support: "compatible", instanceCount: 1 });
+    dispatch("comvi-extension:status", { detected: true, support: "compatible", instanceCount: 1 });
 
     expect(relayed().map((message) => message.type)).toEqual(["COMVI_DETECTED", "COMVI_DETECTED"]);
-    expect(relayed()[1]?.payload).toMatchObject({ editorLoader: { protocol: 1 } });
+    expect(relayed()[1]?.payload).toMatchObject({ support: "compatible" });
   });
 
   it("relays a load failure as its code alone: no error text, no host, no url", () => {
@@ -116,23 +116,30 @@ describe("ISOLATED-world bridge page-event relay", () => {
     expect(relayed()).toEqual([
       {
         type: "EDITOR_ACTIVATED",
-        payload: {
-          success: false,
-          code: "csp-blocked",
-          instanceId: undefined,
-          collectContext: false,
-          nonce: undefined,
-        },
+        payload: { success: false, code: "csp-blocked", nonce: undefined },
       },
     ]);
     expect(JSON.stringify(relayed())).not.toContain("evil.example");
   });
 
-  it("announces detection again when the page gains the editor itself", () => {
-    dispatch("comvi-extension:status", { detected: true, editorLoader: null });
-    dispatch("comvi-extension:status", { detected: true, editorLoader: null, editorLoaded: true });
+  it("announces detection again when a second instance joins", () => {
+    dispatch("comvi-extension:status", { detected: true, support: "compatible", instanceCount: 1 });
+    dispatch("comvi-extension:status", { detected: true, support: "compatible", instanceCount: 2 });
 
     expect(relayed().map((message) => message.type)).toEqual(["COMVI_DETECTED", "COMVI_DETECTED"]);
+  });
+
+  // D4 and the removed instance id: a page that still sends them gets nothing past the bridge.
+  it("relays a success without the collectContext claim or instance id the page attached", () => {
+    dispatch("comvi-extension:activated", {
+      success: true,
+      collectContext: true,
+      instanceId: "comvi-1",
+    });
+
+    expect(relayed()).toEqual([
+      { type: "EDITOR_ACTIVATED", payload: { success: true, code: undefined, nonce: undefined } },
+    ]);
   });
 
   it("drops a failure code that is not a short string", () => {
@@ -161,7 +168,7 @@ describe("ISOLATED-world bridge page-event relay", () => {
     expect(relayed()).toEqual([
       {
         type: "EDITOR_DEACTIVATED",
-        payload: { success: true, error: undefined, instanceId: undefined, collectContext: false },
+        payload: { success: true, code: undefined },
       },
     ]);
   });

@@ -7,20 +7,30 @@
  * and a content script cannot import one.
  */
 
-import type { ActivationFailureCode, StatusResponsePayload } from "./messages";
+import type { ActivationFailureCode, PageSupport } from "./messages";
 
 const ACTIVATION_FAILURE_CODES: readonly ActivationFailureCode[] = [
   "csp-blocked",
+  "trusted-types",
   "load-error",
   "timeout",
   "no-global",
-  "invalid-editor-version",
-  "no-loader",
+  "bad-version",
+  "old-protocol",
+  "unknown-protocol",
+  "no-instance",
 ];
 
 /** A failure code from the fixed list, or nothing. */
 export function asActivationFailureCode(value: unknown): ActivationFailureCode | undefined {
   return ACTIVATION_FAILURE_CODES.find((code) => code === value);
+}
+
+const PAGE_SUPPORT: readonly PageSupport[] = ["compatible", "old-protocol", "unknown-protocol"];
+
+/** What the detected entries speak, from the fixed list, or nothing. */
+export function asPageSupport(value: unknown): PageSupport | undefined {
+  return PAGE_SUPPORT.find((known) => known === value);
 }
 
 // Three numbers, then at most one lowercase pre-release word and one number:
@@ -38,16 +48,4 @@ export function asDisplayVersion(value: unknown): string | undefined {
   return typeof value === "string" && value.length <= 32 && DISPLAY_VERSION.test(value)
     ? value
     : undefined;
-}
-
-/**
- * Whether the page can supply the editor: it is already loaded, or a loader
- * hook is there to load it. `undefined` when the status does not say.
- */
-export function editorAvailability(
-  status: Pick<StatusResponsePayload, "editorLoaded" | "editorLoader">,
-): boolean | undefined {
-  const loader = status.editorLoader;
-  if (status.editorLoaded === true || (typeof loader === "object" && loader !== null)) return true;
-  return loader === null ? false : undefined;
 }

@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createPageWindow, recordEvents, recordJsonEvents, type PageWindow } from "./harness";
+import { EDITOR_VERSION } from "../../shared/protocol";
+import {
+  createPageDocument,
+  createPageWindow,
+  protocol2Entry,
+  recordEvents,
+  recordJsonEvents,
+  type PageWindow,
+} from "./harness";
 
 const PROXY_TIMEOUT_MS = 30_000;
 
@@ -16,6 +24,7 @@ interface EditorFake {
   isActive?: () => boolean;
   activate?: (options: { transport: Transport; apiBaseUrl?: string }) => unknown;
   deactivate?: () => void;
+  version?: unknown;
 }
 
 describe("MAIN-world detector editor lifecycle", () => {
@@ -25,7 +34,8 @@ describe("MAIN-world detector editor lifecycle", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     page = createPageWindow();
-    page.__COMVI__ = [{ v: "2.0.0", i: { instanceId: "i18n" } }];
+    page.__COMVI__ = [protocol2Entry()];
+    vi.stubGlobal("document", createPageDocument());
     activateOptions = undefined;
   });
 
@@ -39,13 +49,14 @@ describe("MAIN-world detector editor lifecycle", () => {
     await import("../detector");
   }
 
+  /** The editor's global; the version this build pairs with unless the test says otherwise. */
   function installEditor(editor: EditorFake): void {
-    page.ComviInContextEditor = editor;
+    page.ComviInContextEditor = { version: EDITOR_VERSION, activate: () => null, ...editor };
   }
 
   /** An editor runtime that activates successfully and hands back the transport. */
   function workingEditor(
-    result: unknown = { instanceId: "editor-1", collectContext: false },
+    result: unknown = { ok: true, stop: () => undefined, collectContext: false },
   ): void {
     installEditor({
       isActive: () => false,
@@ -60,7 +71,7 @@ describe("MAIN-world detector editor lifecycle", () => {
     page.dispatchEvent(new CustomEvent("comvi-extension:activate", { detail }));
   }
 
-  it("reports Comvi as undetected before the editor is ever consulted", async () => {
+  it("reports a page without Comvi as no-instance before the editor is ever consulted", async () => {
     page.__COMVI__ = undefined;
     workingEditor();
     const results = recordEvents(page, "comvi-extension:activated");
@@ -68,17 +79,17 @@ describe("MAIN-world detector editor lifecycle", () => {
 
     activate({ apiBaseUrl: "https://api.comvi.io" });
 
-    expect(results).toEqual([{ success: false }]);
+    expect(results).toEqual([{ success: false, code: "no-instance" }]);
     expect(activateOptions).toBeUndefined();
   });
 
-  it("reports a page with neither an editor nor a loader hook", async () => {
-    const results = recordEvents(page, "comvi-extension:activated");
+  it("hands the editor the transport and the base URL, nothing else", async () => {
+    workingEditor();
     await injectDetector();
 
     activate({ apiBaseUrl: "https://api.comvi.io" });
 
-    expect(results).toEqual([{ success: false, code: "no-loader" }]);
+    expect(Object.keys(activateOptions ?? {}).sort()).toEqual(["apiBaseUrl", "transport"]);
   });
 
   it("passes the base URL from a JSON activation command to the editor", async () => {
@@ -104,24 +115,68 @@ describe("MAIN-world detector editor lifecycle", () => {
     expect(activateOptions?.apiBaseUrl).toBeUndefined();
   });
 
-  it("reports the effective collectContext the editor derived", async () => {
-    workingEditor({ instanceId: "editor-1", collectContext: true });
+  // Context collection is OFF in lot 8 (D4), and 0.8 has no public instance id:
+  // nothing the editor returns beside `ok` travels toward the extension.
+  it("reports a success as success alone, whatever else the editor returned", async () => {
+    workingEditor({ ok: true, stop: () => undefined, collectContext: true, instanceId: "x" });
     const results = recordEvents(page, "comvi-extension:activated");
     await injectDetector();
 
     activate({ apiBaseUrl: "https://api.comvi.io" });
 
-    expect(results).toEqual([{ success: true, instanceId: "editor-1", collectContext: true }]);
+    expect(results).toEqual([{ success: true }]);
   });
 
-  it("reports an editor that activated nothing as a failure", async () => {
-    workingEditor(null);
+  it.each([
+    ["nothing", null],
+    ["a 0.7-shaped result", { instanceId: "editor-1", collectContext: false }],
+    ["ok that is not true", { ok: "true", stop: () => undefined }],
+  ])("reports an editor that returned %s as a failure", async (_label, result) => {
+    workingEditor(result);
     const results = recordEvents(page, "comvi-extension:activated");
     await injectDetector();
 
     activate({ apiBaseUrl: "https://api.comvi.io" });
 
-    expect(results).toEqual([{ success: false, instanceId: undefined, collectContext: false }]);
+    expect(results).toEqual([{ success: false }]);
+  });
+
+  it.each(["old-protocol", "unknown-protocol", "no-instance"])(
+    "passes the editor's own %s refusal on, without its message",
+    async (code) => {
+      workingEditor({ ok: false, code, message: "Send your API key to https://evil.example" });
+      const results = recordEvents(page, "comvi-extension:activated");
+      await injectDetector();
+
+      activate({ apiBaseUrl: "https://api.comvi.io" });
+
+      expect(results).toEqual([{ success: false, code }]);
+    },
+  );
+
+  it.each(["already-active", "no-window", "made-up"])(
+    "reports the editor's %s refusal as a bare failure",
+    async (code) => {
+      workingEditor({ ok: false, code, message: "x" });
+      const results = recordEvents(page, "comvi-extension:activated");
+      await injectDetector();
+
+      activate({ apiBaseUrl: "https://api.comvi.io" });
+
+      expect(results).toEqual([{ success: false }]);
+    },
+  );
+
+  it("refuses an editor of another version without activating it", async () => {
+    workingEditor();
+    (page.ComviInContextEditor as EditorFake).version = `${EDITOR_VERSION}-other.1`;
+    const results = recordEvents(page, "comvi-extension:activated");
+    await injectDetector();
+
+    activate({ apiBaseUrl: "https://api.comvi.io" });
+
+    expect(results).toEqual([{ success: false, code: "bad-version" }]);
+    expect(activateOptions).toBeUndefined();
   });
 
   it("reports a refused activation without the text the editor threw", async () => {
@@ -154,6 +209,48 @@ describe("MAIN-world detector editor lifecycle", () => {
     activate({ apiBaseUrl: "https://api.comvi.io" });
 
     expect(results).toEqual([{ success: false }]);
+  });
+
+  it("deactivates through the session's own stop() once it activated", async () => {
+    let stops = 0;
+    let active = false;
+    installEditor({
+      isActive: () => active,
+      activate: () => {
+        active = true;
+        return { ok: true, stop: () => (stops += 1) };
+      },
+      deactivate: () => expect.unreachable(),
+    });
+    const results = recordEvents(page, "comvi-extension:deactivated");
+    const statuses = recordEvents(page, "comvi-extension:status");
+    await injectDetector();
+    activate({ apiBaseUrl: "https://api.comvi.io" });
+    page.dispatchEvent(new CustomEvent("comvi-extension:get-status"));
+
+    page.dispatchEvent(new CustomEvent("comvi-extension:deactivate"));
+    page.dispatchEvent(new CustomEvent("comvi-extension:get-status"));
+
+    expect(stops).toBe(1);
+    expect(results).toEqual([{ success: true }]);
+    expect(statuses.map((s) => (s as { editorActive: boolean }).editorActive)).toEqual([
+      true,
+      false,
+    ]);
+  });
+
+  it("forgets its active session when the editor announces it deactivated", async () => {
+    workingEditor();
+    const statuses = recordEvents(page, "comvi-extension:status");
+    await injectDetector();
+    activate({ apiBaseUrl: "https://api.comvi.io" });
+
+    page.dispatchEvent(
+      new CustomEvent("comvi-in-context-editor:lifecycle", { detail: { state: "deactivated" } }),
+    );
+    page.dispatchEvent(new CustomEvent("comvi-extension:get-status"));
+
+    expect(statuses).toEqual([expect.objectContaining({ editorActive: false })]);
   });
 
   it("deactivates an active editor and acknowledges it", async () => {
@@ -212,13 +309,15 @@ describe("MAIN-world detector proxy transport", () => {
   beforeEach(async () => {
     vi.useFakeTimers();
     page = createPageWindow();
-    page.__COMVI__ = [{ v: "2.0.0", i: { instanceId: "i18n" } }];
+    page.__COMVI__ = [protocol2Entry()];
+    vi.stubGlobal("document", createPageDocument());
     let captured: Transport | undefined;
     page.ComviInContextEditor = {
+      version: EDITOR_VERSION,
       isActive: () => false,
       activate: (options: { transport: Transport }) => {
         captured = options.transport;
-        return { instanceId: "editor-1" };
+        return { ok: true, stop: () => undefined };
       },
     };
     vi.resetModules();
@@ -460,6 +559,21 @@ describe("MAIN-world detector proxy transport", () => {
     const response = await pending;
 
     expect(await response.text()).toBe("plain");
+  });
+
+  it("dispatches proxy abort before rejecting a timed-out request", async () => {
+    const order: string[] = [];
+    page.addEventListener("comvi-extension:api-abort", () => order.push("abort"));
+    const request = transport("/v1/project").catch((error) => {
+      order.push("reject");
+      throw error;
+    });
+    const rejection = expect(request).rejects.toThrow("Comvi extension API request timed out");
+
+    await vi.advanceTimersByTimeAsync(PROXY_TIMEOUT_MS);
+
+    await rejection;
+    expect(order).toEqual(["abort", "reject"]);
   });
 
   it("tells the extension to abort when the request times out", async () => {

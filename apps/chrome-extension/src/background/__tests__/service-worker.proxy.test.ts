@@ -54,30 +54,24 @@ describe("proxy authorization", () => {
     expect(result.networkError).toMatch(/telemetry is disabled/);
   });
 
-  // The flag is page-reported (MAIN world), so this is an honest-site opt-out,
-  // not a boundary: a hostile page can report true (see Gate E
-  // hostile-activation.spec.ts).
-  it("telemetry routes open when the page-reported activation result enables collection", async () => {
-    const started = await startSession();
-    await activate(started.nonce, pageSender(), { collectContext: true });
-    const result = await proxyRequest({
-      path: "/v1/context/usages",
-      method: "POST",
-      body: JSON.stringify({ origin: ORIGIN, hashFnVersion: 1, items: [], stillValid: [] }),
-    });
-    expect(result.ok).toBe(true);
-  });
-
-  it("a page-reported false keeps telemetry closed", async () => {
-    const started = await startSession();
-    await activate(started.nonce, pageSender(), { collectContext: false });
-    const result = await proxyRequest({
-      path: "/v1/context/handshake",
-      method: "POST",
-      body: JSON.stringify({ keys: [] }),
-    });
-    expect(result.networkError).toMatch(/telemetry is disabled/);
-  });
+  // Context collection is OFF in lot 8 (owner decision D4). The activation
+  // result is page-authored (MAIN world): a forged one claiming collection is
+  // on must open nothing, and no request may reach the network.
+  it.each([
+    ["/v1/context/handshake", { keys: [] }],
+    ["/v1/context/usages", { origin: ORIGIN, hashFnVersion: 1, items: [], stillValid: [] }],
+  ])(
+    "a forged activation result claiming collectContext: true leaves %s closed",
+    async (path, body) => {
+      const started = await startSession();
+      await activate(started.nonce, pageSender(), { collectContext: true });
+      const before = fetchMock.mock.calls.length;
+      const result = await proxyRequest({ path, method: "POST", body: JSON.stringify(body) });
+      expect(result).toMatchObject({ ok: false });
+      expect(result.networkError).toMatch(/telemetry is disabled/);
+      expect(fetchMock.mock.calls.length).toBe(before);
+    },
+  );
 
   it("export routes are bound to the validated project id", async () => {
     await openActiveSession(); // project id 42 from mockApiOk

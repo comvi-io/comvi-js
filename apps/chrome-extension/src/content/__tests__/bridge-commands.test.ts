@@ -178,20 +178,14 @@ describe("ISOLATED-world bridge command surface", () => {
     });
     page.dispatchEvent(
       new CustomEvent("comvi-extension:activated", {
-        detail: { success: true, instanceId: "editor-1" },
+        detail: { success: true },
       }),
     );
 
     expect(relayed()).toEqual([
       {
         type: "EDITOR_ACTIVATED",
-        payload: {
-          success: true,
-          error: undefined,
-          instanceId: "editor-1",
-          collectContext: false,
-          nonce: "popup-nonce",
-        },
+        payload: { success: true, code: undefined, nonce: "popup-nonce" },
       },
     ]);
   });
