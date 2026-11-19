@@ -24,6 +24,9 @@ export const comviPreset = {
  * `process.env` on the server; where `process` does not exist (a browser, an edge runtime)
  * this is the preset.
  */
+// Replaced or absent depending on the runtime; never assumed to exist.
+declare const process: { env?: Record<string, string | undefined> } | undefined;
+
 export const API_BASE_URL =
   (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_COMVI_API_URL) ||
   comviPreset.apiBaseUrl;

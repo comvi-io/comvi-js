@@ -99,7 +99,7 @@ describe("ElementHighlighter — modifier key and Alt+click", () => {
       highlighter.addHighlight(button);
       simulateMouseEvent(button, "click", { altKey: true });
 
-      expect(handleClick).toHaveBeenCalledWith(button);
+      expect(handleClick).toHaveBeenCalledWith(button, expect.anything());
     });
 
     it("window blur while Alt-hovering → the overlay is removed", () => {
@@ -142,7 +142,7 @@ describe("ElementHighlighter — modifier key and Alt+click", () => {
 
       simulateMouseEvent(button, "click");
 
-      expect(handleClick).toHaveBeenCalledWith(button);
+      expect(handleClick).toHaveBeenCalledWith(button, expect.anything());
 
       simulateKeyEvent("keyup", "Alt");
     });
@@ -284,7 +284,7 @@ describe("ElementHighlighter — modifier key and Alt+click", () => {
       simulateMouseEvent(button, "click");
       document.removeEventListener("click", onDocument, { capture: true });
 
-      expect(handleClick).toHaveBeenCalledWith(button);
+      expect(handleClick).toHaveBeenCalledWith(button, expect.anything());
       expect(pageListeners).toEqual([]);
     });
 

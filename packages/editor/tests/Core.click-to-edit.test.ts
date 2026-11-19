@@ -24,14 +24,15 @@ import {
   mockBoundingClientRect,
   simulateMouseEvent,
 } from "./helpers";
+import { keyRef, marker } from "./helpers/frames";
+import { pageSession } from "./helpers/session";
 
 type CoreModule = typeof import("../src/Core");
-type TranslationModule = typeof import("../src/translation");
 
-const UI_ERROR = "[@comvi/plugin-in-context-editor] Failed to load editor UI:";
+const UI_ERROR = "[@comvi/editor] Failed to load editor UI:";
 
 let Core: CoreModule["Core"];
-let translation: TranslationModule;
+let page: ReturnType<typeof pageSession>;
 let container: HTMLElement;
 let core: InstanceType<CoreModule["Core"]>;
 let sentinel: InstanceType<CoreModule["Core"]>;
@@ -43,10 +44,10 @@ function boxed<T extends HTMLElement>(element: T, parent: HTMLElement): T {
   return element;
 }
 
-/** `<p>` whose text carries the marker of `key`, on the fresh Core's encoder. */
+/** `<p>` whose text carries the frame of `key` (the page's only instance). */
 function renderMarked(key: string, text: string, parent = container): HTMLParagraphElement {
   const paragraph = document.createElement("p");
-  paragraph.textContent = `${text}${translation.encodeKeyToInvisible(translation.registerKey(key))}`;
+  paragraph.textContent = `${text}${marker(keyRef(key))}`;
   return boxed(paragraph, parent);
 }
 
@@ -62,8 +63,7 @@ function renderTwoKeyElement(
   second = { key: "checkout.total", ns: "checkout", text: "Total" },
   parent = container,
 ): HTMLElement {
-  const marked = (entry: typeof first) =>
-    `${entry.text}${translation.encodeKeyToInvisible(translation.registerKey(entry.key, entry.ns))}`;
+  const marked = (entry: typeof first) => `${entry.text}${marker(keyRef(entry.key, entry.ns))}`;
   const element = document.createElement("div");
   element.append(
     document.createTextNode(marked(first)),
@@ -116,13 +116,13 @@ function openedForCore() {
 beforeEach(async () => {
   vi.resetModules();
   ({ Core } = await import("../src/Core"));
-  translation = await import("../src/translation");
+  page = pageSession();
   container = document.createElement("div");
   sentinelContainer = document.createElement("div");
   document.body.append(container, sentinelContainer);
-  core = new Core({ targetElement: container });
+  core = new Core({ targetElement: container }, page.session);
   core.start();
-  sentinel = new Core({ targetElement: sentinelContainer });
+  sentinel = new Core({ targetElement: sentinelContainer }, page.session);
   sentinel.start();
 });
 
@@ -131,7 +131,7 @@ afterEach(() => {
   sentinel.stop();
   ui.resetEditorUiMocks();
   cleanupDOM();
-  translation.resetEncoder();
+  page.end();
 });
 
 describe("Alt-click on text carrying one key", () => {
@@ -183,8 +183,8 @@ describe("Alt-click on an element carrying several keys", () => {
       expect(openedForCore().selectors).toEqual([
         {
           keyData: [
-            { key: "home.title", ns: "default", textPreview: "Home" },
-            { key: "checkout.total", ns: "checkout", textPreview: "Total" },
+            { inst: "", key: "home.title", ns: "default", textPreview: "Home" },
+            { inst: "", key: "checkout.total", ns: "checkout", textPreview: "Total" },
           ],
           anchor: element,
           instanceId: core.getInstanceId(),

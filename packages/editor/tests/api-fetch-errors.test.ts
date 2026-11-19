@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { assertCatalogObject, validateId } from "../src/api-fetch/http-core";
 
 describe("api-fetch errors", () => {
-  it("name @comvi/plugin-in-context-editor, never the deleted @comvi/plugin-fetch-loader", () => {
+  it("name @comvi/editor, never the deleted @comvi/plugin-fetch-loader", () => {
     const thrown: string[] = [];
     for (const f of [() => validateId("..", "locale"), () => assertCatalogObject([], "API", "x")])
       try {
@@ -17,7 +17,7 @@ describe("api-fetch errors", () => {
       }
     expect(thrown).toHaveLength(2);
     for (const m of thrown) {
-      expect(m.startsWith("[@comvi/plugin-in-context-editor] ")).toBe(true);
+      expect(m.startsWith("[@comvi/editor] ")).toBe(true);
       expect(m).not.toContain("plugin-fetch-loader");
     }
   });

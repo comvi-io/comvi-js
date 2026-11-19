@@ -10,9 +10,7 @@ const handleSaveAndClose = inject<() => Promise<void>>("handleSaveAndClose");
 const isInDemoMode = inject<Ref<boolean>>("isInDemoMode", ref(false));
 
 if (!translationManager || !handleSaveOnly || !handleSaveAndClose) {
-  throw new Error(
-    "[@comvi/plugin-in-context-editor] translationManager or save handlers not provided",
-  );
+  throw new Error("[@comvi/editor] translationManager or save handlers not provided");
 }
 
 // Shared with the Ctrl/Cmd+S path, which saves without going through these buttons.

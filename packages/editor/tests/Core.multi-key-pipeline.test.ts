@@ -19,8 +19,9 @@ vi.mock("../src/EditModal", () => ({
 }));
 
 import { Core } from "../src/Core";
+import { pageSession } from "./helpers/session";
 import { TAG_ATTRIBUTES } from "../src/constants";
-import { encodeKeyToInvisible, registerKey, resetEncoder } from "../src/translation";
+import { keyRef, marker } from "./helpers/frames";
 import {
   cleanupDOM,
   flushDOMMutations,
@@ -31,17 +32,20 @@ import {
 describe("Core with a multi-key text node", () => {
   afterEach(() => {
     cleanupDOM();
-    resetEncoder();
   });
 
   it("Alt-click on <p>{{ t('hello') }} {{ t('bye') }}</p> → the key selector offers both keys", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const paragraph = document.createElement("p");
-    paragraph.textContent = `Hello${encodeKeyToInvisible(registerKey("hello"))} Bye${encodeKeyToInvisible(registerKey("bye", "farewells"))}`;
+    paragraph.textContent = `Hello${marker(keyRef("hello"))} Bye${marker(keyRef("bye", "farewells"))}`;
     mockBoundingClientRect(paragraph, { top: 0, left: 0, width: 100, height: 30 });
     container.appendChild(paragraph);
-    const core = new Core({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
+    const page = pageSession();
+    const core = new Core(
+      { targetElement: container, tagAttributes: TAG_ATTRIBUTES },
+      page.session,
+    );
     core.start();
     await flushDOMMutations();
 
@@ -56,12 +60,13 @@ describe("Core with a multi-key text node", () => {
       modalOpened: showModalMock.mock.calls.length > 0,
     }).toEqual({
       keyData: [
-        { key: "hello", ns: "default", textPreview: "Hello" },
-        { key: "bye", ns: "farewells", textPreview: "Bye" },
+        { inst: "", key: "hello", ns: "default", textPreview: "Hello" },
+        { inst: "", key: "bye", ns: "farewells", textPreview: "Bye" },
       ],
       instanceId: core.getInstanceId(),
       modalOpened: false,
     });
     core.stop();
+    page.end();
   });
 });

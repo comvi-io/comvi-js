@@ -54,7 +54,10 @@ describe("ElementHighlighter — registered elements and teardown", () => {
       simulateMouseEvent(elements[2], "mouseover");
       simulateMouseEvent(elements[2], "click");
 
-      expect(handleClick.mock.calls).toEqual([[elements[0]], [elements[2]]]);
+      expect(handleClick.mock.calls.map(([element]) => [element])).toEqual([
+        [elements[0]],
+        [elements[2]],
+      ]);
 
       simulateKeyEvent("keyup", "Alt");
     });
@@ -76,7 +79,7 @@ describe("ElementHighlighter — registered elements and teardown", () => {
       simulateMouseEvent(button, "mouseover", { composed: true });
       simulateMouseEvent(button, "click", { composed: true });
 
-      expect(handleClick).toHaveBeenCalledWith(button);
+      expect(handleClick).toHaveBeenCalledWith(button, expect.anything());
 
       simulateKeyEvent("keyup", "Alt");
     });
@@ -119,7 +122,7 @@ describe("ElementHighlighter — registered elements and teardown", () => {
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(child, "click");
 
-      expect(handleClick).toHaveBeenCalledWith(parent);
+      expect(handleClick).toHaveBeenCalledWith(parent, expect.anything());
     });
 
     it("resolves a click whose target is a text node through the event path", () => {
@@ -131,7 +134,7 @@ describe("ElementHighlighter — registered elements and teardown", () => {
       simulateKeyEvent("keydown", "Alt");
       textNode.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-      expect(handleClick).toHaveBeenCalledWith(parent);
+      expect(handleClick).toHaveBeenCalledWith(parent, expect.anything());
     });
 
     it("keeps the overlay when the pointer moves between children of the same registered element", () => {
@@ -213,7 +216,7 @@ describe("ElementHighlighter — registered elements and teardown", () => {
       simulateMouseEvent(button, "click");
 
       // Exactly one call: the click before registration resolved nothing.
-      expect(handleClick.mock.calls).toEqual([[button]]);
+      expect(handleClick.mock.calls.map(([element]) => [element])).toEqual([[button]]);
     });
 
     it("ancestor unregistered → Alt-click on its child resolves nothing", () => {
@@ -228,7 +231,7 @@ describe("ElementHighlighter — registered elements and teardown", () => {
       simulateMouseEvent(child, "click");
 
       // Only the click made while the ancestor was registered resolved it.
-      expect(handleClick.mock.calls).toEqual([[parent]]);
+      expect(handleClick.mock.calls.map(([element]) => [element])).toEqual([[parent]]);
     });
 
     it("child moved out of its registered ancestor → Alt-click no longer selects the old parent", () => {
@@ -242,7 +245,7 @@ describe("ElementHighlighter — registered elements and teardown", () => {
       document.body.appendChild(child);
       simulateMouseEvent(child, "click");
 
-      expect(handleClick.mock.calls).toEqual([[parent]]);
+      expect(handleClick.mock.calls.map(([element]) => [element])).toEqual([[parent]]);
     });
 
     it("child moved from one registered container into another → Alt-click selects the new one", () => {
@@ -258,7 +261,7 @@ describe("ElementHighlighter — registered elements and teardown", () => {
       second.appendChild(child);
       simulateMouseEvent(child, "click");
 
-      expect(handleClick.mock.calls).toEqual([[first], [second]]);
+      expect(handleClick.mock.calls.map(([element]) => [element])).toEqual([[first], [second]]);
     });
 
     it("related target moved into the registered element → mouseout keeps the overlay", () => {

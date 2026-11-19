@@ -59,13 +59,15 @@ vi.mock("../src/collector/Collector", () => ({
   },
 }));
 
-import { Core, type EditorI18n } from "../src/Core";
+import { Core } from "../src/Core";
+import type { Session } from "../src/adapter";
 
 // The editor UI is a lazy import. `vi.waitFor` gives up after 1 s by default,
 // which a cold module transform on a busy runner can exceed.
 const UI_IMPORT_TIMEOUT = { timeout: 10_000 };
 
-const HOST = { getDefaultNamespace: () => "default" } as unknown as EditorI18n;
+/** A session that resolves every frame: these suites are about the UI chunks, not routing. */
+const HOST = { resolve: () => ({ inst: "" }) } as unknown as Session;
 
 /** The reactive props `createApp` received on its `index`-th call. */
 const appProps = (index: number) =>

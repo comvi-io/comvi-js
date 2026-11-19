@@ -243,7 +243,7 @@ describe("useTranslations — loading a key", () => {
 
     expect(manager.state.value.error).toBe("Failed to load translation");
     expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
-      "[@comvi/plugin-in-context-editor] Error loading translation:",
+      "[@comvi/editor] Error loading translation:",
       "network down",
     );
   });

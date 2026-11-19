@@ -10,8 +10,6 @@ export {
 
 export { debounce, type DebouncedFunction } from "./debounce";
 
-export { removeInvisibleCharacters } from "./encoding";
-
 export {
   createShadowDomContainer,
   removeShadowDomContainer,

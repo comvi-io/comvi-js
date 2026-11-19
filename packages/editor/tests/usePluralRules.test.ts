@@ -257,7 +257,7 @@ describe("usePluralRules()", () => {
 
     expect(second).toBe(first);
     expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
-      "[@comvi/plugin-in-context-editor] Error categorizing numbers:",
+      "[@comvi/editor] Error categorizing numbers:",
       failure,
     );
   });
@@ -319,7 +319,7 @@ describe("getPluralCategory()", () => {
 
     expect(getPluralCategory(5, "zq-QQ")).toBe("other");
     expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
-      "[@comvi/plugin-in-context-editor] Error getting plural category:",
+      "[@comvi/editor] Error getting plural category:",
       failure,
     );
   });

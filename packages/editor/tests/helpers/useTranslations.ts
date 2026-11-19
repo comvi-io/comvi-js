@@ -6,6 +6,7 @@ import { ref } from "vue";
 import { useTranslations } from "../../src/composables/useTranslations";
 import type { Language, TranslationData } from "../../src/types";
 import { getTranslationMock } from "./useTranslationsMocks";
+import { TEST_TARGET } from "./sessionDouble";
 
 export const LANGUAGES: Language[] = [
   {
@@ -28,7 +29,7 @@ export const RUSSIAN: Language = {
 };
 
 export function createManager(instanceId?: string) {
-  return useTranslations(ref(LANGUAGES), instanceId ? ref(instanceId) : undefined);
+  return useTranslations(ref(LANGUAGES), instanceId ? ref(instanceId) : undefined, TEST_TARGET);
 }
 
 export type TranslationManager = ReturnType<typeof createManager>;

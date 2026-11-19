@@ -5,15 +5,9 @@ import { EventBus } from "./EventBus";
 import { ElementHighlighter } from "./ElementHighlighter";
 import { Collector } from "./collector/Collector";
 import type { TranslationSystemOptions, TranslationSystemInnerOptions } from "./types";
-import type { I18nCoreInstance, I18nCoreExtraApi } from "@comvi/core";
+import type { NodeData } from "./types/translation";
+import type { Session, Target } from "./adapter";
 import { TAG_ATTRIBUTES } from "./constants";
-
-/**
- * The public instance surface the editor needs. Instances arrive from both
- * directions — the discovery queue hands over base `@comvi/core` instances,
- * the plugin entry hands over a composed instance — and both satisfy this.
- */
-export type EditorI18n = I18nCoreInstance & I18nCoreExtraApi;
 
 type EditModalModule = typeof import("./EditModal");
 type KeySelectorModule = typeof import("./KeySelector");
@@ -47,38 +41,26 @@ function loadKeySelector(): Promise<KeySelectorModule> {
   return keySelectorPromise;
 }
 
-// Map to store i18n instances by Core instance ID
-// Allows multiple plugin instances on the same page
-const i18nInstances = new Map<string, EditorI18n>();
+// The session of each running Core, by Core id: a save writes back through it.
+const sessions = new Map<string, Session>();
 let instanceCounter = 0;
 
-/**
- * Get the i18n instance for a specific Core instance
- * @param instanceId - The Core instance ID (optional, returns first if not specified for backward compatibility)
- */
-export function getI18nInstance(instanceId?: string): EditorI18n | null {
-  if (instanceId) {
-    return i18nInstances.get(instanceId) || null;
-  }
-  // Backward compatibility: return the first (and usually only) instance
-  const firstInstance = i18nInstances.values().next().value;
-  return firstInstance || null;
+/** The session of the Core `scopeId` (the first one when not given). */
+export function getSession(scopeId?: string): Session | null {
+  if (scopeId) return sessions.get(scopeId) ?? null;
+  return sessions.values().next().value ?? null;
 }
 
-/**
- * Register an i18n instance with a specific ID
- * @internal
- */
-export function registerI18nInstance(instanceId: string, i18n: EditorI18n): void {
-  i18nInstances.set(instanceId, i18n);
-}
-
-/**
- * Unregister an i18n instance
- * @internal
- */
-export function unregisterI18nInstance(instanceId: string): void {
-  i18nInstances.delete(instanceId);
+/** Whether `node` lies inside the extent of the rich pair that opens in `open`. */
+function inPair(open: Node, close: Node, node: Node): boolean {
+  const after =
+    open.compareDocumentPosition(node) &
+    (Node.DOCUMENT_POSITION_FOLLOWING | Node.DOCUMENT_POSITION_CONTAINED_BY);
+  const before =
+    node === close ||
+    close.compareDocumentPosition(node) &
+      (Node.DOCUMENT_POSITION_PRECEDING | Node.DOCUMENT_POSITION_CONTAINS);
+  return Boolean(after) && Boolean(before) && !node.contains(open);
 }
 
 export class Core {
@@ -90,18 +72,48 @@ export class Core {
   private elementHighlighter: ElementHighlighter;
   private collector: Collector;
   private instanceId: string;
-  private defaultNs?: string;
+  private session?: Session;
   private stopped = false;
 
-  private handleElementClick = (element: Element): void => {
-    const nodes = this.translationRegistry.get(element)?.nodes;
-    // A node carrying several keys lists them all in `markers`.
-    const nodeDataArray = Array.from(nodes?.values() || []).flatMap(
-      (nodeData) => nodeData.markers ?? [nodeData],
-    );
+  /**
+   * The keys a click on `target` inside `element` opens: the frames whose instance resolves
+   * (an unknown or ambiguous `inst` is not clickable), narrowed to the innermost rich pair
+   * that encloses the clicked node when one does.
+   */
+  private candidates(element: Element, target?: Node): (NodeData & { to: Target })[] {
+    const all: (NodeData & { from: Node })[] = [];
+    for (const [node, data] of this.translationRegistry.get(element)?.nodes ?? []) {
+      for (const d of data.markers ?? [data]) all.push({ ...d, from: node });
+    }
+    const resolved: (NodeData & { from: Node; to: Target })[] = [];
+    for (const d of all) {
+      const to = this.session?.resolve(d.inst ?? "");
+      if (to) resolved.push({ ...d, to });
+      else
+        console.warn(
+          `[@comvi/editor] "${d.ns}:${d.key}" names instance "${d.inst}", which is not on the page or not unique; it cannot be edited here.`,
+        );
+    }
+    if (target && target !== element) {
+      const enclosing = resolved.filter((d) => d.close && inPair(d.from, d.close, target));
+      if (enclosing.length > 0) {
+        // The innermost: the one that opens last.
+        return [
+          enclosing.reduce((a, b) =>
+            a.from.compareDocumentPosition(b.from) & Node.DOCUMENT_POSITION_FOLLOWING ? b : a,
+          ),
+        ];
+      }
+    }
+    return resolved;
+  }
+
+  private handleElementClick = (element: Element, target?: Node): void => {
+    const nodeDataArray = this.candidates(element, target);
 
     if (nodeDataArray.length > 1) {
       const keyData = nodeDataArray.map((nodeData) => ({
+        inst: nodeData.inst,
         key: nodeData.key,
         ns: nodeData.ns,
         textPreview: nodeData.textPreview,
@@ -113,42 +125,44 @@ export class Core {
           showKeySelector(
             keyData,
             element,
-            (selectedKey, selectedNs) => {
-              if (!this.stopped) showModal(selectedKey, selectedNs, this.instanceId);
+            (selectedKey, selectedNs, selectedInst) => {
+              const picked = nodeDataArray.find(
+                (d) => d.key === selectedKey && d.ns === selectedNs && d.inst === selectedInst,
+              );
+              if (!this.stopped && picked)
+                showModal(selectedKey, selectedNs, this.instanceId, picked.to);
             },
-            this.defaultNs,
+            "default",
             this.instanceId,
           );
         })
         .catch((error: unknown) => {
-          if (!this.stopped)
-            console.error("[@comvi/plugin-in-context-editor] Failed to load editor UI:", error);
+          if (!this.stopped) console.error("[@comvi/editor] Failed to load editor UI:", error);
         });
     } else if (nodeDataArray.length === 1) {
+      const picked = nodeDataArray[0]!;
       void loadEditModal()
         .then(({ showModal }) => {
           if (this.stopped) return;
-          showModal(nodeDataArray[0]!.key, nodeDataArray[0]!.ns, this.instanceId);
+          showModal(picked.key, picked.ns, this.instanceId, picked.to);
         })
         .catch((error: unknown) => {
-          if (!this.stopped)
-            console.error("[@comvi/plugin-in-context-editor] Failed to load editor UI:", error);
+          if (!this.stopped) console.error("[@comvi/editor] Failed to load editor UI:", error);
         });
     }
   };
 
-  constructor(options?: TranslationSystemOptions, i18n?: EditorI18n) {
+  constructor(options?: TranslationSystemOptions, session?: Session) {
     this.instanceId = `core-${++instanceCounter}`;
     this.options = {
       targetElement: options?.targetElement || document,
       tagAttributes: options?.tagAttributes || TAG_ATTRIBUTES,
     };
 
-    if (i18n) {
-      registerI18nInstance(this.instanceId, i18n);
+    if (session) {
+      this.session = session;
+      sessions.set(this.instanceId, session);
     }
-
-    this.defaultNs = i18n?.getDefaultNamespace?.();
 
     // EventBus wiring: DOMWatcher and TranslationRegistry emit, while
     // TranslationScanner and ElementHighlighter only listen.
@@ -157,7 +171,8 @@ export class Core {
     this.elementHighlighter = new ElementHighlighter(this.eventBus, this.handleElementClick, {
       debug: options?.debug,
       highlightStyle: options?.highlightStyle,
-      defaultNs: i18n?.getDefaultNamespace?.(),
+      // A frame names its namespace as core looked it up: `default` unless the app chose one.
+      defaultNs: "default",
     });
 
     this.translationRegistry = new TranslationRegistry(this.eventBus);
@@ -170,12 +185,11 @@ export class Core {
       this.options,
     );
 
-    // Passive context collector (any runtime with an API key or transport). Constructed here so
-    // both activation paths (standalone.ts and index.ts) cover it; it does
-    // nothing until start()/stop() run.
+    // Context collection is OFF in 0.8 (lot 8, owner D4): the collector never starts, so no
+    // request goes to /context/handshake or /context/usages. Where its control lives, and
+    // whether it returns, is an open product question before the 0.8 release.
     this.collector = new Collector(this.eventBus, this.translationRegistry, this.instanceId, {
-      enabled: options?.collectContext !== false,
-      screenGroupResolver: options?.screenGroupResolver,
+      enabled: false,
     });
   }
 
@@ -204,7 +218,7 @@ export class Core {
     editModalModule?.cleanup(this.instanceId);
     keySelectorModule?.cleanup(this.instanceId);
 
-    unregisterI18nInstance(this.instanceId);
+    sessions.delete(this.instanceId);
   }
 
   public getInstanceId(): string {

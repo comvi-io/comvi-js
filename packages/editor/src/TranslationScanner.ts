@@ -1,85 +1,132 @@
 /**
- * Listens for DOM change events and scans the affected nodes for translation
- * keys encoded as invisible characters.
+ * Listens for DOM change events and scans the affected nodes for translation frames
+ * (`./marker`: the format of editor plan §3.2).
  */
 
 import type { TranslationSystemInnerOptions } from "./types";
-import type { NodeData } from "./types/translation";
+import type { KeyInfo, NodeData } from "./types/translation";
 import type { TranslationRegistry } from "./TranslationRegistry";
 import { EventBus } from "./EventBus";
-import { containsInvisibleCharacters, decodeInvisibleToKey } from "./translation";
-import { ENCODING_LENGTH, IGNORED_NODES, INVISIBLE_CHARS } from "./constants";
-import {
-  getNearestElementNode,
-  findCorrespondingNode,
-  removeInvisibleCharacters,
-  createTreeWalker,
-} from "./utils";
+import { decodeFrames, stripFrames, FRAME_START, type Frame } from "./marker";
+import { IGNORED_NODES } from "./constants";
+import { getNearestElementNode, findCorrespondingNode, createTreeWalker } from "./utils";
 
-interface DecodedMarker {
-  key: string;
-  ns: string;
-  /** The visible text between the previous marker and this one. */
+interface DecodedMarker extends KeyInfo {
+  inst: string;
+  /** The visible text the frame marks. */
   textPreview: string;
-  /** Offset of the marker's first character in the scanned text. */
+  /** Offset of the frame's first character in the scanned text. */
   start: number;
+  /** The text node holding the closing frame of a rich pair that spans nodes. */
+  close?: Text;
 }
 
-function isInvisibleChar(char: string): boolean {
-  return (INVISIBLE_CHARS as readonly string[]).includes(char);
+const sameKey = (a: KeyInfo, b: KeyInfo): boolean =>
+  (a.inst ?? "") === (b.inst ?? "") && a.ns === b.ns && a.key === b.key;
+
+const preview = (text: string): string => stripFrames(text).trim();
+
+/**
+ * The text node of the closing frame that pairs with `open`, searched among the nodes that
+ * follow `last` (the end of `open`'s text run) under the same parent — where a binding puts
+ * the parts of one rich message — with the text in front of that frame. Same-payload pairs
+ * nest.
+ */
+function findClose(open: KeyInfo, last: Text): { node: Text; before: string } | undefined {
+  let depth = 0;
+  let before = "";
+  for (let sibling = last.nextSibling; sibling; sibling = sibling.nextSibling) {
+    const texts: Text[] = [];
+    if (sibling.nodeType === Node.TEXT_NODE) texts.push(sibling as Text);
+    else {
+      const walker = createTreeWalker(sibling, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) texts.push(node as Text);
+    }
+    for (const text of texts) {
+      const value = text.nodeValue ?? "";
+      for (const frame of decodeFrames(value)) {
+        if (!sameKey(frame, open)) continue;
+        if (!frame.close) depth++;
+        else if (depth-- === 0) return { node: text, before: before + value.slice(0, frame.start) };
+      }
+      before += value;
+    }
+  }
+  return undefined;
 }
 
 /**
- * Every whole marker in `text`. A run of invisible characters whose length is
- * not a multiple of ENCODING_LENGTH holds a fragment, and its alignment is
- * unknown, so the whole run decodes to nothing rather than to a wrong key.
+ * The frames of `text` (the whole run of `node`) whose opening or suffix frame starts in
+ * [`from`, `to`). A frame closed by a later closing frame of the same run marks the text
+ * between them; one closed in a later sibling marks the nodes up to it (`close`); an
+ * unclosed one is a suffix marking the text since the previous frame.
  */
-function decodeMarkers(text: string): DecodedMarker[] {
-  const markers: DecodedMarker[] = [];
-  let segmentStart = 0;
-  let index = 0;
-  while (index < text.length) {
-    if (!isInvisibleChar(text[index]!)) {
-      index++;
-      continue;
-    }
-    const runStart = index;
-    while (index < text.length && isInvisibleChar(text[index]!)) {
-      index++;
-    }
-    if ((index - runStart) % ENCODING_LENGTH === 0) {
-      const textPreview = text.slice(segmentStart, runStart).trim();
-      for (let start = runStart; start < index; start += ENCODING_LENGTH) {
-        const decoded = decodeInvisibleToKey(text.slice(start, start + ENCODING_LENGTH));
-        if (decoded && typeof decoded === "object") {
-          markers.push({ key: decoded.key, ns: decoded.ns, textPreview, start });
+function decodeMarkers(text: string, from = 0, to = text.length, run?: Text[]): DecodedMarker[] {
+  const frames = decodeFrames(text);
+  const closedAt = new Map<Frame, Frame>();
+  const stack: Frame[] = [];
+  for (const frame of frames) {
+    if (!frame.close) stack.push(frame);
+    else {
+      for (let i = stack.length - 1; i >= 0; i--) {
+        if (sameKey(stack[i]!, frame)) {
+          closedAt.set(stack[i]!, frame);
+          stack.length = i;
+          break;
         }
       }
     }
-    segmentStart = index;
+  }
+
+  const markers: DecodedMarker[] = [];
+  let segmentStart = 0;
+  for (const frame of frames) {
+    if (frame.close) {
+      segmentStart = frame.end;
+      continue;
+    }
+    if (frame.start >= from && frame.start < to) {
+      const { inst, ns, key } = frame;
+      const pairedIn = closedAt.get(frame);
+      const found = !pairedIn && run ? findClose(frame, run[run.length - 1]!) : undefined;
+      markers.push({
+        inst,
+        ns,
+        key,
+        start: frame.start,
+        close: found?.node,
+        textPreview: pairedIn
+          ? preview(text.slice(frame.end, pairedIn.start))
+          : found
+            ? preview(text.slice(frame.end) + found.before)
+            : preview(text.slice(segmentStart, frame.start)),
+      });
+    }
+    segmentStart = frame.end;
   }
   return markers;
 }
 
-/** The node's data, or null without markers. `wholePreview` keeps a lone key's preview as before. */
+/** The node's data, or null without markers. `wholePreview` keeps a lone key's preview. */
 function toNodeData(markers: DecodedMarker[], wholePreview: string): NodeData | null {
   const distinct = markers.filter(
-    (marker, index) =>
-      markers.findIndex((other) => other.key === marker.key && other.ns === marker.ns) === index,
+    (marker, index) => markers.findIndex((other) => sameKey(other, marker)) === index,
   );
   const first = distinct[0];
   if (!first) {
     return null;
   }
+  const data = (m: DecodedMarker, textPreview = m.textPreview): NodeData => ({
+    inst: m.inst,
+    key: m.key,
+    ns: m.ns,
+    textPreview,
+    ...(m.close ? { close: m.close } : {}),
+  });
   if (distinct.length === 1) {
-    return { key: first.key, ns: first.ns, textPreview: wholePreview };
+    return data(first, first.close ? first.textPreview : wholePreview);
   }
-  return {
-    key: first.key,
-    ns: first.ns,
-    textPreview: first.textPreview,
-    markers: distinct.map(({ key, ns, textPreview }) => ({ key, ns, textPreview })),
-  };
+  return { ...data(first), markers: distinct.map((m) => data(m)) };
 }
 
 /** `textNode` and its adjacent text siblings, in document order. */
@@ -100,23 +147,20 @@ function textRun(textNode: Text): Text[] {
 }
 
 /**
- * The markers that start in `textNode`. Adjacent text siblings are read as
- * one string, so a marker split across them still decodes, on the node where
- * it starts.
+ * The markers that start in `textNode`. Adjacent text siblings are read as one string, so a
+ * frame split across them still decodes, on the node where it starts.
  */
 function decodeTextNodeMarkers(textNode: Text): DecodedMarker[] {
   let text = "";
   let nodeStart = 0;
   let nodeEnd = 0;
-  for (const current of textRun(textNode)) {
+  const run = textRun(textNode);
+  for (const current of run) {
     if (current === textNode) nodeStart = text.length;
     text += current.nodeValue ?? "";
     if (current === textNode) nodeEnd = text.length;
   }
-
-  return decodeMarkers(text).filter(
-    (marker) => marker.start >= nodeStart && marker.start < nodeEnd,
-  );
+  return decodeMarkers(text, nodeStart, nodeEnd, run);
 }
 
 export class TranslationScanner {
@@ -214,7 +258,7 @@ export class TranslationScanner {
       return;
     }
 
-    const nodeData = toNodeData(decodeTextNodeMarkers(textNode), removeInvisibleCharacters(text));
+    const nodeData = toNodeData(decodeTextNodeMarkers(textNode), preview(text));
     if (nodeData) {
       this.registry.addOrUpdate(correspondingNode, {
         nodes: new Map([[textNode, nodeData]]),
@@ -255,7 +299,7 @@ export class TranslationScanner {
       .map((attributeName) => element.getAttributeNode(attributeName))
       .filter(
         (attributeNode): attributeNode is Attr =>
-          attributeNode !== null && containsInvisibleCharacters(attributeNode.value),
+          attributeNode !== null && attributeNode.value.includes(FRAME_START),
       );
   }
 
@@ -286,16 +330,13 @@ export class TranslationScanner {
     });
 
     matchingAttributes.forEach((attribute) => {
-      const nodeData = toNodeData(
-        decodeMarkers(attribute.value),
-        removeInvisibleCharacters(attribute.value),
-      );
+      const nodeData = toNodeData(decodeMarkers(attribute.value), preview(attribute.value));
       if (nodeData) {
         this.registry.addOrUpdate(element, {
           nodes: new Map([[attribute, nodeData]]),
         });
       } else {
-        // Invisible characters that no longer decode: the same Attr stays on
+        // A frame start that no longer decodes: the same Attr stays on
         // the element, so it has to be dropped explicitly.
         this.registry.removeNodesForElement(element, (node) => node === attribute);
       }

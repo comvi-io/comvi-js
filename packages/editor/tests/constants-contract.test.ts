@@ -50,7 +50,6 @@ type Subjects = {
   registry: import("../src/TranslationRegistry").TranslationRegistry;
   emitStructureChange: (node: Node) => void;
   encode: (key: string) => string;
-  resetEncoder: () => void;
   findCorrespondingNode: typeof import("../src/utils").findCorrespondingNode;
   createShadowDomContainer: typeof import("../src/utils/shadowDom").createShadowDomContainer;
 };
@@ -68,13 +67,13 @@ describe("src/constants", () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    const [constants, scannerModule, registryModule, busModule, translation, utils, shadowDom] =
+    const [constants, scannerModule, registryModule, busModule, frames, utils, shadowDom] =
       await Promise.all([
         import("../src/constants"),
         import("../src/TranslationScanner"),
         import("../src/TranslationRegistry"),
         import("../src/EventBus"),
-        import("../src/translation"),
+        import("./helpers/frames"),
         import("../src/utils"),
         import("../src/utils/shadowDom"),
       ]);
@@ -90,8 +89,7 @@ describe("src/constants", () => {
         tagAttributes: constants.TAG_ATTRIBUTES,
       }),
       emitStructureChange: (node) => eventBus.emit("structureChanges", [node]),
-      encode: (key) => translation.encodeKeyToInvisible(translation.registerKey(key)),
-      resetEncoder: translation.resetEncoder,
+      encode: (key) => frames.marker(key),
       findCorrespondingNode: utils.findCorrespondingNode,
       createShadowDomContainer: shadowDom.createShadowDomContainer,
     };
@@ -99,7 +97,6 @@ describe("src/constants", () => {
 
   afterEach(() => {
     subjects.scanner.destroy();
-    subjects.resetEncoder();
     cleanupDOM();
   });
 

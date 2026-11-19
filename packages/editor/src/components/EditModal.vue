@@ -17,6 +17,7 @@ import { getLanguages } from "@/services/languageService";
 import { isDemoMode } from "@/config/api";
 import { TOAST_INJECTION_KEY } from "@/composables/useToast";
 import type { Language } from "@/types";
+import type { Target } from "@/adapter";
 import {
   persistSelectedLanguages,
   restoreSelectedLanguages,
@@ -29,6 +30,8 @@ const props = defineProps<{
   translationKey: Ref<string>;
   translationNamespace: Ref<string>;
   translationInstanceId: Ref<string | undefined>;
+  /** The instance a save writes back into. */
+  translationTarget?: Ref<Target | undefined>;
 }>();
 
 const isInDemoMode = computed(() => {
@@ -72,7 +75,7 @@ async function loadLanguagesForCurrentInstance(): Promise<void> {
       return;
     }
 
-    console.error("[@comvi/plugin-in-context-editor] Failed to load languages:", error);
+    console.error("[@comvi/editor] Failed to load languages:", error);
     languages.value = [];
     selectedLanguageCodes.value = [];
   } finally {
@@ -107,7 +110,11 @@ const filteredLanguages = computed(() => {
   return languages.value.filter((lang) => selectedLanguageCodes.value.includes(lang.code));
 });
 
-const translationManager = useTranslations(languages, props.translationInstanceId);
+const translationManager = useTranslations(
+  languages,
+  props.translationInstanceId,
+  props.translationTarget,
+);
 
 provide("translationManager", translationManager);
 

@@ -8,10 +8,13 @@ export type { ElementData, NodeData };
 
 function isSameNodeData(a: NodeData, b: NodeData): boolean {
   return (
+    a.inst === b.inst &&
     a.key === b.key &&
     a.ns === b.ns &&
     a.textPreview === b.textPreview &&
-    JSON.stringify(a.markers) === JSON.stringify(b.markers)
+    a.close === b.close &&
+    (a.markers?.length ?? 0) === (b.markers?.length ?? 0) &&
+    (a.markers ?? []).every((m, i) => isSameNodeData(m, b.markers![i]!))
   );
 }
 
@@ -23,7 +26,7 @@ export class TranslationRegistry {
   /** @throws {Error} If the element is null or undefined. */
   public add(element: Element, data: ElementData): void {
     if (!element) {
-      throw new Error("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
+      throw new Error("[@comvi/editor] Element cannot be null or undefined");
     }
 
     if (this.elements.has(element)) {
@@ -37,7 +40,7 @@ export class TranslationRegistry {
   /** @throws {Error} If the element is null or undefined. */
   public remove(element: Element): void {
     if (!element) {
-      throw new Error("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
+      throw new Error("[@comvi/editor] Element cannot be null or undefined");
     }
 
     if (this.elements.has(element)) {
@@ -51,7 +54,7 @@ export class TranslationRegistry {
    */
   public addOrUpdate(element: Element, data: ElementData): void {
     if (!element) {
-      throw new Error("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
+      throw new Error("[@comvi/editor] Element cannot be null or undefined");
     }
 
     if (this.elements.has(element)) {

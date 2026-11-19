@@ -1,17 +1,17 @@
 /**
- * What both activation entry points owe the page when the API configuration
- * module itself fails: a constructed Core must never outlive a failed startup,
+ * What `activate()` owes the page when the API configuration module itself fails: a constructed Core must never outlive a failed startup,
  * and a teardown must run to the end and surface the FIRST failure.
  *
  * `initApiConfig`/`resetApiConfig` cannot be made to fail through their own
  * inputs, so the config module is the seam — the collaborator boundary, not an
  * internal of the code under test. The Core is real. A Core that was built but
- * never stopped leaves its host registered for the editor UI, which reads it
- * through `getI18nInstance()`; that registration is what these tests observe.
+ * never stopped leaves its session registered for the editor UI, which reads it
+ * through `getSession()`, and its instance marked; both are what these tests observe.
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { asPluginHost, createI18n, type ComposedInstance } from "./helpers/composedInstance";
+import type { I18n } from "@comvi/core";
+import { pageInstance } from "./helpers/session";
 
 const { initApiConfigMock, resetApiConfigMock } = vi.hoisted(() => ({
   initApiConfigMock: vi.fn(),
@@ -23,17 +23,12 @@ vi.mock("../src/config/api", async (importOriginal) => {
   return { ...actual, initApiConfig: initApiConfigMock, resetApiConfig: resetApiConfigMock };
 });
 
-import { Core, getI18nInstance } from "../src/Core";
-import { inContextEditorPlugin } from "../src/index";
+import { Core, getSession } from "../src/Core";
 import { activate, deactivate, isActive } from "../src/standalone";
-import { resetEncoder } from "../src/translation";
 
-function makeI18n(): ComposedInstance {
-  return createI18n({
-    locale: "en",
-    defaultNs: "default",
-    messages: { "en:default": { hello: "Hello" } },
-  });
+let page: I18n | undefined;
+function makeI18n(): I18n {
+  return (page = pageInstance({ messages: { en: { hello: "Hello" } } }));
 }
 
 /**
@@ -60,26 +55,9 @@ afterEach(() => {
   if (isActive()) {
     deactivate();
   }
+  page?.destroy();
+  page = undefined;
   delete (window as { __COMVI__?: unknown }).__COMVI__;
-  resetEncoder();
-});
-
-describe("inContextEditorPlugin startup failure", () => {
-  it("initApiConfig throws → the install rethrows the failure", () => {
-    const i18n = makeI18n();
-    failWith(initApiConfigMock, "bad config");
-
-    expect(() => inContextEditorPlugin()(asPluginHost(i18n))).toThrow("bad config");
-  });
-
-  it("initApiConfig throws → no host is left registered for the editor UI", () => {
-    const i18n = makeI18n();
-    failWith(initApiConfigMock, "bad config");
-
-    expect(() => inContextEditorPlugin()(asPluginHost(i18n))).toThrow("bad config");
-
-    expect(getI18nInstance()).toBeNull();
-  });
 });
 
 describe("activate() startup failure", () => {
@@ -99,13 +77,16 @@ describe("activate() startup failure", () => {
     expect(isActive()).toBe(false);
   });
 
-  it("initApiConfig throws → no host is left registered for the editor UI", () => {
-    makeI18n();
+  it("initApiConfig throws → no session is left registered and the instance renders unmarked", () => {
+    const i18n = makeI18n();
     failWith(initApiConfigMock, "bad config");
 
     expect(() => activate({ refreshMessages: false })).toThrow("bad config");
 
-    expect(getI18nInstance()).toBeNull();
+    expect({ session: getSession(), text: i18n.t("hello") }).toEqual({
+      session: null,
+      text: "Hello",
+    });
   });
 });
 
@@ -115,7 +96,7 @@ describe("deactivate() teardown failure", () => {
     const result = activate({ refreshMessages: false });
     failWith(resetApiConfigMock, "reset boom");
 
-    expect(() => result?.stop()).toThrow("reset boom");
+    expect(() => (result.ok ? result.stop() : undefined)).toThrow("reset boom");
   });
 
   it("Core.stop() and resetApiConfig both throw → deactivation surfaces the FIRST failure", () => {
@@ -124,6 +105,6 @@ describe("deactivate() teardown failure", () => {
     failCoreStopWith("core boom");
     failWith(resetApiConfigMock, "reset boom");
 
-    expect(() => result?.stop()).toThrow("core boom");
+    expect(() => (result.ok ? result.stop() : undefined)).toThrow("core boom");
   });
 });

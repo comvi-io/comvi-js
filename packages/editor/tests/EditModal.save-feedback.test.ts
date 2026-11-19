@@ -1,3 +1,4 @@
+import { TEST_TARGET } from "./helpers/sessionDouble";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick, ref } from "vue";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
@@ -34,9 +35,10 @@ vi.mock("../src/services/languageService", () => ({
   ],
 }));
 
-vi.mock("../src/Core", () => ({
-  getI18nInstance: () => ({ addMessages: addMessagesMock }),
-}));
+vi.mock("../src/Core", async () => {
+  const { sessionWritingTo } = await import("./helpers/sessionDouble");
+  return { getSession: () => sessionWritingTo(addMessagesMock) };
+});
 
 vi.mock("../src/config/api", () => ({ isDemoMode: () => false }));
 
@@ -86,6 +88,7 @@ describe("EditModal save feedback", () => {
         open: ref(true),
         translationKey: ref("hero.title"),
         translationNamespace: ref("default"),
+        translationTarget: ref(TEST_TARGET),
         translationInstanceId: ref<string | undefined>("core-a"),
       },
       attachTo: document.body,

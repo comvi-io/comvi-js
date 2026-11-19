@@ -30,7 +30,7 @@ export async function getLanguages(scopeId?: string): Promise<Language[]> {
     // Source first; the sort is stable, so the other languages keep the server's order.
     return languages.sort((a: Language, b: Language) => Number(b.isSource) - Number(a.isSource));
   } catch (error) {
-    console.error("[@comvi/plugin-in-context-editor] Error fetching languages:", error);
+    console.error("[@comvi/editor] Error fetching languages:", error);
     throw new Error("Failed to fetch languages");
   }
 }

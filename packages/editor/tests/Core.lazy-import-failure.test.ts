@@ -51,10 +51,12 @@ vi.mock("../src/EditModal", () => {
   throw new Error("chunk failed");
 });
 
-import { Core, type EditorI18n } from "../src/Core";
+import { Core } from "../src/Core";
+import type { Session } from "../src/adapter";
 import { flushPendingImports } from "./helpers";
 
-const HOST = { apiKey: "test-key" } as unknown as EditorI18n;
+/** A session that resolves every frame: these suites are about the UI chunks, not routing. */
+const HOST = { resolve: () => ({ inst: "" }) } as unknown as Session;
 
 const SINGLE_KEY_ENTRY = () => ({
   nodes: new Map([[document.createTextNode("text"), { key: "home.title", ns: "default" }]]),
@@ -91,7 +93,7 @@ describe("Core — an editor-UI chunk that fails to load", () => {
     await flushPendingImports();
 
     expect(consoleError).toHaveBeenCalledWith(
-      "[@comvi/plugin-in-context-editor] Failed to load editor UI:",
+      "[@comvi/editor] Failed to load editor UI:",
       expect.any(Error),
     );
     core.stop();
@@ -118,7 +120,7 @@ describe("Core — an editor-UI chunk that fails to load", () => {
     await flushPendingImports();
 
     expect(consoleError).toHaveBeenCalledWith(
-      "[@comvi/plugin-in-context-editor] Failed to load editor UI:",
+      "[@comvi/editor] Failed to load editor UI:",
       expect.any(Error),
     );
     core.stop();

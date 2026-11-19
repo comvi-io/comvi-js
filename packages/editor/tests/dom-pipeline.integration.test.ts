@@ -9,7 +9,7 @@ import { EventBus } from "../src/EventBus";
 import { TranslationRegistry } from "../src/TranslationRegistry";
 import { TranslationScanner } from "../src/TranslationScanner";
 import { EDITOR_UI_SHADOW_HOST_ATTRIBUTE, TAG_ATTRIBUTES } from "../src/constants";
-import { encodeKeyToInvisible, registerKey, resetEncoder } from "../src/translation";
+import { keyRef, marker } from "./helpers/frames";
 import {
   cleanupDOM,
   flushDOMMutations,
@@ -26,7 +26,7 @@ describe("DOM pipeline", () => {
   let stops: Array<() => void>;
 
   function marked(text: string, key: string): string {
-    return `${text}${encodeKeyToInvisible(registerKey(key))}`;
+    return `${text}${marker(keyRef(key))}`;
   }
 
   function markedParagraph(text: string, key: string): HTMLParagraphElement {
@@ -63,7 +63,6 @@ describe("DOM pipeline", () => {
     stops.forEach((stop) => stop());
     Element.prototype.attachShadow = PRISTINE_ATTACH_SHADOW;
     cleanupDOM();
-    resetEncoder();
   });
 
   describe("moved elements", () => {
@@ -236,7 +235,7 @@ describe("DOM pipeline", () => {
 
   describe("markers that stop decoding", () => {
     function splitMarkerParagraph(): { paragraph: HTMLParagraphElement; tail: Text } {
-      const encoded = encodeKeyToInvisible(registerKey("hello"));
+      const encoded = marker(keyRef("hello"));
       const paragraph = document.createElement("p");
       const tail = document.createTextNode(encoded.slice(3));
       paragraph.append(document.createTextNode(`Hello${encoded.slice(0, 3)}`), tail);

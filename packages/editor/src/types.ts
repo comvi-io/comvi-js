@@ -89,22 +89,6 @@ export interface TranslationSystemOptions {
   debug?: boolean;
   /** Custom highlight style for the translation overlay */
   highlightStyle?: HighlightStyleOptions;
-  /**
-   * Passive context collection while the editor runs with an API key or a
-   * transport (never in demo mode), whether installed as a plugin or activated
-   * standalone. It sends the page origin, the keys on screen with their screen
-   * group, and structural and layout signals to the Comvi API; never rendered
-   * text. Defaults to enabled; set false to opt out. `collectContext: false` on
-   * the i18n instance wins over this option.
-   */
-  collectContext?: boolean;
-  /**
-   * Overrides the collector's screen grouping with a stable, PII-free route
-   * template for the current URL (e.g. "/users/:id"). Without it, screens
-   * are grouped by an opaque digest of the normalized route. Return
-   * null/undefined to fall back to the digest for a given URL.
-   */
-  screenGroupResolver?: () => string | null | undefined;
 }
 
 export interface TranslationSystemInnerOptions {

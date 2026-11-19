@@ -22,15 +22,18 @@ import {
   PLURAL_VARIABLE_PATTERN,
   MAX_PLURAL_VARIABLE_LENGTH,
 } from "../utils/icuParser";
-import { getI18nInstance } from "../Core";
+import { getSession } from "../Core";
+import type { Target } from "../adapter";
 
 /**
  * @param languages - Reactive ref of language configurations, used for validation
- * @param instanceId - Optional i18n instance ID to scope runtime cache updates
+ * @param instanceId - The editor runtime (API scope) the requests go through
+ * @param target - The instance a save writes back into
  */
 export function useTranslations(
   languages: Ref<Language[]>,
   instanceId?: MaybeRef<string | undefined>,
+  target?: MaybeRef<Target | undefined>,
 ) {
   const state = ref<TranslationState>({
     data: null,
@@ -161,7 +164,7 @@ export function useTranslations(
         return;
       }
       state.value.error = error instanceof Error ? error.message : "Failed to load translation";
-      console.error("[@comvi/plugin-in-context-editor] Error loading translation:", error);
+      console.error("[@comvi/editor] Error loading translation:", error);
     } finally {
       if (requestId === latestLoadRequestId) {
         state.value.isLoading = false;
@@ -169,36 +172,32 @@ export function useTranslations(
     }
   }
 
-  /** Without this the edit would not show until the page reloads. */
+  /**
+   * Without this the edit would not show until the page reloads. Only pairs the instance
+   * loaded are patched (the session's rule); every language was saved to the platform.
+   */
   function updateRuntimeCache(
     data: TranslationData,
     namespace: string,
     scopeId: string | undefined,
+    saveTarget: Target | undefined,
     scopeLanguages: Language[],
   ): void {
-    const i18n = getI18nInstance(scopeId);
-    if (!i18n) {
-      console.warn(
-        "[@comvi/plugin-in-context-editor] Cannot update runtime cache: i18n instance not available",
-      );
+    const session = getSession(scopeId);
+    if (!session || !saveTarget) {
+      console.warn("[@comvi/editor] Cannot update runtime cache: i18n instance not available");
       return;
     }
 
-    // Use "lang:namespace" format as key, which addMessages expects
-    const translationsToAdd: Record<string, Record<string, string>> = {};
+    const byLocale: Record<string, string> = {};
 
     Object.entries(data.translations).forEach(([langCode, forms]) => {
-      const cacheKey = `${langCode}:${namespace}`;
-      if (!translationsToAdd[cacheKey]) {
-        translationsToAdd[cacheKey] = {};
-      }
-
       const selectConfig = data.selectConfigs?.[langCode];
       const storedValue = data.sourceValues?.[langCode];
 
       if (storedValue !== undefined) {
         // What the server stored is what the app would load next time.
-        translationsToAdd[cacheKey][String(data.key)] = storedValue;
+        byLocale[langCode] = storedValue;
       } else if (data.isPlural && selectConfig?.enabled) {
         // Select wrapping plural: composite keys like "formal:one".
         const lang = scopeLanguages.find((l) => l.code === langCode);
@@ -211,22 +210,22 @@ export function useTranslations(
           selectConfig.options,
           pluralForms,
         );
-        translationsToAdd[cacheKey][String(data.key)] = icuFormat;
+        byLocale[langCode] = icuFormat;
       } else if (data.isPlural) {
         const icuFormat = generateICUPlural(forms, data.pluralVariable || DEFAULT_PLURAL_VARIABLE);
-        translationsToAdd[cacheKey][String(data.key)] = icuFormat;
+        byLocale[langCode] = icuFormat;
       } else if (selectConfig?.enabled) {
         const icuFormat = generateICUSelect(
           forms,
           selectConfig.variable || DEFAULT_SELECT_VARIABLE,
         );
-        translationsToAdd[cacheKey][String(data.key)] = icuFormat;
+        byLocale[langCode] = icuFormat;
       } else {
-        translationsToAdd[cacheKey][String(data.key)] = forms.other || "";
+        byLocale[langCode] = forms.other || "";
       }
     });
 
-    i18n.addMessages(translationsToAdd);
+    session.patch(saveTarget, namespace, String(data.key), byLocale);
   }
 
   async function saveTranslation(): Promise<TranslationData | null> {
@@ -237,10 +236,7 @@ export function useTranslations(
 
     if (!currentNamespace.value || currentNamespace.value.trim() === "") {
       state.value.error = "No namespace set. Please ensure the translation has a valid namespace.";
-      console.error(
-        "[@comvi/plugin-in-context-editor] Save failed: namespace is",
-        currentNamespace.value,
-      );
+      console.error("[@comvi/editor] Save failed: namespace is", currentNamespace.value);
       return null;
     }
 
@@ -262,6 +258,7 @@ export function useTranslations(
     const data = state.value.data;
     const namespace = currentNamespace.value;
     const scopeId = unref(instanceId);
+    const saveTarget = unref(target);
     const scopeLanguages = languages.value;
     const translationsToSave = editedTranslations(data);
     const verbatim = verbatimValues(data, translationsToSave);
@@ -307,10 +304,10 @@ export function useTranslations(
       // was made for shows it too.
       let cacheError: unknown = null;
       try {
-        updateRuntimeCache(savedData, namespace, scopeId, scopeLanguages);
+        updateRuntimeCache(savedData, namespace, scopeId, saveTarget, scopeLanguages);
       } catch (error) {
         cacheError = error;
-        console.error("[@comvi/plugin-in-context-editor] Error updating runtime cache:", error);
+        console.error("[@comvi/editor] Error updating runtime cache:", error);
       }
 
       if (saveSession !== session.value) {
@@ -327,7 +324,7 @@ export function useTranslations(
 
       return savedData;
     } catch (error) {
-      console.error("[@comvi/plugin-in-context-editor] Error saving translation:", error);
+      console.error("[@comvi/editor] Error saving translation:", error);
       if (saveSession !== session.value) {
         return null;
       }
@@ -345,7 +342,7 @@ export function useTranslations(
 
   function updateTranslation(languageCode: string, pluralForm: string, value: string): void {
     if (!state.value.data) {
-      console.warn("[@comvi/plugin-in-context-editor] Cannot update translation: no data loaded");
+      console.warn("[@comvi/editor] Cannot update translation: no data loaded");
       return;
     }
 
@@ -437,7 +434,7 @@ export function useTranslations(
 
   function updateMetadata(metadata: Partial<TranslationData["metadata"]>): void {
     if (!state.value.data) {
-      console.warn("[@comvi/plugin-in-context-editor] Cannot update metadata: no data loaded");
+      console.warn("[@comvi/editor] Cannot update metadata: no data loaded");
       return;
     }
 
@@ -452,9 +449,7 @@ export function useTranslations(
   /** @param variable - ICU plural variable name, e.g. "count" or "n" */
   function updatePluralVariable(variable: string): void {
     if (!state.value.data) {
-      console.warn(
-        "[@comvi/plugin-in-context-editor] Cannot update plural variable: no data loaded",
-      );
+      console.warn("[@comvi/editor] Cannot update plural variable: no data loaded");
       return;
     }
 
@@ -485,7 +480,7 @@ export function useTranslations(
   /** Existing translations are converted between the two shapes. */
   function togglePluralMode(enabled: boolean): void {
     if (!state.value.data) {
-      console.warn("[@comvi/plugin-in-context-editor] Cannot toggle plural mode: no data loaded");
+      console.warn("[@comvi/editor] Cannot toggle plural mode: no data loaded");
       return;
     }
 
@@ -533,7 +528,7 @@ export function useTranslations(
     config?: { variable: string; options: string[] },
   ): void {
     if (!state.value.data) {
-      console.warn("[@comvi/plugin-in-context-editor] Cannot toggle select mode: no data loaded");
+      console.warn("[@comvi/editor] Cannot toggle select mode: no data loaded");
       return;
     }
     if (isRawLanguage(langCode)) return;
@@ -596,7 +591,7 @@ export function useTranslations(
 
   function updateSelectConfig(langCode: string, config: Partial<LanguageSelectConfig>): void {
     if (!state.value.data) {
-      console.warn("[@comvi/plugin-in-context-editor] Cannot update select config: no data loaded");
+      console.warn("[@comvi/editor] Cannot update select config: no data loaded");
       return;
     }
     if (isRawLanguage(langCode)) return;

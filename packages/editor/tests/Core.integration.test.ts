@@ -4,8 +4,8 @@
  * `Core.getRegistry()` exposes the decoded data itself.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { Core, type EditorI18n } from "../src/Core";
-import { encodeKeyToInvisible, registerKey, loadKeyMappings } from "../src/translation";
+import { Core } from "../src/Core";
+import { keyRef, marker } from "./helpers/frames";
 import { TAG_ATTRIBUTES } from "../src/constants";
 import {
   cleanupDOM,
@@ -33,12 +33,12 @@ function renderTarget(tag = "div"): HTMLElement {
 
 function markedHeading(key: string): HTMLHeadingElement {
   const h1 = document.createElement("h1");
-  h1.appendChild(document.createTextNode(`Welcome ${encodeKeyToInvisible(registerKey(key))}`));
+  h1.appendChild(document.createTextNode(`Welcome ${marker(keyRef(key))}`));
   return h1;
 }
 
 function withMarkedAttribute<T extends HTMLElement>(element: T, name: string, key: string): T {
-  element.setAttribute(name, `Text ${encodeKeyToInvisible(registerKey(key))}`);
+  element.setAttribute(name, `Text ${marker(keyRef(key))}`);
   return element;
 }
 
@@ -46,7 +46,6 @@ describe("Core end-to-end", () => {
   afterEach(() => {
     for (const core of cores.splice(0)) core.stop();
     cleanupDOM();
-    loadKeyMappings({});
   });
 
   describe("scanning marked content", () => {
@@ -58,7 +57,7 @@ describe("Core end-to-end", () => {
       startCore({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
       await flushDOMMutations();
 
-      expect(hoverLabel(h1)).toBe("home.title (default)");
+      expect(hoverLabel(h1)).toBe("home.title");
     });
 
     it("marked title attribute in the target at start() → shows its key on Alt+hover", async () => {
@@ -69,7 +68,7 @@ describe("Core end-to-end", () => {
       startCore({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
       await flushDOMMutations();
 
-      expect(hoverLabel(p)).toBe("home.description (default)");
+      expect(hoverLabel(p)).toBe("home.description");
     });
 
     it("marked element appended after start() → shows its key on Alt+hover", async () => {
@@ -84,7 +83,7 @@ describe("Core end-to-end", () => {
       container.appendChild(newDiv);
       await flushDOMMutations();
 
-      expect(hoverLabel(newDiv)).toBe("dynamic.key (default)");
+      expect(hoverLabel(newDiv)).toBe("dynamic.key");
     });
 
     it("three elements with different keys → each shows its own key on Alt+hover", async () => {
@@ -97,7 +96,7 @@ describe("Core end-to-end", () => {
       container.append(...divs);
       await flushDOMMutations();
 
-      expect(divs.map(hoverLabel)).toEqual(["key1 (default)", "key2 (default)", "key3 (default)"]);
+      expect(divs.map(hoverLabel)).toEqual(["key1", "key2", "key3"]);
     });
 
     it("marked heading scanned → getRegistry() lists exactly that element", async () => {
@@ -111,13 +110,12 @@ describe("Core end-to-end", () => {
       expect([...core.getRegistry().getElements()]).toEqual([h1]);
     });
 
-    it("key in the host's default namespace → the hover label omits the namespace suffix", async () => {
-      const host = { getDefaultNamespace: () => "default" } as unknown as EditorI18n;
+    it("key in the default namespace → the hover label omits the namespace suffix", async () => {
       const container = renderTarget();
       const h1 = markedHeading("home.title");
       container.appendChild(h1);
 
-      startCore({ targetElement: container, tagAttributes: TAG_ATTRIBUTES }, host);
+      startCore({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
       await flushDOMMutations();
 
       expect(hoverLabel(h1)).toBe("home.title");
@@ -192,7 +190,7 @@ describe("Core end-to-end", () => {
       customTarget.appendChild(inside);
       await flushDOMMutations();
 
-      expect(hoverLabel(inside)).toBe("inside.key (default)");
+      expect(hoverLabel(inside)).toBe("inside.key");
     });
 
     it("custom targetElement → marked content outside it shows no key", async () => {
@@ -218,7 +216,7 @@ describe("Core end-to-end", () => {
       container.append(watched);
       await flushDOMMutations();
 
-      expect(hoverLabel(watched)).toBe("custom.key (default)");
+      expect(hoverLabel(watched)).toBe("custom.key");
     });
 
     it("custom tagAttributes without title → a marked title attribute shows no key", async () => {
@@ -242,7 +240,7 @@ describe("Core end-to-end", () => {
       container.appendChild(input);
       await flushDOMMutations();
 
-      expect(hoverLabel(input)).toBe("test.key (default)");
+      expect(hoverLabel(input)).toBe("test.key");
     });
 
     it("empty options → the default rules apply to a marked <textarea> placeholder", async () => {
@@ -257,7 +255,7 @@ describe("Core end-to-end", () => {
       container.append(textarea);
       await flushDOMMutations();
 
-      expect(hoverLabel(textarea)).toBe("test.placeholder (default)");
+      expect(hoverLabel(textarea)).toBe("test.placeholder");
     });
 
     it("empty options → the default rules apply to a marked aria-label", async () => {
@@ -268,7 +266,7 @@ describe("Core end-to-end", () => {
       container.append(div);
       await flushDOMMutations();
 
-      expect(hoverLabel(div)).toBe("test.aria (default)");
+      expect(hoverLabel(div)).toBe("test.aria");
     });
   });
 });

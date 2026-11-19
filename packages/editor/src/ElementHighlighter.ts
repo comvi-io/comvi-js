@@ -58,7 +58,7 @@ export class ElementHighlighter {
 
   constructor(
     private eventBus: EventBus,
-    private handleElementClick: (element: Element) => void,
+    private handleElementClick: (element: Element, target?: Node) => void,
     options: ElementHighlighterOptions = {},
   ) {
     this.debug = options.debug ?? false;
@@ -248,7 +248,11 @@ export class ElementHighlighter {
     event.stopImmediatePropagation();
     event.stopPropagation();
 
-    this.handleElementClick(registeredElement);
+    // The clicked node itself, so a rich pair that encloses it can be told apart from its
+    // neighbours on the same element.
+    const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+    const target = path[0] instanceof Node ? path[0] : (event.target as Node | null);
+    this.handleElementClick(registeredElement, target ?? undefined);
   };
 
   private createHighlightOverlay(): HTMLDivElement {
@@ -308,9 +312,7 @@ export class ElementHighlighter {
   private updateHighlightPosition(overlay: HTMLDivElement, element: Element): void {
     if (!element.isConnected) {
       if (this.debug) {
-        console.warn(
-          "[@comvi/plugin-in-context-editor] Cannot update position: element is detached from DOM",
-        );
+        console.warn("[@comvi/editor] Cannot update position: element is detached from DOM");
       }
       return;
     }
@@ -407,7 +409,7 @@ export class ElementHighlighter {
   /** @throws {Error} If the element is null or undefined. */
   public addHighlight(element: Element): void {
     if (!element) {
-      throw new Error("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
+      throw new Error("[@comvi/editor] Element cannot be null or undefined");
     }
 
     this.highlightedElements.add(element);

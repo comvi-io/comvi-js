@@ -236,10 +236,7 @@ export class CollectorTransport {
       const data = (await response.json()) as UsagesResponse;
       this.applyResponse(data);
     } catch (error) {
-      console.error(
-        "[@comvi/plugin-in-context-editor] Collector batch failed; will retry next settle.",
-        error,
-      );
+      console.error("[@comvi/editor] Collector batch failed; will retry next settle.", error);
     }
   }
 

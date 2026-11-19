@@ -54,8 +54,8 @@ function clickOption(index: number): void {
 
 /** Opens a selector for `keys` against an element in the top-left of the viewport. */
 function openSelector(
-  keys: Array<{ key: string; ns: string; textPreview?: string }>,
-  onSelect: (key: string, ns: string) => void = vi.fn(),
+  keys: Array<{ inst?: string; key: string; ns: string; textPreview?: string }>,
+  onSelect: (key: string, ns: string, inst?: string) => void = vi.fn(),
 ): void {
   showKeySelector(
     keys,
@@ -240,19 +240,19 @@ describe("key selector page text", () => {
 describe("key selector choice", () => {
   beforeEach(() => initApiConfig(undefined, "core-1"));
 
-  it("option clicked → the caller receives its key and namespace", () => {
+  it("option clicked → the caller receives its key, namespace and instance", () => {
     const onSelect = vi.fn();
     openSelector(
       [
-        { key: "home.title", ns: "default" },
-        { key: "checkout.total", ns: "checkout" },
+        { inst: "comvi-1", key: "home.title", ns: "default" },
+        { inst: "comvi-2", key: "checkout.total", ns: "checkout" },
       ],
       onSelect,
     );
 
     clickOption(1);
 
-    expect(onSelect).toHaveBeenCalledExactlyOnceWith("checkout.total", "checkout");
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith("checkout.total", "checkout", "comvi-2");
   });
 
   it("option clicked → the selector leaves the page", () => {

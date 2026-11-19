@@ -230,7 +230,7 @@ describe("translationService", () => {
       "Failed to fetch translation",
     );
     expect(console.error).toHaveBeenCalledWith(
-      "[@comvi/plugin-in-context-editor] Error fetching translation:",
+      "[@comvi/editor] Error fetching translation:",
       new Error("API error: 500 Server Error"),
     );
   });
@@ -242,7 +242,7 @@ describe("translationService", () => {
       saveTranslation("home.title", "default", { en: { other: "Hello" } }, false),
     ).rejects.toThrow("Failed to save translation");
     expect(console.error).toHaveBeenCalledWith(
-      "[@comvi/plugin-in-context-editor] Error saving translation:",
+      "[@comvi/editor] Error saving translation:",
       new Error("API error: 500 Server Error"),
     );
   });
@@ -347,7 +347,7 @@ describe("translationService", () => {
       "Failed to delete translation",
     );
     expect(console.error).toHaveBeenCalledWith(
-      "[@comvi/plugin-in-context-editor] Error deleting translation:",
+      "[@comvi/editor] Error deleting translation:",
       new Error("API error: 500 Server Error"),
     );
   });
@@ -395,7 +395,7 @@ describe("translationService", () => {
 
     expect(result).toEqual([]);
     expect(console.error).toHaveBeenCalledWith(
-      "[@comvi/plugin-in-context-editor] Error getting translation keys:",
+      "[@comvi/editor] Error getting translation keys:",
       new Error("API error: 500 Server Error"),
     );
   });

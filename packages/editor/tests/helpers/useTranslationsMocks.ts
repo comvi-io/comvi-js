@@ -1,6 +1,6 @@
 /**
  * Doubles for the two collaborators of `useTranslations`: the translation
- * service (the HTTP boundary) and the Core's i18n-instance lookup (the
+ * service (the HTTP boundary) and the Core's session lookup (the
  * runtime cache it updates after a save). Imports nothing from `src/`, so it
  * can be loaded through `vi.hoisted` before the mocks are registered:
  *
@@ -9,10 +9,11 @@
  *     vi.mock("../src/Core", mocks.mockCoreI18nLookupModule);
  */
 import { vi } from "vitest";
+import { sessionWritingTo } from "./sessionDouble";
 
 export const getTranslationMock = vi.fn();
 export const saveTranslationMock = vi.fn();
-export const getI18nInstanceMock = vi.fn();
+export const getSessionMock = vi.fn();
 export const addMessagesMock = vi.fn();
 
 export function mockTranslationServiceModule() {
@@ -24,15 +25,15 @@ export function mockTranslationServiceModule() {
 
 export function mockCoreI18nLookupModule() {
   return {
-    getI18nInstance: (...args: unknown[]) => getI18nInstanceMock(...args),
+    getSession: (...args: unknown[]) => getSessionMock(...args),
   };
 }
 
-/** Clears every double; the runtime lookup answers with an i18n that records `addMessages`. */
+/** Clears every double; the session lookup answers with a session that records the patch. */
 export function resetUseTranslationsMocks(): void {
   getTranslationMock.mockReset();
   saveTranslationMock.mockReset();
-  getI18nInstanceMock.mockReset();
+  getSessionMock.mockReset();
   addMessagesMock.mockReset();
-  getI18nInstanceMock.mockReturnValue({ addMessages: addMessagesMock });
+  getSessionMock.mockReturnValue(sessionWritingTo(addMessagesMock));
 }

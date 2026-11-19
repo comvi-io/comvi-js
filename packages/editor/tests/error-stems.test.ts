@@ -8,9 +8,9 @@ import {
   readSources,
 } from "@comvi/test-utils/errorStems";
 
-describe("error messages: the @comvi/plugin-in-context-editor prefix", () => {
+describe("error messages: the @comvi/editor prefix", () => {
   const all = readSources(resolve(__dirname, "../src"));
-  const prefix = errorPrefix("@comvi/plugin-in-context-editor");
+  const prefix = errorPrefix("@comvi/editor");
 
   it("opens every message with the package name", () => {
     expect(all).toContain(prefix);

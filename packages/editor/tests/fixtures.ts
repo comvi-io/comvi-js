@@ -116,11 +116,21 @@ export const EDGE_CASES = {
   MIXED_INVISIBLE: "\u200B\u200C\u200D mixed with visible text",
 } as const;
 
+/** Text that looks like a frame and must decode to nothing (`src/marker.ts` grammar). */
+const tag = (ascii: string) =>
+  [...ascii].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join("");
+const START = "\u{E007E}";
+const END = "\u{E007F}";
 export const INVALID_DATA = {
-  INVALID_BASE5: "\uFFFF\uFFFE",
-  TOO_SHORT_ENCODING: "\u200B\u200C",
-  TOO_LONG_ENCODING: "\u200B".repeat(20),
-  MIXED_VALID_INVALID: "\u200B\u200C\uFFFF\u200D",
+  NO_END: `${START}${tag("|default|key")}`,
+  CHAR_OUTSIDE_ALPHABET: `${START}${tag("|default|k")}x${tag("ey")}${END}`,
+  TWO_COMPONENTS: `${START}${tag("default|key")}${END}`,
+  FOUR_COMPONENTS: `${START}${tag("|a|b|c")}${END}`,
+  TRUNCATED_PERCENT: `${START}${tag("|default|k%4")}${END}`,
+  LOWER_CASE_PERCENT: `${START}${tag("|default|k%c3%a9")}${END}`,
+  NOT_UTF8: `${START}${tag("|default|k%FF")}${END}`,
+  RAW_SPACE: `${START}${tag("|default|a b")}${END}`,
+  ZWSP_RUN_OF_THE_0_7_FORMAT: "\u200B\u200D\u200C\u2063\u2064\u200B\u200D\u200C",
 } as const;
 
 export const PERFORMANCE = {

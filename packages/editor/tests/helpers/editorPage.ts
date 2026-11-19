@@ -6,7 +6,7 @@
  * Alt+hover shows the key label. Nothing here reaches into the runtime.
  */
 
-import { encodeKeyToInvisible, registerKey } from "../../src/translation";
+import { marker } from "./frames";
 import {
   flushDOMMutations,
   getActiveOverlay,
@@ -35,15 +35,14 @@ export function renderText(text: string, parent: Node = document.body): HTMLPara
 }
 
 /**
- * Appends a `<p>` whose text carries the marker of `key` on the page-wide
- * encoder, the way an earlier `t()` call would have rendered it.
+ * Appends a `<p>` whose text carries the frame of `key` (the page's only
+ * instance), the way an earlier `t()` call would have rendered it.
  */
 export function renderMarked(
   key: string,
   options: { ns?: string; text?: string; parent?: Node } = {},
 ): HTMLParagraphElement {
-  const marker = encodeKeyToInvisible(registerKey(key, options.ns));
-  return renderText(`${options.text ?? key}${marker}`, options.parent);
+  return renderText(`${options.text ?? key}${marker(key, options.ns)}`, options.parent);
 }
 
 /**

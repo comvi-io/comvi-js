@@ -92,7 +92,7 @@ export function initApiConfig(
 
   if (isDemoMode) {
     console.info(
-      "[@comvi/plugin-in-context-editor] Running in demo mode - API key not configured. Changes cannot be saved.",
+      "[@comvi/editor] Running in demo mode - API key not configured. Changes cannot be saved.",
     );
   }
 }
@@ -105,7 +105,7 @@ export function getApiConfig(scopeId?: string): ApiConfig {
   const config = configs.get(getConfigScope(scopeId));
   if (!config) {
     throw new Error(
-      "[@comvi/plugin-in-context-editor] API configuration not initialized. Make sure the plugin is properly configured.",
+      "[@comvi/editor] API configuration not initialized. Make sure the plugin is properly configured.",
     );
   }
   return config;

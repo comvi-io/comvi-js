@@ -1,3 +1,4 @@
+import { TEST_TARGET } from "./helpers/sessionDouble";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h, inject, nextTick, ref } from "vue";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
@@ -27,9 +28,10 @@ vi.mock("../src/services/languageService", () => ({
   ],
 }));
 
-vi.mock("../src/Core", () => ({
-  getI18nInstance: () => ({ addMessages: addMessagesMock }),
-}));
+vi.mock("../src/Core", async () => {
+  const { sessionWritingTo } = await import("./helpers/sessionDouble");
+  return { getSession: () => sessionWritingTo(addMessagesMock) };
+});
 
 vi.mock("../src/config/api", () => ({ isDemoMode: () => false }));
 
@@ -79,6 +81,7 @@ describe("EditModal save session", () => {
         open,
         translationKey: key,
         translationNamespace: ns,
+        translationTarget: ref(TEST_TARGET),
         translationInstanceId: instance,
         "onUpdate:open": (value: boolean) => (open.value = value),
       },
@@ -177,6 +180,7 @@ describe("EditModal save shortcut", () => {
         open: ref(true),
         translationKey: ref("first"),
         translationNamespace: ref("namespace-A"),
+        translationTarget: ref(TEST_TARGET),
         translationInstanceId: ref<string | undefined>("core-a"),
       },
       global: { stubs: { ModalBody: BodyStub, ModalHeader: true } },

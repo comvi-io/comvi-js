@@ -1,19 +1,12 @@
 /**
- * The standalone (CDN / Chrome-extension) runtime around `activate()`:
- * defaults it applies, what crosses the proxy transport boundary, which
- * translation refreshes it is allowed to apply, and what a deactivation must
- * hand back even when part of the teardown throws.
- *
- * `tests/plugin-options.test.ts` owns the collectContext opt-out and lifecycle
- * notification claims; this suite does not repeat them.
+ * The standalone runtime around `activate()`, on a REAL core 0.8 instance composed with
+ * `devtools()`: the defaults it applies, that context collection is off, what crosses the
+ * proxy transport boundary, which translation refreshes it applies, and what a deactivation
+ * must hand back even when part of the teardown throws.
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  createDiscoverableBaseI18n,
-  createI18n,
-  type ComposedInstance,
-} from "./helpers/composedInstance";
+import type { I18n, Loader } from "@comvi/core";
 
 const { fetchApiTranslationsMock, clearProjectInfoCacheMock } = vi.hoisted(() => ({
   fetchApiTranslationsMock: vi.fn(),
@@ -29,18 +22,31 @@ vi.mock("../src/api-fetch", async (importOriginal) => {
   };
 });
 
-import { activate, deactivate, isActive } from "../src/standalone";
+import { activate, deactivate, isActive, EDITOR_LIFECYCLE_EVENT } from "../src/standalone";
 import { Core } from "../src/Core";
+import { decodeFrames, FRAME_START } from "../src/marker";
 import { getApiConfig, resetApiConfig } from "../src/config/api";
-import { encodeKeyToInvisible, registerKey, resetEncoder } from "../src/translation";
 import type { ApiTransport, ApiTransportInit } from "../src/config/api";
 import { cleanupDOM, flushDOMMutations } from "./helpers";
-import { hoverLabel, hoverOverlayStyle, renderMarked } from "./helpers/editorPage";
-import { contextApiResponse, contextPaths, handshakeKeys } from "./helpers/contextWire";
+import { hoverLabel, hoverOverlayStyle, renderMarked, renderText } from "./helpers/editorPage";
+import { contextApiResponse, contextPaths } from "./helpers/contextWire";
+import { marker } from "./helpers/frames";
+import { pageInstance } from "./helpers/session";
+
+/** The scope id of every Core that started, in order (the API config is keyed by it). */
+function startedScopes(): string[] {
+  const scopes: string[] = [];
+  const realStart = Core.prototype.start;
+  vi.spyOn(Core.prototype, "start").mockImplementation(function (this: Core) {
+    scopes.push(this.getInstanceId());
+    realStart.call(this);
+  });
+  return scopes;
+}
 
 /**
- * Fault injection: `Core.stop()` finishes its real teardown, so nothing leaks
- * into later tests, and then throws — the failure `deactivate()` must survive.
+ * Fault injection: `Core.stop()` finishes its real teardown, so nothing leaks into later
+ * tests, and then throws — the failure `deactivate()` must survive.
  */
 function failCoreStopWith(message: string): void {
   const realStop = Core.prototype.stop;
@@ -50,19 +56,14 @@ function failCoreStopWith(message: string): void {
   });
 }
 
-function makeI18n(
-  messages: Record<string, Record<string, string>> = {
-    "en:default": { hello: "Hello" },
-  },
-): ComposedInstance {
-  return createI18n({ locale: "en", defaultNs: "default", messages });
+const instances: I18n[] = [];
+function makeI18n(messages: Record<string, string> = { hello: "Hello" }): I18n {
+  const i18n = pageInstance({ messages: { en: messages } });
+  instances.push(i18n);
+  return i18n;
 }
 
-/**
- * Drains the fire-and-forget refresh chain `activate()` kicks off. It is
- * microtasks only — no timers, no polling — so a fixed number of turns is
- * deterministic rather than a wait.
- */
+/** Drains the refresh chain `activate()` kicks off: microtasks only, no timers. */
 async function settleRefresh(): Promise<void> {
   for (let turn = 0; turn < 12; turn += 1) {
     await Promise.resolve();
@@ -77,16 +78,6 @@ function createDeferred<T>() {
     reject = fail;
   });
   return { promise, resolve, reject };
-}
-
-/**
- * The catalogs the refresh handed back to the host, as plain data. Core stores
- * catalogs on null-prototype objects, which a raw spy assertion cannot render.
- */
-function addedCatalogs(spy: {
-  mock: { calls: unknown[][] };
-}): Array<Record<string, Record<string, string>>> {
-  return spy.mock.calls.map(([update]) => JSON.parse(JSON.stringify(update)));
 }
 
 /** Drives one proxied request through the scoped fetch the refresh hands out. */
@@ -106,39 +97,22 @@ function refreshVia(request: (scopedFetch: typeof fetch) => Promise<unknown>): v
   );
 }
 
+const stopOf = (result: ReturnType<typeof activate>) => () =>
+  result.ok ? result.stop() : undefined;
+
 afterEach(() => {
   if (isActive()) {
     deactivate();
   }
+  for (const i18n of instances.splice(0)) i18n.destroy();
   delete (window as { __COMVI__?: unknown }).__COMVI__;
   cleanupDOM();
-  document.head.querySelector("title")?.remove();
   resetApiConfig();
-  resetEncoder();
   fetchApiTranslationsMock.mockReset();
   clearProjectInfoCacheMock.mockReset();
 });
 
 describe("activate() defaults", () => {
-  it("activate() without collectContext → the result reports collectContext: true", () => {
-    makeI18n();
-
-    const result = activate({ refreshMessages: false });
-
-    expect(result?.collectContext).toBe(true);
-  });
-
-  it("activate() without collectContext → the context handshake goes through the transport", async () => {
-    makeI18n();
-    renderMarked("hello");
-    const transport = vi.fn<ApiTransport>((path) => contextApiResponse(path));
-
-    activate({ transport, refreshMessages: false });
-    await flushDOMMutations();
-
-    expect(contextPaths(transport.mock.calls)).toContain("/v1/context/handshake");
-  });
-
   it("activate() without targetElement → marked text anywhere in the body is highlighted", async () => {
     makeI18n();
     const nested = document.createElement("section");
@@ -148,18 +122,6 @@ describe("activate() defaults", () => {
     activate({ refreshMessages: false });
 
     expect(await hoverLabel(heading)).toBe("home.title");
-  });
-
-  it("activate() without targetElement → a translated <title> in the head is not tracked", async () => {
-    makeI18n();
-    renderMarked("home.title");
-    document.title = `Shop${encodeKeyToInvisible(registerKey("page.title"))}`;
-    const transport = vi.fn<ApiTransport>((path) => contextApiResponse(path));
-
-    activate({ transport, refreshMessages: false });
-    await flushDOMMutations();
-
-    expect(handshakeKeys(transport.mock.calls)).toEqual(["home.title"]);
   });
 
   it("activate({ targetElement }) → marked text inside the target is highlighted", async () => {
@@ -201,82 +163,100 @@ describe("activate() defaults", () => {
 
   it("trims the api key before storing it in the runtime's configuration", () => {
     makeI18n();
+    const scopes = startedScopes();
 
-    const result = activate({ apiKey: "  padded-key  ", refreshMessages: false });
+    activate({ apiKey: "  padded-key  ", refreshMessages: false });
 
-    expect(getApiConfig(result!.instanceId).apiKey).toBe("padded-key");
+    expect(getApiConfig(scopes[0]).apiKey).toBe("padded-key");
   });
 
-  it("marks the page's translations so the DOM watcher can trace them back to keys", () => {
+  it("marks the instance: t() output carries the frame of its key", () => {
     const i18n = makeI18n();
 
     activate({ refreshMessages: false });
 
-    expect(i18n.t("hello")).toContainInvisibleChars();
+    expect(decodeFrames(i18n.t("hello"))).toMatchObject([
+      { inst: "", ns: "default", key: "hello", close: false },
+    ]);
   });
 
-  it("announces the activated instance id", () => {
-    makeI18n();
-    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+  it("a marked t() output rendered after activation is highlighted with its key", async () => {
+    const i18n = makeI18n();
+    activate({ refreshMessages: false });
 
-    const result = activate({ refreshMessages: false });
+    const paragraph = renderText(i18n.t("hello"));
 
-    expect(info).toHaveBeenCalledWith(
-      `[@comvi/plugin-in-context-editor] Activated (instance: ${result?.instanceId})`,
-    );
+    expect(await hoverLabel(paragraph)).toBe("hello");
   });
 
-  it("announces the deactivation", () => {
+  it("announces the activation and the deactivation, without an instance id", () => {
     makeI18n();
-    const result = activate({ refreshMessages: false });
     const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const events: unknown[] = [];
+    const onEvent = (event: Event) => events.push((event as CustomEvent).detail);
+    window.addEventListener(EDITOR_LIFECYCLE_EVENT, onEvent);
+    const onLifecycle = vi.fn();
 
-    result?.stop();
+    const result = activate({ apiKey: "test-key", refreshMessages: false, onLifecycle });
+    stopOf(result)();
+    window.removeEventListener(EDITOR_LIFECYCLE_EVENT, onEvent);
 
-    expect(info).toHaveBeenCalledWith("[@comvi/plugin-in-context-editor] Deactivated");
+    expect({
+      info: info.mock.calls.map(([line]) => line),
+      events,
+      callback: onLifecycle.mock.calls.map(([detail]) => detail),
+    }).toEqual({
+      info: ["[@comvi/editor] Activated", "[@comvi/editor] Deactivated"],
+      events: [{ state: "activated" }, { state: "deactivated" }],
+      callback: [{ state: "activated" }, { state: "deactivated" }],
+    });
   });
 });
 
-describe("activate() instance selection", () => {
-  it("an instance without the plugin capability → returns null instead of throwing", () => {
-    createDiscoverableBaseI18n({ locale: "en", messages: { "en:default": { hello: "Hello" } } });
-    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+describe("context collection is off (owner D4)", () => {
+  it("the result reports collectContext: false", () => {
+    makeI18n();
 
     const result = activate({ refreshMessages: false });
 
-    expect(result).toBeNull();
-    expect(isActive()).toBe(false);
-    expect(error).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({ ok: true, collectContext: false });
   });
 
-  it("an instance without the plugin capability → the error names the missing @comvi/core/plugins capability", () => {
-    createDiscoverableBaseI18n({ locale: "en", messages: { "en:default": { hello: "Hello" } } });
-    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
-
-    activate({ refreshMessages: false });
-
-    expect(error).toHaveBeenCalledExactlyOnceWith(
-      "[@comvi/plugin-in-context-editor] This i18n instance cannot be edited: it was created without the plugin capability (`@comvi/core/plugins`).",
-    );
-  });
-
-  it("no instanceId → edits the instance with the plugin capability over an earlier one without it", () => {
-    createDiscoverableBaseI18n({ locale: "en", messages: { "en:default": { hello: "Hello" } } });
-    const editable = makeI18n();
-
-    activate({ refreshMessages: false });
-
-    expect(editable.t("hello")).toContainInvisibleChars();
-  });
-
-  it("an instanceId naming an instance without the plugin capability → returns null", () => {
+  it("a session with marked text, DOM changes and navigation → no request to the context routes", async () => {
     makeI18n();
-    createDiscoverableBaseI18n({ locale: "en", instanceId: "base-only" });
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    renderMarked("hello");
+    const transport = vi.fn<ApiTransport>((path) => contextApiResponse(path));
 
-    const result = activate({ instanceId: "base-only", refreshMessages: false });
+    activate({ transport, refreshMessages: false });
+    await flushDOMMutations();
+    renderMarked("later.key");
+    history.pushState({}, "", "/next-page");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    history.replaceState({}, "", "/next-page#section");
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("pagehide"));
+    await flushDOMMutations();
+    await settleRefresh();
 
-    expect(result).toBeNull();
+    expect(contextPaths(transport.mock.calls)).toEqual([]);
+  });
+
+  it("a session with an API key → no fetch to the context routes", async () => {
+    makeI18n();
+    renderMarked("hello");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input) => contextApiResponse(String(input)));
+
+    activate({ apiKey: "test-key", refreshMessages: false });
+    await flushDOMMutations();
+    history.pushState({}, "", "/other");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await flushDOMMutations();
+    await settleRefresh();
+
+    expect(contextPaths(fetchSpy.mock.calls)).toEqual([]);
   });
 });
 
@@ -290,23 +270,16 @@ describe("activate() translation refresh", () => {
     expect(fetchApiTranslationsMock).not.toHaveBeenCalled();
   });
 
-  it("refreshMessages false → still re-adds the page's own catalog so rendered text gets marked", () => {
-    const i18n = makeI18n();
-    const addMessages = vi.spyOn(i18n, "addMessages");
-
-    activate({ apiKey: "test-key", refreshMessages: false });
-
-    expect(addedCatalogs(addMessages)).toEqual([{ "en:default": { hello: "Hello" } }]);
-  });
-
-  it("performs the API round trip when refreshMessages is explicitly true", async () => {
+  it("performs one API round trip per loaded locale, for its loaded namespaces", async () => {
     makeI18n();
     fetchApiTranslationsMock.mockResolvedValue(new Map());
 
-    activate({ apiKey: "test-key", refreshMessages: true });
+    activate({ apiKey: "test-key" });
     await settleRefresh();
 
-    expect(fetchApiTranslationsMock).toHaveBeenCalledTimes(1);
+    expect(fetchApiTranslationsMock.mock.calls.map(([, locale, nss]) => [locale, nss])).toEqual([
+      ["en", ["default"]],
+    ]);
   });
 
   it("skips the API round trip when there is neither an api key nor a transport", async () => {
@@ -318,68 +291,64 @@ describe("activate() translation refresh", () => {
     expect(fetchApiTranslationsMock).not.toHaveBeenCalled();
   });
 
-  it("re-adds only the page's own catalog when the API returns nothing", async () => {
+  it("writes the fetched messages into the loaded pair: t() renders them", async () => {
     const i18n = makeI18n();
-    const addMessages = vi.spyOn(i18n, "addMessages");
-    fetchApiTranslationsMock.mockResolvedValue(new Map());
+    fetchApiTranslationsMock.mockResolvedValue(
+      new Map([["en:default", { hello: "Hello from the platform" }]]),
+    );
 
     activate({ apiKey: "test-key" });
     await settleRefresh();
 
-    expect(addedCatalogs(addMessages)).toEqual([{ "en:default": { hello: "Hello" } }]);
+    expect(i18n.t("hello", { markers: false })).toBe("Hello from the platform");
   });
 
-  it("leaves an empty loaded namespace out of the re-added catalog", async () => {
-    const i18n = makeI18n({ "en:default": { hello: "Hello" }, "en:empty": {} });
-    const addMessages = vi.spyOn(i18n, "addMessages");
-    fetchApiTranslationsMock.mockResolvedValue(new Map());
+  it("a pair the platform returns but the instance never loaded is not written (its own load stays)", async () => {
+    const loader = vi.fn<Loader>(async (_locale, ns) =>
+      ns === "shop" ? { cart: "Cart" } : ({} as Record<string, string>),
+    );
+    const i18n = pageInstance({ loader });
+    instances.push(i18n);
+    await i18n.ready;
+    fetchApiTranslationsMock.mockResolvedValue(
+      new Map([
+        ["en:default", {}],
+        ["en:shop", { cart: "Platform cart" }],
+      ]),
+    );
 
     activate({ apiKey: "test-key" });
     await settleRefresh();
+    await i18n.load("shop");
 
-    expect(addedCatalogs(addMessages)).toEqual([{ "en:default": { hello: "Hello" } }]);
-  });
-
-  it("pushes no update at all when the page has no translations loaded", async () => {
-    const i18n = createI18n({ locale: "en", defaultNs: "default" });
-    const addMessages = vi.spyOn(i18n, "addMessages");
-
-    activate({ apiKey: "test-key" });
-    await settleRefresh();
-
-    expect(addedCatalogs(addMessages)).toEqual([]);
-  });
-
-  it("drops a refresh that resolves after a newer activation replaced the runtime", async () => {
-    const i18n = makeI18n();
-    const addMessages = vi.spyOn(i18n, "addMessages");
-    const inFlight = createDeferred<Map<string, unknown>>();
-    fetchApiTranslationsMock.mockReturnValueOnce(inFlight.promise);
-
-    const first = activate({ apiKey: "test-key" });
-    first?.stop();
-    activate({ apiKey: "test-key", refreshMessages: false });
-    // The newer runtime's own local re-add is not the stale refresh's doing.
-    addMessages.mockClear();
-
-    inFlight.resolve(new Map());
-    await settleRefresh();
-
-    expect(addedCatalogs(addMessages)).toEqual([]);
+    expect(i18n.ns("shop")("cart", { markers: false })).toBe("Cart");
   });
 
   it("drops a refresh that resolves after the runtime was stopped", async () => {
     const i18n = makeI18n();
-    const addMessages = vi.spyOn(i18n, "addMessages");
     const inFlight = createDeferred<Map<string, unknown>>();
     fetchApiTranslationsMock.mockReturnValue(inFlight.promise);
 
     const result = activate({ apiKey: "test-key" });
-    result?.stop();
-    inFlight.resolve(new Map());
+    stopOf(result)();
+    inFlight.resolve(new Map([["en:default", { hello: "Stale" }]]));
     await settleRefresh();
 
-    expect(addedCatalogs(addMessages)).toEqual([]);
+    expect(i18n.t("hello")).toBe("Hello");
+  });
+
+  it("drops a refresh that resolves after a newer activation replaced the runtime", async () => {
+    const i18n = makeI18n();
+    const inFlight = createDeferred<Map<string, unknown>>();
+    fetchApiTranslationsMock.mockReturnValueOnce(inFlight.promise);
+
+    const first = activate({ apiKey: "test-key" });
+    stopOf(first)();
+    activate({ apiKey: "test-key", refreshMessages: false });
+    inFlight.resolve(new Map([["en:default", { hello: "Stale" }]]));
+    await settleRefresh();
+
+    expect(i18n.t("hello", { markers: false })).toBe("Hello");
   });
 
   it("refresh that fails after the runtime was stopped → no refresh warning is logged", async () => {
@@ -388,29 +357,12 @@ describe("activate() translation refresh", () => {
     const inFlight = createDeferred<Map<string, unknown>>();
     fetchApiTranslationsMock.mockReturnValue(inFlight.promise);
     const result = activate({ apiKey: "test-key" });
-    result?.stop();
+    stopOf(result)();
 
     inFlight.reject(new Error("network down"));
     await settleRefresh();
 
     expect(warn).not.toHaveBeenCalled();
-  });
-
-  it("RC review #11: drops a NON-EMPTY refresh that resolves after the runtime was stopped", async () => {
-    const i18n = makeI18n();
-    const addMessages = vi.spyOn(i18n, "addMessages");
-    const inFlight = createDeferred<Map<string, unknown>>();
-    fetchApiTranslationsMock.mockReturnValue(inFlight.promise);
-
-    const result = activate({ apiKey: "test-key" });
-    result?.stop();
-    // The in-flight refresh resolves AFTER teardown with real, non-empty
-    // data — the identity guard must reject the merge itself, not only the
-    // later render refresh (which an empty map could never exercise).
-    inFlight.resolve(new Map([["en:default", { hello: "Stale" }]]));
-    await settleRefresh();
-
-    expect(addedCatalogs(addMessages)).toEqual([]);
   });
 });
 
@@ -426,7 +378,7 @@ describe("activate() proxy transport", () => {
     const proxy = transport();
     refreshVia((scopedFetch) => scopedFetch("https://page.invalid/v1/ping?locale=en"));
 
-    activate({ transport: proxy, apiBaseUrl: "https://api.comvi.io", collectContext: false });
+    activate({ transport: proxy, apiBaseUrl: "https://api.comvi.io" });
     await settleRefresh();
 
     expect(proxy.mock.calls[0]?.[0]).toBe("/v1/ping?locale=en");
@@ -443,7 +395,7 @@ describe("activate() proxy transport", () => {
       }),
     );
 
-    activate({ transport: proxy, apiBaseUrl: "https://api.comvi.io", collectContext: false });
+    activate({ transport: proxy, apiBaseUrl: "https://api.comvi.io" });
     await settleRefresh();
 
     expect(transportInits(proxy)).toEqual([{ method: "POST" }]);
@@ -461,13 +413,34 @@ describe("deactivate() teardown", () => {
     expect(await hoverLabel(heading)).toBeNull();
   });
 
-  it("clears the fetch-loader's project cache for the runtime's own scope", () => {
+  it("deactivate() → new t() output carries no frame (x.mark(null))", () => {
+    const i18n = makeI18n();
+    activate({ refreshMessages: false });
+
+    deactivate();
+
+    expect(i18n.t("hello").includes(FRAME_START)).toBe(false);
+  });
+
+  it("a frame already rendered before deactivation still decodes in the next session", async () => {
+    const i18n = makeI18n();
+    activate({ refreshMessages: false });
+    const paragraph = renderText(i18n.t("hello"));
+    deactivate();
+
+    activate({ refreshMessages: false });
+
+    expect(await hoverLabel(paragraph)).toBe("hello");
+  });
+
+  it("clears the API fetcher's project cache for the runtime's own scope", () => {
     makeI18n();
+    const scopes = startedScopes();
     const result = activate({ refreshMessages: false });
 
-    result?.stop();
+    stopOf(result)();
 
-    expect(clearProjectInfoCacheMock).toHaveBeenCalledExactlyOnceWith(result?.instanceId);
+    expect(clearProjectInfoCacheMock).toHaveBeenCalledExactlyOnceWith(scopes[0]);
   });
 
   it("Core.stop() throws → deactivation rethrows the failure", () => {
@@ -475,27 +448,28 @@ describe("deactivate() teardown", () => {
     failCoreStopWith("core boom");
     const result = activate({ refreshMessages: false });
 
-    expect(() => result?.stop()).toThrow("core boom");
+    expect(stopOf(result)).toThrow("core boom");
   });
 
-  it("Core.stop() throws → the runtime is still reported inactive", () => {
-    makeI18n();
+  it("Core.stop() throws → the runtime is still reported inactive and the instance unmarked", () => {
+    const i18n = makeI18n();
     failCoreStopWith("core boom");
     const result = activate({ refreshMessages: false });
 
-    expect(() => result?.stop()).toThrow("core boom");
+    expect(stopOf(result)).toThrow("core boom");
 
-    expect(isActive()).toBe(false);
+    expect({ active: isActive(), text: i18n.t("hello") }).toEqual({ active: false, text: "Hello" });
   });
 
   it("Core.stop() throws → the runtime's API configuration is still dropped", () => {
     makeI18n();
     failCoreStopWith("core boom");
+    const scopes = startedScopes();
     const result = activate({ refreshMessages: false });
 
-    expect(() => result?.stop()).toThrow("core boom");
+    expect(stopOf(result)).toThrow("core boom");
 
-    expect(() => getApiConfig(result?.instanceId)).toThrow(/API configuration not initialized/);
+    expect(() => getApiConfig(scopes[0])).toThrow(/API configuration not initialized/);
   });
 
   it("stays silent when a stale stop handle is called a second time", () => {
@@ -503,9 +477,16 @@ describe("deactivate() teardown", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const result = activate({ refreshMessages: false });
 
-    result?.stop();
-    result?.stop();
+    stopOf(result)();
+    stopOf(result)();
 
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("a frame of the marker helper and of t() are the same frame", () => {
+    const i18n = makeI18n();
+    activate({ refreshMessages: false });
+
+    expect(i18n.t("hello")).toBe(`Hello${marker("hello")}`);
   });
 });

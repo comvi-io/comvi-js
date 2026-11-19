@@ -5,11 +5,13 @@ import ToastContainer from "@/components/ui/toast/ToastContainer.vue";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createToastManager, TOAST_INJECTION_KEY } from "@/composables/useToast";
 import { useTheme, THEME_INJECTION_KEY } from "@/composables/useTheme";
+import type { Target } from "@/adapter";
 
 defineProps<{
   translationKey: Ref<string>;
   translationNamespace: Ref<string>;
   translationInstanceId: Ref<string | undefined>;
+  translationTarget: Ref<Target | undefined>;
   open: Ref<boolean>;
 }>();
 
@@ -51,6 +53,7 @@ watch(theme.theme, applyTheme);
       :translation-key="translationKey"
       :translation-namespace="translationNamespace"
       :translation-instance-id="translationInstanceId"
+      :translation-target="translationTarget"
       @update:open="emit('update:open', $event)"
     />
     <ToastContainer />

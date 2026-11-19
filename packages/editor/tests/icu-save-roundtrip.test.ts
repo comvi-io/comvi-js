@@ -3,12 +3,14 @@ import { ref } from "vue";
 import { initApiConfig, resetApiConfig } from "../src/config/api";
 import { useTranslations } from "../src/composables/useTranslations";
 import type { Language } from "../src/types";
+import { TEST_TARGET } from "./helpers/sessionDouble";
 
 const addMessagesMock = vi.fn();
 
-vi.mock("../src/Core", () => ({
-  getI18nInstance: () => ({ addMessages: addMessagesMock }),
-}));
+vi.mock("../src/Core", async () => {
+  const { sessionWritingTo } = await import("./helpers/sessionDouble");
+  return { getSession: () => sessionWritingTo(addMessagesMock) };
+});
 
 const TIMESTAMP = "2026-01-01T00:00:00.000Z";
 
@@ -94,7 +96,7 @@ function sentTranslations(fetchMock: ReturnType<typeof vi.mocked<typeof fetch>>)
 }
 
 async function loadKey() {
-  const manager = useTranslations(ref(LANGUAGES));
+  const manager = useTranslations(ref(LANGUAGES), undefined, TEST_TARGET);
   await manager.loadTranslation("files.count", "default");
   return manager;
 }

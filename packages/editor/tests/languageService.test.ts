@@ -134,7 +134,7 @@ describe("languageService", () => {
 
     await expect(getLanguages()).rejects.toThrow("Failed to fetch languages");
     expect(console.error).toHaveBeenCalledWith(
-      "[@comvi/plugin-in-context-editor] Error fetching languages:",
+      "[@comvi/editor] Error fetching languages:",
       new Error("API error: 500 Server Error"),
     );
   });

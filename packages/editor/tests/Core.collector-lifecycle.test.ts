@@ -87,7 +87,7 @@ describe("Core <-> Collector wiring", () => {
     callOrder.length = 0;
   });
 
-  it("Core built with default options → the Collector shares the scanner's bus and registry, is scoped to the instance id and enabled", () => {
+  it("Core built with default options → the Collector shares the scanner's bus and registry, is scoped to the instance id and disabled (context collection is off in 0.8)", () => {
     const core = new Core({});
 
     const [eventBusArg, registryArg, scopeIdArg, optionsArg] = collectorCtorMock.mock.calls[0] as [
@@ -111,31 +111,8 @@ describe("Core <-> Collector wiring", () => {
       sameBus: true,
       sameRegistry: true,
       scopeId: core.getInstanceId(),
-      options: { enabled: true },
+      options: { enabled: false },
     });
-  });
-
-  it("honors collectContext: false", () => {
-    new Core({ collectContext: false });
-    const [, , , options] = collectorCtorMock.mock.calls[0] as [
-      unknown,
-      unknown,
-      unknown,
-      { enabled: boolean },
-    ];
-    expect(options).toEqual({ enabled: false });
-  });
-
-  it("passes screenGroupResolver through to the Collector", () => {
-    const resolver = () => "/users/:id";
-    new Core({ screenGroupResolver: resolver });
-    const [, , , options] = collectorCtorMock.mock.calls[0] as [
-      unknown,
-      unknown,
-      unknown,
-      { screenGroupResolver?: () => string },
-    ];
-    expect(options.screenGroupResolver).toBe(resolver);
   });
 
   it("starts the collector alongside the DOM watcher", () => {

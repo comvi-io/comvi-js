@@ -4,7 +4,7 @@ import KeySelectorDropdown from "@/components/KeySelectorDropdown.vue";
 import { useTheme } from "@/composables/useTheme";
 
 defineProps<{
-  keyData: Array<{ key: string; ns: string; textPreview?: string }>;
+  keyData: Array<{ inst?: string; key: string; ns: string; textPreview?: string }>;
   position: { top: number; left: number };
   open: Ref<boolean>;
   defaultNs?: string;
@@ -14,7 +14,7 @@ defineProps<{
 
 const emit = defineEmits<{
   (e: "update:open", value: boolean): void;
-  (e: "select", key: string, ns: string): void;
+  (e: "select", key: string, ns: string, inst?: string): void;
 }>();
 
 const theme = useTheme();
@@ -48,6 +48,6 @@ watch(theme.theme, applyTheme);
     :default-ns="defaultNs"
     :instance-id="instanceId"
     @update:open="emit('update:open', $event)"
-    @select="(key, ns) => emit('select', key, ns)"
+    @select="(key, ns, inst) => emit('select', key, ns, inst)"
   />
 </template>

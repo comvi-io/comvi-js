@@ -63,9 +63,9 @@ function calculatePosition(element: Element): { top: number; left: number } {
 }
 
 function mountApp(
-  keyData: Array<{ key: string; ns: string; textPreview?: string }>,
+  keyData: Array<{ inst?: string; key: string; ns: string; textPreview?: string }>,
   element: Element,
-  onSelect: (key: string, ns: string) => void,
+  onSelect: (key: string, ns: string, inst?: string) => void,
   defaultNs?: string,
   instanceId?: string,
 ) {
@@ -92,8 +92,8 @@ function mountApp(
         cleanup();
       }
     },
-    onSelect: (selectedKey: string, selectedNs: string) => {
-      onSelect(selectedKey, selectedNs);
+    onSelect: (selectedKey: string, selectedNs: string, selectedInst?: string) => {
+      onSelect(selectedKey, selectedNs, selectedInst);
       cleanup();
     },
   });
@@ -102,9 +102,9 @@ function mountApp(
 
 /** @param element - The clicked element; the dropdown is positioned against it. */
 export function showKeySelector(
-  keysWithData: Array<{ key: string; ns: string; textPreview?: string }>,
+  keysWithData: Array<{ inst?: string; key: string; ns: string; textPreview?: string }>,
   element: Element,
-  onSelect: (key: string, ns: string) => void,
+  onSelect: (key: string, ns: string, inst?: string) => void,
   defaultNs?: string,
   instanceId?: string,
 ) {

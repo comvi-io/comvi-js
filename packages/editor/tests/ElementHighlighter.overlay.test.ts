@@ -53,7 +53,7 @@ describe("ElementHighlighter — highlight overlay", () => {
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(button, "click");
 
-      expect(handleClick).toHaveBeenCalledWith(button);
+      expect(handleClick).toHaveBeenCalledWith(button, expect.anything());
 
       simulateKeyEvent("keyup", "Alt");
     });
@@ -61,7 +61,7 @@ describe("ElementHighlighter — highlight overlay", () => {
     it("should throw error when adding null element", () => {
       expect(() => {
         highlighter.addHighlight(null as any);
-      }).toThrow("[@comvi/plugin-in-context-editor] Element cannot be null or undefined");
+      }).toThrow("[@comvi/editor] Element cannot be null or undefined");
     });
 
     it("should remove highlight from element", () => {
@@ -98,7 +98,7 @@ describe("ElementHighlighter — highlight overlay", () => {
 
       simulateMouseEvent(highlighted, "click");
 
-      expect(handleClick).toHaveBeenCalledWith(highlighted);
+      expect(handleClick).toHaveBeenCalledWith(highlighted, expect.anything());
       simulateKeyEvent("keyup", "Alt");
     });
   });
@@ -156,8 +156,7 @@ describe("ElementHighlighter — highlight overlay", () => {
         expect(
           warn.mock.calls.filter(
             ([message]) =>
-              message ===
-              "[@comvi/plugin-in-context-editor] Cannot update position: element is detached from DOM",
+              message === "[@comvi/editor] Cannot update position: element is detached from DOM",
           ),
         ).toHaveLength(expectedWarnings);
       },

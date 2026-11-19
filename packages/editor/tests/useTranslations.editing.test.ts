@@ -26,32 +26,32 @@ describe("useTranslations — editing and unsaved changes", () => {
     [
       "updateTranslation",
       (m: TranslationManager) => m.updateTranslation("en", "other", "Hello"),
-      "[@comvi/plugin-in-context-editor] Cannot update translation: no data loaded",
+      "[@comvi/editor] Cannot update translation: no data loaded",
     ],
     [
       "updateMetadata",
       (m: TranslationManager) => m.updateMetadata({ context: "ctx" }),
-      "[@comvi/plugin-in-context-editor] Cannot update metadata: no data loaded",
+      "[@comvi/editor] Cannot update metadata: no data loaded",
     ],
     [
       "updatePluralVariable",
       (m: TranslationManager) => m.updatePluralVariable("count"),
-      "[@comvi/plugin-in-context-editor] Cannot update plural variable: no data loaded",
+      "[@comvi/editor] Cannot update plural variable: no data loaded",
     ],
     [
       "togglePluralMode",
       (m: TranslationManager) => m.togglePluralMode(true),
-      "[@comvi/plugin-in-context-editor] Cannot toggle plural mode: no data loaded",
+      "[@comvi/editor] Cannot toggle plural mode: no data loaded",
     ],
     [
       "toggleSelectMode",
       (m: TranslationManager) => m.toggleSelectMode("en", true),
-      "[@comvi/plugin-in-context-editor] Cannot toggle select mode: no data loaded",
+      "[@comvi/editor] Cannot toggle select mode: no data loaded",
     ],
     [
       "updateSelectConfig",
       (m: TranslationManager) => m.updateSelectConfig("en", { enabled: true }),
-      "[@comvi/plugin-in-context-editor] Cannot update select config: no data loaded",
+      "[@comvi/editor] Cannot update select config: no data loaded",
     ],
   ])("warns when %s is called without loaded data", (_name, call, message) => {
     const manager = createManager();
@@ -152,7 +152,7 @@ describe("useTranslations — editing and unsaved changes", () => {
 
     expect(manager.isFieldDirty("en", "other")).toBe(true);
     expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
-      "[@comvi/plugin-in-context-editor] Error loading translation:",
+      "[@comvi/editor] Error loading translation:",
       new Error("Load failed"),
     );
   });

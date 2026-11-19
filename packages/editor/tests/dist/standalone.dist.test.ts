@@ -4,6 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import pkg from "../../package.json";
+import { marker } from "../helpers/frames";
+import { pageInstance } from "../helpers/session";
 
 /**
  * The built standalone bundle, `dist/standalone.iife.js` — the file jsDelivr
@@ -21,8 +23,8 @@ const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../d
 
 interface StandaloneGlobal {
   version: string;
-  activate: unknown;
-  getStatus: () => { active: boolean; hook: unknown };
+  activate: (options?: object) => { ok: boolean; code?: string; stop?: () => void };
+  isActive: () => boolean;
 }
 
 let bundle: string;
@@ -74,13 +76,70 @@ describe("dist/standalone.iife.js", () => {
     const editor = bootBundle();
 
     expect(editor.version).toBe(pkg.version);
-    expect(window.ComviInContextEditor?.version).toBe(pkg.version);
+    expect((window.ComviInContextEditor as StandaloneGlobal | undefined)?.version).toBe(
+      pkg.version,
+    );
   });
 
-  it("booted bundle on a page with no i18n and no loader slot → inactive, hook: null", () => {
+  it("booted bundle on a page with no i18n → activate() fails with no-instance and adds nothing", () => {
+    const editor = bootBundle();
+    const before = document.documentElement.outerHTML;
+
+    const result = editor.activate({ refreshMessages: false });
+
+    expect({
+      result,
+      active: editor.isActive(),
+      queue: (window as { __COMVI__?: unknown }).__COMVI__,
+      unchanged: document.documentElement.outerHTML === before,
+    }).toEqual({
+      result: {
+        ok: false,
+        code: "no-instance",
+        message: expect.stringContaining("[@comvi/editor]"),
+      },
+      active: false,
+      queue: undefined,
+      unchanged: true,
+    });
+  });
+
+  it("booted bundle on a page with a 0.7 queue entry → old-protocol, the same array left as it was", () => {
+    const entry = { v: "0.7.1", i: { t: () => "" } };
+    const queue = [entry];
+    (window as { __COMVI__?: unknown }).__COMVI__ = queue;
     const editor = bootBundle();
 
-    expect(editor.getStatus()).toMatchObject({ active: false, hook: null });
+    const result = editor.activate({ refreshMessages: false });
+
+    expect({
+      code: result.code,
+      same: (window as { __COMVI__?: unknown }).__COMVI__ === queue,
+      ownMembers: Object.getOwnPropertyNames(queue),
+      entry: queue[0] === entry && Object.keys(entry),
+    }).toEqual({
+      code: "old-protocol",
+      same: true,
+      ownMembers: ["0", "length"],
+      entry: ["v", "i"],
+    });
+  });
+
+  it("booted bundle on a core 0.8 page → activates, t() output carries the frame of its key", () => {
+    const i18n = pageInstance({ messages: { en: { hello: "Hello" } } });
+    const editor = bootBundle();
+
+    const result = editor.activate({ refreshMessages: false });
+    const marked = i18n.t("hello");
+    result.stop?.();
+    const after = i18n.t("hello");
+    i18n.destroy();
+
+    expect({ ok: result.ok, marked, after }).toEqual({
+      ok: true,
+      marked: `Hello${marker("hello")}`,
+      after: "Hello",
+    });
   });
 
   it("bundle text → no `__VERSION__` token is left for the page to resolve", () => {
@@ -104,7 +163,7 @@ describe("the stylesheet that reaches CSSStyleSheet.replaceSync()", () => {
       .filter((name) => name.endsWith(".js"))
       .flatMap((name) => inlinedStylesheets(fs.readFileSync(path.join(DIST, name), "utf8")));
 
-    expect(built.length).toBeGreaterThanOrEqual(2);
+    expect(built.length).toBeGreaterThanOrEqual(1);
     expect(built.filter((sheet) => sheet.includes(rule))).toEqual([]);
   });
 

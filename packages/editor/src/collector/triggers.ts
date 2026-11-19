@@ -262,7 +262,7 @@ export class CollectorTriggers {
         this.schedule();
       } catch (error) {
         console.error(
-          "[@comvi/plugin-in-context-editor] Collector IntersectionObserver callback failed (ignored).",
+          "[@comvi/editor] Collector IntersectionObserver callback failed (ignored).",
           error,
         );
       }

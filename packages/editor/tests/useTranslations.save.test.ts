@@ -1,3 +1,4 @@
+import { TEST_TARGET } from "./helpers/sessionDouble";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = await vi.hoisted(() => import("./helpers/useTranslationsMocks"));
@@ -15,7 +16,7 @@ import {
   type TranslationManager,
 } from "./helpers/useTranslations";
 
-const { getTranslationMock, saveTranslationMock, getI18nInstanceMock, addMessagesMock } = mocks;
+const { getTranslationMock, saveTranslationMock, getSessionMock, addMessagesMock } = mocks;
 
 describe("useTranslations — saving", () => {
   beforeEach(() => {
@@ -36,7 +37,7 @@ describe("useTranslations — saving", () => {
     const saved = await manager.saveTranslation();
 
     expect(saved).not.toBeNull();
-    expect(getI18nInstanceMock).toHaveBeenCalledWith("core-42");
+    expect(getSessionMock).toHaveBeenCalledWith("core-42");
     expect(addMessagesMock).toHaveBeenCalledWith({
       "en:default": {
         "home.title": "Updated",
@@ -133,7 +134,7 @@ describe("useTranslations — saving", () => {
     const manager = createManager();
     getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Initial"));
     await manager.loadTranslation("home.title", "default");
-    getI18nInstanceMock.mockReturnValueOnce(null);
+    getSessionMock.mockReturnValueOnce(null);
     saveTranslationMock.mockResolvedValueOnce(
       createSingularTranslationData("home.title", "Updated"),
     );
@@ -144,7 +145,7 @@ describe("useTranslations — saving", () => {
     expect(successfulSave).not.toBeNull();
     expect(addMessagesMock).not.toHaveBeenCalled();
     expect(warnSpy).toHaveBeenCalledExactlyOnceWith(
-      "[@comvi/plugin-in-context-editor] Cannot update runtime cache: i18n instance not available",
+      "[@comvi/editor] Cannot update runtime cache: i18n instance not available",
     );
   });
 
@@ -162,7 +163,7 @@ describe("useTranslations — saving", () => {
     );
     expect(saveTranslationMock).not.toHaveBeenCalled();
     expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
-      "[@comvi/plugin-in-context-editor] Save failed: namespace is",
+      "[@comvi/editor] Save failed: namespace is",
       "   ",
     );
   });
@@ -209,7 +210,7 @@ describe("useTranslations — saving", () => {
     expect(result).toBeNull();
     expect(manager.state.value.error).toBe("Failed to save translation");
     expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
-      "[@comvi/plugin-in-context-editor] Error saving translation:",
+      "[@comvi/editor] Error saving translation:",
       "offline",
     );
   });
@@ -340,7 +341,7 @@ describe("useTranslations — saving", () => {
   });
 
   it("uses the plural forms configured for the language in the combined ICU", async () => {
-    const manager = useTranslations(ref([LANGUAGES[0]!, RUSSIAN]));
+    const manager = useTranslations(ref([LANGUAGES[0]!, RUSSIAN]), undefined, TEST_TARGET);
     getTranslationMock.mockResolvedValue(createSingularTranslationData("inbox.messages", "seed"));
     saveTranslationMock.mockResolvedValue({
       key: "inbox.messages",
@@ -458,7 +459,7 @@ describe("useTranslations — saving", () => {
 
     it("keeps the newer session and writes only into the scope the save started in", async () => {
       const instanceId = ref<string | undefined>("core-a");
-      const manager = useTranslations(ref(LANGUAGES), instanceId);
+      const manager = useTranslations(ref(LANGUAGES), instanceId, TEST_TARGET);
       getTranslationMock.mockResolvedValueOnce(createSingularTranslationData("first", "Old"));
       await manager.loadTranslation("first", "namespace-A");
       manager.updateTranslation("en", "other", "edited");
@@ -478,7 +479,7 @@ describe("useTranslations — saving", () => {
       expect(manager.translations.value).toEqual({ en: { other: "Two" } });
       expect(manager.hasUnsavedChanges.value).toBe(false);
       expect(manager.state.value.isLoading).toBe(false);
-      expect(getI18nInstanceMock.mock.calls).toEqual([["core-a"]]);
+      expect(getSessionMock.mock.calls).toEqual([["core-a"]]);
       expect(addMessagesMock).toHaveBeenCalledExactlyOnceWith({
         "en:namespace-A": { first: "edited" },
       });

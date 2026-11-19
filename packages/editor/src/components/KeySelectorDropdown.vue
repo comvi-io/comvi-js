@@ -4,6 +4,7 @@ import { Loader2 } from "@lucide/vue";
 import { getTranslation } from "@/services/translationService";
 
 interface KeyDataItem {
+  inst?: string;
   key: string;
   ns: string;
   textPreview?: string;
@@ -29,7 +30,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "update:open", value: boolean): void;
-  (e: "select", key: string, ns: string): void;
+  (e: "select", key: string, ns: string, inst?: string): void;
 }>();
 
 const dropdownRef = ref<HTMLElement | null>(null);
@@ -69,7 +70,7 @@ onMounted(async () => {
         isLoading: false,
       });
     } catch (error) {
-      console.error("[@comvi/plugin-in-context-editor] Error loading translation preview:", error);
+      console.error("[@comvi/editor] Error loading translation preview:", error);
       translationPreviews.value.set(previewMapKey, {
         key: item.key,
         ns: item.ns,
@@ -115,8 +116,8 @@ onUnmounted(() => {
   document.removeEventListener("keydown", handleEscape);
 });
 
-const handleSelect = (key: string, ns: string) => {
-  emit("select", key, ns);
+const handleSelect = (key: string, ns: string, inst?: string) => {
+  emit("select", key, ns, inst);
 };
 
 const getPreview = (key: string, ns: string) => {
@@ -161,10 +162,10 @@ const isLoading = (key: string, ns: string) => {
     <div class="overflow-y-auto" style="max-height: 320px">
       <div
         v-for="item in keyData"
-        :key="`${item.ns}:${item.key}`"
+        :key="`${item.inst}|${item.ns}:${item.key}`"
         role="option"
         class="p-3 hover:bg-accent-soft cursor-pointer border-b border-border transition-colors duration-150"
-        @click="handleSelect(item.key, item.ns)"
+        @click="handleSelect(item.key, item.ns, item.inst)"
       >
         <div class="flex items-start justify-between mb-1 gap-2">
           <div class="font-mono text-sm font-medium text-primary break-all">

@@ -13,10 +13,10 @@ import {
 } from "../src/config/api";
 
 const NOT_INITIALIZED =
-  "[@comvi/plugin-in-context-editor] API configuration not initialized. Make sure the plugin is properly configured.";
+  "[@comvi/editor] API configuration not initialized. Make sure the plugin is properly configured.";
 
 const DEMO_NOTICE =
-  "[@comvi/plugin-in-context-editor] Running in demo mode - API key not configured. Changes cannot be saved.";
+  "[@comvi/editor] Running in demo mode - API key not configured. Changes cannot be saved.";
 
 describe("initApiConfig()", () => {
   beforeEach(() => {

@@ -1,5 +1,3 @@
-export * from "./encoding";
-
 export const TAG_ATTRIBUTES = {
   textarea: ["placeholder"],
   input: ["placeholder", "alt", "title"],
