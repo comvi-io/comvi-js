@@ -548,6 +548,45 @@ describe("MAIN-world detector editor loading", () => {
     expect(results).toEqual([{ success: true }]);
   });
 
+  // Review finding (lot 8), assessed: the re-injection guard is a cancelable probe a page
+  // can suppress, so a hostile page can get a second detector installed. Pinned: Enable then
+  // still yields ONE active editor session (the editor refuses a second activation), the
+  // first answer is the success, and the second carries no success.
+  it("two detectors on one page (a page that suppressed the probe) give one active session", async () => {
+    let active = false;
+    const editor = {
+      version: EDITOR_VERSION,
+      isActive: () => active,
+      activate: (options: unknown) => {
+        activations.push(options);
+        if (active) return { ok: false, code: "already-active" };
+        active = true;
+        return { ok: true, stop: () => (active = false), collectContext: false };
+      },
+    };
+    siteWith(() => Promise.resolve(editor));
+    page.ComviInContextEditor = editor;
+    await injectDetector();
+    const dispatch = page.dispatchEvent;
+    page.dispatchEvent = (event) =>
+      event.type === "comvi-extension:detector-probe" ? true : dispatch(event);
+    vi.resetModules();
+    await import("../detector");
+    page.dispatchEvent = dispatch;
+    const results = recordEvents(page, "comvi-extension:activated");
+
+    activate();
+    await settle();
+
+    expect(activations).toHaveLength(2);
+    expect(active).toBe(true);
+    expect(results[0]).toEqual({ success: true });
+    expect(results.slice(1)).not.toContainEqual({ success: true });
+
+    page.dispatchEvent(new CustomEvent("comvi-extension:deactivate"));
+    expect(active).toBe(false);
+  });
+
   it("stops listening for violations once the editor loaded", async () => {
     siteWith(loads);
     await injectDetector();

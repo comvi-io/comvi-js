@@ -155,7 +155,15 @@ context routes, or the key itself. Only enable the editor on sites you operate o
 scoped to a single project with the minimum required permissions. A hostile
 page can also fake the "Comvi detected" status in the popup and the activation
 acknowledgement — both are treated as UI/readiness signals only and grant no
-authority beyond the session the user explicitly opened.
+authority beyond the session the user explicitly opened. The detector's re-injection
+guard is a cancelable probe event the page sees too: a page can suppress it, so
+the detector does not install (no editor on that page), or swallow it, so the
+popup's re-injection installs a second detector. Two detectors still start one
+editor session (the editor refuses a second activation, and only the first
+answer carries the activation's nonce) and Disable stops it; the effect stays on
+that page's own tab. Nothing on an ordinary page cancels or swallows the probe:
+an extension update or reload, the back/forward cache and listeners that do not
+call `preventDefault()` or `stopImmediatePropagation()` on it leave one detector.
 
 The handle does not widen this. A hostile page can push its own protocol
 2-shaped entry onto `window.__COMVI__`, answer `x.load()` itself and present its
