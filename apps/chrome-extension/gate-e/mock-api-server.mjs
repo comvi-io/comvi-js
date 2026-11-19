@@ -15,7 +15,7 @@
  *
  * Run: node gate-e/mock-api-server.mjs   (listens on 127.0.0.1:8791)
  */
-import { createServer } from "node:http";
+import { createServer, request } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, normalize, sep } from "node:path";
@@ -29,6 +29,15 @@ const DIR = dirname(fileURLToPath(import.meta.url));
 const CORE_DIST = join(DIR, "../../../packages/core/dist");
 const FIXTURES = join(DIR, "fixtures");
 const EDITOR_DIST = join(DIR, "../../../packages/editor/dist");
+// The framework rows' apps, built by frameworks/build.mjs.
+const FRAMEWORKS_DIST = join(DIR, "frameworks/dist");
+/**
+ * The SSR rows' servers (frameworks/serve.mjs), reached through this server so every page
+ * stays on the one origin the Gate E build's host permission names. Paths are proxied as they
+ * are: the Next row's locale-prefixed pages and its `/_next/` files, and the Nuxt row, which
+ * runs under the base URL `/nuxt/`. None of these prefixes is a page of this server.
+ */
+const SSR_UPSTREAMS = { "/en": 8792, "/de": 8792, "/_next": 8792, "/nuxt": 8793 };
 
 const CDN_ALLOWED = "script-src 'self' https://cdn.jsdelivr.net";
 
@@ -65,9 +74,15 @@ const SITE_PAGES = {
   "/incompatible": { body: "app", scripts: ["/fixtures/incompatible.js"] },
   // A site that never composed devtools(): nothing to detect.
   "/no-devtools": { body: "app", scripts: ["/fixtures/plain.js"] },
+  // The framework rows (frameworks/<fw>/, built by frameworks/build.mjs): the real binding,
+  // the real cdn() loader and devtools(), rendered by the framework itself.
+  "/fw/react": { body: "fw", scripts: ["/built/react/main.js"] },
+  "/fw/vue": { body: "fw", scripts: ["/built/vue/main.js"] },
+  "/fw/solid": { body: "fw", scripts: ["/built/solid/main.js"] },
+  "/fw/svelte": { body: "fw", scripts: ["/built/svelte/main.js"] },
   // Marker layout measurements (fixtures/layout.js).
   "/layout": { body: "layout", scripts: ["/fixtures/layout.js"] },
-  // The same cases marked by the editor's standalone build alone (the three-engine check).
+  // The same cases marked by the editor's standalone build alone (layout-engines.spec.ts).
   "/layout-standalone": {
     body: "layout",
     scripts: ["/fixtures/layout.js", "/fixtures/layout-standalone.js"],
@@ -91,6 +106,7 @@ const BODIES = {
     '<section id="region-C" class="region"><h1 id="C-title" data-k="home.title"></h1></section>',
   ],
   layout: ['<main id="cases"></main>'],
+  fw: ['<div id="app"></div>'],
 };
 
 function sitePage({ body, scripts }) {
@@ -236,6 +252,19 @@ function fileUnder(root, relative) {
   return path.startsWith(root + sep) && existsSync(path) ? path : null;
 }
 
+/** Forward a request to an SSR row's server on loopback, unchanged. */
+function proxy(req, res, port) {
+  const upstream = request(
+    { host: HOST, port, method: req.method, path: req.url, headers: req.headers },
+    (answer) => {
+      res.writeHead(answer.statusCode ?? 502, answer.headers);
+      answer.pipe(res);
+    },
+  );
+  upstream.on("error", (error) => send(res, 502, { error: `ssr upstream ${port}: ${error}` }));
+  req.pipe(upstream);
+}
+
 function readBody(req) {
   return new Promise((resolve) => {
     const chunks = [];
@@ -264,8 +293,13 @@ const server = createServer(async (req, res) => {
       ...(page.csp ? { "Content-Security-Policy": page.csp } : {}),
     });
   }
-  const code =
-    path.startsWith("/core/") || path.startsWith("/core2/")
+  const upstream = Object.keys(SSR_UPSTREAMS).find(
+    (base) => path === base || path.startsWith(`${base}/`),
+  );
+  if (upstream) return proxy(req, res, SSR_UPSTREAMS[upstream]);
+  const code = path.startsWith("/built/")
+    ? fileUnder(FRAMEWORKS_DIST, path.slice("/built/".length))
+    : path.startsWith("/core/") || path.startsWith("/core2/")
       ? fileUnder(CORE_DIST, path.slice(path.indexOf("/", 1) + 1))
       : path.startsWith("/fixtures/")
         ? fileUnder(FIXTURES, path.slice("/fixtures/".length))
@@ -280,12 +314,18 @@ const server = createServer(async (req, res) => {
         : "application/javascript; charset=utf-8",
     });
   }
-  if (/^\/(core2?|fixtures|editor)\//.test(path)) {
+  if (/^\/(core2?|fixtures|editor|built)\//.test(path)) {
     return send(res, 404, { error: `not built: ${path}` });
   }
   const catalogPath = /^\/catalog\/([\w-]+)\/([\w-]+)\.json$/.exec(path);
   if (catalogPath) {
     return send(res, 200, catalog(catalogPath[1], catalogPath[2]));
+  }
+  // The same catalogs in the layout `cdn(base)` of @comvi/core requests:
+  // `<base>/<locale>.json` for `default`, `<base>/<ns>/<locale>.json` for the others.
+  const cdnPath = /^\/cdn\/(?:([\w-]+)\/)?([\w-]+)\.json$/.exec(path);
+  if (cdnPath) {
+    return send(res, 200, catalog(cdnPath[2], cdnPath[1] ?? "default"));
   }
 
   // --- harness bookkeeping (not part of the API surface) ---

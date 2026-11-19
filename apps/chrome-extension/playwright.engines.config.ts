@@ -1,12 +1,16 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * The marker layout check in three engines (gate-e/layout-engines.spec.ts). Only this page
- * runs in Firefox and WebKit: the extension is Chromium-only and is not loaded here.
+ * Plain pages in three engines, no extension: the marker layout check
+ * (gate-e/layout-engines.spec.ts) and "no frame without an editor session"
+ * (gate-e/no-session.spec.ts). The extension is Chromium-only and is not loaded here.
+ * Chromium is the supported engine; Firefox checks the marker format as an extra, with no
+ * promise that the extension is supported there; in WebKit the layout check is a recorded
+ * known defect (`test.fail`, owner decision 2026-11-19).
  */
 export default defineConfig({
   testDir: "./gate-e",
-  testMatch: "layout-engines.spec.ts",
+  testMatch: ["layout-engines.spec.ts", "no-session.spec.ts"],
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,

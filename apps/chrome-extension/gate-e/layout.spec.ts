@@ -2,8 +2,8 @@ import { expectUnchanged, identicalPixels, measureAll, record } from "./layout-m
 import { enable, expect, openSite, POLL, test, withGateE } from "./site";
 
 /**
- * Map D5 owes this measurement: "no change of width or wrapping" is the plan's claim until it
- * is measured in a browser. Each case renders one message twice in identically styled
+ * Map D5 owes this measurement of width and wrapping in a browser, here Chromium, the engine
+ * the extension runs in. Each case renders one message twice in identically styled
  * shrink-to-fit boxes, `markers: false` and marked, and real Chromium measures both. Width,
  * height, line count and (for the ellipsis box) the overflowing width must be IDENTICAL; the
  * numbers are written to test-results/marker-layout.json either way.

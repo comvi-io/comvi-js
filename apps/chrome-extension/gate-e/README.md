@@ -14,18 +14,18 @@ worker makes is logged with its `Authorization` header.
 ## One-time setup
 
 ```bash
-# 1. Build @comvi/core and the editor (the pages import core's dist, the mock
-#    CDN serves the editor's; the extension build itself needs neither):
-pnpm --filter @comvi/core --filter @comvi/editor build
-
-# 2. Install the browser once, then run the complete automated gate:
-pnpm exec playwright install chromium
-pnpm test:e2e
+# From the repository root: turbo builds every workspace package the extension
+# declares first (core, the editor, the bindings, next, nuxt — `^build`), then the
+# Gate E extension build, the framework rows' apps, and runs the gate:
+pnpm exec playwright install chromium   # once (firefox webkit for test:layout-engines)
+pnpm extension:gate-e
 ```
 
-`test:e2e` builds `dist-gate-e/`, starts the mock server, loads the unpacked
-extension into a clean persistent Chromium context, drives the real action
-popup, and saves traces/screenshots on failure.
+`test:e2e` (what `extension:gate-e` runs after the workspace builds) builds
+`dist-gate-e/`, builds the framework rows' apps (`gate-e/frameworks/build.mjs`),
+starts the mock server and the two SSR servers, loads the unpacked extension into
+a clean persistent Chromium context, drives the real action popup, and saves
+traces/screenshots on failure.
 
 The extension carries no editor: the page's own core loads it from jsDelivr
 when the popup asks. Core 0.8 builds no global bundle, so the mock server
@@ -94,13 +94,13 @@ never holds the key, and a replayed activation after Disable opens nothing.
 The Comvi 0.8 site pages (`fixtures/app.js`: plain DOM, every `[data-k]` element
 rendered by `t()` and re-rendered on every publish) carry the lot-8 checklist:
 
-| Spec                | What must happen                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `editing.spec.ts`   | Enable, Alt-click, change, save, the page shows it: the right key, namespace and locale reach the platform; a key of another namespace, a nested catalog key, a missing key, rich text; a fallback text edited in the page's locale; an API error shown, then a retry that saves; D6 (no partial catalog); D2 (a snapshot wins, other patches survive, the open form keeps its text, a client route is marked and editable)                      |
-| `instances.spec.ts` | An instance that appears after the popup opened and one that joins an active session; several instances and two copies of core, each click editing its own; a destroyed instance; repeated Enable (one load, one frame, one set of listeners); Disable (no frame in new output, no editor DOM, the editor's listeners gone)                                                                                                                      |
-| `loading.spec.ts`   | No request before Enable, then exactly one, for the exact version; CSP `script-src`, Trusted Types without and with a policy, `style-src 'self'`; unreachable, 404, a throwing script, no editor global (each followed by a retry that loads), a CDN that never answers; every incompatible shape (0.5–0.7 entry, v1 registry, 0.7 hook, `x.p: 3`, another `kind`) with proof that nothing was touched; the app keeps working after each failure |
-| `session.spec.ts`   | A whole session, a client navigation and a reload included: no request to `/v1/context/*`, and none asked for on the page side; the API key on no page surface (DOM with shadow roots, markers, console, every event of the channel, storage, URL)                                                                                                                                                                                               |
-| `layout.spec.ts`    | Marked output has the width, height, line count, overflow width and pixels of unmarked output: a long Latin sentence, Thai ending in ZWSP, Persian ending in ZWNJ, Arabic (also two messages joined inside one word), an ellipsis box, rich output. The numbers go to `test-results/**/marker-layout.json`                                                                                                                                       |
+| Spec                | What must happen                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `editing.spec.ts`   | Enable, Alt-click, change, save, the page shows it: the right key, namespace and locale reach the platform; a key of another namespace, a nested catalog key, a missing key, rich text; a fallback text edited in the page's locale; an API error shown, then a retry that saves; D6 (no partial catalog); D2 (a snapshot wins, other patches survive, the open form keeps its text, a client route is marked and editable); text copied from the marked page and pasted into the form is saved without its frames |
+| `instances.spec.ts` | An instance that appears after the popup opened and one that joins an active session; several instances and two copies of core, each click editing its own; a destroyed instance; repeated Enable (one load, one frame, one set of listeners); Disable (no frame in new output, no editor DOM, the editor's listeners gone)                                                                                                                                                                                        |
+| `loading.spec.ts`   | No request before Enable, then exactly one, for the exact version; CSP `script-src`, Trusted Types without and with a policy, `style-src 'self'`; unreachable, 404, a throwing script, no editor global (each followed by a retry that loads), a CDN that never answers; every incompatible shape (0.5–0.7 entry, v1 registry, 0.7 hook, `x.p: 3`, another `kind`) with proof that nothing was touched; the app keeps working after each failure                                                                   |
+| `session.spec.ts`   | A whole session, a client navigation and a reload included: no request to `/v1/context/*`, and none asked for on the page side; the API key on no page surface (DOM with shadow roots, markers, console, every event of the channel, storage, URL)                                                                                                                                                                                                                                                                 |
+| `layout.spec.ts`    | Marked output has the width, height, line count, overflow width and pixels of unmarked output: a long Latin sentence, Thai ending in ZWSP, Persian ending in ZWNJ, Arabic (also two messages joined inside one word), an ellipsis box, rich output, in Chromium with the extension. The numbers go to `test-results/**/marker-layout.json`                                                                                                                                                                         |
 
 `extents.spec.ts` updates a rich translation the ordinary ways (a save, the
 trailing text and closing frame rewritten in place, the closing side replaced)
@@ -111,41 +111,66 @@ that element's. `editing.spec.ts` also saves Portuguese against a platform that
 spells it `pt-BR` while the app runs `pt-br`, and the other way round: the page
 shows the saved text.
 
-### The marker layout in three engines
+### The framework rows
 
-`pnpm test:layout-engines` (`playwright.engines.config.ts`) runs only
-`layout-engines.spec.ts`, in Chromium, Firefox and WebKit: the layout cases
-marked by the editor's own `dist/standalone.iife.js`, activated on the page
-directly. The extension is not loaded there. It writes
-`test-results/**/marker-layout-<engine>.json`. Chromium and Firefox measure
-identical boxes and pixels; WebKit does not (Arabic widens and loses its
-joining at a frame, and the glyph before a frame shapes differently), and the
-check fails there until that is decided.
+`frameworks.spec.ts` runs the lot-8 checklist on apps that React, Vue, Solid and
+Svelte render themselves (`gate-e/frameworks/<fw>/`, built in development mode by
+`frameworks/build.mjs` with each framework's own Vite plugin from the workspace
+bindings; the instance composes the real `cdn()` loader and `plugins: [devtools()]`).
+`frameworks-ssr.spec.ts` runs it on production builds of a Next 15 App Router app
+(`frameworks/next`, `@comvi/next`) and a Nuxt 4 app (`frameworks/nuxt`,
+`@comvi/nuxt`), started by `frameworks/serve.mjs` and reached through the mock
+server, which proxies Next's `/en`, `/de` and `/_next` and Nuxt's `/nuxt/` paths
+unchanged: every page stays on `127.0.0.1:8791`, the one origin the Gate E build's
+host permission names. The rows check `#A-title` (`t()`), `#A-common` (another
+namespace), `#A-missing` (a missing key), `#A-rich` (rich `<T>`) and `#A-late`
+(rendered after Disable):
 
-### Adding the framework rows
+- before Enable, no frame or tag character in the page's text or attributes;
+- after Enable, each string carries its key and namespace, the rich message a pair
+  around the parts the binding renders;
+- an Alt-click on a plain string, on the bold part and on the text part of the rich
+  message, and on a missing key opens that key;
+- saves of another namespace's key, of the rich message (its new parts rendered by
+  the framework) and of a missing key show on the page without a reload; no request
+  body and nothing `x.read()` or `x.state()` hold carries a tag character;
+- after Disable the rendered strings lose their frames and new output has none;
+- no warning or error in the console from the page's first script to the end.
 
-The pages are plain modules on purpose: one per scenario, no bundler. A
-framework row (React, Vue, Solid, Svelte; Next and Nuxt SSR) needs its runtime
-on the page, so it brings a fixture build of its own:
+The SSR rows add: the server HTML (fetched raw, and every document, RSC payload and
+JSON the app answered during the session) holds the rendered strings and no tag
+character U+E0020–U+E007F; no console warning or error after hydration; the
+server's own output (`test-results/ssr-<fw>.log`) carries no error, warning or
+browser-API failure; after a client navigation the new page's strings are marked
+and a save shows. Text a Next Server Component renders (`#S-title`) is not marked:
+the browser never re-renders it, so the editor does not reach it.
 
-1. Build the app with the framework's own tooling into `gate-e/fixtures/<fw>/`
-   (or serve a test app's production build). The bindings import `@comvi/core`
-   and `@comvi/core/devtools` from the workspace dists, and the page composes
-   `plugins: [devtools()]`. Render the keys of `BODIES.app` in
-   `mock-api-server.mjs` under the same element ids (`#A-title`, `#A-rich`, …),
-   load catalogs from `/catalog/:locale/:ns.json`, expose `window.gateE.render()`
-   and `appWorks()`, and set `document.body.dataset.booted`: the helpers in
-   `site.ts` (`openSite`, `openEditor`, `framesIn`, `save`, `visibleText`) then
-   work unchanged.
-2. Add the page to `SITE_PAGES` (with a `csp` when the row needs one). For an
-   SSR row, run the framework's server in `playwright.config.ts` `webServer`
-   (it takes an array) on another exact loopback port; the extension's
-   `host_permissions` do not grow, because the pages are only read by content
-   scripts and every API request still goes to the mock at 127.0.0.1:8791.
-3. Run the rows of `editing.spec.ts` that apply against the new page path. SSR
-   rows add: the server HTML carries no frame (`decodeFrames` of the response
-   text is empty), no hydration warning in the console, and no browser API
-   touched on the server.
+A new row follows the same contract: render those ids, load catalogs with
+`cdn(`/cdn`)` from the mock (`/cdn/<locale>.json`, `/cdn/<ns>/<locale>.json`), set
+`document.body.dataset.booted`, and add the page to `SITE_PAGES` (or, for a server,
+to `SSR_UPSTREAMS` and `webServer` in `playwright.config.ts`).
+
+### Plain pages in three engines
+
+`pnpm test:layout-engines` (`playwright.engines.config.ts`) runs, without the
+extension, `no-session.spec.ts` (a page that composes `devtools()` and has no
+editor session renders no frame or tag character, the framework rows' pages
+included) and `layout-engines.spec.ts` (the layout cases marked by the editor's own
+`dist/standalone.iife.js`, activated on the page directly), in Chromium, Firefox and
+WebKit. CI runs both after Gate E.
+
+- Chromium, the engine the extension runs in: marked output must measure identical
+  to unmarked (boxes and pixels, Arabic included). Required.
+- Firefox: measured identical too. An extra check of the format; it promises no
+  support of the extension in Firefox.
+- WebKit: a known defect (owner decision 2026-11-19). During an editing session a
+  frame changes the shaping of the neighbouring glyph and breaks Arabic joining
+  (Arabic widens by about 7 px). WebKit is outside the editor's supported way of
+  working; the layout test is marked `test.fail` there, so it reports when WebKit
+  stops failing and its measured values are never asserted as intended. Without an
+  editor session WebKit renders no frame (`no-session.spec.ts`).
+
+The numbers go to `test-results/**/marker-layout-<engine>.json`.
 
 `navigation.spec.ts` runs with the back/forward cache enabled (Playwright
 disables it by default). It navigates an active tab to `about:blank`, where no

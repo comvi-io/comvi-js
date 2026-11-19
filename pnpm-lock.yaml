@@ -94,12 +94,36 @@ importers:
 
   apps/chrome-extension:
     devDependencies:
+      '@comvi/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@comvi/editor':
         specifier: workspace:*
         version: link:../../packages/editor
+      '@comvi/next':
+        specifier: workspace:*
+        version: link:../../packages/next
+      '@comvi/nuxt':
+        specifier: workspace:*
+        version: link:../../packages/nuxt
+      '@comvi/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      '@comvi/solid':
+        specifier: workspace:*
+        version: link:../../packages/solid
+      '@comvi/svelte':
+        specifier: workspace:*
+        version: link:../../packages/svelte
+      '@comvi/vue':
+        specifier: workspace:*
+        version: link:../../packages/vue
       '@playwright/test':
         specifier: 1.64.1
         version: 1.64.1
+      '@sveltejs/vite-plugin-svelte':
+        specifier: ^7.3.1
+        version: 7.3.1(svelte@5.57.2(@typescript-eslint/types@8.72.0))(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
@@ -109,6 +133,39 @@ importers:
       '@types/node':
         specifier: 22.20.5
         version: 22.20.5
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      '@vitejs/plugin-react':
+        specifier: ^6.1.2
+        version: 6.1.2(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
+      '@vitejs/plugin-vue':
+        specifier: ^6.0.10
+        version: 6.0.10(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))(vue@3.5.44(typescript@6.0.2))
+      next:
+        specifier: ^15.5.28
+        version: 15.5.28(@babel/core@7.29.7)(@playwright/test@1.64.1)(@types/node@22.20.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      nuxt:
+        specifier: ^4.6.2
+        version: 4.6.2(@babel/plugin-proposal-decorators@8.0.2(@babel/core@7.29.7))(@babel/plugin-syntax-jsx@8.0.1(@babel/core@7.29.7))(@babel/plugin-syntax-typescript@8.0.3(@babel/core@7.29.7))(@oxc-project/types@0.155.0)(@parcel/watcher@2.5.6)(@types/node@22.20.5)(@vue/compiler-sfc@3.5.44)(acorn@8.19.0)(confbox@0.3.1)(db0@0.3.4)(dotenv@17.4.2)(esbuild@0.28.2)(eslint@10.13.0(jiti@2.7.0))(giget@3.3.1)(ioredis@5.11.1)(lightningcss@1.33.0)(mlly@1.8.2)(optionator@0.9.4)(oxc-parser@0.143.0)(rolldown@1.2.15)(rollup-plugin-visualizer@7.1.1(rolldown@1.2.15)(rollup@4.65.0))(rollup@4.65.0)(terser@5.51.2)(typescript@6.0.2)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))(vue-tsc@3.3.13(typescript@6.0.2))(yaml@2.9.1)
+      react:
+        specifier: ^19.3.1
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.3.1
+        version: 19.3.1(react@19.3.1)
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
+      solid-js:
+        specifier: ^1.9.17
+        version: 1.9.17
+      svelte:
+        specifier: ^5.57.2
+        version: 5.57.2(@typescript-eslint/types@8.72.0)
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
@@ -118,9 +175,15 @@ importers:
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1)
+      vite-plugin-solid:
+        specifier: ^2.11.14
+        version: 2.11.14(solid-js@1.9.17)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
       vitest:
         specifier: 5.0.5
         version: 5.0.5(@types/node@22.20.5)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5)(happy-dom@21.0.4)(msw@3.0.3(@types/node@22.20.5)(graphql@16.13.1)(typescript@6.0.2)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1)))(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
+      vue:
+        specifier: ^3.5.44
+        version: 3.5.44(typescript@6.0.2)
 
   packages/cli:
     dependencies:
@@ -471,7 +534,7 @@ importers:
         version: 21.0.4
       nuxt:
         specifier: ^4.6.2
-        version: 4.6.2(@babel/plugin-proposal-decorators@8.0.2(@babel/core@7.29.7))(@babel/plugin-syntax-jsx@8.0.1(@babel/core@7.29.7))(@babel/plugin-syntax-typescript@8.0.3(@babel/core@7.29.7))(@oxc-project/types@0.155.0)(@parcel/watcher@2.5.6)(@types/node@22.20.5)(@vue/compiler-sfc@3.5.44)(acorn@8.19.0)(confbox@0.3.1)(db0@0.3.4)(dotenv@17.4.2)(esbuild@0.28.2)(eslint@10.13.0(jiti@2.7.0))(giget@3.3.1)(ioredis@5.11.1)(lightningcss@1.33.0)(mlly@1.8.2)(optionator@0.9.4)(oxc-parser@0.143.0)(rolldown@1.2.15)(rollup-plugin-visualizer@7.1.1(rolldown@1.2.15)(rollup@4.65.0))(rollup@4.65.0)(terser@5.51.2)(typescript@6.0.2)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))(vue-tsc@3.3.13(typescript@6.0.2))(yaml@2.9.1)
+        version: 4.6.2(@babel/plugin-proposal-decorators@8.0.2(@babel/core@8.0.9))(@babel/plugin-syntax-jsx@8.0.1(@babel/core@8.0.9))(@babel/plugin-syntax-typescript@8.0.3(@babel/core@8.0.9))(@oxc-project/types@0.155.0)(@parcel/watcher@2.5.6)(@types/node@22.20.5)(@vue/compiler-sfc@3.5.44)(acorn@8.19.0)(confbox@0.3.1)(db0@0.3.4)(dotenv@17.4.2)(esbuild@0.28.2)(eslint@10.13.0(jiti@2.7.0))(giget@3.3.1)(ioredis@5.11.1)(lightningcss@1.33.0)(mlly@1.8.2)(optionator@0.9.4)(oxc-parser@0.143.0)(rolldown@1.2.15)(rollup-plugin-visualizer@7.1.1(rolldown@1.2.15)(rollup@4.65.0))(rollup@4.65.0)(terser@5.51.2)(typescript@6.0.2)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))(vue-tsc@3.3.13(typescript@6.0.2))(yaml@2.9.1)
       prettier:
         specifier: ^3.9.10
         version: 3.9.10
@@ -13402,6 +13465,31 @@ snapshots:
 
   natural-compare@1.4.0: {}
 
+  next@15.5.28(@babel/core@7.29.7)(@playwright/test@1.64.1)(@types/node@22.20.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+    dependencies:
+      '@next/env': 15.5.28
+      '@swc/helpers': 0.5.15
+      caniuse-lite: 1.0.30001819
+      postcss: 8.5.31
+      react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
+      styled-jsx: 5.1.6(@babel/core@7.29.7)(react@19.3.1)
+    optionalDependencies:
+      '@next/swc-darwin-arm64': 15.5.28
+      '@next/swc-darwin-x64': 15.5.28
+      '@next/swc-linux-arm64-gnu': 15.5.28
+      '@next/swc-linux-arm64-musl': 15.5.28
+      '@next/swc-linux-x64-gnu': 15.5.28
+      '@next/swc-linux-x64-musl': 15.5.28
+      '@next/swc-win32-arm64-msvc': 15.5.28
+      '@next/swc-win32-x64-msvc': 15.5.28
+      '@playwright/test': 1.64.1
+      sharp: 0.35.5(@types/node@22.20.5)
+    transitivePeerDependencies:
+      - '@babel/core'
+      - '@types/node'
+      - babel-plugin-macros
+
   next@15.5.28(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@22.20.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
       '@next/env': 15.5.28
@@ -14965,6 +15053,13 @@ snapshots:
       js-tokens: 10.0.0
 
   structured-clone-es@2.0.1: {}
+
+  styled-jsx@5.1.6(@babel/core@7.29.7)(react@19.3.1):
+    dependencies:
+      client-only: 0.0.1
+      react: 19.3.1
+    optionalDependencies:
+      '@babel/core': 7.29.7
 
   styled-jsx@5.1.6(@babel/core@8.0.9)(react@19.3.1):
     dependencies:

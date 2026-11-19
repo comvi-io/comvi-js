@@ -11,5 +11,7 @@
     "types": ["chrome", "node", "@playwright/test"]
   },
   "include": ["gate-e/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  // The framework rows' apps are compiled by their own framework tooling (frameworks/build.mjs,
+  // next build, nuxi build), not by this project.
+  "exclude": ["node_modules", "dist", "gate-e/frameworks/**"]
 }

@@ -8,16 +8,27 @@ import {
 } from "./layout-measure";
 
 /**
- * Owner update 2026-11-19, item 4: "width and wrapping unchanged" needs three engines, not
- * Chromium alone. The layout cases of `fixtures/layout.js` (a Latin sentence in a narrow box,
+ * The marker layout in the three engines. The layout cases of `fixtures/layout.js` (a Latin sentence in a narrow box,
  * Thai ending in ZWSP, Persian ending in ZWNJ, Arabic and two messages joined inside one
  * Arabic word, a nowrap/ellipsis box, rich output with paired frames) are marked by the
  * editor's own standalone build, activated on the page directly; the extension is not run
  * here. Run by `playwright.engines.config.ts` in Chromium, Firefox and WebKit.
+ *
+ * Chromium, the engine the extension runs in, must measure marked output identical to
+ * unmarked. Firefox is an extra check of the format, with no promise that the extension is
+ * supported there. WebKit is a KNOWN DEFECT (owner decision 2026-11-19): during an editing
+ * session a frame changes the shaping of the neighbouring glyph and breaks Arabic joining.
+ * WebKit is outside the editor's supported way of working; the defect is to be returned to
+ * before the editor is supported there. `test.fail` keeps the reproduction: it reports when
+ * WebKit stops failing, and the measured values are never asserted as intended behaviour.
  */
 test("marked output keeps the width, height and line breaks of unmarked output", async ({
   page,
 }, info) => {
+  test.fail(
+    info.project.name === "webkit",
+    "known defect, owner decision 2026-11-19: in WebKit a frame changes the neighbouring glyph's shaping and breaks Arabic joining",
+  );
   await page.goto("http://127.0.0.1:8791/layout-standalone");
   await expect(page.locator("body")).toHaveAttribute("data-booted", "true");
   await expect(page.locator("body")).toHaveAttribute("data-marking", "true");

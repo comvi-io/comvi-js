@@ -1,7 +1,7 @@
 /**
  * The marker layout measurement shared by Gate E (`layout.spec.ts`, Chromium with the real
- * extension) and the three-engine check (`layout-engines.spec.ts`, the editor's standalone
- * build on a plain page): every case of `fixtures/layout.js`, its unmarked and its marked box.
+ * extension) and the plain-page check (`layout-engines.spec.ts`, the editor's standalone
+ * build in Chromium, Firefox and WebKit): every case of `fixtures/layout.js`, its unmarked and its marked box.
  */
 import { writeFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";

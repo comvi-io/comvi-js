@@ -1,5 +1,5 @@
-// The three-engine marker layout check (owner update 2026-11-19, item 4): the same layout
-// cases, marked by the editor's own build — `dist/standalone.iife.js`, served by the mock
+// The plain-page marker layout check (layout-engines.spec.ts, playwright.engines.config.ts):
+// the same layout cases, marked by the editor's own build — `dist/standalone.iife.js`, served by the mock
 // server at /editor/ — activated directly, with no extension and no API. Runs after
 // fixtures/layout.js (module scripts run in document order).
 await new Promise((resolve, reject) => {

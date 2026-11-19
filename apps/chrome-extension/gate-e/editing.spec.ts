@@ -19,6 +19,7 @@ import {
   withGateE,
   type ApiRequest,
 } from "./site";
+import { instanceData, TAG_CHARACTER } from "./rows";
 
 /**
  * The lot's goal on a Comvi 0.8 page: enable the editor → pick a translation → change it →
@@ -335,3 +336,33 @@ for (const [app, platform] of [
     });
   });
 }
+
+// Owner decision 2026-11-19 (3c): markers never reach catalogs or saved translations, even
+// when the translator copies the text from the marked page into the form.
+test("text copied from the marked page and pasted into the form is saved without its frames", async () => {
+  await withGateE({}, async (launched, popups) => {
+    const { page, tabId } = await openSite(launched, "/app");
+    await enable(launched, popups, page, tabId);
+    await expect.poll(() => framesIn(page, "#A-title"), POLL).toHaveLength(1);
+
+    const copied = await page.locator("#A-title").evaluate((el) => el.textContent ?? "");
+    expect(copied).toMatch(TAG_CHARACTER);
+    await openEditor(page, "#A-title");
+    await typeInto(page, "English", `${copied} again`);
+    expect(await save(page)).toContain("Saved");
+
+    expect(saves(await apiLog())).toEqual([
+      expect.objectContaining({
+        key: "home.title",
+        translations: { en: { value: "Welcome home again", status: "not_reviewed" } },
+      }),
+    ]);
+    expect((await platformStore()).default["home.title"].en).toBe("Welcome home again");
+    await expect.poll(() => visibleText(page, "#A-title"), POLL).toBe("Welcome home again");
+    expect(await framesIn(page, "#A-title")).toEqual([
+      { inst: "", ns: "default", key: "home.title", close: false },
+    ]);
+    expect(await instanceData(page)).not.toMatch(TAG_CHARACTER);
+    await closeDialog(page);
+  });
+});

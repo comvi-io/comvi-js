@@ -1,5 +1,4 @@
-// Marker layout cases (map D5: "no change of width or wrapping" is the plan's claim until
-// measured). Every case renders the SAME message twice, side by side in identically styled
+// Marker layout cases (map D5 owes a measurement of width and wrapping in a browser). Every case renders the SAME message twice, side by side in identically styled
 // boxes: `t(key, { markers: false })` (never marked) and `t(key)` (marked once the editor is
 // active). The gate measures both in real Chromium.
 import { createI18n } from "/core/comvi-core.js";
