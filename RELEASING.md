@@ -44,7 +44,9 @@ that path today.
       site, and a 0.7 extension finds no editor on one. Which goes out first, and what an
       installed 0.7 extension or a 0.7 site sees meanwhile, is not decided; this checklist
       states no order until it is. The extension is not published from this repository's
-      workflows.
+      workflows. Whatever the order: the extension zip is built from the versioned commit,
+      after that `@comvi/editor` version is on npm — the zip bakes the workspace editor
+      version and asks the CDN for exactly it.
 - [ ] Read the pending changesets. `pnpm exec changeset status --verbose` shows the version the cut
       will produce. With `@changesets/cli` 3, a plugin peer range that the next version falls
       outside of makes changesets bump the peer dependents by patch, no longer by major (cli 2

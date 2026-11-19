@@ -142,8 +142,10 @@ JSON the app answered during the session) holds the rendered strings and no tag
 character U+E0020–U+E007F; no console warning or error after hydration; the
 server's own output (`test-results/ssr-<fw>.log`) carries no error, warning or
 browser-API failure; after a client navigation the new page's strings are marked
-and a save shows. Text a Next Server Component renders (`#S-title`) is not marked:
-the browser never re-renders it, so the editor does not reach it.
+and a save shows. Text rendered only by a Next.js Server Component (`#S-title`) is
+not editable in context: the browser never renders it again, so it carries no frame
+and a click on it opens nothing. After Disable a string the page wrote once by hand
+(`#kept`, a copy of a marked title) keeps its frame; the app's own output has none.
 
 A new row follows the same contract: render those ids, load catalogs with
 `cdn(`/cdn`)` from the mock (`/cdn/<locale>.json`, `/cdn/<ns>/<locale>.json`), set

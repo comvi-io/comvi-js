@@ -55,10 +55,20 @@ compared, measured or drawn to a canvas; it is then not editable in context. Mar
 removed from strings the app sends elsewhere, such as a document title or the clipboard; text
 copied from the page into the edit modal is saved without them.
 
-Marking starts in the browser when the editor is enabled: a server render never carries a frame,
-and text the browser never renders again (a Next.js Server Component's own output) is not
-marked. **Disable** in the extension removes the frames from the text already on the page and
-from everything rendered after it.
+Marking starts in the browser when the editor is enabled: a server render never carries a frame.
+**Text rendered only by a Next.js Server Component is not editable in context**: the browser never
+renders it again, so it gets no frame and clicking it opens nothing. The editor has no key search
+either; change such a string in the Comvi platform. Text the same page renders in a Client
+Component is marked and editable as usual.
+
+**Disable** in the extension re-renders the app's output without frames, and what it renders
+after that has none. A string the app kept elsewhere while the editor was on (a `document.title`
+set once, a value written to the DOM by hand or copied into a store or an input) keeps its frames
+until the app renders it again or the page reloads.
+
+Only whole frames are removed from a saved value. A marked string the app cut (with `slice`, for
+example) leaves stray tag characters, and text pasted from it is saved with them. A key whose
+name holds a lone surrogate is read back as U+FFFD.
 
 The extension runs in Chromium, where marked text measures and draws the same as unmarked
 text. In WebKit a frame changes the shaping of the neighbouring glyph during an editing session

@@ -26,10 +26,14 @@ A site on an older Comvi (0.5–0.7) or on a protocol this extension does not kn
 is not driven at all: the popup says what to do, and Enable is not offered.
 
 Nothing else: no editor package and no API key in the app. Until **Enable
-editor**, the page carries no marker of the editor; after **Disable** the
-frames are gone from the text on the page and from what it renders next. Gate E
-checks this, marking and live edit on React, Vue, Solid and Svelte apps and on
-Next.js and Nuxt server renders (`gate-e/README.md`).
+editor**, the page carries no marker of the editor; **Disable** re-renders the
+app's output without markers, and a string the app kept elsewhere (a title set
+once, a value copied into an input) keeps its markers until the app renders it
+again. Gate E checks marking and live edit on React, Vue, Solid and Svelte apps
+and on Next.js and Nuxt server renders (`gate-e/README.md`). On Next.js, text
+rendered only by a Server Component is not editable in context: the browser
+never renders it again, so it carries no marker and a click on it opens
+nothing; change it in the Comvi platform.
 
 ## How the editor reaches the page
 
@@ -210,16 +214,17 @@ The extension is versioned by hand in `manifest.json` and `package.json`
 ### Release order
 
 The extension works with exactly one editor version: the workspace
-`@comvi/editor` version at build time. An editor fix therefore reaches users
-with an extension release. So:
+`@comvi/editor` version at build time, so an editor fix reaches users with an
+extension release. Build the zip from the versioned commit (after
+`changeset version`), and submit it only once that `@comvi/editor` version is on
+npm and
+`https://cdn.jsdelivr.net/npm/@comvi/editor@<version>/dist/standalone.iife.js`
+answers: before that, the extension asks for a file that does not exist.
 
-1. Publish the npm packages first, and check that
-   `https://cdn.jsdelivr.net/npm/@comvi/editor@<version>/dist/standalone.iife.js`
-   answers (`x-jsd-version`).
-2. Only then submit the extension to the Chrome Web Store. The extension that
-   speaks protocol 2 must be in the store before `@comvi/core` 0.8 reaches npm
-   (contract `versionPairing`, release gate R3-15): the store's 0.6 extension
-   cannot load the editor onto a 0.8 site.
+The order of the Chrome Web Store and npm releases for 0.8, and how current
+users of the 0.6 extension and of 0.7 sites move, is an open owner decision,
+made before the 0.8 release (`RELEASING.md`). The store's 0.6 extension cannot
+load the editor onto a 0.8 site, and this extension does not drive a 0.7 site.
 
 No new permission is requested: `permissions` stay `storage`, `activeTab`,
 `scripting`, and `host_permissions` stays the API origin.

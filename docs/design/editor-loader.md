@@ -70,8 +70,7 @@ to every visitor of a site that composes it, the editor only to the translator w
   translators with an extension release.
 - **The detector's duties** (`apps/chrome-extension/src/content/detector.ts`): read
   `window.__COMVI__` as a plain array of own data properties; drive only an entry with
-  `x.p === 2` and `x.kind === "comvi"`, deduped by `i`; observe later and destroyed instances
-  through own `push`/`splice` of an array it installs; register the `securitypolicyviolation`
+  `x.p === 2` and `x.kind === "comvi"`, deduped by `i`; register the `securitypolicyviolation`
   listener before `x.load()`; keep one load in flight, reuse an editor already on the page,
   stop at 12 s, allow a retry after a failure; report `csp-blocked`, `trusted-types`,
   `load-error`, `timeout`, `no-global`, `bad-version`, `old-protocol` or `unknown-protocol` as
@@ -79,10 +78,15 @@ to every visitor of a site that composes it, the editor only to the translator w
 - **No 0.7 support (D1).** A 0.5–0.7 entry, the v1 registry, the 0.7 hook, `x.p !== 2` or an
   unknown `kind` are rejected: the popup says what to do, and nothing on the page is called,
   replaced or added.
+- **The editor observes instances.** During a session the editor's adapter
+  (`packages/editor/src/adapter.ts`) owns `push` and `splice` on the page's existing
+  `window.__COMVI__` array, to see instances that arrive or are destroyed later, and restores
+  them on stop; the detector installs no array and wraps nothing.
 - **Self-contained translation markers (D5).** `x.mark(fn)` of every compatible instance
   frames each `t()` result `U+E007E … U+E007F` with `inst|ns|key`; rich output gets a pair
   built by the editor's hook. No server render carries a frame; `mark(null)` on Disable
-  re-renders the page without them; a value pasted from the page into the edit form is saved
+  re-renders the app's output without them (a string the app kept elsewhere keeps its frames
+  until it is rendered again); a value pasted from the page into the edit form is saved
   without them. Marked text measures the same as unmarked in Chromium; in WebKit a frame
   changes the neighbouring glyph's shaping and breaks Arabic joining during a session, a known
   defect recorded in Gate E (`layout-engines.spec.ts`, `test.fail`).

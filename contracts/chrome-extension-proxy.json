@@ -24,7 +24,7 @@
       "core-0.8+extension-for-0.8": "target protocol (2): the extension drives only an entry with an own `i` object and an own `x` object with x.p === 2 and x.kind === 'comvi', and passes x.load() the exact @comvi/editor version it was built with (owner D3)",
       "core-0.5-to-0.7+extension-for-0.8": "UNSUPPORTED (owner D1, lot 8): a { v, i } entry without a protocol 2 handle, the v1 registry or the 0.7 hook is refused as old-protocol: nothing is called on it, window.__COMVI__ is left as it is and nothing is added to the page; the popup asks the site to upgrade to 0.8 with plugins: [devtools()]",
       "unknown-handle+extension-for-0.8": "UNSUPPORTED: x.p !== 2 or another kind is refused the same way as unknown-protocol; the popup asks to update the extension",
-      "core-0.8+extension-0.6.x": "UNSUPPORTED — the released extension looks for the 0.7 editor-loader slot and reports `no-loader`. Release gate (R3-15): the extension that speaks protocol 2 is published to the Chrome Web Store before @comvi/core 0.8 is published to npm.",
+      "core-0.8+extension-0.6.x": "UNSUPPORTED — the released extension looks for the 0.7 editor-loader slot and reports `no-loader`. The order of the Chrome Web Store and npm releases is an open owner decision, made before the 0.8 release (lot 8, RELEASING.md).",
       "two-cores-0.8-same-page": "both push onto the one array; each removes only its own entry object"
     }
   },
