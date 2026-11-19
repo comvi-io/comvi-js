@@ -511,6 +511,43 @@ describe("MAIN-world detector editor loading", () => {
     expect(x.load).toHaveBeenCalledTimes(2);
   });
 
+  // Review finding (lot 8): the retry after a timeout activates the copy it loaded; the first
+  // load's script then runs late and puts a fresh, inactive copy on the global. Disable must
+  // still stop the session it started, whatever the global reports now.
+  it("stops its own session on Disable after a late first load replaced the global", async () => {
+    let lateLoad: () => void = () => {};
+    let calls = 0;
+    siteWith(() => {
+      calls++;
+      if (calls === 1) {
+        return new Promise((resolve) => {
+          lateLoad = () => {
+            plantEditor();
+            resolve(page.ComviInContextEditor);
+          };
+        });
+      }
+      return loads();
+    });
+    await injectDetector();
+
+    activate();
+    await vi.advanceTimersByTimeAsync(LOAD_TIMEOUT_MS);
+    activate();
+    await settle();
+    const started = page.ComviInContextEditor as { isActive(): boolean };
+    expect(started.isActive()).toBe(true);
+    lateLoad();
+    await settle();
+    expect(page.ComviInContextEditor).not.toBe(started);
+
+    const results = recordEvents(page, "comvi-extension:deactivated");
+    page.dispatchEvent(new CustomEvent("comvi-extension:deactivate"));
+
+    expect(started.isActive()).toBe(false);
+    expect(results).toEqual([{ success: true }]);
+  });
+
   it("stops listening for violations once the editor loaded", async () => {
     siteWith(loads);
     await injectDetector();

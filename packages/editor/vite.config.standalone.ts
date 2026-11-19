@@ -17,7 +17,7 @@ export default defineConfig({
     minify: true,
     sourcemap: false,
     lib: {
-      entry: resolve(__dirname, "./src/standalone.ts"),
+      entry: resolve(__dirname, "./src/standalone-global.ts"),
       name: "ComviInContextEditor",
       fileName: () => "standalone.iife.js",
       formats: ["iife"],

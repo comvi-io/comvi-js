@@ -81,6 +81,20 @@ describe("dist/standalone.iife.js", () => {
     );
   });
 
+  // Review finding (lot 8): the extension retries a load that timed out; the first script may
+  // then run late. It must not put a second, inactive copy over the editor the extension
+  // activated, nor hide an editor of another version (the extension refuses that one).
+  it("executed again on a page that already has an editor, leaves that editor on the global", () => {
+    const first = bootBundle();
+    bootBundle();
+    expect(window.ComviInContextEditor).toBe(first);
+
+    const other = { version: "0.0.1-other" };
+    (window as { ComviInContextEditor?: unknown }).ComviInContextEditor = other;
+    bootBundle();
+    expect(window.ComviInContextEditor).toBe(other);
+  });
+
   it("booted bundle on a page with no i18n → activate() fails with no-instance and adds nothing", () => {
     const editor = bootBundle();
     const before = document.documentElement.outerHTML;

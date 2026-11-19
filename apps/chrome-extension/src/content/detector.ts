@@ -540,9 +540,13 @@ function installDetector() {
     const editor = pageEditor();
     let stopped = false;
     try {
-      if (editor?.isActive?.() === true) {
-        if (stopSession) stopSession();
-        else editor.deactivate?.();
+      // Our own session is stopped through the stop() it returned, whatever the global
+      // reports now: a late script may have replaced it with an inactive copy.
+      if (stopSession) {
+        stopSession();
+        stopped = true;
+      } else if (editor?.isActive?.() === true) {
+        editor.deactivate?.();
         stopped = true;
       }
     } catch {

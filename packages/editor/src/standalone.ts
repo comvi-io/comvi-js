@@ -1,6 +1,6 @@
 /**
- * Built as an IIFE (`dist/standalone.iife.js`) that exposes `ComviInContextEditor` on
- * `window`. The Comvi browser extension puts it on a page through the instance's handle
+ * The editor runtime. Built as an IIFE (`dist/standalone.iife.js`, entry `standalone-global.ts`)
+ * that exposes `ComviInContextEditor` on `window`. The Comvi browser extension puts it on a page through the instance's handle
  * (`x.load(version)`, protocol 2) and calls `activate()`.
  */
 
@@ -270,8 +270,4 @@ export function deactivate(): void {
 
 export function isActive(): boolean {
   return active !== null;
-}
-
-if (typeof window !== "undefined") {
-  window.ComviInContextEditor = { activate, deactivate, isActive, version };
 }
