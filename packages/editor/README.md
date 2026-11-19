@@ -52,7 +52,18 @@ editor then marks every Comvi instance on the page: each `t()` result carries an
 naming its instance, namespace and key, and a scanner maps the frames back to keys on the DOM.
 Pass `{ markers: false }` to one `t()` call, or `markers={false}` to `<T>`, for a string that is
 compared, measured or drawn to a canvas; it is then not editable in context. Markers are not
-removed from strings the app sends elsewhere, such as a document title or the clipboard.
+removed from strings the app sends elsewhere, such as a document title or the clipboard; text
+copied from the page into the edit modal is saved without them.
+
+Marking starts in the browser when the editor is enabled: a server render never carries a frame,
+and text the browser never renders again (a Next.js Server Component's own output) is not
+marked. **Disable** in the extension removes the frames from the text already on the page and
+from everything rendered after it.
+
+The extension runs in Chromium, where marked text measures and draws the same as unmarked
+text. In WebKit a frame changes the shaping of the neighbouring glyph during an editing session
+and breaks Arabic joining, a known defect; without an editor session no page carries a frame in
+any browser.
 
 A save goes to the platform for every language in the modal. The page shows the new text at once
 in each language whose catalog it has loaded; the others show it once the app loads them from a

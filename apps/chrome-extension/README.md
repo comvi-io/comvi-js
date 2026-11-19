@@ -25,6 +25,12 @@ through an authenticated proxy (see below).
 A site on an older Comvi (0.5–0.7) or on a protocol this extension does not know
 is not driven at all: the popup says what to do, and Enable is not offered.
 
+Nothing else: no editor package and no API key in the app. Until **Enable
+editor**, the page carries no marker of the editor; after **Disable** the
+frames are gone from the text on the page and from what it renders next. Gate E
+checks this, marking and live edit on React, Vue, Solid and Svelte apps and on
+Next.js and Nuxt server renders (`gate-e/README.md`).
+
 ## How the editor reaches the page
 
 The extension package contains no editor and no code that loads one. It does

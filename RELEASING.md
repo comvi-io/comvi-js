@@ -23,7 +23,7 @@ that path today.
       the published packages would not compile, which is the last moment that is cheap to fix.
 - [ ] `pnpm size`, `pnpm bundler-matrix` (add `--from-registry next` to measure the published RC
       instead of the local `dist`), and `node scripts/perf.mjs --compare-ref <last release ref>`.
-- [ ] On npmjs.com, every one of the 12 packages' trusted publisher (this repository,
+- [ ] On npmjs.com, every one of the 10 published packages' trusted publisher (this repository,
       `release.yml`) has **Allow npm dist-tag** enabled. It is off by default, and without it the
       promotion step cannot move `latest` or `next`: the run then ends with everything on npm
       under the staging tag only and exits 1. The workflow installs npm 11.21.0, the first npm 11
@@ -39,6 +39,12 @@ that path today.
       publisher, with **Allow npm dist-tag** on. Without it the train stops at `@comvi/editor`.
       The old name is no longer in the workspace or the `fixed` group and must never receive a
       0.8 version.
+- [ ] **OPEN, decided by the owner before 0.8 (lot 8): the order of the Chrome Web Store and
+      npm releases, and how current users move.** The protocol-2 extension drives only a 0.8
+      site, and a 0.7 extension finds no editor on one. Which goes out first, and what an
+      installed 0.7 extension or a 0.7 site sees meanwhile, is not decided; this checklist
+      states no order until it is. The extension is not published from this repository's
+      workflows.
 - [ ] Read the pending changesets. `pnpm exec changeset status --verbose` shows the version the cut
       will produce. With `@changesets/cli` 3, a plugin peer range that the next version falls
       outside of makes changesets bump the peer dependents by patch, no longer by major (cli 2
