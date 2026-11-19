@@ -100,6 +100,17 @@ export default defineConfig(({ mode }) => {
     plugins: [
       tailwindcss(),
       {
+        // Chrome injects a content script as a classic script, so every top-level `var` and
+        // function of the bundle would land on the global object — for the MAIN-world
+        // detector, on the page's own window, on every site. Each content script runs in a
+        // function scope of its own instead (checked by src/__tests__/artifacts.test.ts).
+        name: "content-script-scope",
+        renderChunk(code, chunk) {
+          if (chunk.name !== "detector" && chunk.name !== "bridge") return null;
+          return { code: `(() => {\n${code}\n})();\n`, map: null };
+        },
+      },
+      {
         name: "copy-static-files",
         closeBundle() {
           // Copy manifest.json, pinning host_permissions to the configured

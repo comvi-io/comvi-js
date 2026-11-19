@@ -10,6 +10,7 @@
 import { describe, it, expect } from "vitest";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { runInNewContext } from "node:vm";
 import { EXPECTED_CONTENT_SCRIPTS } from "../shared/__fixtures__/manifest-content-scripts";
 
 // vitest runs with cwd at the package root.
@@ -117,6 +118,33 @@ describe.skipIf(!runSuite)(
         expect(code, bundle).not.toMatch(/^export[\s{]/m);
       },
     );
+
+    // A content script is injected as a classic script: every top-level `var` or function
+    // of the bundle would become a property of the page's window (the detector runs in the
+    // page's MAIN world, on every site). Each bundle must declare nothing globally.
+    it.each(["bridge.js", "detector.js"])("%s declares no global of its own", (bundle) => {
+      const page: Record<string, unknown> = {
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => true,
+        setTimeout: () => 0,
+        clearTimeout: () => {},
+        CustomEvent: class {
+          constructor(readonly type: string) {}
+        },
+        chrome: { runtime: { sendMessage: () => {}, onMessage: { addListener: () => {} } } },
+      };
+      page.window = page;
+      const before = Object.keys(page).sort();
+
+      runInNewContext(read(bundle), page);
+
+      expect(
+        Object.keys(page).filter(
+          (key) => !before.includes(key) && key !== "__comviExtensionBridgeInstalled",
+        ),
+      ).toEqual([]);
+    });
 
     // Gate E builds record START_SESSION outcomes for race specs; release must not.
     it("worker bundle carries no Gate E test hook", () => {
