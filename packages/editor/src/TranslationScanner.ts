@@ -35,26 +35,12 @@ const preview = (text: string): string => stripFrames(text).trim();
  * nest.
  */
 function findClose(open: KeyInfo, last: Text): { node: Text; before: string } | undefined {
-  const texts: Text[] = [];
-  for (let sibling = last.nextSibling; sibling; sibling = sibling.nextSibling) {
-    if (sibling.nodeType === Node.TEXT_NODE) texts.push(sibling as Text);
-    else {
-      const walker = createTreeWalker(sibling, NodeFilter.SHOW_TEXT);
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) texts.push(node as Text);
-    }
-  }
   let depth = 0;
   let before = "";
-  // Adjacent text siblings are read as one string, so a frame split across them decodes; the
-  // closing frame is reported on the node where it starts.
-  for (let i = 0; i < texts.length;) {
-    const run = [texts[i]!];
-    while (
-      i + run.length < texts.length &&
-      run[run.length - 1]!.nextSibling === texts[i + run.length]
-    )
-      run.push(texts[i + run.length]!);
-    i += run.length;
+  let run: Text[] = [];
+  // Decodes one run of adjacent text siblings as one string, so a frame split across them
+  // decodes; the closing frame is reported on the node where it starts.
+  const decodeRun = (): { node: Text; before: string } | undefined => {
     const value = run.map((text) => text.nodeValue ?? "").join("");
     for (const frame of decodeFrames(value)) {
       if (!sameKey(frame, open)) continue;
@@ -72,8 +58,27 @@ function findClose(open: KeyInfo, last: Text): { node: Text; before: string } | 
       }
     }
     before += value;
+    run = [];
+    return undefined;
+  };
+  // Walks the following siblings lazily and stops at the first closing frame.
+  for (let sibling = last.nextSibling; sibling; sibling = sibling.nextSibling) {
+    const texts: Text[] = [];
+    if (sibling.nodeType === Node.TEXT_NODE) texts.push(sibling as Text);
+    else {
+      const walker = createTreeWalker(sibling, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) texts.push(node as Text);
+    }
+    for (const text of texts) {
+      const previous = run[run.length - 1];
+      if (previous && previous.nextSibling !== text) {
+        const found = decodeRun();
+        if (found) return found;
+      }
+      run.push(text);
+    }
   }
-  return undefined;
+  return run.length > 0 ? decodeRun() : undefined;
 }
 
 /**
