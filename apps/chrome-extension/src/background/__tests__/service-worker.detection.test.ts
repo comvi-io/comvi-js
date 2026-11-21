@@ -65,25 +65,24 @@ describe("detection messages", () => {
     expect(await sessionStatus()).toMatchObject({ comviDetected: true, version: "1.4.2" });
   });
 
+  it.each(["compatible", "old-protocol", "unknown-protocol"])(
+    "caches what a page that speaks %s reported",
+    async (support) => {
+      await harness.dispatchMessage({ type: "COMVI_DETECTED", payload: { support } }, pageSender());
+      await harness.flush();
+
+      expect((await sessionStatus()).support).toBe(support);
+    },
+  );
+
   it.each([
-    ["a loader hook", { editorLoaded: false, editorLoader: { protocol: 1 } }, true],
-    ["an editor already on the page", { editorLoaded: true, editorLoader: null }, true],
-    ["neither an editor nor a loader hook", { editorLoaded: false, editorLoader: null }, false],
-  ])("caches whether a page with %s can supply the editor", async (_label, payload, expected) => {
+    ["does not say", { version: "1.4.2" }],
+    ["names something else", { support: "newer-protocol" }],
+  ])("leaves support unknown when the report %s", async (_label, payload) => {
     await harness.dispatchMessage({ type: "COMVI_DETECTED", payload }, pageSender());
     await harness.flush();
 
-    expect((await sessionStatus()).editorAvailable).toBe(expected);
-  });
-
-  it("leaves editor availability unknown when the report does not say", async () => {
-    await harness.dispatchMessage(
-      { type: "COMVI_DETECTED", payload: { version: "1.4.2" } },
-      pageSender(),
-    );
-    await harness.flush();
-
-    expect((await sessionStatus()).editorAvailable).toBeUndefined();
+    expect((await sessionStatus()).support).toBeUndefined();
   });
 
   it("drops a reported version that is not a string", async () => {

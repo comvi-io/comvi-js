@@ -147,29 +147,21 @@ describe("activation", () => {
     const nonce = await openPendingSession();
     const generationBefore = getProxySessionTransitionGeneration(TAB);
 
-    await expect(confirmActivation(TAB, pageSender(), nonce, true, () => true)).resolves.toBe(true);
+    await expect(confirmActivation(TAB, pageSender(), nonce, () => true)).resolves.toBe(true);
 
     await expect(getSession(TAB)).resolves.toMatchObject({
       status: "active",
-      collectContext: true,
+      collectContext: false,
       documentId: "doc-1",
       expiresAt: 0,
     });
     expect(getProxySessionTransitionGeneration(TAB)).toBeGreaterThan(generationBefore);
   });
 
-  it("keeps context collection closed unless activation reports it enabled", async () => {
-    const nonce = await openPendingSession();
-
-    await confirmActivation(TAB, pageSender(), nonce, "true", () => true);
-
-    await expect(getSession(TAB)).resolves.toMatchObject({ collectContext: false });
-  });
-
   it("shows the detected icon and the ON badge after activation", async () => {
     const nonce = await openPendingSession();
 
-    await confirmActivation(TAB, pageSender(), nonce, true, () => true);
+    await confirmActivation(TAB, pageSender(), nonce, () => true);
 
     expect(lastIconPath()).toContain("icon-detected-16");
     expect(harness.chrome.action.setBadgeText).toHaveBeenCalledWith({ text: "ON", tabId: TAB });
@@ -184,13 +176,13 @@ describe("activation", () => {
     const nonce = await openPendingSession();
 
     await expect(
-      confirmActivation(TAB, pageSender({ documentId }), nonce, true, () => true),
+      confirmActivation(TAB, pageSender({ documentId }), nonce, () => true),
     ).resolves.toBe(false);
     await expect(getSession(TAB)).resolves.toMatchObject({ status: "pending" });
   });
 
   it("refuses an acknowledgement for a tab with no session", async () => {
-    await expect(confirmActivation(TAB, pageSender(), "any-nonce", true, () => true)).resolves.toBe(
+    await expect(confirmActivation(TAB, pageSender(), "any-nonce", () => true)).resolves.toBe(
       false,
     );
   });
@@ -198,18 +190,14 @@ describe("activation", () => {
   it("refuses to re-promote a session that is already active", async () => {
     const nonce = await openActiveSession();
 
-    await expect(confirmActivation(TAB, pageSender(), nonce, true, () => true)).resolves.toBe(
-      false,
-    );
+    await expect(confirmActivation(TAB, pageSender(), nonce, () => true)).resolves.toBe(false);
   });
 
   it("refuses and removes a pending session whose deadline has passed", async () => {
     await putSession(TAB, storedSession({ status: "pending", expiresAt: Date.now() - 1 }));
     const generationBefore = getProxySessionTransitionGeneration(TAB);
 
-    await expect(confirmActivation(TAB, pageSender(), "nonce-1", true, () => true)).resolves.toBe(
-      false,
-    );
+    await expect(confirmActivation(TAB, pageSender(), "nonce-1", () => true)).resolves.toBe(false);
     await expect(getSession(TAB)).resolves.toBeUndefined();
     expect(getProxySessionTransitionGeneration(TAB)).toBeGreaterThan(generationBefore);
   });
@@ -217,27 +205,23 @@ describe("activation", () => {
   it("refuses an acknowledgement carrying the wrong nonce", async () => {
     await openPendingSession();
 
-    await expect(
-      confirmActivation(TAB, pageSender(), "forged-nonce", true, () => true),
-    ).resolves.toBe(false);
+    await expect(confirmActivation(TAB, pageSender(), "forged-nonce", () => true)).resolves.toBe(
+      false,
+    );
     await expect(getSession(TAB)).resolves.toMatchObject({ status: "pending" });
   });
 
   it("refuses an acknowledgement with no nonce at all", async () => {
     await openPendingSession();
 
-    await expect(confirmActivation(TAB, pageSender(), undefined, true, () => true)).resolves.toBe(
-      false,
-    );
+    await expect(confirmActivation(TAB, pageSender(), undefined, () => true)).resolves.toBe(false);
   });
 
   it("refuses and removes a pending session whose popup has closed", async () => {
     const nonce = await openPendingSession();
     const generationBefore = getProxySessionTransitionGeneration(TAB);
 
-    await expect(confirmActivation(TAB, pageSender(), nonce, true, () => false)).resolves.toBe(
-      false,
-    );
+    await expect(confirmActivation(TAB, pageSender(), nonce, () => false)).resolves.toBe(false);
     await expect(getSession(TAB)).resolves.toBeUndefined();
     expect(getProxySessionTransitionGeneration(TAB)).toBeGreaterThan(generationBefore);
   });
@@ -250,7 +234,6 @@ describe("activation", () => {
         TAB,
         pageSender({ tab: { id: OTHER_TAB } as chrome.tabs.Tab }),
         nonce,
-        true,
         () => true,
       ),
     ).resolves.toBe(false);
@@ -259,14 +242,14 @@ describe("activation", () => {
   it("refuses an acknowledgement that did not come from a tab", async () => {
     const nonce = await openPendingSession();
 
-    await expect(confirmActivation(TAB, popupSender, nonce, true, () => true)).resolves.toBe(false);
+    await expect(confirmActivation(TAB, popupSender, nonce, () => true)).resolves.toBe(false);
   });
 
   it("refuses an acknowledgement from a subframe", async () => {
     const nonce = await openPendingSession();
 
     await expect(
-      confirmActivation(TAB, pageSender({ frameId: 3 }), nonce, true, () => true),
+      confirmActivation(TAB, pageSender({ frameId: 3 }), nonce, () => true),
     ).resolves.toBe(false);
   });
 
@@ -274,7 +257,7 @@ describe("activation", () => {
     const nonce = await openPendingSession();
 
     await expect(
-      confirmActivation(TAB, pageSender({ origin: OTHER_ORIGIN }), nonce, true, () => true),
+      confirmActivation(TAB, pageSender({ origin: OTHER_ORIGIN }), nonce, () => true),
     ).resolves.toBe(false);
   });
 
@@ -282,18 +265,14 @@ describe("activation", () => {
     const nonce = await openPendingSession();
     await bumpNavGen(TAB);
 
-    await expect(confirmActivation(TAB, pageSender(), nonce, true, () => true)).resolves.toBe(
-      false,
-    );
+    await expect(confirmActivation(TAB, pageSender(), nonce, () => true)).resolves.toBe(false);
   });
 
   it("refuses an acknowledgement once the tab shows another origin", async () => {
     const nonce = await openPendingSession();
     harness.setTabUrl(TAB, `${OTHER_ORIGIN}/dashboard`);
 
-    await expect(confirmActivation(TAB, pageSender(), nonce, true, () => true)).resolves.toBe(
-      false,
-    );
+    await expect(confirmActivation(TAB, pageSender(), nonce, () => true)).resolves.toBe(false);
   });
 });
 

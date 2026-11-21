@@ -3,13 +3,7 @@ import { readFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import {
-  extensionWorker,
-  openPopup,
-  requireEnv,
-  reservePort,
-  serveEditorFromLocalBuild,
-} from "./helpers";
+import { extensionWorker, openPopup, requireEnv, reservePort, mockEditorCdn } from "./helpers";
 import type { CredentialStore, SessionStore } from "./helpers";
 import { EXPECTED_CONTENT_SCRIPTS } from "../src/shared/__fixtures__/manifest-content-scripts";
 
@@ -24,14 +18,6 @@ const fetchLoaderSource = readFileSync(fetchLoaderBundlePath, "utf8");
 const manifest = JSON.parse(
   readFileSync(resolve(extensionPath, "manifest.json"), "utf8"),
 ) as chrome.runtime.ManifestV3;
-const wireObservation = JSON.parse(
-  readFileSync(
-    resolve(import.meta.dirname, "../src/shared/__fixtures__/wire-observation.fixture.json"),
-    "utf8",
-  ),
-) as {
-  items: Array<{ namespace: string; key: string } & Record<string, unknown>>;
-};
 
 type ProxyResult = {
   denied: boolean;
@@ -84,20 +70,6 @@ async function activate(popup: Page, worker: Worker, tabId: number): Promise<voi
   await expect(popup.locator("#state-active")).toContainText("Editor active on this page");
 }
 
-async function deactivate(page: Page, worker: Worker, tabId: number): Promise<void> {
-  await page.evaluate(() => (globalThis as any).ComviInContextEditor.deactivate());
-  await expect
-    .poll(() =>
-      worker.evaluate((id) => {
-        const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
-        return chromeApi.storage.session
-          .get<SessionStore>(`comvi_session_${id}`)
-          .then((state) => state[`comvi_session_${id}`]);
-      }, tabId),
-    )
-    .toBeUndefined();
-}
-
 async function proxy(page: Page, path: string, options: { method?: string; body?: string } = {}) {
   return page.evaluate(
     ({ requestPath, requestOptions }) =>
@@ -135,7 +107,7 @@ test("real platform persists editor writes and SDK-configured context through th
   const connections: Browser[] = [];
 
   try {
-    await serveEditorFromLocalBuild(context);
+    await mockEditorCdn(context);
     const worker = await extensionWorker(context);
     const extensionId = new URL(worker.url()).host;
     const startupPages = context.pages();
@@ -157,9 +129,6 @@ test("real platform persists editor writes and SDK-configured context through th
     await page.bringToFront();
 
     const popup = await openPopup(worker, extensionId, debuggingPort, connections);
-    await page.evaluate(() => {
-      (globalThis as any).__COMVI__.get().collectContext = false;
-    });
     await activate(popup, worker, tabId);
     await popup.close();
     await page.bringToFront();
@@ -184,71 +153,20 @@ test("real platform persists editor writes and SDK-configured context through th
       expect(saved.translations.en.value).toBe("System value");
     });
 
-    await test.step("telemetry routes stay closed while the SDK disables context collection", async () => {
-      const telemetryOff = await proxy(page, "/v1/context/handshake", {
-        method: "POST",
-        body: JSON.stringify({ keys: [] }),
-      });
-      expect(telemetryOff.denied).toBe(true);
-    });
-
-    await test.step("context observations persist once the SDK enables collection", async () => {
-      await deactivate(page, worker, tabId);
-      await page.evaluate(() => {
-        delete (globalThis as any).__COMVI__.get().collectContext;
-      });
-
-      const telemetryPopup = await openPopup(worker, extensionId, debuggingPort, connections);
-      await activate(telemetryPopup, worker, tabId);
-      await telemetryPopup.close();
-      await page.bringToFront();
-
-      const savedItems: Array<{ key: string; status?: number }> = [];
-      for (const item of wireObservation.items) {
-        const result = await proxy(page, "/v1/keys", {
-          method: "PUT",
-          body: JSON.stringify({
-            key: item.key,
-            namespace: item.namespace,
-            isPlural: false,
-            translations: { en: { value: `System ${item.key}`, status: "translated" } },
-          }),
-        });
-        savedItems.push({ key: item.key, status: result.status });
+    // Context collection is OFF in lot 8 (owner decision D4): no session opens the context
+    // routes, so nothing reaches the platform's /context/* endpoints. The 0.7 step that
+    // persisted observations once the SDK enabled collection was removed with that contract.
+    await test.step("the context routes stay closed for the whole session", async () => {
+      for (const [path, body] of [
+        ["/v1/context/handshake", { keys: [] }],
+        [
+          "/v1/context/usages",
+          { origin: "http://127.0.0.1:8791", hashFnVersion: 1, items: [], stillValid: [] },
+        ],
+      ] as const) {
+        const refused = await proxy(page, path, { method: "POST", body: JSON.stringify(body) });
+        expect(refused.denied).toBe(true);
       }
-      expect(savedItems.filter(({ status }) => status !== 200 && status !== 201)).toEqual([]);
-
-      const keys = wireObservation.items.map(({ namespace, key }) => ({ namespace, key }));
-      const initialHandshake = parseBody(
-        await proxy(page, "/v1/context/handshake", {
-          method: "POST",
-          body: JSON.stringify({ keys }),
-        }),
-      );
-      expect(initialHandshake.entries).toEqual([]);
-
-      const usages = parseBody(
-        await proxy(page, "/v1/context/usages", {
-          method: "POST",
-          body: JSON.stringify({
-            origin: "http://127.0.0.1:8791",
-            hashFnVersion: 1,
-            items: wireObservation.items,
-            stillValid: [],
-          }),
-        }),
-      );
-      expect(usages.updated).toHaveLength(wireObservation.items.length);
-      expect(usages.orphanObservations).toBe(0);
-
-      const persisted = parseBody(
-        await proxy(page, "/v1/context/handshake", {
-          method: "POST",
-          body: JSON.stringify({ keys }),
-        }),
-      );
-      expect(persisted.entries).toHaveLength(wireObservation.items.length);
-      expect(persisted.entries.every((entry: any) => entry.screenGroups.length > 0)).toBe(true);
     });
 
     await test.step("the 5s loader timeout is honoured through the MV3 boundary", async () => {

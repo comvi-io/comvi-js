@@ -136,16 +136,28 @@ configuration error. A valid locale with no translation falls back, and `t(key, 
 ```ts title="server.ts"
 import { createSSRApp } from "vue";
 import { renderToString } from "vue/server-renderer";
+import { cdn } from "@comvi/core/cdn";
 import { createI18n, handover } from "@comvi/vue";
+import App from "./App.vue";
 
-const i18n = createI18n({ ...options, locale, timeZone: "UTC" }); // timeZone: required
-await i18n.ready;
-const html = await renderToString(createSSRApp(App).use(i18n));
-const payload = JSON.stringify(handover(i18n)).replace(/</g, "\\u003c");
-// The page embeds it: <script>window.__I18N__ = ${payload}</script>
+// The instance options, here in the server file; the browser's entry creates its instance
+// with the same values (timeZone is required).
+const options = {
+  fallbackLocale: "en",
+  timeZone: "UTC",
+  loader: cdn("https://cdn.comvi.io/<project-token>"),
+};
+
+export async function render(locale: string) {
+  const i18n = createI18n({ ...options, locale });
+  await i18n.ready;
+  const html = await renderToString(createSSRApp(App).use(i18n));
+  const payload = JSON.stringify(handover(i18n)).replace(/</g, "\\u003c");
+  return { html, payload }; // the page embeds it: <script>window.__I18N__ = ${payload}</script>
+}
 ```
 
-In the browser, `createI18n({ ...options, ...window.__I18N__ })` starts from the server's state:
+In the browser, `createI18n({ ...options, ...window.__I18N__ })`, with the same option values as the server, starts from the server's state:
 the same `isReady`/`isLoading`, no mismatch, nothing fetched that the server rendered.
 
 ## Read next

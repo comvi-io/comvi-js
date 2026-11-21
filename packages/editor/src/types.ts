@@ -1,0 +1,106 @@
+/** Shape returned by `/v1/api/project/locales`. */
+export interface LanguageResponse {
+  id: number;
+  code: string;
+  name: string;
+  nativeName: string;
+}
+
+export interface Language extends LanguageResponse {
+  pluralForms: string[];
+  isSource: boolean;
+}
+
+export interface PluralFormTranslation {
+  [form: string]: string;
+}
+
+/** Per-language ICU `select` configuration. */
+export interface LanguageSelectConfig {
+  /** Whether select is enabled for this language */
+  enabled: boolean;
+  /** Variable name for ICU select format (e.g., "formality", "gender") */
+  variable: string;
+  /** Available select options (e.g., ["formal", "informal"]) */
+  options: string[];
+}
+
+export interface TranslationData {
+  key: string | number;
+  description?: string;
+  isPlural: boolean;
+  pluralVariable?: string; // Variable name for ICU plural format (e.g., "count", "n")
+  translations: Record<string, PluralFormTranslation>;
+  /** Per-language select configuration (language code → config) */
+  selectConfigs?: Record<string, LanguageSelectConfig>;
+  /**
+   * Languages whose stored value the structured editor cannot rebuild byte for
+   * byte. Each is edited as one plain-text value in `translations[lang].other`.
+   */
+  rawLanguages?: string[];
+  /** Each language's value as the API stored it. */
+  sourceValues?: Record<string, string>;
+  metadata?: {
+    lastModified?: string;
+    createdAt?: string;
+    tags?: string[];
+    context?: string;
+  };
+}
+
+export interface TranslationState {
+  data: TranslationData | null;
+  isLoading: boolean;
+  error: string | null;
+  isDirty: boolean; // Has unsaved changes
+}
+
+export interface ValidationError {
+  languageId: string;
+  pluralForm: string;
+  message: string;
+}
+
+export interface ValidationWarning {
+  languageId: string;
+  pluralForm: string;
+  message: string;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  errors: ValidationError[];
+  /** Non-blocking findings, e.g. a translation whose placeholders differ from the source form. */
+  warnings?: ValidationWarning[];
+}
+
+export interface HighlightStyleOptions {
+  /** Border color (CSS color value, e.g., "#6366f1" or "red") */
+  borderColor?: string;
+  /** Background color (CSS color value, e.g., "rgba(99, 102, 241, 0.1)") */
+  backgroundColor?: string;
+  /** Border width in pixels */
+  borderWidth?: number;
+}
+
+export interface TranslationSystemOptions {
+  targetElement?: Node;
+  tagAttributes?: TagAttributesConfig;
+  debug?: boolean;
+  /** Custom highlight style for the translation overlay */
+  highlightStyle?: HighlightStyleOptions;
+}
+
+export interface TranslationSystemInnerOptions {
+  targetElement: Node;
+  tagAttributes: TagAttributesConfig;
+}
+
+/** HTML tag name → the attributes to watch on it. */
+export interface TagAttributesConfig {
+  [tagName: string]: string[];
+}
+
+// Defined in eventBus.ts for better type inference; re-exported here for
+// backward compatibility.
+export type { EventBusEvents } from "./EventBus";

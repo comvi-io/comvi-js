@@ -555,7 +555,7 @@ jobs:
         timeout-minutes: 5
         continue-on-error: true
         run: |
-          url="https://purge.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js"
+          url="https://purge.jsdelivr.net/npm/@comvi/editor@latest/dist/standalone.iife.js"
           stale="The release is published; jsDelivr's edge may serve the previous @latest editor for up to 12 hours. Purge by hand: https://www.jsdelivr.com/tools/purge"
           # Prints the first 2000 characters behind a prefix: a line that
           # begins with `::` is a workflow command.

@@ -148,13 +148,13 @@ function installBridge() {
     // Bridge may have missed the initial 'comvi-extension:detected' event
     // because detector and bridge race to register listeners. Forward status
     // updates to background so the toolbar icon reflects detection, and so
-    // the cached answer to "can this page supply the editor" stays current
-    // (a second copy of core can install the loader hook later).
+    // the cached answer to "what does this page speak" stays current (a
+    // second copy of core can announce a compatible instance later).
     if (
       status.comviDetected &&
       (!wasDetected ||
-        status.editorLoaded !== previous.editorLoaded ||
-        (status.editorLoader === null) !== (previous.editorLoader === null))
+        status.support !== previous.support ||
+        status.instanceCount !== previous.instanceCount)
     ) {
       sendRuntimeMessage({ type: "COMVI_DETECTED", payload: currentStatus });
     }
@@ -177,9 +177,8 @@ function installBridge() {
     }
     sendRuntimeMessage({
       type: "EDITOR_ACTIVATED",
-      // `collectContext` is page-authored: the honest editor derives it from
-      // the page's i18n config, but any page script can answer first. The
-      // nonce proves the user started this activation, not this value.
+      // Page-authored: any page script can answer first. The nonce proves the
+      // user started this activation, not what the result says.
       payload: { ...detail, nonce: takeActivationNonce() },
     });
   }) as EventListener);

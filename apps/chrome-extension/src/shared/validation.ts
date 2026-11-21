@@ -9,7 +9,7 @@
  * worker a spoof yields UI noise, not secrets.
  */
 
-import type { StatusResponsePayload, EditorActivatedPayload, EditorLoaderStatus } from "./messages";
+import type { StatusResponsePayload, EditorActivatedPayload, PageSupport } from "./messages";
 
 /** Parse a CustomEvent detail that may be a JSON string or an object. Never throws. */
 export function parseEventDetail(detail: unknown): Record<string, unknown> {
@@ -50,17 +50,10 @@ function asCount(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
 }
 
-function asEditorLoader(value: unknown): EditorLoaderStatus | null {
-  if (!value || typeof value !== "object") return null;
-  const protocol = readField(value, "protocol");
-  if (typeof protocol !== "number" || !Number.isInteger(protocol) || protocol < 1) {
-    return null;
-  }
-  return {
-    protocol,
-    sdkVersion: asOptionalString(readField(value, "sdkVersion"), 64),
-    editorVersion: asOptionalString(readField(value, "editorVersion"), 64),
-  };
+const PAGE_SUPPORT: readonly PageSupport[] = ["compatible", "old-protocol", "unknown-protocol"];
+
+function asSupport(value: unknown): PageSupport | undefined {
+  return PAGE_SUPPORT.find((known) => known === value);
 }
 
 /** Coerce an untrusted detector status payload into a fixed shape. */
@@ -70,8 +63,7 @@ export function sanitizeStatus(detail: unknown): StatusResponsePayload {
     // Both names are read, each once: `||` would skip the second on a hit.
     comviDetected: [readField(raw, "detected"), readField(raw, "comviDetected")].some(asBoolean),
     editorActive: asBoolean(readField(raw, "editorActive")),
-    editorLoaded: asBoolean(readField(raw, "editorLoaded")),
-    editorLoader: asEditorLoader(readField(raw, "editorLoader")),
+    support: asSupport(readField(raw, "support")),
     editorVersion: asOptionalString(readField(raw, "editorVersion"), 64),
     version: asOptionalString(readField(raw, "version"), 64),
     instanceCount: asCount(readField(raw, "instanceCount")),
@@ -86,7 +78,5 @@ export function sanitizeActivationResult(detail: unknown): EditorActivatedPayloa
     // Type and length only: the service worker holds the list of known codes
     // and drops any other before the popup sees it.
     code: asOptionalString(readField(raw, "code"), 32),
-    instanceId: asOptionalString(readField(raw, "instanceId"), 128),
-    collectContext: asBoolean(readField(raw, "collectContext")),
   };
 }

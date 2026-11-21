@@ -129,7 +129,7 @@ function declarationIsEmpty(text) {
 // FIXED condition set (`import`, `types`, `node`, `default`), so a `types` branch
 // living under a custom condition is never visited.
 //
-// @comvi/plugin-in-context-editor has exactly that shape:
+// @comvi/plugin-in-context-editor (0.7) had exactly that shape:
 //
 //     "." : { "types": { "production": "./dist/production.d.ts",
 //                        "default":    "./dist/index.d.ts" }, ... }

@@ -49,8 +49,8 @@ const SEMVER_TEMPLATE_LITERAL = /`(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)`/g;
 
 /**
  * Dependencies whose own version string a package bundles into `dist`.
- * `@comvi/plugin-in-context-editor` bundles Vue, whose runtime carries
- * `version`, into the standalone IIFE and the lazily loaded editor chunks.
+ * `@comvi/editor` bundles Vue, whose runtime carries `version`, into the
+ * standalone IIFE.
  *
  * What this admits, exactly: in that package's output, any literal equal to
  * the version of the Vue that is installed for it — wherever it stands. A
@@ -64,7 +64,7 @@ const SEMVER_TEMPLATE_LITERAL = /`(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)`/g;
  * that has to be checked.
  */
 export const BUNDLED_DEPENDENCY_VERSIONS = {
-  "@comvi/plugin-in-context-editor": ["vue"],
+  "@comvi/editor": ["vue"],
 };
 
 /** The installed version of every dependency `pkg` is recorded as bundling. */

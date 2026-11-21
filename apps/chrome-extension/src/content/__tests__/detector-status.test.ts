@@ -1,8 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createPageWindow, recordEvents, type PageWindow } from "./harness";
+import { EDITOR_VERSION } from "../../shared/protocol";
+import {
+  createPageWindow,
+  protocol2Entry,
+  protocol2Handle,
+  recordEvents,
+  type PageWindow,
+} from "./harness";
 
 const POLL_INTERVAL = 100;
 const POLLS_BEFORE_GIVING_UP = 30;
+
+const NOTHING = {
+  detected: false,
+  support: null,
+  version: null,
+  instanceCount: 0,
+  editorActive: false,
+  editorVersion: null,
+};
 
 describe("MAIN-world detector status reporting", () => {
   let page: PageWindow;
@@ -35,106 +51,35 @@ describe("MAIN-world detector status reporting", () => {
     return detail;
   }
 
-  it("announces detection at once on a page that already runs Comvi", async () => {
-    page.__COMVI__ = [{ v: "2.0.0", i: { instanceId: "i18n" } }];
+  it("announces detection at once on a page that already runs Comvi 0.8", async () => {
+    page.__COMVI__ = [protocol2Entry()];
     const detected = recordEvents(page, "comvi-extension:detected");
 
     await injectDetector();
 
     expect(detected).toEqual([
-      {
-        detected: true,
-        version: "2.0.0",
-        instanceCount: 1,
-        editorActive: false,
-        editorLoaded: false,
-        editorLoader: null,
-        editorVersion: null,
-      },
+      { ...NOTHING, detected: true, support: "compatible", version: "0.8.0", instanceCount: 1 },
     ]);
   });
 
-  it("completes the handshake Comvi waits for when detection succeeds", async () => {
-    page.__COMVI__ = [{ v: "2.0.0", i: { instanceId: "i18n" } }];
-    let handshakes = 0;
-    page.addEventListener("COMVI_PLUGIN_READY", () => {
-      handshakes += 1;
-    });
+  // The 0.7 SDK waited for this handshake; 0.8 waits for nothing, and nothing
+  // new may be dispatched into every page the extension sees.
+  it("dispatches no handshake into the page", async () => {
+    page.__COMVI__ = [protocol2Entry()];
+    const handshakes = recordEvents(page, "COMVI_PLUGIN_READY");
 
     await injectDetector();
 
-    expect(handshakes).toBe(1);
+    expect(handshakes).toEqual([]);
   });
 
-  it("announces detection only once however often Comvi reports itself", async () => {
+  it("takes no detection from a ready event the page dispatches", async () => {
     const detected = recordEvents(page, "comvi-extension:detected");
     await injectDetector();
 
     page.dispatchEvent(new CustomEvent("COMVI_READY", { detail: { version: "2.0.0" } }));
-    page.dispatchEvent(new CustomEvent("COMVI_READY", { detail: { version: "2.0.0" } }));
 
-    expect(detected).toHaveLength(1);
-  });
-
-  it("announces detection from the SDK's ready handshake", async () => {
-    const detected = recordEvents(page, "comvi-extension:detected");
-    await injectDetector();
-
-    page.dispatchEvent(
-      new CustomEvent("COMVI_READY", { detail: { version: "2.5.0", instanceCount: 3 } }),
-    );
-
-    expect(detected).toEqual([
-      {
-        detected: true,
-        version: "2.5.0",
-        instanceCount: 3,
-        editorActive: false,
-        editorLoaded: false,
-        editorLoader: null,
-        editorVersion: null,
-      },
-    ]);
-  });
-
-  it("assumes a single unversioned instance when the ready handshake carries nothing", async () => {
-    const detected = recordEvents(page, "comvi-extension:detected");
-    await injectDetector();
-
-    page.dispatchEvent(new CustomEvent("COMVI_READY"));
-
-    expect(detected).toEqual([
-      {
-        detected: true,
-        version: null,
-        instanceCount: 1,
-        editorActive: false,
-        editorLoaded: false,
-        editorLoader: null,
-        editorVersion: null,
-      },
-    ]);
-  });
-
-  it("ignores implausible values in the ready handshake", async () => {
-    const detected = recordEvents(page, "comvi-extension:detected");
-    await injectDetector();
-
-    page.dispatchEvent(
-      new CustomEvent("COMVI_READY", { detail: { version: 2, instanceCount: "many" } }),
-    );
-
-    expect(detected[0]).toMatchObject({ version: null, instanceCount: 1 });
-  });
-
-  it("reports the editor runtime as loaded in the ready handshake when it is present", async () => {
-    page.ComviInContextEditor = { isActive: () => false, activate: () => null };
-    const detected = recordEvents(page, "comvi-extension:detected");
-    await injectDetector();
-
-    page.dispatchEvent(new CustomEvent("COMVI_READY"));
-
-    expect(detected[0]).toMatchObject({ editorLoaded: true, editorActive: false });
+    expect(detected).toEqual([]);
   });
 
   it("keeps polling a page without Comvi until the last poll of the budget", async () => {
@@ -153,17 +98,7 @@ describe("MAIN-world detector status reporting", () => {
 
     vi.advanceTimersByTime(POLL_INTERVAL);
 
-    expect(notFound).toEqual([
-      {
-        detected: false,
-        version: null,
-        instanceCount: 0,
-        editorActive: false,
-        editorLoaded: false,
-        editorLoader: null,
-        editorVersion: null,
-      },
-    ]);
+    expect(notFound).toEqual([NOTHING]);
   });
 
   it("stops polling as soon as a late-loading Comvi appears", async () => {
@@ -172,7 +107,7 @@ describe("MAIN-world detector status reporting", () => {
     await injectDetector();
 
     vi.advanceTimersByTime(5 * POLL_INTERVAL);
-    page.__COMVI__ = [{ v: "2.0.0", i: { instanceId: "late" } }];
+    page.__COMVI__ = [protocol2Entry()];
     vi.advanceTimersByTime(POLL_INTERVAL);
     vi.advanceTimersByTime(POLLS_BEFORE_GIVING_UP * POLL_INTERVAL);
 
@@ -180,67 +115,130 @@ describe("MAIN-world detector status reporting", () => {
     expect(notFound).toEqual([]);
   });
 
-  it("reports an active editor runtime", async () => {
-    page.__COMVI__ = { version: "1.9.0", instances: new Map([["i18n", {}]]) };
-    page.ComviInContextEditor = { isActive: () => true, activate: () => null };
+  it("reports an instance that arrives after the poll budget when asked", async () => {
+    await injectDetector();
+    vi.advanceTimersByTime(POLLS_BEFORE_GIVING_UP * POLL_INTERVAL);
+
+    page.__COMVI__ = [protocol2Entry()];
+
+    expect(status()).toMatchObject({ detected: true, support: "compatible", instanceCount: 1 });
+  });
+
+  it("reports a destroyed instance as gone", async () => {
+    const entry = protocol2Entry();
+    const queue = [entry];
+    page.__COMVI__ = queue;
     await injectDetector();
 
-    expect(status()).toEqual({
-      detected: true,
-      version: "1.9.0",
-      instanceCount: 1,
-      editorActive: true,
-      editorLoaded: true,
-      editorLoader: null,
-      editorVersion: null,
+    queue.splice(queue.indexOf(entry) >>> 0, 1);
+
+    expect(status()).toEqual(NOTHING);
+  });
+
+  it("reports no editor before one was activated, even when one is on the page", async () => {
+    page.__COMVI__ = [protocol2Entry()];
+    const isActive = vi.fn(() => true);
+    page.ComviInContextEditor = { isActive, activate: () => null, version: EDITOR_VERSION };
+    await injectDetector();
+
+    expect(status()).toMatchObject({ editorActive: false, editorVersion: EDITOR_VERSION });
+    // A status read only reads: the page's editor is not called.
+    expect(isActive).not.toHaveBeenCalled();
+  });
+
+  it("reports the version the editor on the page states, and none for a non-string", async () => {
+    page.__COMVI__ = [protocol2Entry()];
+    page.ComviInContextEditor = { activate: () => null, version: 8 };
+    await injectDetector();
+
+    expect(status()).toMatchObject({ editorVersion: null });
+  });
+
+  it("reads no editor version through a getter", async () => {
+    page.__COMVI__ = [protocol2Entry()];
+    const getter = vi.fn(() => EDITOR_VERSION);
+    page.ComviInContextEditor = Object.defineProperty({ activate: () => null }, "version", {
+      get: getter,
     });
-  });
-
-  it("reports a loaded but idle editor runtime", async () => {
-    page.__COMVI__ = { version: "1.9.0", instances: new Map([["i18n", {}]]) };
-    page.ComviInContextEditor = { isActive: () => false, activate: () => null };
     await injectDetector();
 
-    expect(status()).toMatchObject({ editorActive: false, editorLoaded: true });
+    expect(status()).toMatchObject({ editorVersion: null });
+    expect(getter).not.toHaveBeenCalled();
   });
 
-  it("reports no editor runtime on a page where none was injected", async () => {
-    page.__COMVI__ = { version: "1.9.0", instances: new Map([["i18n", {}]]) };
+  it("calls nothing on any entry while reading the status", async () => {
+    const x = protocol2Handle();
+    page.__COMVI__ = [protocol2Entry(x), protocol2Entry(protocol2Handle({ p: 3 }))];
     await injectDetector();
 
-    expect(status()).toEqual({
-      detected: true,
-      version: "1.9.0",
-      instanceCount: 1,
-      editorActive: false,
-      editorLoaded: false,
-      editorLoader: null,
-      editorVersion: null,
-    });
+    status();
+    status();
+
+    for (const member of ["read", "state", "mark", "load"] as const) {
+      expect(x[member]).not.toHaveBeenCalled();
+    }
+  });
+});
+
+/**
+ * The popup re-injects the detector on every open. It must install once per page load, and
+ * leave nothing on `window` for the page to see: an installed detector answers a cancelable
+ * probe event instead of a global flag.
+ */
+describe("MAIN-world detector re-injection guard", () => {
+  let page: PageWindow;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    page = createPageWindow();
+    page.__COMVI__ = [protocol2Entry()];
   });
 
-  it("survives an editor runtime that exposes no isActive hook", async () => {
-    page.__COMVI__ = { version: "1.9.0", instances: new Map([["i18n", {}]]) };
-    page.ComviInContextEditor = { activate: () => null };
-    await injectDetector();
-
-    expect(status()).toMatchObject({ editorActive: false, editorLoaded: true });
+  afterEach(() => {
+    vi.useRealTimers();
   });
+
+  async function injectDetector(): Promise<void> {
+    vi.resetModules();
+    vi.stubGlobal("window", page);
+    await import("../detector");
+  }
 
   it("installs nothing when the popup re-injects it into the same page", async () => {
-    page.__comviExtensionDetectorInstalled = true;
-    page.__COMVI__ = [{ v: "2.0.0", i: { instanceId: "i18n" } }];
+    await injectDetector();
     const detected = recordEvents(page, "comvi-extension:detected");
 
     await injectDetector();
 
     expect(detected).toEqual([]);
-    expect(page.listenerCount("comvi-extension:get-status")).toBe(0);
+    expect(page.listenerCount("comvi-extension:get-status")).toBe(1);
+    expect(page.listenerCount("comvi-extension:activate")).toBe(1);
   });
 
-  it("marks the page so a re-injection can tell the detector already ran", async () => {
+  it("leaves no property on the page's window", async () => {
+    const before = Object.keys(page).sort();
+
+    await injectDetector();
     await injectDetector();
 
-    expect(page.__comviExtensionDetectorInstalled).toBe(true);
+    expect(Object.keys(page).sort()).toEqual(before);
+    expect("__comviExtensionDetectorInstalled" in page).toBe(false);
+  });
+
+  it("installs again after an installation that threw", async () => {
+    let throwOnce = true;
+    const addEventListener = page.addEventListener;
+    page.addEventListener = (type, listener) => {
+      if (type === "comvi-extension:get-status" && throwOnce) {
+        throwOnce = false;
+        throw new Error("page broke addEventListener");
+      }
+      addEventListener(type, listener);
+    };
+    await expect(injectDetector()).rejects.toThrow("page broke addEventListener");
+
+    await injectDetector();
+
+    expect(page.listenerCount("comvi-extension:get-status")).toBe(1);
   });
 });

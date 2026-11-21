@@ -12,18 +12,14 @@ const sourcePackages: Record<string, string> = {
   "@comvi/react": "packages/react/src/index.ts",
   "@comvi/svelte": "packages/svelte/src/index.ts",
   "@comvi/next": "packages/next/src/index.ts",
-  "@comvi/plugin-in-context-editor": "packages/plugin-in-context-editor/src/index.ts",
 };
 
 /** Package-internal path aliases, re-declared so consuming apps can resolve them. */
-const internalAliases: Record<string, string> = {
-  // Note: '@' alias for plugin-in-context-editor is internal only (not exported to consuming apps)
-};
+const internalAliases: Record<string, string> = {};
 
 /** Packages built by non-Vite tooling, so they must be watched rather than source-imported. */
 const defaultWatchPackages = [
   "@comvi/next", // Uses tsup with "use client" directive
-  "@comvi/plugin-in-context-editor", // Complex Vue plugin with CSS injection
 ];
 
 export interface ComviDevOptions {

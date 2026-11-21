@@ -11,17 +11,15 @@ concurrency:
 jobs:
   # MIGRATION_PENDING (tooling/migration-pending.mjs): during the 0.8 core rebuild the
   # packages that do not build against the new core yet are listed there with the lot
-  # that rebuilds them. Every job below that exists only for such packages reads this
-  # job's outputs and is skipped while one of its packages is pending; it comes back on
-  # its own when a lot removes the entries. The package-level gates (build, test,
-  # lint, typecheck, size, contracts, publint, types exports) skip the pending
-  # packages by name themselves and print the reason.
+  # that rebuilds them. The sharded jobs below read this job's outputs and run only
+  # their active shards. The package-level gates (build, test, lint, typecheck, size,
+  # contracts, publint, types exports) skip the pending packages by name themselves
+  # and print the reason.
   migration-pending:
     name: MIGRATION_PENDING switches
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      extension: ${{ steps.pending.outputs.extension }}
       # JSON list of the ACTIVE examples-e2e shards ({framework, mode}); `[]` when none.
       examples_e2e_matrix: ${{ steps.pending.outputs.examples_e2e_matrix }}
       # Comma-separated active test apps; empty when none.
@@ -259,8 +257,6 @@ jobs:
 
   extension:
     name: Chrome extension
-    needs: migration-pending
-    if: needs.migration-pending.outputs.extension == 'active'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -281,8 +277,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Builds @comvi/plugin-in-context-editor first via turbo `^build` — the
-      # bundle Gate E loads.
+      # Builds @comvi/editor (and through it core and the bindings) first via turbo
+      # `^build` — the bundle Gate E loads.
       # The production origin is scoped to THIS step: vite's loadEnv lets process.env
       # override .env.gate-e, so a job-level value would also poison the Gate E build
       # (host_permissions would name api.comvi.io and the popup could not see tab URLs).
@@ -294,11 +290,26 @@ jobs:
       - name: Verify built artifact
         run: pnpm --filter @comvi/chrome-extension exec vitest run src/__tests__/artifacts.test.ts
 
-      - name: Install Chromium
-        run: pnpm --filter @comvi/chrome-extension exec playwright install --with-deps chromium
+      # Chromium runs the extension; Firefox and WebKit run only the plain-page checks of
+      # playwright.engines.config.ts below.
+      - name: Install Chromium, Firefox and WebKit
+        run: pnpm --filter @comvi/chrome-extension exec playwright install --with-deps chromium firefox webkit
 
+      # turbo `^build` builds every workspace package the extension declares (core, the
+      # editor, the bindings, next, nuxt) before the gate: the pages and the framework
+      # fixtures read their dist. The extension's own Gate E build is the spec's first step.
       - name: Run Gate E
-        run: pnpm --filter @comvi/chrome-extension test:e2e
+        run: pnpm extension:gate-e
+
+      # Plain pages, no extension (dists built by the step above): no frame without an editor
+      # session in all three engines, and the marker layout. Chromium must measure marked
+      # output identical to unmarked; Firefox is an extra check of the format. On this Linux
+      # runner the WebKit width and pixel comparison is an annotation, not a `test.fail`: the
+      # known defect was measured in WebKit on macOS (Playwright) and is `test.fail` only
+      # there. The CI run of 2026-11-19 measured marked == unmarked here in all three engines,
+      # with Arabic shaped (joined word about 28-29 px against about 43 px with its letters apart).
+      - name: Marker checks in three engines
+        run: pnpm --filter @comvi/chrome-extension test:layout-engines
 
       - name: Upload Gate E diagnostics
         if: always()

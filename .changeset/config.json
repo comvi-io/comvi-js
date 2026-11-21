@@ -6,9 +6,9 @@
     [
       "@comvi/cli",
       "@comvi/core",
+      "@comvi/editor",
       "@comvi/next",
       "@comvi/nuxt",
-      "@comvi/plugin-in-context-editor",
       "@comvi/react",
       "@comvi/solid",
       "@comvi/svelte",

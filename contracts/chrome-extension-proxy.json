@@ -17,21 +17,14 @@
       "removedIn08": "Moved out of core by R3-15 (owner 27.10): the v1 legacy registry (register/unregister), the push/remove hook probes and their order, the `comvi-<n>` counter with its `Symbol.for(\"comvi.core.instanceCounter\")` slot, `instanceId` and its idempotence, and the editor-loader slot `Symbol.for(\"comvi.devtools.editorLoader\")` with its load key. Tests for each moved duty belong to lot 8 (extension/editor), listed in .lot1-pending-tests.md."
     },
     "pageToExtension": {
-      "description": "The consumer (in-context editor / Chrome extension) drains window.__COMVI__ on boot. To observe later instances and their removal it may replace the global with an ARRAY whose own push, indexOf and splice it controls — the only three members core 0.8 ever calls; that is the whole of what protocol 2 asks of a consumer. Lot 8 rewrites the consumer side (hook shape, marker rule, id assignment) on this protocol; until then `consumer07` describes the 0.7 consumers.",
-      "consumer07": {
-        "normative": false,
-        "note": "The 0.7 consumers' own hook, kept for reference until lot 8 rewrites it. NOT part of protocol 2: core 0.8 never reads hookShape, the marker or requiredMembers, and lot 8 must not treat them as v2 requirements.",
-        "hookShape": "Object.assign([], { __comviEditorHook: true, push, indexOf, splice, instances, get, version }) — an array, so `||= []` keeps it, with OWN push (a new entry), indexOf and splice (an entry's removal) shadowing Array.prototype.",
-        "marker": "__comviEditorHook",
-        "markerRule": "The hook carries `__comviEditorHook === true` so that whichever consumer installs first (in-context editor or extension detector) is REUSED by the other instead of swapping again. It is not proof of a hook: it is page-writable, and a page that pollutes Object.prototype.__comviEditorHook marks every object. A consumer MUST therefore validate requiredMembers before adopting a marked global, MUST probe Array.isArray BEFORE the marker (so a polluted prototype cannot make a raw queue array look like an installed hook), and MUST read the marker and the entry's `i` as OWN properties rather than with `in`. A marked global that fails requiredMembers is treated as whatever it otherwise looks like — a v1 legacy registry if it duck-types as one, else a truthy non-conforming global: left untouched, never adopted, never read, and never a thrown error.",
-        "requiredMembers": ["push", "indexOf", "splice", "instances", "get"]
-      },
+      "description": "The consumer (in-context editor / Chrome extension) drains window.__COMVI__ on boot. To observe later instances and their removal it may replace the global with an ARRAY whose own push, indexOf and splice it controls — the only three members core 0.8 ever calls; that is the whole of what protocol 2 asks of a consumer.",
       "idCollisions": "0.8 entries carry no id. The editor assigns an internal `inst` per instance when it builds its marking closure (editor plan §3.2: empty when the page has one instance, `comvi-<n>` when it has several) and re-marks through x.mark when a second instance appears."
     },
     "versionPairing": {
-      "core-0.8+extension-for-0.8": "target protocol (2)",
-      "core-0.8+extension-0.6.x": "UNSUPPORTED — the released extension looks for the 0.7 editor-loader slot and reports `no-loader`. Release gate (R3-15): the extension that speaks protocol 2 is published to the Chrome Web Store before @comvi/core 0.8 is published to npm.",
-      "core-0.7+extension-for-0.8": "the extension's own business (lot 8 decides whether it keeps a 0.7 path)",
+      "core-0.8+extension-for-0.8": "target protocol (2): the extension drives only an entry with an own `i` object and an own `x` object with x.p === 2 and x.kind === 'comvi', and passes x.load() the exact @comvi/editor version it was built with (owner D3)",
+      "core-0.5-to-0.7+extension-for-0.8": "UNSUPPORTED (owner D1, lot 8): a { v, i } entry without a protocol 2 handle, the v1 registry or the 0.7 hook is refused as old-protocol: nothing is called on it, window.__COMVI__ is left as it is and nothing is added to the page; the popup asks the site to upgrade to 0.8 with plugins: [devtools()]",
+      "unknown-handle+extension-for-0.8": "UNSUPPORTED: x.p !== 2 or another kind is refused the same way as unknown-protocol; the popup asks to update the extension",
+      "core-0.8+extension-0.6.x": "UNSUPPORTED — the released extension looks for the 0.7 editor-loader slot and reports `no-loader`. The order of the Chrome Web Store and npm releases is an open owner decision, made before the 0.8 release (lot 8, RELEASING.md).",
       "two-cores-0.8-same-page": "both push onto the one array; each removes only its own entry object"
     }
   },

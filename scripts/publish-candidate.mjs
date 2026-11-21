@@ -463,8 +463,7 @@ export function unexercised(candidates, reports) {
 export const BROWSER_UNCOVERED = {
   "@comvi/cli": "a command-line tool; no browser runtime to exercise",
   "@comvi/vite-plugin": "a build-time plugin; no example builds with it",
-  "@comvi/plugin-in-context-editor":
-    "the editor overlay needs a platform session; no example ships it",
+  "@comvi/editor": "the editor overlay needs a platform session; no example ships it",
 };
 
 /**

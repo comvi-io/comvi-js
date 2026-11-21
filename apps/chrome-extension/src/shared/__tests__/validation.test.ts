@@ -37,26 +37,25 @@ describe("sanitizeStatus", () => {
       sanitizeStatus({
         detected: true,
         editorActive: false,
-        editorLoaded: true,
-        editorLoader: null,
+        support: "compatible",
+        editorVersion: "0.8.0",
         version: "1.2.3",
         instanceCount: 2,
       }),
     ).toEqual({
       comviDetected: true,
       editorActive: false,
-      editorLoaded: true,
-      editorLoader: null,
+      support: "compatible",
+      editorVersion: "0.8.0",
       version: "1.2.3",
       instanceCount: 2,
     });
   });
 
   it("treats truthy-but-not-true values as false", () => {
-    const status = sanitizeStatus({ detected: 1, editorActive: "yes", editorLoaded: {} });
+    const status = sanitizeStatus({ detected: 1, editorActive: "yes" });
     expect(status.comviDetected).toBe(false);
     expect(status.editorActive).toBe(false);
-    expect(status.editorLoaded).toBe(false);
   });
 
   it("drops non-string and oversized versions", () => {
@@ -86,78 +85,47 @@ describe("sanitizeStatus", () => {
     expect(sanitizeStatus("{broken")).toEqual({
       comviDetected: false,
       editorActive: false,
-      editorLoaded: false,
-      editorLoader: null,
+      support: undefined,
+      editorVersion: undefined,
       version: undefined,
       instanceCount: 0,
     });
   });
 });
 
-describe("sanitizeStatus editor loader", () => {
-  it("keeps the loader hook's protocol and versions", () => {
-    const status = sanitizeStatus({
-      detected: true,
-      editorLoader: { protocol: 1, sdkVersion: "0.5.1", editorVersion: "latest" },
-      editorVersion: "0.5.1",
-    });
-
-    expect(status.editorLoader).toEqual({
-      protocol: 1,
-      sdkVersion: "0.5.1",
-      editorVersion: "latest",
-    });
-    expect(status.editorVersion).toBe("0.5.1");
-  });
-
-  it("accepts a protocol newer than this extension knows", () => {
-    expect(sanitizeStatus({ editorLoader: { protocol: 7 } }).editorLoader).toEqual({
-      protocol: 7,
-      sdkVersion: undefined,
-      editorVersion: undefined,
-    });
-  });
-
-  it("forwards nothing the hook carries beyond the three known fields", () => {
-    const status = sanitizeStatus({
-      editorLoader: { protocol: 1, url: "https://evil.example/x.js", load: "now" },
-    });
-
-    expect(Object.keys(status.editorLoader ?? {}).sort()).toEqual([
-      "editorVersion",
-      "protocol",
-      "sdkVersion",
-    ]);
+describe("sanitizeStatus page support", () => {
+  it.each(["compatible", "old-protocol", "unknown-protocol"])("keeps %s", (support) => {
+    expect(sanitizeStatus({ detected: true, support }).support).toBe(support);
   });
 
   it.each([
-    ["a missing loader", undefined],
-    ["a loader that is not an object", "protocol 1"],
-    ["protocol 0", { protocol: 0 }],
-    ["a fractional protocol", { protocol: 1.5 }],
-    ["a string protocol", { protocol: "1" }],
-    ["an infinite protocol", { protocol: Infinity }],
-  ])("reads %s as no loader", (_label, editorLoader) => {
-    expect(sanitizeStatus({ editorLoader }).editorLoader).toBeNull();
+    ["a missing value", undefined],
+    ["another word", "newer-protocol"],
+    ["another spelling", "Compatible"],
+    ["a protocol number", 2],
+    ["an object", { protocol: 2 }],
+    ["a stringish object", { toString: () => "compatible" }],
+  ])("reads %s as no support", (_label, support) => {
+    expect(sanitizeStatus({ detected: true, support }).support).toBeUndefined();
   });
 
-  it("drops loader versions that are not strings of at most 64 characters", () => {
+  it("forwards nothing beyond the known status fields", () => {
     const status = sanitizeStatus({
-      editorLoader: { protocol: 1, sdkVersion: "v".repeat(65), editorVersion: 5 },
+      detected: true,
+      support: "compatible",
+      editorLoader: { protocol: 1, url: "https://evil.example/x.js" },
+      url: "https://evil.example/x.js",
     });
 
-    expect(status.editorLoader).toEqual({
-      protocol: 1,
-      sdkVersion: undefined,
-      editorVersion: undefined,
-    });
-  });
-
-  it("keeps a loader version of exactly the 64-character limit", () => {
-    const sdkVersion = "v".repeat(64);
-    expect(
-      sanitizeStatus({ editorLoader: { protocol: 1, sdkVersion } }).editorLoader?.sdkVersion,
-    ).toBe(sdkVersion);
+    expect(Object.keys(status).sort()).toEqual([
+      "comviDetected",
+      "editorActive",
+      "editorVersion",
+      "instanceCount",
+      "support",
+      "version",
+    ]);
+    expect(JSON.stringify(status)).not.toContain("evil.example");
   });
 
   it("drops an editor version past the limit or of another type", () => {
@@ -176,7 +144,7 @@ describe("sanitizeActivationResult", () => {
       message: "Send your API key to https://evil.example",
     });
 
-    expect(Object.keys(result).sort()).toEqual(["code", "collectContext", "instanceId", "success"]);
+    expect(Object.keys(result).sort()).toEqual(["code", "success"]);
     expect(JSON.stringify(result)).not.toContain("evil.example");
   });
 
@@ -187,29 +155,22 @@ describe("sanitizeActivationResult", () => {
   });
 
   it("accepts a success payload", () => {
-    expect(
-      sanitizeActivationResult({ success: true, instanceId: "abc", collectContext: true }),
-    ).toEqual({
-      success: true,
-      error: undefined,
-      instanceId: "abc",
-      collectContext: true,
-    });
+    expect(sanitizeActivationResult({ success: true })).toEqual({ success: true, code: undefined });
   });
 
   it("only success === true counts", () => {
-    const result = sanitizeActivationResult({ success: "true", collectContext: "true" });
-    expect(result.success).toBe(false);
-    expect(result.collectContext).toBe(false);
+    expect(sanitizeActivationResult({ success: "true" }).success).toBe(false);
   });
 
-  it("keeps an instanceId of exactly the 128-character limit", () => {
-    const instanceId = "i".repeat(128);
-    expect(sanitizeActivationResult({ instanceId }).instanceId).toBe(instanceId);
-  });
-
-  it("drops an instanceId one character past the limit", () => {
-    expect(sanitizeActivationResult({ instanceId: "i".repeat(129) }).instanceId).toBeUndefined();
+  // Context collection is OFF in lot 8 (D4) and 0.8 has no public instance id:
+  // a page that still sends either gets nothing of it past the bridge.
+  it("drops an instanceId and a collectContext claim the page attaches", () => {
+    const result = sanitizeActivationResult({
+      success: true,
+      instanceId: "comvi-1",
+      collectContext: true,
+    });
+    expect(result).toEqual({ success: true, code: undefined });
   });
 
   it("parses JSON string details", () => {
@@ -238,20 +199,14 @@ describe("page objects are read once and never trusted twice", () => {
 
   const payload = { blob: "x".repeat(100_000) };
 
-  it("forwards the protocol it validated, not what a later read returns", () => {
-    const { object, reads } = shifting("protocol", 1, payload);
+  it("forwards the support it validated, not what a later read returns", () => {
+    const { object, reads } = shifting("support", "compatible", payload);
 
-    const status = sanitizeStatus({ detected: true, editorLoader: object });
-
-    expect(status.editorLoader).toEqual({
-      protocol: 1,
-      sdkVersion: undefined,
-      editorVersion: undefined,
-    });
+    expect(sanitizeStatus(object).support).toBe("compatible");
     expect(reads.count).toBe(1);
   });
 
-  it.each(["version", "editorVersion", "instanceCount", "editorLoaded", "editorLoader"])(
+  it.each(["version", "editorVersion", "instanceCount", "support"])(
     "reads the status field %s once",
     (key) => {
       const { object, reads } = shifting(key, "0.5.1", payload);
@@ -263,17 +218,14 @@ describe("page objects are read once and never trusted twice", () => {
     },
   );
 
-  it.each(["success", "code", "instanceId", "collectContext"])(
-    "reads the activation field %s once",
-    (key) => {
-      const { object, reads } = shifting(key, "timeout", payload);
+  it.each(["success", "code"])("reads the activation field %s once", (key) => {
+    const { object, reads } = shifting(key, "timeout", payload);
 
-      const result = sanitizeActivationResult(object);
+    const result = sanitizeActivationResult(object);
 
-      expect(reads.count).toBe(1);
-      expect(JSON.stringify(result).length).toBeLessThan(300);
-    },
-  );
+    expect(reads.count).toBe(1);
+    expect(JSON.stringify(result).length).toBeLessThan(300);
+  });
 
   it("survives a status whose every getter throws", () => {
     const hostile = new Proxy(
@@ -288,24 +240,10 @@ describe("page objects are read once and never trusted twice", () => {
     expect(sanitizeStatus(hostile)).toEqual({
       comviDetected: false,
       editorActive: false,
-      editorLoaded: false,
-      editorLoader: null,
+      support: undefined,
       editorVersion: undefined,
       version: undefined,
       instanceCount: 0,
-    });
-  });
-
-  it("survives a loader whose getters throw", () => {
-    const loader = Object.defineProperty({}, "protocol", {
-      get() {
-        throw new Error("hostile getter");
-      },
-    });
-
-    expect(sanitizeStatus({ detected: true, editorLoader: loader })).toMatchObject({
-      comviDetected: true,
-      editorLoader: null,
     });
   });
 
@@ -319,18 +257,13 @@ describe("page objects are read once and never trusted twice", () => {
       },
     );
 
-    expect(sanitizeActivationResult(hostile)).toEqual({
-      success: false,
-      code: undefined,
-      instanceId: undefined,
-      collectContext: false,
-    });
+    expect(sanitizeActivationResult(hostile)).toEqual({ success: false, code: undefined });
   });
 
-  it("builds a loader from a Proxy's answers, one read per field", () => {
+  it("builds a status from a Proxy's answers, one read per field", () => {
     const seen: string[] = [];
-    const loader = new Proxy(
-      { protocol: 2, sdkVersion: "0.5.1", editorVersion: "latest", url: "https://evil.example" },
+    const status = new Proxy(
+      { detected: true, support: "compatible", url: "https://evil.example" },
       {
         get(target, key: string) {
           seen.push(key);
@@ -339,12 +272,9 @@ describe("page objects are read once and never trusted twice", () => {
       },
     );
 
-    expect(sanitizeStatus({ editorLoader: loader }).editorLoader).toEqual({
-      protocol: 2,
-      sdkVersion: "0.5.1",
-      editorVersion: "latest",
-    });
-    expect(seen.sort()).toEqual(["editorVersion", "protocol", "sdkVersion"]);
+    expect(sanitizeStatus(status).support).toBe("compatible");
+    expect(seen.filter((key) => key === "support")).toEqual(["support"]);
+    expect(seen).not.toContain("url");
   });
 
   it("readField answers undefined instead of throwing, for any source", () => {

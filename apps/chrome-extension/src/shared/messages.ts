@@ -34,17 +34,28 @@ export interface Message {
 }
 
 /**
- * Why the page's `devtools()` hook could not put the editor on the page
- * (contracts/chrome-extension-proxy.json, `editorLoader.failureCodes`).
+ * What the detector found on the page (contracts/chrome-extension-proxy.json, `discovery`):
+ * protocol 2 entries it can drive, only entries of a Comvi older than 0.8 (0.5–0.7 `{ v, i }`,
+ * the v1 registry, the 0.7 hook), or only handles it does not know (`x.p !== 2`, another
+ * `kind`). `unknown-protocol` wins over `old-protocol`; one compatible entry wins over both.
  */
-export type EditorLoadFailureCode =
-  "csp-blocked" | "load-error" | "timeout" | "no-global" | "invalid-editor-version";
+export type PageSupport = "compatible" | "old-protocol" | "unknown-protocol";
 
 /**
- * A hook code, or the extension's own `no-loader`: the page has a Comvi i18n
- * instance but no editor and no hook to load one (@comvi/core before 0.6.0).
+ * Why the editor could not be put on the page or started. The detector's own codes
+ * (`csp-blocked` … `bad-version`), the page's protocol (`old-protocol`, `unknown-protocol`,
+ * `no-instance`), all decided in the extension: no text from the page travels with them.
  */
-export type ActivationFailureCode = EditorLoadFailureCode | "no-loader";
+export type ActivationFailureCode =
+  | "csp-blocked"
+  | "trusted-types"
+  | "load-error"
+  | "timeout"
+  | "no-global"
+  | "bad-version"
+  | "old-protocol"
+  | "unknown-protocol"
+  | "no-instance";
 
 /**
  * What the service worker tells the popup about a failed activation: a code
@@ -55,19 +66,11 @@ export type ActivationFailureCode = EditorLoadFailureCode | "no-loader";
  */
 export type ActivationOutcomeCode = ActivationFailureCode | "unconfirmed" | "failed";
 
-/** The page's editor-loader hook as the detector read it. Page-authored. */
-export interface EditorLoaderStatus {
-  protocol: number;
-  sdkVersion?: string;
-  editorVersion?: string;
-}
-
 export interface StatusResponsePayload {
   comviDetected: boolean;
   editorActive: boolean;
-  editorLoaded?: boolean;
-  /** `null`: the detector looked and the page has no loader hook. */
-  editorLoader?: EditorLoaderStatus | null;
+  /** What the detected entries speak; absent when nothing was detected. */
+  support?: PageSupport;
   /** Version the loaded editor reports about itself. */
   editorVersion?: string;
   version?: string;
@@ -108,8 +111,8 @@ export interface SessionStatusResponse {
   /** Cached detector state, used to render the popup without reinjection. */
   comviDetected?: boolean;
   version?: string;
-  /** Cached: whether the page can supply the editor (loaded, or a loader hook). */
-  editorAvailable?: boolean;
+  /** Cached: what the detected entries speak. */
+  support?: PageSupport;
   /** Set when the worker could not determine the state (reported as inactive). */
   unavailable?: string;
 }
@@ -149,9 +152,6 @@ export interface EditorActivatedPayload {
    * No free text from the page is carried: the popup would have to show it.
    */
   code?: string;
-  instanceId?: string;
-  /** Untrusted effective value derived by the editor from the site's i18n config. */
-  collectContext?: boolean;
 }
 
 /**

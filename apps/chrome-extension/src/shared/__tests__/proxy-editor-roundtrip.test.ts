@@ -25,13 +25,13 @@ interface EditorTranslationService {
   deleteTranslation(key: string, ns: string): Promise<void>;
 }
 const TRANSLATION_SERVICE: string = new URL(
-  "../../../../../packages/plugin-in-context-editor/src/services/translationService.ts",
+  "../../../../../packages/editor/src/services/translationService.ts",
   import.meta.url,
 ).pathname;
 
 const requests: Array<{ path: string; method: string; body?: string }> = [];
 
-vi.mock("../../../../../packages/plugin-in-context-editor/src/services/apiClient", () => ({
+vi.mock("../../../../../packages/editor/src/services/apiClient", () => ({
   apiFetch: vi.fn(async (_scopeId: unknown, path: string, init: RequestInit = {}) => {
     requests.push({
       path,
@@ -43,7 +43,7 @@ vi.mock("../../../../../packages/plugin-in-context-editor/src/services/apiClient
     });
   }),
 }));
-vi.mock("../../../../../packages/plugin-in-context-editor/src/config/api", () => ({
+vi.mock("../../../../../packages/editor/src/config/api", () => ({
   isDemoMode: () => false,
 }));
 

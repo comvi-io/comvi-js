@@ -7,27 +7,35 @@ const PAGE_URL = "https://app.example.com/projects/1";
 const TAB_ID = 42;
 const NONCE = "activation-nonce-1";
 
-/** The page's `devtools()` hook gives up after this long (contract: `load()`). */
-const HOOK_TIMEOUT_MS = 10_000;
+/** The detector gives up on `x.load()` after this long (detector.ts `EDITOR_LOAD_TIMEOUT_MS`). */
+const LOAD_TIMEOUT_MS = 12_000;
 /** The popup's own activation budget (`armActivationTimeout`). */
 const POPUP_BUDGET_MS = 15_000;
 
 const GENERIC_TIMEOUT = "The editor did not respond. Reload the page and try again.";
 const SDK_REQUIREMENT =
-  "In-context editing needs @comvi/core 0.6.0 or newer with .use(devtools()) on the i18n instance. Upgrade the site's Comvi packages, then reload this page.";
+  "In-context editing needs @comvi/core 0.8 or newer with plugins: [devtools()] on the i18n instance. Upgrade the site's Comvi packages, then reload this page.";
+const EXTENSION_UPDATE =
+  "Update the Comvi In-Context Editor extension, then reload this page. Until then the editor is not offered here.";
+const UNKNOWN_TITLE = "This site runs a newer Comvi i18n than this extension supports.";
 
 const FAILURE_TEXT = {
   "csp-blocked":
-    "This site's Content Security Policy blocked the editor. Allow the editor's CDN in its script-src directive, then reload this page. comvi.io/docs/i18n/troubleshooting names the host, and what a site that enforces Trusted Types also needs.",
+    "This site's Content Security Policy blocked the editor. Allow the editor's CDN in its script-src directive, then reload this page. comvi.io/docs/i18n/troubleshooting names the host.",
+  "trusted-types":
+    "This site enforces Trusted Types, and no policy let the editor's script through. Add a default policy that accepts the editor's script URL, then reload this page. comvi.io/docs/i18n/troubleshooting has the details.",
   "load-error":
-    "The editor could not be downloaded from its CDN. Check your connection and any filter that blocks it, then try again. If the site pins an editor version, check that the version exists.",
+    "The editor could not be downloaded from its CDN. Check your connection and any filter that blocks it, then try again.",
   timeout:
     "The editor did not finish loading from its CDN in time. Check your connection and try again.",
   "no-global":
     "The editor's CDN answered, but what it sent did not start the Comvi editor. Try again. If it keeps happening, a proxy or filter is rewriting the script.",
-  "invalid-editor-version":
-    "This site pins the editor with an invalid version, so nothing was loaded. devtools({ editorVersion }) must be an exact version like 1.2.3. Fix it in the site's code, then reload this page.",
-  "no-loader": `The Comvi i18n on this page cannot load the editor. ${SDK_REQUIREMENT}`,
+  "bad-version":
+    "The editor on this page is not the version this extension works with. Reload the page and try again. If it keeps happening, update the extension.",
+  "old-protocol": `This site runs a Comvi i18n older than 0.8. ${SDK_REQUIREMENT}`,
+  "unknown-protocol": `${UNKNOWN_TITLE} ${EXTENSION_UPDATE}`,
+  "no-instance":
+    "The Comvi i18n instance left this page. The editor could not start on this page. Reload the page and try again.",
   unconfirmed: "The editor activation could not be confirmed. Try again.",
   failed: "The editor could not start on this page. Reload the page and try again.",
 } as const;
@@ -35,22 +43,31 @@ const FAILURE_TEXT = {
 /** What a hostile page would like the user to read inside the extension's popup. */
 const FORGED = "Send your API key to https://evil.example";
 
-/** A site on @comvi/core 0.6.0 with `.use(devtools())`. */
+/** A site on @comvi/core 0.8 with `plugins: [devtools()]` (protocol 2). */
 const CURRENT_SDK: StatusResponsePayload = {
   comviDetected: true,
   editorActive: false,
-  editorLoaded: false,
-  editorLoader: { protocol: 1, sdkVersion: "0.6.0", editorVersion: "latest" },
-  version: "0.6.0",
+  support: "compatible",
+  instanceCount: 1,
+  version: "0.8.0",
 };
 
-/** A site on @comvi/core 0.5.0: announced, but no hook to load the editor. */
+/** A site on @comvi/core 0.7: a `{ v, i }` entry with no protocol 2 handle. */
 const OLD_SDK: StatusResponsePayload = {
   comviDetected: true,
   editorActive: false,
-  editorLoaded: false,
-  editorLoader: null,
-  version: "0.5.0",
+  support: "old-protocol",
+  instanceCount: 0,
+  version: "0.7.1",
+};
+
+/** A site whose handle speaks a protocol this extension does not know (`x.p: 3`). */
+const NEWER_SDK: StatusResponsePayload = {
+  comviDetected: true,
+  editorActive: false,
+  support: "unknown-protocol",
+  instanceCount: 0,
+  version: "0.9.0",
 };
 
 /**
@@ -104,40 +121,43 @@ describe("popup editor availability and load failures", () => {
   // --- Before Enable: can this page supply the editor at all? ---
 
   it("tells a page without a Comvi instance to add devtools()", async () => {
-    await startWith({ comviDetected: false, editorActive: false, editorLoader: null });
+    await startWith({ comviDetected: false, editorActive: false });
 
     expect(popup.visibleViews()).toEqual(["not-detected"]);
     expect(reason()).toEqual({
       title: "Comvi i18n not detected on this page.",
       remedy:
-        "If this site uses Comvi i18n, add .use(devtools()) to its i18n instance (@comvi/core 0.6.0 or newer). That makes the instance visible to this extension and lets the site load the editor when you enable it.",
+        "If this site uses Comvi i18n, add plugins: [devtools()] to its i18n instance (@comvi/core 0.8 or newer). That makes the instance visible to this extension, which then loads the editor when you enable it.",
     });
   });
 
-  it("tells a site on @comvi/core 0.5.0 to upgrade, naming the version it found", async () => {
+  it("tells a site on a Comvi older than 0.8 to upgrade, and offers no Enable", async () => {
     await startWith(OLD_SDK);
 
     expect(popup.visibleViews()).toEqual(["not-detected"]);
     expect(reason()).toEqual({
-      title: "Comvi i18n v0.5.0 found, but it cannot load the editor.",
+      title: "Comvi i18n v0.7.1 found, but it is older than 0.8.",
       remedy: SDK_REQUIREMENT,
     });
+    expect(popup.el("enable-btn").closest(".hidden")).not.toBeNull();
   });
 
   it("words the upgrade reason without a version when the page reported none", async () => {
     await startWith({ ...OLD_SDK, version: undefined });
 
-    expect(reason().title).toBe("Comvi i18n found, but it cannot load the editor.");
+    expect(reason().title).toBe("Comvi i18n found, but it is older than 0.8.");
   });
 
-  it("offers Enable on a site with the loader hook", async () => {
+  it("tells a site on an unknown newer protocol to update the extension, and offers no Enable", async () => {
+    await startWith(NEWER_SDK);
+
+    expect(popup.visibleViews()).toEqual(["not-detected"]);
+    expect(reason()).toEqual({ title: UNKNOWN_TITLE, remedy: EXTENSION_UPDATE });
+    expect(popup.el("enable-btn").closest(".hidden")).not.toBeNull();
+  });
+
+  it("offers Enable on a site with a protocol 2 instance", async () => {
     await startWith(CURRENT_SDK);
-
-    expect(popup.visibleViews()).toEqual(["idle"]);
-  });
-
-  it("offers Enable on a site that carries the editor itself and has no hook", async () => {
-    await startWith({ ...OLD_SDK, editorLoaded: true });
 
     expect(popup.visibleViews()).toEqual(["idle"]);
   });
@@ -145,27 +165,36 @@ describe("popup editor availability and load failures", () => {
   it("shows the cached upgrade reason when the page cannot be asked", async () => {
     popup.executeScript.mockRejectedValue(new Error("Cannot access a chrome:// URL"));
 
-    await startWith(undefined, { comviDetected: true, version: "0.5.0", editorAvailable: false });
+    await startWith(undefined, { comviDetected: true, version: "0.7.1", support: "old-protocol" });
 
     expect(popup.visibleViews()).toEqual(["not-detected"]);
-    expect(reason().title).toBe("Comvi i18n v0.5.0 found, but it cannot load the editor.");
+    expect(reason().title).toBe("Comvi i18n v0.7.1 found, but it is older than 0.8.");
   });
 
-  it("offers Enable from cached availability when the page cannot be asked", async () => {
+  it("shows the cached update reason when the page cannot be asked", async () => {
     popup.executeScript.mockRejectedValue(new Error("Cannot access a chrome:// URL"));
 
-    await startWith(undefined, { comviDetected: true, editorAvailable: true });
+    await startWith(undefined, { comviDetected: true, support: "unknown-protocol" });
+
+    expect(popup.visibleViews()).toEqual(["not-detected"]);
+    expect(reason().title).toBe(UNKNOWN_TITLE);
+  });
+
+  it("offers Enable from a cached compatible page when the page cannot be asked", async () => {
+    popup.executeScript.mockRejectedValue(new Error("Cannot access a chrome:// URL"));
+
+    await startWith(undefined, { comviDetected: true, support: "compatible" });
 
     expect(popup.visibleViews()).toEqual(["idle"]);
   });
 
   it("trusts the live page over a stale cached reason", async () => {
-    await startWith(CURRENT_SDK, { comviDetected: true, editorAvailable: false });
+    await startWith(CURRENT_SDK, { comviDetected: true, support: "old-protocol" });
 
     expect(popup.visibleViews()).toEqual(["idle"]);
   });
 
-  it("moves to Enable when a later status shows the hook a second core installed", async () => {
+  it("moves to Enable when a later status shows a protocol 2 instance a second core announced", async () => {
     await startWith(OLD_SDK);
 
     await popup.fromTab(TAB_ID, { type: "STATUS_RESPONSE", payload: CURRENT_SDK });
@@ -180,30 +209,33 @@ describe("popup editor availability and load failures", () => {
   ])("shows no version at all when the page reports %s as one", async (_label, version) => {
     await startWith({ ...OLD_SDK, version });
 
-    expect(reason().title).toBe("Comvi i18n found, but it cannot load the editor.");
+    expect(reason().title).toBe("Comvi i18n found, but it is older than 0.8.");
     expect(document.documentElement.outerHTML).not.toContain("evil.example");
     expect(popup.el("reason-title").querySelector("img")).toBeNull();
   });
 
-  // A truthy window.__COMVI__ that tracks no instance is not a Comvi site:
-  // telling its owner to upgrade would be the wrong remedy.
-  it("reads a Comvi global that holds no instance as not detected", async () => {
-    await startWith({ ...OLD_SDK, version: undefined, instanceCount: 0 });
+  // A compatible report that holds no instance is not a Comvi site to edit.
+  it("reads a status with no compatible instance and no old one as not detected", async () => {
+    await startWith({ ...CURRENT_SDK, support: undefined, instanceCount: 0 });
 
     expect(popup.visibleViews()).toEqual(["not-detected"]);
     expect(reason().title).toBe("Comvi i18n not detected on this page.");
   });
 
-  it("names the upgrade for a page that does hold an old instance", async () => {
-    await startWith({ ...OLD_SDK, instanceCount: 1 });
+  it("drops a support word it does not know and offers no reason built on it", async () => {
+    await startWith({
+      ...CURRENT_SDK,
+      support: "newer" as StatusResponsePayload["support"],
+      instanceCount: 0,
+    });
 
-    expect(reason().title).toBe("Comvi i18n v0.5.0 found, but it cannot load the editor.");
+    expect(reason().title).toBe("Comvi i18n not detected on this page.");
   });
 
   // --- A page that becomes ready while the popup is open ---
 
   it("moves to Enable when an instance registers after the popup opened", async () => {
-    await startWith({ comviDetected: false, editorActive: false, editorLoader: null });
+    await startWith({ comviDetected: false, editorActive: false });
     expect(popup.visibleViews()).toEqual(["not-detected"]);
 
     popup.onContentScript("GET_STATUS", { payload: CURRENT_SDK });
@@ -213,7 +245,7 @@ describe("popup editor availability and load failures", () => {
     expect(popup.visibleViews()).toEqual(["idle"]);
   });
 
-  it("moves to Enable when a second core installs the hook while the popup is open", async () => {
+  it("moves to Enable when the site replaces its old core while the popup is open", async () => {
     await startWith(OLD_SDK);
     expect(popup.visibleViews()).toEqual(["not-detected"]);
 
@@ -225,7 +257,7 @@ describe("popup editor availability and load failures", () => {
   });
 
   it("stops asking the page once Enable is offered", async () => {
-    await startWith({ comviDetected: false, editorActive: false, editorLoader: null });
+    await startWith({ comviDetected: false, editorActive: false });
     popup.onContentScript("GET_STATUS", { payload: CURRENT_SDK });
     await vi.advanceTimersByTimeAsync(1_000);
     await popup.flush();
@@ -247,7 +279,7 @@ describe("popup editor availability and load failures", () => {
     expect(popup.contentScriptMessages()).toEqual([]);
   });
 
-  // --- After Enable: the hook's failure codes ---
+  // --- After Enable: the detector's failure codes ---
 
   it.each(Object.entries(FAILURE_TEXT))(
     "explains a %s failure with one reason and one remedy",
@@ -371,7 +403,7 @@ describe("popup editor availability and load failures", () => {
   });
 
   it("shows no error for an ordinary Disable", async () => {
-    await activate({ ...CURRENT_SDK, editorLoaded: true });
+    await activate(CURRENT_SDK);
     let answerDisable: (reply: unknown) => void = () => {};
     popup.onServiceWorker("END_SESSION", new Promise((resolve) => (answerDisable = resolve)));
 
@@ -394,13 +426,13 @@ describe("popup editor availability and load failures", () => {
     expect(popup.errorMsg.classList.contains("hidden")).toBe(true);
   });
 
-  // The hook's 10 s limit sits inside the popup's 15 s budget, so the user
-  // reads the hook's reason. If either number moves past the other, the
-  // generic text wins and this test goes red.
-  it("shows the hook's timeout reason when the load outlasts the hook, not the generic one", async () => {
+  // The detector's 12 s limit sits inside the popup's 15 s budget, so the
+  // user reads the detector's reason. If either number moves past the other,
+  // the generic text wins and this test goes red.
+  it("shows the load timeout reason when the load outlasts its limit, not the generic one", async () => {
     await enablePending();
 
-    await vi.advanceTimersByTimeAsync(HOOK_TIMEOUT_MS);
+    await vi.advanceTimersByTimeAsync(LOAD_TIMEOUT_MS);
     await activationFailed({ code: "timeout" });
     await vi.advanceTimersByTimeAsync(POPUP_BUDGET_MS);
     await popup.flush();
@@ -438,25 +470,25 @@ describe("popup editor availability and load failures", () => {
   };
 
   it("shows the SDK and editor versions once the editor is active", async () => {
-    await activate({ ...CURRENT_SDK, editorLoaded: true, editorVersion: "0.6.1" });
+    await activate({ ...CURRENT_SDK, editorVersion: "0.8.0" });
 
     expect(popup.visibleViews()).toEqual(["active"]);
-    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.6.0 · editor v0.6.1");
+    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.8.0 · editor v0.8.0");
   });
 
   it("shows only the SDK version for an editor that reports none", async () => {
-    await activate({ ...CURRENT_SDK, editorLoaded: true });
+    await activate(CURRENT_SDK);
 
-    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.6.0");
+    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.8.0");
   });
 
   it.each([
     ["markup", "<b>9</b>"],
     ["a sentence", FORGED],
   ])("shows no editor version when the page reports %s as one", async (_label, editorVersion) => {
-    await activate({ ...CURRENT_SDK, editorLoaded: true, editorVersion });
+    await activate({ ...CURRENT_SDK, editorVersion });
 
-    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.6.0");
+    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.8.0");
     expect(document.documentElement.outerHTML).not.toContain("evil.example");
   });
 
@@ -470,6 +502,6 @@ describe("popup editor availability and load failures", () => {
     });
 
     expect(popup.visibleViews()).toEqual(["active"]);
-    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.6.0");
+    expect(popup.versionLine.textContent).toBe("Comvi i18n v0.8.0");
   });
 });

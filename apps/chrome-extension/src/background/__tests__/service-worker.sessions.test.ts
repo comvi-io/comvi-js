@@ -235,7 +235,7 @@ describe("session lifecycle", () => {
     await harness.dispatchMessage(
       {
         type: "EDITOR_DEACTIVATED",
-        payload: { success: true, instanceId: "editor-1", collectContext: false },
+        payload: { success: true },
       },
       pageSender(),
     );
