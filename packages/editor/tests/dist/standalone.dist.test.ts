@@ -90,7 +90,12 @@ describe("dist/standalone.iife.js", () => {
     expect(window.ComviInContextEditor).toBe(first);
 
     // An editor of another version: it has the editor's activate().
-    const other = { version: "0.0.1-other", activate: () => ({ ok: false }) };
+    const other = {
+      version: "0.0.1-other",
+      activate: () => ({ ok: false }),
+      deactivate: () => {},
+      isActive: () => false,
+    };
     (window as { ComviInContextEditor?: unknown }).ComviInContextEditor = other;
     bootBundle();
     expect(window.ComviInContextEditor).toBe(other);
@@ -102,6 +107,7 @@ describe("dist/standalone.iife.js", () => {
     ["an element with that id", () => document.body.appendChild(document.createElement("div"))],
     ["null", () => null],
     ["an empty object", () => ({})],
+    ["an object with only an unrelated activate", () => ({ activate: () => "page code" })],
   ])("a stale global that is not an editor (%s) is replaced", (_name, stale) => {
     const value = stale();
     if (value instanceof HTMLElement) value.id = "ComviInContextEditor";
@@ -109,8 +115,8 @@ describe("dist/standalone.iife.js", () => {
 
     bootBundle();
 
-    expect(typeof (window.ComviInContextEditor as { activate?: unknown } | undefined)?.activate).toBe(
-      "function",
+    expect((window.ComviInContextEditor as { version?: unknown } | undefined)?.version).toBe(
+      pkg.version,
     );
     if (value instanceof HTMLElement) value.remove();
   });
