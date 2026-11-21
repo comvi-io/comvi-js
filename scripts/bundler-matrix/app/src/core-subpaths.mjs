@@ -20,7 +20,9 @@ function assertEqual(actual, expected, label) {
 const i18n = createI18n({
   locale: "de",
   messages: { de: { hi: "Hallo {name}" } },
-  plugins: [detect({ supported: ["de", "en"] }), persist(), devtools()],
+  // Query only: in the browser leg `navigator` would switch the instance to the browser's
+  // language, and the assertions below are about the instance locale "de".
+  plugins: [detect({ supported: ["de", "en"], order: ["query"] }), persist(), devtools()],
 });
 assertEqual(typeof cdn("https://cdn.example/d1"), "function", "cdn() builds a loader");
 assertEqual(i18n.t("hi", { name: "Ann" }), "Hallo Ann", "t() with a parameter");
