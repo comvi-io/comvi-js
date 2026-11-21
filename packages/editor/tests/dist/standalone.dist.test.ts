@@ -89,10 +89,30 @@ describe("dist/standalone.iife.js", () => {
     bootBundle();
     expect(window.ComviInContextEditor).toBe(first);
 
-    const other = { version: "0.0.1-other" };
+    // An editor of another version: it has the editor's activate().
+    const other = { version: "0.0.1-other", activate: () => ({ ok: false }) };
     (window as { ComviInContextEditor?: unknown }).ComviInContextEditor = other;
     bootBundle();
     expect(window.ComviInContextEditor).toBe(other);
+  });
+
+  // Review finding (lot 8): a stale value that is not an editor (an element whose id is
+  // ComviInContextEditor, null, an empty object) must not keep the editor off the page.
+  it.each([
+    ["an element with that id", () => document.body.appendChild(document.createElement("div"))],
+    ["null", () => null],
+    ["an empty object", () => ({})],
+  ])("a stale global that is not an editor (%s) is replaced", (_name, stale) => {
+    const value = stale();
+    if (value instanceof HTMLElement) value.id = "ComviInContextEditor";
+    else (window as { ComviInContextEditor?: unknown }).ComviInContextEditor = value;
+
+    bootBundle();
+
+    expect(typeof (window.ComviInContextEditor as { activate?: unknown } | undefined)?.activate).toBe(
+      "function",
+    );
+    if (value instanceof HTMLElement) value.remove();
   });
 
   it("booted bundle on a page with no i18n → activate() fails with no-instance and adds nothing", () => {
