@@ -140,7 +140,8 @@ import { cdn } from "@comvi/core/cdn";
 import { createI18n, handover } from "@comvi/vue";
 import App from "./App.vue";
 
-// What the server and the browser share; timeZone is required.
+// The instance options, here in the server file; the browser's entry creates its instance
+// with the same values (timeZone is required).
 const options = {
   fallbackLocale: "en",
   timeZone: "UTC",
@@ -156,7 +157,7 @@ export async function render(locale: string) {
 }
 ```
 
-In the browser, `createI18n({ ...options, ...window.__I18N__ })` starts from the server's state:
+In the browser, `createI18n({ ...options, ...window.__I18N__ })`, with the same option values as the server, starts from the server's state:
 the same `isReady`/`isLoading`, no mismatch, nothing fetched that the server rendered.
 
 ## Read next

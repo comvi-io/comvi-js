@@ -175,14 +175,20 @@ WebKit. CI runs both after Gate E.
   every platform, WebKit included: the page loads, the editor marks every case, the
   control box (`{ markers: false }`) carries no frame and the marked box its frames,
   and the line count and the height are unchanged. The second compares width and
-  pixels. The cases include a string ending in an emoji and one ending in a
-  tag-sequence flag (identical in all three engines on macOS).
-- WebKit: a known defect measured on macOS (owner decision 2026-11-19). During an
+  pixels, split by case: in WebKit on macOS (Playwright) the cases of the known
+  defect (`arabic`, `arabicWide`, `arabicJoin`: width, scrollWidth and pixels; `latin`,
+  `rich`: pixels) are one test under `test.fail`, and every other case is asserted
+  strictly in a required test. The cases include a string ending in an emoji, one
+  ending in a tag-sequence flag and one ending in a plain black flag U+1F3F4, whose
+  following frame is syntactically a tag sequence on that base (identical in all
+  three engines on macOS).
+- WebKit on macOS (Playwright): a known defect (owner decision 2026-11-19). During an
   editing session a frame changes the shaping of the neighbouring glyph and breaks
   Arabic joining (Arabic widens by about 7 px). WebKit is outside the editor's
-  supported way of working; on macOS the width-and-pixels test is marked
+  supported way of working; on macOS the defect cases' test is marked
   `test.fail` there, so it reports when WebKit stops failing and its values are never
-  asserted as intended. Linux WebKit on the CI runner did not reproduce it: there the
+  asserted as intended. Linux WebKit on the CI runner did not reproduce it (the CI run of 2026-11-19 measured
+  marked == unmarked in all three engines there, Arabic shaped): there the
   comparison is measured and reported as an annotation, neither a defect nor a claim
   that WebKit is neutral. Without an editor session WebKit renders no frame
   (`no-session.spec.ts`).

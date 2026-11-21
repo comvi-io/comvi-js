@@ -3,7 +3,9 @@
 // repo's npm surface, with MIGRATION_PENDING applied (tooling/migration-pending.mjs):
 // a finding is advisory `migration-pending/<rule>`, with the reason, only when it is in a
 // README of a pending package or its rule is one MIGRATION_PENDING_DOCS lists for that
-// document; every other finding blocks. Advisory findings are printed, not hidden.
+// document; every other finding blocks. Advisory findings are not listed one by one: the
+// run prints one line per document naming its advisory rules and the reason, and the report
+// counts them per rule (with the TS codes) under "advisory, not counted against the gate".
 //
 // A wrapper rather than an edit to scripts/docs-snippets/: that module is copied into the
 // www repository and hash-pinned (module-sha.mjs), and must not import this repo's tooling.

@@ -303,8 +303,11 @@ jobs:
 
       # Plain pages, no extension (dists built by the step above): no frame without an editor
       # session in all three engines, and the marker layout. Chromium must measure marked
-      # output identical to unmarked; Firefox is an extra check of the format; WebKit's layout
-      # result is a recorded known defect (`test.fail`, owner decision 2026-11-19).
+      # output identical to unmarked; Firefox is an extra check of the format. On this Linux
+      # runner the WebKit width and pixel comparison is an annotation, not a `test.fail`: the
+      # known defect was measured in WebKit on macOS (Playwright) and is `test.fail` only
+      # there. The CI run of 2026-11-19 measured marked == unmarked here in all three engines,
+      # with Arabic shaped (joined word about 28-29 px against about 43 px with its letters apart).
       - name: Marker checks in three engines
         run: pnpm --filter @comvi/chrome-extension test:layout-engines
 
