@@ -27,6 +27,9 @@ export const CASES = {
   // characters, U+E007F CANCEL TAG): the frame must not join an emoji sequence on screen.
   emoji: ["Saved \u{1F389}", "box"],
   flag: ["Go \u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}", "box"],
+  // A plain black flag (no tag sequence): the suffix frame that follows is, character for
+  // character, an emoji tag sequence on that base.
+  blackFlag: ["Go \u{1F3F4}", "box"],
 };
 
 const bold = (chunks) => {

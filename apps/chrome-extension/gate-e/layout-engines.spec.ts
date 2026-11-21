@@ -17,7 +17,7 @@ import {
  *
  * Chromium, the engine the extension runs in, must measure marked output identical to
  * unmarked. Firefox is an extra check of the format, with no promise that the extension is
- * supported there. WebKit ON macOS is a KNOWN DEFECT (owner decision 2026-11-19): during an
+ * supported there. WebKit on macOS (Playwright) is a KNOWN DEFECT (owner decision 2026-11-19): during an
  * editing session a frame changes the shaping of the neighbouring glyph and breaks Arabic
  * joining. WebKit is outside the editor's supported way of working; the defect is to be
  * returned to before the editor is supported there. `test.fail` keeps that reproduction on
@@ -83,31 +83,68 @@ test("the editor marks every case, the control stays unmarked, and lines and hei
   expectMarkedAgainstControl(after);
 });
 
-test("marked output keeps the width and the pixels of unmarked output", async ({ page }, info) => {
-  const webkit = info.project.name === "webkit";
-  // Only the known defect is expected to fail here, and only where it was measured: the
-  // prerequisites are the test above.
-  test.fail(
-    webkit && process.platform === "darwin",
-    "known defect, owner decision 2026-11-19: in WebKit on macOS a frame changes the neighbouring glyph's shaping and breaks Arabic joining",
-  );
-  const { after, pixels } = await measured(page, info.project.name);
-  if (webkit && process.platform !== "darwin") {
-    // Not reproduced in Linux WebKit: reported, neither a defect nor a neutrality claim.
-    const differs = Object.entries(after)
-      .filter(([key, { plain, marked }]) => !pixels[key] || plain.width !== marked.width)
-      .map(([key]) => key);
-    test.info().annotations.push({
-      type: "reported, not a support claim",
-      description: `WebKit on ${process.platform}: cases whose width or pixels differ: ${differs.join(", ") || "none"}`,
-    });
-    return;
-  }
+/**
+ * The cases of the known WebKit-on-macOS defect, and what differs there (measured locally on
+ * macOS 26.5, Playwright 1.64.1, WebKit 27.2): the Arabic rows widen (width, scrollWidth and
+ * pixels), and the Latin sentence and the rich message draw differently at a frame (pixels,
+ * same width). Only these cases are under the expected failure; every other case is asserted
+ * strictly in WebKit on macOS too.
+ */
+const WEBKIT_MACOS_DEFECT = new Set(["arabic", "arabicWide", "arabicJoin", "latin", "rich"]);
+
+/** Marked equals unmarked for `keys`: every box measure and the pixels. */
+function expectIdentical(after: Measures, pixels: Record<string, boolean>, keys: string[]) {
   // Before marking both boxes of a case are the same unmarked render, so the plain box after
   // is the baseline: unchanged means marked equals plain.
+  const subset = Object.fromEntries(keys.map((key) => [key, after[key]!])) as Measures;
   const baseline = Object.fromEntries(
-    Object.entries(after).map(([key, { plain }]) => [key, { plain, marked: { ...plain } }]),
+    keys.map((key) => [key, { plain: after[key]!.plain, marked: { ...after[key]!.plain } }]),
   ) as Measures;
-  expectUnchanged(baseline, after);
-  expect(pixels).toEqual(Object.fromEntries(Object.keys(after).map((key) => [key, true])));
+  expectUnchanged(baseline, subset);
+  expect(Object.fromEntries(keys.map((key) => [key, pixels[key]]))).toEqual(
+    Object.fromEntries(keys.map((key) => [key, true])),
+  );
+}
+
+/**
+ * Linux WebKit (the CI runner) did not reproduce the defect: the comparison is reported as an
+ * annotation, neither asserted as a defect nor counted as WebKit being neutral.
+ */
+function reportOnly(info: { project: { name: string } }): boolean {
+  return info.project.name === "webkit" && process.platform !== "darwin";
+}
+
+function report(after: Measures, pixels: Record<string, boolean>, keys: string[]): void {
+  const differs = keys.filter(
+    (key) =>
+      !pixels[key] ||
+      after[key]!.plain.width !== after[key]!.marked.width ||
+      after[key]!.plain.scrollWidth !== after[key]!.marked.scrollWidth,
+  );
+  test.info().annotations.push({
+    type: "reported, not a support claim",
+    description: `WebKit on ${process.platform}: cases whose width or pixels differ: ${differs.join(", ") || "none"}`,
+  });
+}
+
+test("marked output keeps the width and the pixels of unmarked output, outside the known WebKit defect", async ({
+  page,
+}, info) => {
+  const { after, pixels } = await measured(page, info.project.name);
+  const keys = Object.keys(after).filter((key) => !WEBKIT_MACOS_DEFECT.has(key));
+  if (reportOnly(info)) return report(after, pixels, keys);
+  expectIdentical(after, pixels, keys);
+});
+
+test("marked output keeps the width and the pixels of unmarked output, in the cases of the known WebKit defect", async ({
+  page,
+}, info) => {
+  test.fail(
+    info.project.name === "webkit" && process.platform === "darwin",
+    "known defect, owner decision 2026-11-19: in WebKit on macOS (Playwright) a frame changes the neighbouring glyph's shaping and breaks Arabic joining",
+  );
+  const { after, pixels } = await measured(page, info.project.name);
+  const keys = [...WEBKIT_MACOS_DEFECT];
+  if (reportOnly(info)) return report(after, pixels, keys);
+  expectIdentical(after, pixels, keys);
 });
