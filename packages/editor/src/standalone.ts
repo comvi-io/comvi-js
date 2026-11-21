@@ -197,7 +197,8 @@ export function activate(options: ActivateOptions = {}): ActivateResult {
   // fails after that takes all of it back before the failure leaves.
   const session = new Session(found.q, found.found);
   let core: Core | undefined;
-  let scopeId: string;
+  let scopeId: string | undefined;
+  let configured = false;
   try {
     core = new Core(
       {
@@ -210,13 +211,23 @@ export function activate(options: ActivateOptions = {}): ActivateResult {
     );
     scopeId = core.getInstanceId();
     initApiConfig(apiKey, scopeId, { transport: options.transport, baseUrl: options.apiBaseUrl });
+    configured = true;
     core.start();
   } catch (error) {
+    // The original failure is what leaves; a cleanup step that throws too is dropped so the
+    // rest of the cleanup still runs. (A Core constructor that throws after registering its
+    // session leaves that registration: Core has no seam for it here.)
     try {
       core?.stop();
-    } finally {
-      session.stop();
+    } catch {
+      /* the original failure wins */
     }
+    try {
+      if (configured) resetApiConfig(scopeId);
+    } catch {
+      /* the original failure wins */
+    }
+    session.stop();
     throw error;
   }
   active = { core, session };

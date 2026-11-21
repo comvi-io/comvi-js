@@ -122,6 +122,38 @@ describe("activate() failure after marking", () => {
   });
 });
 
+describe("activate() failure after the API configuration was set", () => {
+  it("the initial scan throws → the runtime's API configuration is dropped", () => {
+    makeI18n();
+    vi.spyOn(Core.prototype, "start").mockImplementationOnce(() => {
+      throw new Error("scan failed");
+    });
+
+    expect(() => activate({ refreshMessages: false })).toThrow("scan failed");
+
+    expect(initApiConfigMock).toHaveBeenCalledTimes(1);
+    expect(resetApiConfigMock.mock.calls).toEqual([[initApiConfigMock.mock.calls[0]![1]]]);
+  });
+
+  it("the scan and the cleanup's Core.stop() both throw → the scan's failure leaves and the session still stops", () => {
+    const i18n = makeI18n();
+    const queue = (window as unknown as { __COMVI__: unknown[] }).__COMVI__;
+    const own = Object.getOwnPropertyNames(queue).sort();
+    vi.spyOn(Core.prototype, "start").mockImplementationOnce(() => {
+      throw new Error("scan failed");
+    });
+    failCoreStopWith("stop failed");
+
+    expect(() => activate({ refreshMessages: false })).toThrow("scan failed");
+
+    expect({
+      text: i18n.t("hello"),
+      own: Object.getOwnPropertyNames(queue).sort(),
+      session: getSession(),
+    }).toEqual({ text: "Hello", own, session: null });
+  });
+});
+
 describe("deactivate() teardown failure", () => {
   it("resetApiConfig throws, nothing else fails → deactivation rethrows the reset failure", () => {
     makeI18n();
