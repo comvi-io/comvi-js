@@ -193,6 +193,17 @@ WebKit. CI runs both after Gate E.
   that WebKit is neutral. Without an editor session WebKit renders no frame
   (`no-session.spec.ts`).
 
+What is MEASURED and what is GUARANTEED, kept apart:
+
+- Measured equal (marked vs unmarked, width, scrollWidth and pixels): Chromium and Firefox on
+  macOS 26.5 locally (Playwright 1.64.1; Arabic shaped), and Chromium, Firefox and WebKit on
+  the Linux CI runner in the CI run of 2026-11-19 (Arabic shaped, joined word about 28-29 px
+  against about 43 px apart). WebKit on macOS (Playwright) measured the defect.
+- Guaranteed by a test on every run: Chromium and Firefox width, scrollWidth and pixels for
+  every case, on any platform; the prerequisites, line count and height in every engine; in
+  WebKit on macOS the non-defect cases strictly and the defect cases as an expected failure.
+  On Linux WebKit width and pixels are printed as an annotation, not asserted.
+
 The numbers go to `test-results/**/marker-layout-<engine>-<platform>.json`.
 
 `navigation.spec.ts` runs with the back/forward cache enabled (Playwright
