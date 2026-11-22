@@ -8,7 +8,7 @@
  * satisfies the peer — otherwise changesets bumps the peer dependents on its own
  * account (by patch since @changesets/cli 3; cli 2 escalated them, and the whole
  * fixed group, to a major bump). The publish job checks the packed tarballs
- * (scripts/publish-candidate.mjs `exactComviPeers`).
+ * (scripts/publish-candidate.mjs `exactComviVersions`).
  */
 import fs from "node:fs";
 import path from "node:path";

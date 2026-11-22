@@ -13,7 +13,7 @@ import {
   checksums,
   compareVersions,
   coverageGaps,
-  exactComviPeers,
+  exactComviVersions,
   isPublished,
   parseArgs,
   publishAll,
@@ -1245,14 +1245,14 @@ function packedNext(dir, version, { core = version, react = version } = {}) {
   return path.join(dir, file);
 }
 
-test.describe("exactComviPeers: every @comvi/* peer in a packed tarball equals its version", () => {
+test.describe("exactComviVersions: every @comvi/* peer in a packed tarball equals its version", () => {
   for (const version of ["0.8.0", "0.8.1", "0.8.0-rc.3"]) {
     test(`a packed @comvi/next ${version} with both peers at ${version} passes`, (t) => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), "publish-candidate-peers-"));
       t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
       const next = packedNext(dir, version);
 
-      const check = () => exactComviPeers([{ file: path.basename(next), tarball: next }]);
+      const check = () => exactComviVersions([{ file: path.basename(next), tarball: next }]);
 
       assert.doesNotThrow(check);
     });
@@ -1268,7 +1268,7 @@ test.describe("exactComviPeers: every @comvi/* peer in a packed tarball equals i
       t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
       const next = packedNext(dir, version, peers);
 
-      const check = () => exactComviPeers([{ file: path.basename(next), tarball: next }]);
+      const check = () => exactComviVersions([{ file: path.basename(next), tarball: next }]);
 
       assert.throws(check, (error) => {
         assert.ok(error.message.includes(`comvi-next-${version}.tgz`), error.message);
@@ -1286,7 +1286,7 @@ test.describe("exactComviPeers: every @comvi/* peer in a packed tarball equals i
     const next = packedNext(dir, "0.8.0");
 
     const check = () =>
-      exactComviPeers([
+      exactComviVersions([
         { file: "comvi-core-0.8.0.tgz", tarball: path.join(dir, "comvi-core-0.8.0.tgz") },
         { file: path.basename(next), tarball: next },
       ]);
@@ -1308,7 +1308,7 @@ test("publish trust path: candidatesFromSums refuses a packed @comvi/next whose 
   );
 });
 
-test.describe("exactComviPeers: @comvi/* dependencies and optional dependencies too", () => {
+test.describe("exactComviVersions: @comvi/* dependencies and optional dependencies too", () => {
   for (const [field, label] of [
     ["dependencies", "dependency"],
     ["optionalDependencies", "optional dependency"],
@@ -1323,7 +1323,7 @@ test.describe("exactComviPeers: @comvi/* dependencies and optional dependencies 
       });
       const file = path.join(dir, "comvi-react-0.8.0.tgz");
 
-      const check = () => exactComviPeers([{ file: "comvi-react-0.8.0.tgz", tarball: file }]);
+      const check = () => exactComviVersions([{ file: "comvi-react-0.8.0.tgz", tarball: file }]);
 
       assert.throws(check, {
         message: `comvi-react-0.8.0.tgz: ${label} @comvi/core "^0.8.0" must equal its version 0.8.0`,
@@ -1341,7 +1341,7 @@ test.describe("exactComviPeers: @comvi/* dependencies and optional dependencies 
     });
     const file = path.join(dir, "comvi-react-0.8.0-rc.1.tgz");
 
-    const check = () => exactComviPeers([{ file: "comvi-react-0.8.0-rc.1.tgz", tarball: file }]);
+    const check = () => exactComviVersions([{ file: "comvi-react-0.8.0-rc.1.tgz", tarball: file }]);
 
     assert.doesNotThrow(check);
   });
