@@ -775,6 +775,7 @@ reason on the caller's abort (the AbortError `fetch` gives), the no-store path a
 and disarming the timer when a caller aborts a transport that never settles (measured at +8 B and
 +5 B; both documented in `cdn.ts`), and a module-wide default store (`core-icu-cdn-store` above is what it
 costs: +165 B, over the 4,895 B ceiling — the owner's decision, see `docs/design/catalog-store.md`).
+Since 0.8 (B17) the `onabort` cut is gone: a `fetch` that set its signal's `onabort` replaced it and the load never timed out, so the timeout and the caller's abort now settle the load themselves (`core-icu-cdn` unchanged at 5,382 B).
 
 Design §3.2's target, `/cdn` ≤ 400 B over core, is still not met: +467 B (−6 B against the lot 2c
 table). Meeting it needs 67 B of cuts in the loader or a new target from the owner. Headroom:
