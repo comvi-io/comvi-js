@@ -5,7 +5,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { CORE, MS, createI18n } from "../../src/instance";
-import { coming, core, handover, state, translate, view } from "../../src/internal";
+import { clock, coming, core, handover, state, translate, view } from "../../src/internal";
 import { flush, make, manualLoader } from "./helpers";
 
 declare const __VERSION__: string;
@@ -213,6 +213,14 @@ describe("an instance of another copy of the core (B3)", () => {
     const read = () => core(i18n);
 
     expect(read).toThrow(new Error(sameVersion));
+  });
+
+  it("clock() (a binding's useFormat) of an instance at another version → the same error as core()", () => {
+    const i18n = foreign("0.0.0-other");
+
+    const read = () => clock(i18n);
+
+    expect(read).toThrow(new Error(twoCopies("0.0.0-other")));
   });
 
   it("handover() of an instance at another version → the same error as core()", () => {
