@@ -605,10 +605,10 @@ export const createI18n = (o: I18nOptions): I18n => {
       fl.set(
         k,
         (f = [
-          // Settles on abort even when the loader ignores its signal.
+          // Settles on abort even when the loader ignores its signal or sets its `onabort`.
           new Promise<CatalogInput>((u, v) => {
             y = u;
-            a.signal.onabort = x = v;
+            a.signal.addEventListener("abort", (x = v));
           })
             // Under what `add()` put in the pair meanwhile: a saved edit survives (H8).
             .then((m) => no() || drop(k, f!, ing(S.c, l, m, n, 1)))

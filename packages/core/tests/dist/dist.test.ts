@@ -66,6 +66,37 @@ describe.each([
     expect(sub).not.toHaveBeenCalled();
   });
 
+  it("a loader that assigns signal.onabort and never answers: load(ns), a superseded switch, the newer switch and `ready` all resolve once aborted", async () => {
+    const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
+    const loader = (_l: string, _n: string, s: AbortSignal) =>
+      new Promise<never>(() => {
+        s.onabort = () => {};
+      });
+    const outcome = async (p: Promise<unknown>) => {
+      let r: unknown = "pending";
+      p.then(
+        (v) => (r = ["resolved", v]),
+        (e) => (r = ["rejected", e]),
+      );
+      await new Promise((t) => setTimeout(t, 0));
+      return r;
+    };
+    const a = createI18n({ locale: "en", messages: { en: { m: "x" } }, loader, onError: () => {} });
+    const ns = a.load("extra");
+    a.destroy();
+    const b = createI18n({ locale: "en", messages: { en: { m: "x" } }, loader, onError: () => {} });
+    const de = b.setLocale("de");
+    const fr = b.setLocale("fr");
+    const superseded = await outcome(de);
+    b.destroy();
+    const c = createI18n({ locale: "en", loader, onError: () => {} });
+    const ready = c.ready;
+    c.destroy();
+    expect([await outcome(ns), superseded, await outcome(fr), await outcome(ready)]).toEqual(
+      Array(4).fill(["resolved", undefined]),
+    );
+  });
+
   it("an unclosed <br> renders its key; only the development build explains it", async () => {
     const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
     const messages: (string | undefined)[] = [];
