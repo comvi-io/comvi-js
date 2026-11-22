@@ -41,8 +41,14 @@ Solid and Svelte read the reactive locale inside each formatter.
   route locale is matched against the supported locales before it is passed to the API. Not every
   invalid locale throws: `t(key, { locale })`, `has()`, `add()` and `fallbackLocale` entries report
   `invalid_locale`, and `setLocale()` rejects.
-- **The formatters take a real instance.** Anything else is a `TypeError`, in development and in
-  production, whatever the other arguments are.
+- **The formatters take a real instance.** Anything this copy of the core did not create throws
+  what `core()` throws, whatever the other arguments are, before the arguments are read. In
+  production that is an `Error` with the text
+  `two copies of @comvi/core: <the instance's version>, <this copy's>`, the first `undefined`
+  for an object without the version tag (no instance at all, or one of a core older than 0.8).
+  In development an untagged object is a `TypeError` ("not an instance of createI18n(), or it was
+  created by a copy of @comvi/core older than 0.8") and an instance of another copy is an
+  `Error` naming both versions.
 - **Core behaves identically under all of them.** `setLocale()` moves what the formatters read.
 
 ## Consequences

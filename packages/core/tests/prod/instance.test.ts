@@ -104,7 +104,10 @@ describe("production formatters (lot 4d)", () => {
   ])("%s → the short two-copies error, as core() says it", (_, value, made) => {
     const call = () => formatNumber(value as unknown as I18n, 1);
 
+    // The class on its own as well: `toThrow(new Error(…))` in Vitest 5 checks it, but the
+    // changeset's claim ("no longer a TypeError") should not rest on a matcher's detail.
     expect(call).toThrow(new Error(`two copies of @comvi/core: ${made}, ${__VERSION__}`));
+    expect(call).not.toThrow(TypeError);
   });
 
   it("an explicit locale that is not a tag is a RangeError naming the tag only", () => {
@@ -130,9 +133,12 @@ describe("production: an instance of another copy of the core (B3)", () => {
     ["an untagged 0.7-style instance", { locale: "en", t: () => "", on: () => () => {} }],
     ["a plain object", {}],
     ["undefined", undefined],
-  ])("core() of %s → the short error with an unknown version, never undefined", (_, value) => {
-    const read = () => core(value as unknown as I18n);
+  ])(
+    "core() of %s → throws the short error with an unknown version; it never returns undefined",
+    (_, value) => {
+      const read = () => core(value as unknown as I18n);
 
-    expect(read).toThrow(new Error(`two copies of @comvi/core: undefined, ${__VERSION__}`));
-  });
+      expect(read).toThrow(new Error(`two copies of @comvi/core: undefined, ${__VERSION__}`));
+    },
+  );
 });

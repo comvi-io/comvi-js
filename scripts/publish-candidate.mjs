@@ -13,7 +13,7 @@
  *   pack    (contents: read; no e2e, no browser, no example installs)
  *     packs the dist the job built and checked into `--dir`, refuses a
  *     tarball whose `@comvi/*` peer or dependency is not its own version
- *     (`exactComviPeers`), writes
+ *     (`exactComviVersions`), writes
  *     `<dir>/SHA256SUMS` (the ONLY list of what may be published), asks npm
  *     which versions are new (`<dir>/pending.json`, for humans), and emits
  *     `sums` (the sha256 of SHA256SUMS) and `pending` to GITHUB_OUTPUT, once.
@@ -263,7 +263,7 @@ export function candidatesFromSums(dir, recorded, readManifest = packedManifest)
     }
     return { name, version, file, tarball };
   });
-  exactComviPeers(candidates, readManifest);
+  exactComviVersions(candidates, readManifest);
   return candidates;
 }
 
@@ -275,7 +275,7 @@ export function candidatesFromSums(dir, recorded, readManifest = packedManifest)
  * exact (a `workspace:^` would pack a caret), a GA and an `rc.N` alike. Reads the manifest
  * inside each tarball, the bytes npm receives; throws naming every mismatch.
  */
-export function exactComviPeers(candidates, readManifest = packedManifest) {
+export function exactComviVersions(candidates, readManifest = packedManifest) {
   const wrong = [];
   for (const { file, tarball } of candidates) {
     const manifest = readManifest(tarball);
@@ -671,7 +671,7 @@ function pack(options) {
     return { name: pkg.name, version: pkg.version, file: path.basename(tarball), tarball };
   });
   // The packed bytes, before anything is recorded as publishable (B3).
-  exactComviPeers(packages);
+  exactComviVersions(packages);
   const recorded = checksums(packages.map((pkg) => pkg.tarball));
   fs.writeFileSync(path.join(dir, "SHA256SUMS"), `${recorded}\n`);
   const sums = fileDigest(path.join(dir, "SHA256SUMS"));
