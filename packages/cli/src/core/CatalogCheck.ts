@@ -423,7 +423,9 @@ function compareMessages(
     report.unsupportedIcu.push({ key, argumentType: target.unsupported });
   }
 
-  if (source.tags.length > 0 && !sameSet(source.tags, target.tags)) {
+  // A tag counts once it closes, so a target that stops before its closing tag lists no tags
+  // there: only a target read to the end is compared (a broken source still is).
+  if (source.tags.length > 0 && !target.broken && !sameSet(source.tags, target.tags)) {
     report.tags.push({ key, source: source.tags, target: target.tags });
   }
   if (target.syntax !== undefined) {

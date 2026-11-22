@@ -118,8 +118,9 @@ same. `--no-schema` never asks for it.
 is not rewritten, and a second `--watch` of the same file waits while the first one writes.
 
 `check` compares every other catalog with the source locale (`--source`, or `sourceLocale` in the
-config, else `en`). Errors: a key missing or empty in a target, parameters or select branches that differ from the source, a plural without `other` or with a selector the locale does not have, tag names that differ where the source uses tags, and a message `@comvi/core` cannot compile (an unclosed tag, a select without `other`, a `{x, number}`). Warnings: a key the source does not have, a plural
-category the locale has and the message omits, and a translation equal to its source with
+config, else `en`). Errors: a key missing or empty in a target, parameters or select branches that differ from the source, a plural without `other` or with a selector the locale does not have, tag names that differ where the source uses tags, and a message `@comvi/core` cannot compile (a closing tag that closes nothing, a select without `other`, a `{x, number}`). Warnings: a key the source does not have, a plural
+category the locale has and the message omits, an opening tag that is never closed (core renders it
+as text: `<br>` where `<br/>` was meant), and a translation equal to its source with
 `--identical`. Errors exit `1`; warnings do too only with `--strict`; `--no-fail` exits `0`
 either way, and `--format json` prints the report as JSON.
 
