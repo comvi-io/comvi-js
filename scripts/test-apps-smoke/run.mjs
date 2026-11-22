@@ -384,6 +384,15 @@ function preflight(name, app, dir) {
         `test-apps/${name} has ${app.framework}@${version}; it exists to prove ${app.major}.x`,
       );
     }
+    // A stand that pins an exact version exists to prove exactly that one (the floor of the
+    // peer range): a caret-resolved newer patch must not pass for it.
+    const pinned = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"))
+      .dependencies?.[app.framework];
+    if (/^\d+\.\d+\.\d+$/.test(pinned ?? "") && pinned !== version) {
+      problems.push(
+        `test-apps/${name} pins ${app.framework}@${pinned} but ${version} is installed`,
+      );
+    }
   }
   const output = app.kind === "next" ? ".next/BUILD_ID" : ".output/server/index.mjs";
   if (!fs.existsSync(path.join(dir, output)))
@@ -586,7 +595,13 @@ async function main() {
   let failed = 0;
   for (const name of args.only) {
     const results = await smoke(name);
-    console.log(`\n${name} (${APPS[name].framework} ${APPS[name].major})`);
+    const installed = JSON.parse(
+      fs.readFileSync(
+        path.join(ROOT, "test-apps", name, "node_modules", APPS[name].framework, "package.json"),
+        "utf8",
+      ),
+    ).version;
+    console.log(`\n${name} (${APPS[name].framework} ${APPS[name].major}, installed ${installed})`);
     for (const result of results) {
       const ok = result.problems.length === 0;
       if (!ok) failed += 1;
