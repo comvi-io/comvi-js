@@ -199,10 +199,23 @@ export async function generateMetadata({
 ```
 
 `getAlternates(routing, { locale, href })` returns `alternates`: the canonical URL in this locale,
-one hreflang per locale and `x-default` (the default locale's URL), built by the rules of `<Link>`:
-the prefix mode and `pathnames`. It reads no request API, so a static page stays static. With
-`localePrefix: "never"` every locale has the same URL, so it returns only `canonical`. A page that
-sets `alternates` replaces its layout's `alternates` entirely.
+one hreflang per locale and `x-default` (the default locale's URL), each the path `getPathname`
+returns for that locale. `href` is the page's `pathnames` key (its canonical path): no locale
+prefix, no query, no hash. It reads no request API, so a static page stays static. A page that sets
+`alternates` replaces its layout's `alternates` entirely.
+
+With `localePrefix: "never"` it returns only `canonical`: no URL belongs to one locale for every
+visitor. Without `pathnames`, one URL serves each visitor's locale (cookie, `Accept-Language`); with
+them, the middleware redirects a visitor whose locale is another to that locale's slug. With
+`as-needed`, the default locale's unprefixed URL redirects a visitor whose cookie or
+`Accept-Language` selects another locale, and answers in the default locale to a client that sends
+neither.
+
+If `generateMetadata` resolves after the page shell, Next.js streams canonical and hreflang into
+`<body>` for ordinary user agents and keeps them in `<head>` only for the bots of
+[`htmlLimitedBots`](https://nextjs.org/docs/app/api-reference/config/next-config-js/htmlLimitedBots).
+The example awaits the same `getI18n({ locale, ns })` the page renders with, so its metadata is
+ready with the page and stays in `<head>`.
 
 ## Contributing
 
