@@ -5,10 +5,18 @@
  * slot's `children` is the text of its tag in the message (nested markup flattened, with a
  * development warning).
  */
+import { readFileSync } from "node:fs";
 import { defineComponent, h, nextTick, type Component } from "vue";
 import { describe, expect, it } from "vitest";
 import { T, useI18n } from "../src";
 import { make, mountWith, vueWarnings } from "./helpers";
+
+/** The contract row `a<br>b` (contracts/icu-grammar.json, B12; the tests run in the package). */
+const unclosedBr = (
+  JSON.parse(readFileSync(`${process.cwd()}/../../contracts/icu-grammar.json`, "utf8")) as {
+    cases: { message: string; render: string }[];
+  }
+).cases.find((c) => c.message === "a<br>b")!;
 
 /** SSR output without Vue's fragment markers. */
 const strip = (html: string) => html.replace(/<!--.*?-->/g, "");
@@ -236,5 +244,21 @@ describe("attribute policy: the bound <T> as the exported one (lot 4b)", () => {
       expect(w.html({ raw: true })).toBe("<b>x</b> c1<b>x</b> c2");
     });
     expect(warnings).toEqual([]);
+  });
+});
+
+describe("a never-closed tag (B12)", () => {
+  it("a<br>b through <T> renders the text a<br>b, escaped, even with a `br` component", () => {
+    const { i18n } = make({ locale: "en", messages: { en: { m: unclosedBr.message } } });
+    const Root = defineComponent({
+      setup: () => () => h(T as Component, { i18nKey: "m", components: { br: "br" } }),
+    });
+
+    const wrapper = mountWith(i18n, Root);
+
+    expect([wrapper.text(), strip(wrapper.html({ raw: true }))]).toEqual([
+      unclosedBr.render,
+      "a&lt;br&gt;b",
+    ]);
   });
 });

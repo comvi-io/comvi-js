@@ -3,6 +3,7 @@
  * props); a snippet's `children` is the tag's text; a void element takes no children; the bound
  * <T> is the exported one with its namespace.
  */
+import { readFileSync } from "node:fs";
 import { createRawSnippet, flushSync } from "svelte";
 import { describe, expect, it } from "vitest";
 import { T } from "../src";
@@ -11,6 +12,13 @@ import Probe from "./fixtures/Probe.svelte";
 import Reactive from "./fixtures/Reactive.svelte";
 import Rich from "./fixtures/Rich.svelte";
 import { make, mountWith, warnings } from "./helpers";
+
+/** The contract row `a<br>b` (contracts/icu-grammar.json, B12; the tests run in the package). */
+const unclosedBr = (
+  JSON.parse(readFileSync(`${process.cwd()}/../../contracts/icu-grammar.json`, "utf8")) as {
+    cases: { message: string; render: string }[];
+  }
+).cases.find((c) => c.message === "a<br>b")!;
 
 const messages = { en: { m: "Read <b>the <i>new</i> terms</b> <x>now</x>." } };
 const render = (props: Record<string, unknown>, bound = false, seen: unknown[] = []) => {
@@ -187,5 +195,15 @@ describe("the bound <T>", () => {
     await i18n.setLocale("de");
     flushSync();
     expect(w.text()).toBe("1 de");
+  });
+});
+
+describe("a never-closed tag (B12)", () => {
+  it("a<br>b through <T> renders the text a<br>b, escaped, even with a `br` component", () => {
+    const { i18n } = make({ locale: "en", messages: { en: { m: unclosedBr.message } } });
+
+    const w = mountWith(i18n, T, { i18nKey: "m", components: { br: "br" } });
+
+    expect([w.text(), w.html()]).toEqual([unclosedBr.render, "a&lt;br&gt;b"]);
   });
 });
