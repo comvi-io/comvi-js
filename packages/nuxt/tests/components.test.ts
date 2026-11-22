@@ -24,7 +24,7 @@ async function renderLink(props: Record<string, unknown>): Promise<HTMLAnchorEle
 }
 
 describe("T component", () => {
-  it("is @comvi/vue's own <T>, re-exported as it is", async () => {
+  it("is @comvi/vue's own <T>, re-exported as it is: @comvi/vue's tests cover it (the contracts/icu-grammar.json row `a<br>b` included)", async () => {
     const mod = await import("../src/runtime/components/T");
     const { T: VueT } = await import("@comvi/vue");
 

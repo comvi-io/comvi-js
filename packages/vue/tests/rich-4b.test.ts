@@ -262,3 +262,23 @@ describe("a never-closed tag (B12)", () => {
     ]);
   });
 });
+
+describe("the depth limit through <T> (B12)", () => {
+  it("200 nested closed tags render through a component, 200 elements deep", () => {
+    const Bold = defineComponent({
+      setup:
+        (_, { slots }) =>
+        () =>
+          h("strong", slots.default?.()),
+    });
+    const m = "<b>".repeat(200) + "x" + "</b>".repeat(200);
+    const { i18n } = make({ locale: "en", messages: { en: { m } } });
+    const Root = defineComponent({
+      setup: () => () => h(T as Component, { i18nKey: "m", components: { b: Bold } }),
+    });
+
+    const wrapper = mountWith(i18n, Root);
+
+    expect([wrapper.findAll("strong").length, wrapper.text()]).toEqual([200, "x"]);
+  });
+});

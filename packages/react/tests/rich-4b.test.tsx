@@ -196,3 +196,40 @@ describe("a never-closed tag (B12)", () => {
     ]);
   });
 });
+
+describe("the depth limit through <T> (B12)", () => {
+  const Bold = ({ children }: { children?: ReactNode }) => <strong>{children}</strong>;
+  const nested = (levels: number) => "<b>".repeat(levels) + "x" + "</b>".repeat(levels);
+
+  it("200 nested closed tags render through a component handler, 200 elements deep", () => {
+    const { i18n } = make({ locale: "en", messages: { en: { m: nested(200) } } });
+
+    const { container } = render(
+      <I18nProvider i18n={i18n}>
+        <T i18nKey="m" components={{ b: Bold }} />
+      </I18nProvider>,
+    );
+
+    expect([container.querySelectorAll("strong").length, container.textContent]).toEqual([
+      200,
+      "x",
+    ]);
+  });
+
+  it("201 render the key and report syntax", () => {
+    const errors: string[] = [];
+    const { i18n } = make({
+      locale: "en",
+      messages: { en: { m: nested(201) } },
+      onError: (e) => errors.push(e.code),
+    });
+
+    const { container } = render(
+      <I18nProvider i18n={i18n}>
+        <T i18nKey="m" components={{ b: Bold }} />
+      </I18nProvider>,
+    );
+
+    expect([container.innerHTML, errors[0]]).toEqual(["m", "syntax"]);
+  });
+});
