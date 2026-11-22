@@ -11,14 +11,17 @@ export interface Alternates {
 
 /**
  * The `alternates` of a page for `generateMetadata`: its canonical URL in this
- * locale and, per locale, the hreflang URL, built exactly like `<Link>` and
- * `getPathname`. Returns paths: set `metadataBase` in the root layout, or Next
- * leaves them relative.
+ * locale and, per locale, the hreflang URL. Every path is exactly what
+ * `getPathname` returns for that locale. `href` is the page's `pathnames` key
+ * (its canonical path): no locale prefix, no query, no hash. Returns paths: set
+ * `metadataBase` in the root layout, or Next leaves them relative. An unknown
+ * `locale` warns and is not rejected: validate it first.
  *
  * @example
  * ```typescript
  * export async function generateMetadata({ params }) {
  *   const { locale } = await params;
+ *   if (!hasLocale(routing.locales, locale)) notFound();
  *   return { alternates: getAlternates(routing, { locale, href: '/admin' }) };
  * }
  * ```
@@ -37,7 +40,9 @@ export function getAlternates<T extends string>(
   }
 
   const canonical = buildLocalizedPath(href, locale, options);
-  // One URL for every locale: there is nothing for hreflang to tell apart.
+  // No URL belongs to one locale for every visitor: without `pathnames` one URL
+  // serves each visitor's locale (cookie, Accept-Language); with them, the
+  // middleware redirects a visitor whose locale is another to that locale's slug.
   if (localePrefix === "never") return { canonical };
 
   const languages: Record<string, string> = {};

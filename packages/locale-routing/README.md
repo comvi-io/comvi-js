@@ -38,7 +38,8 @@ the two ever disagree, and names the command in its failure message.
 ## What consumers use instead
 
 The public routing API for Next.js is three subpaths of `@comvi/next`:
-`@comvi/next/routing` (`defineRouting`, `hasLocale`, `createGetPathname`),
+`@comvi/next/routing` (`defineRouting`, `hasLocale`, `createGetPathname`,
+`getAlternates`),
 `@comvi/next/navigation` (`Link`, `usePathname`, `useLocalizedRouter`) and
 `@comvi/next/middleware` (`createMiddleware`). For Nuxt it is the module's own
 auto-imported composables: `useLocalePath`, `useLocaleRoute`,

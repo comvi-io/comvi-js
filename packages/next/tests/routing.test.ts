@@ -463,7 +463,7 @@ describe("getAlternates: canonical and hreflang for generateMetadata", () => {
     });
   });
 
-  it("builds every URL the way getPathname (and so <Link>) does", async () => {
+  it("returns, for every locale, exactly what getPathname returns", async () => {
     const { getAlternates, createGetPathname } = await load();
     for (const mode of ["as-needed", "always"] as const) {
       const routing = config(mode);
@@ -477,6 +477,54 @@ describe("getAlternates: canonical and hreflang for generateMetadata", () => {
         expect(languages?.["x-default"]).toBe(getPathname({ locale: "en", href }));
       }
     }
+  });
+
+  // `href` must be the `pathnames` key: no locale prefix, no query, no hash. Unlike `<Link>`,
+  // nothing here strips a prefix or maps a slug back; these pin what other input gives today.
+  describe("an href that is not a pathnames key is taken as it is", () => {
+    const routing = config("as-needed");
+
+    it("a query and hash are kept on every URL, and a query hides the pathnames key", async () => {
+      const { getAlternates } = await load();
+      expect(getAlternates(routing, { locale: "de", href: "/admin?tab=1#top" })).toStrictEqual({
+        canonical: "/de/admin?tab=1#top",
+        languages: {
+          en: "/admin?tab=1#top",
+          uk: "/uk/admin?tab=1#top",
+          de: "/de/admin?tab=1#top",
+          "x-default": "/admin?tab=1#top",
+        },
+      });
+      expect(getAlternates(routing, { locale: "de", href: "/about?tab=1" }).canonical).toBe(
+        "/de/about?tab=1",
+      );
+    });
+
+    it("a locale prefix is not stripped: it is prefixed again", async () => {
+      const { getAlternates } = await load();
+      expect(getAlternates(routing, { locale: "de", href: "/uk/admin" })).toStrictEqual({
+        canonical: "/de/uk/admin",
+        languages: {
+          en: "/uk/admin",
+          uk: "/uk/uk/admin",
+          de: "/de/uk/admin",
+          "x-default": "/uk/admin",
+        },
+      });
+    });
+
+    it("a localized slug is not mapped back to its key", async () => {
+      const { getAlternates } = await load();
+      expect(getAlternates(routing, { locale: "de", href: "/ueber-uns" })).toStrictEqual({
+        canonical: "/de/ueber-uns",
+        languages: {
+          en: "/ueber-uns",
+          uk: "/uk/ueber-uns",
+          de: "/de/ueber-uns",
+          "x-default": "/ueber-uns",
+        },
+      });
+    });
   });
 
   it("an unknown locale: warns like getPathname, does not throw, lists the configured locales", async () => {

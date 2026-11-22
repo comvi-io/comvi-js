@@ -1770,11 +1770,13 @@ Measured once and not shipped: with the generator as a lazily imported chunk, `m
 ## 2026-11-22: B8, `getAlternates` in `@comvi/next/routing` (no row)
 
 `getAlternates(routing, { locale, href })` lives in its own file, `routing/alternates.ts`, and runs
-only in `generateMetadata`. No row measures `@comvi/next/routing`, and none was added: the four
-Next rows are byte-identical before and after (`fw-next-server-default-loader` 5,639,
-`fw-next-client-default` 6,521, `fw-next-plugin-node` 11,698, `fw-next-middleware-edge` 2,045 B
-min+gz), so neither the Edge middleware (which imports the neighbouring `createGetPathname`) nor
-the client graph picks it up.
+only in `generateMetadata`. No size fixture imports `@comvi/next/routing`, so no row can see it, and
+none was added. The four Next rows read the same before and after (`fw-next-server-default-loader`
+5,639, `fw-next-client-default` 6,521, `fw-next-plugin-node` 11,698, `fw-next-middleware-edge`
+2,045 B min+gz); that says only that the graphs they measure are unchanged, not that an app's
+client or middleware bundle stays free of the function. The gate for that is smoke scenario 10
+(`scripts/test-apps-smoke/next.spec.ts`): the string `getAlternates: unknown locale` must not
+appear in any chunk under `.next/static` of either Next stand, whose pages call `getAlternates`.
 
 Its own weight, measured with `measureFixture` (this script's esbuild settings, `next` external)
 on an entry that imports from `@comvi/next/routing` and re-exports, Node v24.22.1, two runs with
