@@ -411,14 +411,23 @@ describe("subscribers", () => {
   });
 
   it("on() with anything but a function throws a TypeError in development, the 0.7 `on(event, fn)` included", () => {
-    const { i18n } = make({ locale: "en" });
-    const sub = vi.fn();
-    expect(() => i18n.on("localeChanged" as never)).toThrow(TypeError);
-    expect(() => (i18n.on as (...a: unknown[]) => unknown)("localeChanged", sub)).toThrow(
-      "[@comvi/core] on() takes a listener function, got string",
-    );
-    expect(() => i18n.on(undefined as never)).toThrow(TypeError);
-    i18n.add("en", { a: "A" });
-    expect(sub).not.toHaveBeenCalled();
+    vi.useFakeTimers();
+    try {
+      const { i18n } = make({ locale: "en" });
+      expect(() => i18n.on("localeChanged" as never)).toThrow(TypeError);
+      expect(() => (i18n.on as (...a: unknown[]) => unknown)("localeChanged", vi.fn())).toThrow(
+        "[@comvi/core] on() takes a listener function, got string",
+      );
+      expect(() => i18n.on(undefined as never)).toThrow(TypeError);
+      // Nothing was kept as a subscriber: the next publish reaches the one real listener
+      // and leaves no error to rethrow.
+      const listener = vi.fn();
+      i18n.on(listener);
+      i18n.add("en", { a: "A" });
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(() => vi.runAllTimers()).not.toThrow();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
