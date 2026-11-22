@@ -117,4 +117,14 @@ describe("production: an instance of another copy of the core (B3)", () => {
 
     expect(read).toThrow(new Error(`two copies of @comvi/core: ${made}, ${__VERSION__}`));
   });
+
+  it.each([
+    ["an untagged 0.7-style instance", { locale: "en", t: () => "", on: () => () => {} }],
+    ["a plain object", {}],
+    ["undefined", undefined],
+  ])("core() of %s → the short error with an unknown version, never undefined", (_, value) => {
+    const read = () => core(value as unknown as I18n);
+
+    expect(read).toThrow(new Error(`two copies of @comvi/core: undefined, ${__VERSION__}`));
+  });
 });

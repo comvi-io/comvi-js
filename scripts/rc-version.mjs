@@ -9,9 +9,10 @@
  *     names, to `<its own next version>-rc.<N>`, bumped by the max type its
  *     changesets declare. No package is in this bucket today: the publishable
  *     set IS the fixed group;
- *   - every non-`workspace:` `@comvi/*` peer range to the EXACT rc version of
- *     that peer, because `^0.5.0` does not satisfy `0.5.0-rc.0` under semver
- *     prerelease rules and the RC soak installs from the registry. `workspace:*`
+ *   - every non-`workspace:` `@comvi/*` peer to the EXACT rc version of that
+ *     peer: core and every binding ship one version (between releases the repo
+ *     holds the exact release version, which `0.5.0-rc.0` does not satisfy, and
+ *     the RC soak installs from the registry). `workspace:*`
  *     dependency ranges are left alone: `pnpm publish` replaces them with the
  *     exact published version.
  *
