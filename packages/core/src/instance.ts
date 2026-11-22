@@ -797,6 +797,9 @@ export const createI18n = (o: I18nOptions): I18n => {
       );
     },
     on(f) {
+      // Development only: the 0.7 `on(event, fn)` passes a name where 0.8 takes the listener.
+      if (__DEV__ && typeof f != "function")
+        throw TypeError(`[@comvi/core] on() takes a listener function, got ${typeof f}`);
       subs.add(f);
       return () => void subs.delete(f);
     },
