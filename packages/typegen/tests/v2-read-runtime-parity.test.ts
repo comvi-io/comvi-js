@@ -47,6 +47,12 @@ const MESSAGES = [
   "Read <b>{name}</b> and <br/>",
   "{n, plural, one {<em>#</em>} other {<strong>#</strong>}}",
   "<a>x</a><a>y</a>",
+  // Never-closed tags are text (B12): no handler is read for them.
+  "<b>never closed",
+  "a<br>{name}",
+  "<b>a<br>{name}</b>",
+  "<b><i>{x}</b>",
+  "{n, plural, one {<b>{x}} other {<i>#</i>}}",
   // Quoting (ICU DOUBLE_OPTIONAL as core reads it).
   "'{name}' stays literal",
   "'{name}' but {real}",
@@ -65,7 +71,7 @@ const MESSAGES = [
   "{count, plural, one {x}}",
   "{count, select, male he}",
   "a { b {name}",
-  "<b>never closed",
+  "<b><i>x</b></i>",
   "</b> closes nothing",
   "{n, plural, =x {a} other {b}}",
 ] as const;
@@ -147,7 +153,7 @@ describe("readMessage against what @comvi/core reads at render time", () => {
 });
 
 describe("readMessage records what the platform's v2 extractor records", () => {
-  it("kinds, select options in message order and `other`, tags in first-seen order", () => {
+  it("kinds, select options in message order and `other`, tags in opening order", () => {
     expect(
       readMessage(
         "{g, select, male {he} female {<b>she</b>} other {they}} {n, selectordinal, other {#}} <i/>",
@@ -163,6 +169,7 @@ describe("readMessage records what the platform's v2 extractor records", () => {
         { name: "n", kind: "selectordinal", selectors: ["other"] },
       ],
       diagnostics: [],
+      unclosed: [],
     });
   });
 
@@ -184,6 +191,7 @@ describe("readMessage records what the platform's v2 extractor records", () => {
       tags: [],
       choices: [{ name: "g", kind: "select", selectors: ["a", "other"] }],
       diagnostics: [],
+      unclosed: [],
     });
   });
 
@@ -226,9 +234,9 @@ describe("readMessage records what the platform's v2 extractor records", () => {
     expect(readMessage("{n, pluralx, other {}}").unsupported).toBe("pluralx");
     expect(readMessage("{n, plural, =x {a} other {b}}").unsupported).toBe("plural");
     expect(readMessage("{n, selectordinal, =1e {a} other {b}}").unsupported).toBe("selectordinal");
-    for (const broken of ["<b>x", "x</b>", "{unclosed", "{n, plural, one {a}}"])
+    for (const broken of ["<b><i>x</b></i>", "x</b>", "{unclosed", "{n, plural, one {a}}"])
       expect(readMessage(broken), broken).not.toHaveProperty("unsupported");
-    for (const broken of ["<b>x", "x</b>", "{unclosed", "{n, plural, one {a}}"])
+    for (const broken of ["<b><i>x</b></i>", "x</b>", "{unclosed", "{n, plural, one {a}}"])
       expect(readMessage(broken).error, broken).toEqual(expect.any(String));
     expect(readMessage("{n, plural, =01 {a} other {b}} {p}")).not.toHaveProperty("error");
   });
