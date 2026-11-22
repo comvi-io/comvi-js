@@ -38,6 +38,13 @@ describe("development diagnostics in the built files", () => {
       .filter((f) => fs.readFileSync(path.join(DIST, f), "utf8").includes("cause not printable"));
     expect(prod).toEqual([]);
   });
+
+  it("the on() listener check is in a development file and in no production one", () => {
+    const check = (f: string) =>
+      fs.readFileSync(path.join(DIST, f), "utf8").includes("takes a listener function");
+    expect(files.filter((f) => f.endsWith(".dev.js")).some(check)).toBe(true);
+    expect(files.filter((f) => !f.endsWith(".dev.js")).filter(check)).toEqual([]);
+  });
 });
 
 describe.each([
