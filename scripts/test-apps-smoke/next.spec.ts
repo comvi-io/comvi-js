@@ -345,3 +345,109 @@ test("10b: the server provider hands the browser data only: the payload and the 
       expect(flight.includes(name), `${name} in the RSC payload of ${path}`).toBe(false);
   }
 });
+
+const SITE = "https://example.com";
+/** The `<link>` tags of `html` as attribute maps, names lower-cased: React writes `hrefLang` and self-closes. */
+const linkTags = (html: string) =>
+  [...markup(html).matchAll(/<link\b([^>]*)>/gi)].map((tag) => {
+    const attrs: Record<string, string> = {};
+    for (const a of tag[1].matchAll(/([^\s=/"']+)\s*=\s*"([^"]*)"/g))
+      attrs[a[1].toLowerCase()] = a[2];
+    return attrs;
+  });
+const seoLinks = (html: string) => {
+  const tags = linkTags(html);
+  return {
+    canonical: tags.filter((t) => t.rel === "canonical").map((t) => t.href),
+    alternates: tags
+      .filter((t) => t.rel === "alternate" && "hreflang" in t)
+      .map((t) => [t.hreflang, t.href] as const),
+  };
+};
+/** What every page of the stand lists: one hreflang per locale and x-default, the default's URL. */
+const hreflangs = (href: string) => {
+  const of = (prefix: string) => `${SITE}${prefix}${href === "/" ? "" : href}`;
+  return [
+    ["en", of("")],
+    ...["de", "fr", "es", "uk", "ar"].map((l) => [l, of(`/${l}`)] as const),
+    ["x-default", of("")],
+  ].sort();
+};
+const expectSeo = (html: string, canonical: string, href: string) => {
+  const { canonical: found, alternates } = seoLinks(html);
+  expect(found, "exactly one canonical").toEqual([canonical]);
+  expect([...alternates].sort(), "one hreflang per locale and x-default, no more").toEqual(
+    hreflangs(href),
+  );
+};
+
+/**
+ * Did the document survive? A marker on `window` (a full navigation replaces the window) and
+ * Playwright's count of main-frame `load` events (a full navigation fires another one).
+ */
+const watchDocument = async (page: Page) => {
+  let loads = 0;
+  page.on("load", () => (loads += 1));
+  await page.evaluate(() => ((window as unknown as { __b8: string }).__b8 = "same document"));
+  return async () => ({
+    marker: await page.evaluate(() => (window as unknown as { __b8?: string }).__b8 ?? null),
+    loads,
+  });
+};
+const SAME_DOCUMENT = { marker: "same document", loads: 0 };
+
+test("11: SEO: canonical, hreflang alternates and x-default on the server render; they follow a switch", async ({
+  page,
+  request,
+}) => {
+  // 3: the default locale, no prefix. First: a later /uk response sets the locale cookie, and
+  // with it `/admin` redirects to `/uk/admin`.
+  expectSeo(await (await request.get("/admin")).text(), `${SITE}/admin`, "/admin");
+  // 1–2: a dynamic page in a non-default locale.
+  expectSeo(await (await request.get("/uk/admin")).text(), `${SITE}/uk/admin`, "/admin");
+  // 4: the static page; scenario 8 proves it is still in prerender-manifest.json.
+  expectSeo(await (await request.get("/uk")).text(), `${SITE}/uk`, "/");
+  // 5: a bot without JavaScript gets every tag before </head>, not streamed into <body>.
+  const bot = await (
+    await request.get("/uk/admin", { headers: { "user-agent": "facebookexternalhit/1.1" } })
+  ).text();
+  expect(bot).toContain("</head>");
+  expectSeo(bot.slice(0, bot.indexOf("</head>")), `${SITE}/uk/admin`, "/admin");
+
+  // 6: a client switch replaces the tags, without a full reload in between.
+  await page.goto("/uk/admin");
+  await hydrated(page);
+  const documentState = await watchDocument(page);
+  const head = async () => seoLinks(await page.content());
+  await text(page, "switch-de").click();
+  await expect(page).toHaveURL(/\/de\/admin$/);
+  await expect.poll(async () => (await head()).canonical).toEqual([`${SITE}/de/admin`]);
+  expect(await documentState(), "no full reload on the switch to de").toEqual(SAME_DOCUMENT);
+  await text(page, "switch-en").click();
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/admin$/);
+  await expect.poll(async () => (await head()).canonical).toEqual([`${SITE}/admin`]);
+  expect(await documentState(), "no full reload on the switch to en").toEqual(SAME_DOCUMENT);
+  expect([...(await head()).alternates].sort()).toEqual(hreflangs("/admin"));
+  await expect(page.locator('link[rel="alternate"][hreflang]')).toHaveCount(7);
+  await expect(page.locator('link[rel="alternate"][hreflang="x-default"]')).toHaveAttribute(
+    "href",
+    `${SITE}/admin`,
+  );
+});
+
+test("11b: the no-reload check of scenario 11 fails on a full reload or a full navigation", async ({
+  page,
+}) => {
+  await page.goto("/uk/admin");
+  await hydrated(page);
+  const reload = await watchDocument(page);
+  await page.reload();
+  await hydrated(page);
+  expect(await reload()).toEqual({ marker: null, loads: 1 });
+
+  const assign = await watchDocument(page);
+  await page.evaluate(() => location.assign("/de/admin"));
+  await expect(page).toHaveURL(/\/de\/admin$/);
+  await hydrated(page);
+  expect(await assign()).toEqual({ marker: null, loads: 1 });
+});

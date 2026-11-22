@@ -167,6 +167,43 @@ import { routing } from "./i18n/routing";
 export default createMiddleware(routing); // getI18n() without `locale` reads the locale it sets
 ```
 
+## SEO: canonical and hreflang
+
+First, the site address, once: `metadataBase` in `src/app/[locale]/layout.tsx`. It is required:
+`getAlternates()` returns paths, and without `metadataBase` Next.js leaves them relative, with no
+error or warning, while hreflang needs full URLs.
+
+```tsx check=group=next-1
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { metadataBase: new URL("https://example.com") };
+```
+
+Then each page names its path without the locale prefix, in `src/app/[locale]/admin/page.tsx`:
+
+```tsx title="src/app/[locale]/admin/page.tsx" check=group=next-1
+import type { Metadata } from "next";
+import { getAlternates } from "@comvi/next/routing";
+import { routing } from "@/i18n/routing";
+import { getI18n } from "@/i18n/server";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const { t } = await getI18n({ locale, ns: "admin" }); // an unknown locale: notFound()
+  return { title: t("dashboard"), alternates: getAlternates(routing, { locale, href: "/admin" }) };
+}
+```
+
+`getAlternates(routing, { locale, href })` returns `alternates`: the canonical URL in this locale,
+one hreflang per locale and `x-default` (the default locale's URL), built by the rules of `<Link>`:
+the prefix mode and `pathnames`. It reads no request API, so a static page stays static. With
+`localePrefix: "never"` every locale has the same URL, so it returns only `canonical`. A page that
+sets `alternates` replaces its layout's `alternates` entirely.
+
 ## Contributing
 
 Bug reports, docs fixes and pull requests are welcome.

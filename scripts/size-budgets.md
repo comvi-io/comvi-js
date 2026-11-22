@@ -1766,3 +1766,26 @@ server and `/i18n` rows are unchanged. Measured on `lot7/nuxt-typegen` @ `72dedd
 
 Measured once and not shipped: with the generator as a lazily imported chunk, `module.mjs` alone was
 3,889 B (still over 3,537).
+
+## 2026-11-22: B8, `getAlternates` in `@comvi/next/routing` (no row)
+
+`getAlternates(routing, { locale, href })` lives in its own file, `routing/alternates.ts`, and runs
+only in `generateMetadata`. No row measures `@comvi/next/routing`, and none was added: the four
+Next rows are byte-identical before and after (`fw-next-server-default-loader` 5,639,
+`fw-next-client-default` 6,521, `fw-next-plugin-node` 11,698, `fw-next-middleware-edge` 2,045 B
+min+gz), so neither the Edge middleware (which imports the neighbouring `createGetPathname`) nor
+the client graph picks it up.
+
+Its own weight, measured with `measureFixture` (this script's esbuild settings, `next` external)
+on an entry that imports from `@comvi/next/routing` and re-exports, Node v24.22.1, two runs with
+the same figures:
+
+| entry                                        | min / min+gz |
+| -------------------------------------------- | ------------ |
+| `getAlternates` alone                        | 1,021 / 594  |
+| `createGetPathname` alone                    | 912 / 532    |
+| both                                         | 1,327 / 667  |
+| `getAlternates` added to `createGetPathname` | +415 / +135  |
+
+Most of the 594 B is `buildLocalizedPath` and the `pathnames` lookup, which `getPathname` and
+`<Link>` already carry; the function itself is the +135 B.
