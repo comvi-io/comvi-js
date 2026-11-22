@@ -65,6 +65,12 @@ export interface CatalogCheckSyntaxFinding {
   message: string;
 }
 
+export interface CatalogCheckUnclosedTagFinding {
+  key: string;
+  /** Each opening tag never closed, by name, once per occurrence, in message order. */
+  tags: string[];
+}
+
 export interface CatalogCheckUnsupportedIcuFinding {
   key: string;
   argumentType: string;
@@ -78,10 +84,15 @@ export interface CatalogCheckSourceReport {
   /** The source's own plural groups, judged against the source locale's rules. */
   plural: CatalogCheckPluralFinding[];
   /**
-   * Error: a message `@comvi/core` cannot compile — an unclosed tag or `{`, a closing tag
-   * that closes nothing, a select without `other` — so it renders the key.
+   * Error: a message `@comvi/core` cannot compile — an unclosed `{`, a closing tag that
+   * closes nothing, a select without `other` — so it renders the key.
    */
   syntax: CatalogCheckSyntaxFinding[];
+  /**
+   * Warning: an opening tag that is never closed. Core renders it as its own text (the
+   * message is valid and its types accept it); most likely a typo, `<br>` for `<br/>`.
+   */
+  unclosedTag: CatalogCheckUnclosedTagFinding[];
   /** Error: an argument type `@comvi/core` does not compile. */
   unsupportedIcu: CatalogCheckUnsupportedIcuFinding[];
   /** `Intl` does not know the source locale: only `other` was checked. */
@@ -105,6 +116,8 @@ export interface CatalogCheckLocaleReport {
   tags: CatalogCheckTagsFinding[];
   /** Error: a message `@comvi/core` cannot compile, so it renders the key. */
   syntax: CatalogCheckSyntaxFinding[];
+  /** Warning: an opening tag that is never closed; core renders it as text. */
+  unclosedTag: CatalogCheckUnclosedTagFinding[];
   /** Error: an argument type `@comvi/core` does not compile. */
   unsupportedIcu: CatalogCheckUnsupportedIcuFinding[];
   /** Warning (opt-in): the target message equals the source message. */
@@ -123,6 +136,7 @@ export interface CatalogCheckSummary {
   select: number;
   tags: number;
   syntax: number;
+  unclosedTag: number;
   unsupportedIcu: number;
   identical: number;
 }
@@ -146,6 +160,8 @@ interface Shape {
   selects: Record<string, string[]>;
   /** Every plural and selectordinal argument as written, one entry per use. */
   plurals: { argument: string; type: PluralRuleType; selectors: string[] }[];
+  /** Opening tags never closed, which core renders as text. */
+  unclosed: string[];
   /** The argument type core refuses. */
   unsupported?: string;
   /** Any other reason core refuses the message (a plural without `other` is a plural finding). */
@@ -181,6 +197,7 @@ function shapeOf(text: string): Shape {
     selects,
     plurals: plurals.sort((a, b) => a.argument.localeCompare(b.argument)),
     broken: read.error !== undefined,
+    unclosed: read.unclosed,
   };
   if (read.unsupported !== undefined) shape.unsupported = read.unsupported;
   else if (read.error !== undefined) {
@@ -255,6 +272,7 @@ export class CatalogCheck {
       emptySource: [],
       plural: [],
       syntax: [],
+      unclosedTag: [],
       unsupportedIcu: [],
       localeUnknown: pluralCategories(source, "cardinal") === undefined,
     };
@@ -281,6 +299,9 @@ export class CatalogCheck {
         if (shape.syntax !== undefined) {
           sourceReport.syntax.push({ key: id, message: shape.syntax });
         }
+        if (shape.unclosed.length > 0) {
+          sourceReport.unclosedTag.push({ key: id, tags: shape.unclosed });
+        }
       }
     }
 
@@ -293,6 +314,7 @@ export class CatalogCheck {
       select: 0,
       tags: 0,
       syntax: sourceReport.syntax.length,
+      unclosedTag: sourceReport.unclosedTag.length,
       unsupportedIcu: sourceReport.unsupportedIcu.length,
       identical: 0,
     };
@@ -300,7 +322,7 @@ export class CatalogCheck {
       sourceReport.emptySource.length +
       sourceReport.unsupportedIcu.length +
       sourceReport.syntax.length;
-    let warnings = 0;
+    let warnings = sourceReport.unclosedTag.length;
     for (const plural of sourceReport.plural) {
       if (plural.problem === "missing-category") warnings++;
       else errors++;
@@ -317,6 +339,7 @@ export class CatalogCheck {
         select: [],
         tags: [],
         syntax: [],
+        unclosedTag: [],
         unsupportedIcu: [],
         identical: [],
         localeUnknown: pluralCategories(target, "cardinal") === undefined,
@@ -361,7 +384,7 @@ export class CatalogCheck {
         report.tags.length +
         report.syntax.length +
         report.unsupportedIcu.length;
-      warnings += report.stale.length + report.identical.length;
+      warnings += report.stale.length + report.unclosedTag.length + report.identical.length;
 
       summary.missing += report.missing.length;
       summary.stale += report.stale.length;
@@ -370,6 +393,7 @@ export class CatalogCheck {
       summary.select += report.select.length;
       summary.tags += report.tags.length;
       summary.syntax += report.syntax.length;
+      summary.unclosedTag += report.unclosedTag.length;
       summary.unsupportedIcu += report.unsupportedIcu.length;
       summary.identical += report.identical.length;
       locales[target] = report;
@@ -404,6 +428,9 @@ function compareMessages(
   }
   if (target.syntax !== undefined) {
     report.syntax.push({ key, message: target.syntax });
+  }
+  if (target.unclosed.length > 0) {
+    report.unclosedTag.push({ key, tags: target.unclosed });
   }
 
   // Core stops reading at what it refuses, so the rest of that message is unknown:
