@@ -658,6 +658,7 @@ describe("comvi check", () => {
         select: [],
         tags: [],
         syntax: [],
+        unclosedTag: [],
         unsupportedIcu: [],
         identical: [],
         localeUnknown: false,
@@ -669,6 +670,7 @@ describe("comvi check", () => {
           emptySource: [],
           plural: [],
           syntax: [],
+          unclosedTag: [],
           unsupportedIcu: [],
           localeUnknown: false,
         },
@@ -692,6 +694,7 @@ describe("comvi check", () => {
           select: 0,
           tags: 0,
           syntax: 0,
+          unclosedTag: 0,
           unsupportedIcu: 0,
           identical: 0,
         },
@@ -717,6 +720,7 @@ describe("comvi check", () => {
         "emptySource",
         "plural",
         "syntax",
+        "unclosedTag",
         "unsupportedIcu",
         "localeUnknown",
       ]);
@@ -729,18 +733,20 @@ describe("comvi check", () => {
         p: "{n, plural, one {#} other {#}}",
         s: "{g, select, a {A} other {B}}",
         t: "<b>x</b>",
-        u: "<i>x",
+        u: "<i>x</b>",
         v: "x",
+        w: "a<br>b",
         x: "{p, number}",
         y: "{p}",
       });
       await write("src/locales/de.json", {
-        v: "<b>x",
+        v: "<b>x</i>",
         y: "{p, time}",
         p: "{n, plural, one {#} few {#}}",
         s: "{g, select, other {B}}",
         t: "x",
         u: "<i>x</i>",
+        w: "<b>a<br>b",
         x: "{p}",
       });
 
@@ -751,9 +757,11 @@ describe("comvi check", () => {
         "plural  de:p  {n} invalid-selector few",
         "select  de:s  {g}  source {a, other}  target {other}",
         "tags  de:t  source {b}  target {}",
-        "syntax  en:u  `<i>` is never closed",
+        "syntax  en:u  `</b>` closes no open tag",
+        "unclosed tag  en:w  <br> never closed: rendered as text",
+        "unclosed tag  de:w  <b>, <br> never closed: rendered as text",
         "unsupported ICU  en:x  number",
-        "syntax  de:v  `<b>` is never closed",
+        "syntax  de:v  `</i>` closes no open tag",
         "unsupported ICU  de:y  time",
       ]) {
         expect(output.stdout).toContain(line);
@@ -803,7 +811,7 @@ describe("comvi check", () => {
         q: "{v, number}",
         s: "{g, select, a {A} other {B}}",
         t: "<b>x</b>",
-        u: "<i>x",
+        u: "<i>x</b>",
         w: "{w}",
         z: "Same",
       });

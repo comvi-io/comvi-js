@@ -35,15 +35,30 @@ describe("check rule: tags", () => {
     expect(report.errors).toBe(0);
   });
 
-  // 0.8 core refuses a message whose tags do not balance and renders its key (an error),
-  // where 0.7 rendered the markup as text (a warning).
-  it("reports an unclosed tag in the target as a syntax error", () => {
-    const report = check({ a: "x" }, { a: "<b>x" });
+  // B12: core renders a never-closed opening tag as its own text, so the message is valid
+  // (not `syntax`); `check` warns, as the likely typo it is.
+  it("reports a never-closed tag in the target as an unclosed-tag warning, not a syntax error", () => {
+    const report = check({ a: "x" }, { a: "<b>x <br>" });
 
-    expect(report.locales.de.syntax).toEqual([{ key: "a", message: "`<b>` is never closed" }]);
-    expect(report.summary.syntax).toBe(1);
-    expect(report.errors).toBe(1);
-    expect(report.ok).toBe(false);
+    expect(report.locales.de.unclosedTag).toEqual([{ key: "a", tags: ["b", "br"] }]);
+    expect(report.locales.de.syntax).toEqual([]);
+    expect([report.summary.unclosedTag, report.warnings, report.errors]).toEqual([1, 1, 0]);
+    expect(report.ok).toBe(true);
+  });
+
+  it("a never-closed tag is no tag of the message: a target that drops the closing tag differs in tags", () => {
+    const report = check({ a: "<b>x</b>" }, { a: "<b>x" });
+
+    expect(report.locales.de.tags).toEqual([{ key: "a", source: ["b"], target: [] }]);
+    expect(report.locales.de.unclosedTag).toEqual([{ key: "a", tags: ["b"] }]);
+  });
+
+  it("reports a never-closed tag in the source once, as a source warning", () => {
+    const report = check({ a: "a<br>b" }, { a: "a<br>b" }, { strict: true });
+
+    expect(report.source.unclosedTag).toEqual([{ key: "a", tags: ["br"] }]);
+    expect(report.locales.de.unclosedTag).toEqual([{ key: "a", tags: ["br"] }]);
+    expect([report.warnings, report.errors, report.ok]).toEqual([2, 0, false]);
   });
 
   it("reports a closing tag that closes nothing, and a select without other", () => {
@@ -59,7 +74,7 @@ describe("check rule: tags", () => {
   it("reports a broken source message once, as a syntax error", () => {
     const report = CatalogCheck.run({
       translations: {
-        en: { default: { a: "<b>x" } },
+        en: { default: { a: "<b>x</i>" } },
         de: { default: { a: "<b>x</b>" } },
         fr: { default: { a: "<b>x</b>" } },
       },
@@ -68,7 +83,7 @@ describe("check rule: tags", () => {
       namespaces: ["default"],
     });
 
-    expect(report.source.syntax).toEqual([{ key: "a", message: "`<b>` is never closed" }]);
+    expect(report.source.syntax).toEqual([{ key: "a", message: "`</i>` closes no open tag" }]);
     expect(report.locales.de.syntax).toEqual([]);
     expect(report.summary.syntax).toBe(1);
     expect(report.errors).toBe(1);
@@ -85,7 +100,7 @@ describe("check rule: tags", () => {
   });
 
   it("compares no params of a key core cannot read to the end", () => {
-    const report = check({ a: "<b>{x}</b> {y}" }, { a: "<b>{x} {y}" });
+    const report = check({ a: "<b>{x}</b> {y}" }, { a: "<b>{x}</i> {y}" });
 
     expect(report.locales.de.params).toEqual([]);
     expect(report.locales.de.syntax).toHaveLength(1);

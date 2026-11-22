@@ -59,7 +59,8 @@ describe("check rule: unsupported-icu", () => {
   });
 
   it("still compares the tags of a key with an unsupported argument", () => {
-    const report = check({ a: "<b>{p, number}</b>" }, { a: "{p, number}" });
+    // A tag counts once it closes (B12), so here it closes before the scan stops.
+    const report = check({ a: "<b>x</b> {p, number}" }, { a: "{p, number}" });
 
     expect(report.locales.de.tags).toEqual([{ key: "a", source: ["b"], target: [] }]);
   });
