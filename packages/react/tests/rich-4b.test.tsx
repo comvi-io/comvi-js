@@ -3,12 +3,20 @@
  * precedence handler prop → `components` (a prop that is `undefined` does not override,
  * `null` does), and `t()` returns what its types say.
  */
+import { readFileSync } from "node:fs";
 import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { I18nProvider, T, useI18n } from "../src";
 import { make } from "./helpers";
+
+/** The contract row `a<br>b` (contracts/icu-grammar.json, B12; the tests run in the package). */
+const unclosedBr = (
+  JSON.parse(readFileSync(`${process.cwd()}/../../contracts/icu-grammar.json`, "utf8")) as {
+    cases: { message: string; render: string }[];
+  }
+).cases.find((c) => c.message === "a<br>b")!;
 
 describe("<T components> (lot 4b, R3-24 in React)", () => {
   const Italic = ({ children }: { children?: ReactNode }) => <i className="it">{children}</i>;
@@ -169,5 +177,22 @@ describe("<T components> (lot 4b, R3-24 in React)", () => {
     );
     expect(typeof rich).toBe("object");
     expect(text).toBe("Hi 1");
+  });
+});
+
+describe("a never-closed tag (B12)", () => {
+  it("a<br>b through <T> renders the text a<br>b, escaped, even with a `br` component", () => {
+    const { i18n } = make({ locale: "en", messages: { en: { m: unclosedBr.message } } });
+
+    const { container } = render(
+      <I18nProvider i18n={i18n}>
+        <T i18nKey="m" components={{ br: "br" }} />
+      </I18nProvider>,
+    );
+
+    expect([container.textContent, container.innerHTML]).toEqual([
+      unclosedBr.render,
+      "a&lt;br&gt;b",
+    ]);
   });
 });
