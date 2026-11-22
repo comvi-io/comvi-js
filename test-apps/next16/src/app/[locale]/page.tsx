@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { formatDate, formatNumber } from "@comvi/core/format";
+import { getAlternates } from "@comvi/next/routing";
 import { getI18n } from "@/i18n/server";
 import { ClientCard } from "./ClientCard";
 import { WHEN } from "./when";
@@ -9,6 +11,16 @@ import { routing } from "@/i18n/routing";
 // nothing here turns the page dynamic.
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
+}
+
+// Pure: reads no request API either, so the page stays static.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  return { alternates: getAlternates(routing, { locale, href: "/" }) };
 }
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
