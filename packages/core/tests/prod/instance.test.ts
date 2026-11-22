@@ -94,9 +94,17 @@ describe("production createI18n (lot 4d)", () => {
 });
 
 describe("production formatters (lot 4d)", () => {
-  it("something that is not an instance is a TypeError, without development text", () => {
-    expect(() => formatNumber({} as I18n, 1)).toThrow(TypeError);
-    expect(() => formatNumber({} as I18n, 1)).not.toThrow(/comvi/);
+  it.each([
+    ["something that is not an instance", {}, "undefined"],
+    [
+      "an instance another version of the core made (B3)",
+      { [Symbol.for("comvi")]: "0.0.0-other" },
+      "0.0.0-other",
+    ],
+  ])("%s → the short two-copies error, as core() says it", (_, value, made) => {
+    const call = () => formatNumber(value as unknown as I18n, 1);
+
+    expect(call).toThrow(new Error(`two copies of @comvi/core: ${made}, ${__VERSION__}`));
   });
 
   it("an explicit locale that is not a tag is a RangeError naming the tag only", () => {

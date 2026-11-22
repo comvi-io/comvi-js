@@ -8,7 +8,8 @@
  * Each takes the instance and formats in its locale chain (canonical; the app may spell
  * the locale `pt_BR`), or in the chain of `locale` when passed (it, its parents, the
  * fallback locales — as `t()` resolves `{ locale }`); a `locale` that is not a tag throws a
- * `RangeError`, an `i18n` that is not an instance of `createI18n()` a `TypeError`. Dates use the instance `timeZone` unless
+ * `RangeError`, an `i18n` this copy of the core did not create throws as `core()` does
+ * (instance.ts: two copies of the core, or no instance at all). Dates use the instance `timeZone` unless
  * the options name one. `formatNumber` and `formatDate` also take the NAME of an entry of the
  * instance's `formats` option; `formatRelativeTime` counts from the instance's clock (see
  * clock.ts; a server's is serialised by `handover()` as `serverNow`, so the hydration
@@ -16,7 +17,7 @@
  */
 import { clock } from "./clock";
 import { intl } from "./compile/fmt";
-import { CORE, type I18n, type I18nOptions } from "./instance";
+import { core, type I18n, type I18nOptions } from "./instance";
 import { canonicalize } from "./locale";
 
 /**
@@ -27,12 +28,8 @@ import { canonicalize } from "./locale";
  */
 declare const __DEV__: boolean;
 
-/** The instance behind `i18n`: formatters take a real one, anything else is a TypeError. */
-const seam = (i18n: I18n) => {
-  const core = CORE.get(i18n);
-  if (!core) throw TypeError(__DEV__ ? "[@comvi/core] not an instance of createI18n()" : "i18n");
-  return core;
-};
+/** The instance behind `i18n`: anything this copy did not create throws, as in `core()`. */
+const seam = core;
 
 type Tags = [key: string, locales: readonly string[], fmts: Record<string, unknown>];
 const chains = new WeakMap<object, Tags>();

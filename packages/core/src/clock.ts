@@ -9,12 +9,12 @@
  * else (a browser) the running clock. Nothing re-renders by itself when it moves. Shared by
  * `/format` and `/internal`, so neither row of the core's main entry carries it.
  */
-import { CORE, type I18n } from "./instance";
+import { core, type I18n } from "./instance";
 
 const T0 = new WeakMap<I18n, number>();
 
 export const clock = (i18n: I18n, live?: unknown): number => {
-  const o = CORE.get(i18n)!.o;
+  const o = core(i18n).o;
   if (o.now != null) return o.now;
   if (o.serverNow != null && !live) return o.serverNow;
   if (typeof document != "undefined") return Date.now();
