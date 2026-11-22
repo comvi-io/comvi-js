@@ -38,8 +38,16 @@ describe("the instance", () => {
     const i18n = createI18n({ locale: "en" });
     expect(Object.keys(i18n).sort()).toEqual([...MEMBERS].sort());
     expect(Object.getOwnPropertyNames(i18n)).toHaveLength(12);
-    expect(Object.getOwnPropertySymbols(i18n)).toEqual([]);
     expect(Object.getPrototypeOf(i18n)).toBe(Object.prototype);
+  });
+
+  it("carries one registry symbol, Symbol.for('comvi') → the version of the core that made it (B3)", () => {
+    const { version } = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+
+    const i18n = createI18n({ locale: "en" });
+
+    expect(Object.getOwnPropertySymbols(i18n)).toEqual([Symbol.for("comvi")]);
+    expect((i18n as unknown as Record<symbol, unknown>)[Symbol.for("comvi")]).toBe(version);
   });
 
   it("declares the same 13 members in the I18n interface", () => {

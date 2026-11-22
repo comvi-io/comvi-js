@@ -6,6 +6,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { I18nError } from "../../src/errors";
 import { formatNumber } from "../../src/format";
 import { createI18n, type I18n } from "../../src/instance";
+import { core } from "../../src/internal";
+
+declare const __VERSION__: string;
 
 describe("production instance", () => {
   it("renders and reports exactly like development, without messages", async () => {
@@ -100,5 +103,18 @@ describe("production formatters (lot 4d)", () => {
     const i18n = createI18n({ locale: "en" });
     expect(() => formatNumber(i18n, 1, undefined, "!!")).toThrow(RangeError);
     expect(() => formatNumber(i18n, 1, undefined, "!!")).toThrow(/^!!$/);
+  });
+});
+
+describe("production: an instance of another copy of the core (B3)", () => {
+  it.each([
+    ["another version", "0.0.0-other"],
+    ["the same version", __VERSION__],
+  ])("core() of an instance at %s → the short error, both versions in it", (_, made) => {
+    const i18n = { [Symbol.for("comvi")]: made } as unknown as I18n;
+
+    const read = () => core(i18n);
+
+    expect(read).toThrow(new Error(`two copies of @comvi/core: ${made}, ${__VERSION__}`));
   });
 });

@@ -27,6 +27,8 @@ npm install @comvi/next @comvi/react @comvi/core
 # Peers: next ^15.5.29 || ^16.4.5, react ^19.3.1
 ```
 
+`@comvi/next` asks for `@comvi/react` and `@comvi/core` at exactly its own version: every `@comvi/*` package in an app must be on one version. Two copies of `@comvi/core` (two versions, or one version installed twice) throw an error that names both versions.
+
 ## Setup
 
 The locales, in `src/i18n/routing.ts` (plain data: the middleware imports it too):

@@ -34,6 +34,8 @@ auto-imported; the module brings `@comvi/core` and `@comvi/vue` with it.
 npm install @comvi/nuxt
 ```
 
+Every `@comvi/*` package in an app must be on one version. Two copies of `@comvi/core` (two versions, or one version installed twice) throw an error that names both versions.
+
 ## Setup
 
 The data go to `nuxt.config.ts`, once; the module uses them on the server and in the browser:

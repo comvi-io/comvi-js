@@ -38,6 +38,7 @@ import { find, mk, N, put, whole, type Mark, type State, type Store } from "./st
 import type { RichParts, TFor } from "./types";
 
 declare const __DEV__: boolean;
+declare const __VERSION__: string;
 
 /** Loads one catalog: flat keys → ICU messages. Rejects to report `load_failed`. */
 export type Loader = (
@@ -276,6 +277,31 @@ export interface Core {
 
 /** Instance → its internal seam; read by `@comvi/core/internal` only. */
 export const CORE = new WeakMap<object, Core>();
+
+/**
+ * The version of the core that created an instance, on the instance under a registry symbol:
+ * the one thing a second copy of the core can read from it (its `CORE` is not that copy's).
+ */
+export const VER: symbol = Symbol.for("comvi");
+
+/**
+ * The seam of `i18n` (its {@link Core}). An instance another copy of the core created (a
+ * binding resolving one `@comvi/core`, the app another, at two versions or at one) throws an
+ * error naming both copies' versions, the production build too. Anything else that is not an
+ * instance: development throws, production trusts the types.
+ */
+export const core = (i18n: I18n): Core => {
+  const c = CORE.get(i18n);
+  const v = (i18n as unknown as Record<symbol, string> | undefined)?.[VER];
+  if (!c && v)
+    throw Error(
+      __DEV__
+        ? `[@comvi/core] two copies of @comvi/core are loaded: the instance was created by @comvi/core@${v}, and a second copy, @comvi/core@${__VERSION__}, reads it. Put every @comvi/* package on one version and install it once.`
+        : `two copies of @comvi/core: ${v}, ${__VERSION__}`,
+    );
+  if (__DEV__ && !c) throw new TypeError("[@comvi/core] not an instance of createI18n()");
+  return c!;
+};
 
 /**
  * The marking hook's setter, per instance (R3-14 H4): it sets (or, with `null`, clears) the
@@ -755,6 +781,7 @@ export const createI18n = (o: I18nOptions): I18n => {
   };
 
   const i18n: I18n = {
+    [VER]: __VERSION__,
     get locale() {
       return S.locale;
     },

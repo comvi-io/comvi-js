@@ -31,6 +31,8 @@ npm install @comvi/core
 # Node 20 or newer. No peer dependencies.
 ```
 
+Every `@comvi/*` package in an app must be on one version. Two copies of `@comvi/core` (two versions, or one version installed twice) throw an error that names both versions.
+
 ## Create the i18n instance
 
 In `src/i18n.ts`:
