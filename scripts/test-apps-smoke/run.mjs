@@ -372,7 +372,7 @@ export function evaluate(check, response) {
   return problems;
 }
 
-function preflight(name, app, dir) {
+export function preflight(name, app, dir) {
   const problems = [];
   const manifest = path.join(dir, "node_modules", app.framework, "package.json");
   if (!fs.existsSync(manifest))

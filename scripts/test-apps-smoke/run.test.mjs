@@ -1,8 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
-import { readiness, stopGroup } from "./run.mjs";
+import { preflight, readiness, stopGroup } from "./run.mjs";
 
 const NEXT_LOG = [
   "   ▲ Next.js 16.4.3\n   - Local:         http://localhost:4102\n",
@@ -148,4 +151,40 @@ test("stopGroup: any other kill error (EPERM) → rejects instead of being swall
   };
 
   await assert.rejects(stopGroup(123456, { kill }), { code: "EPERM" });
+});
+
+function standWith({ declared, installed }) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "smoke-preflight-"));
+  fs.mkdirSync(path.join(dir, "node_modules", "next"), { recursive: true });
+  fs.mkdirSync(path.join(dir, ".next"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".next", "BUILD_ID"), "x");
+  fs.writeFileSync(
+    path.join(dir, "node_modules", "next", "package.json"),
+    JSON.stringify({ version: installed }),
+  );
+  fs.writeFileSync(
+    path.join(dir, "package.json"),
+    JSON.stringify({ dependencies: { next: declared } }),
+  );
+  return dir;
+}
+const NEXT_APP = { kind: "next", framework: "next", major: 15 };
+
+test("preflight: a stand pinned to an exact version that is not the installed one → a problem naming both", () => {
+  const dir = standWith({ declared: "15.5.29", installed: "15.5.30" });
+
+  const problems = preflight("next", NEXT_APP, dir);
+
+  assert.deepEqual(problems, ["test-apps/next pins next@15.5.29 but 15.5.30 is installed"]);
+});
+
+test("preflight: an exact pin that is installed, and a range, are not flagged", () => {
+  assert.deepEqual(
+    preflight("next", NEXT_APP, standWith({ declared: "15.5.29", installed: "15.5.29" })),
+    [],
+  );
+  assert.deepEqual(
+    preflight("next", NEXT_APP, standWith({ declared: "^15.5.28", installed: "15.5.30" })),
+    [],
+  );
 });
