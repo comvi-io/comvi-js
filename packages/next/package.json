@@ -97,8 +97,8 @@
     "server-only": "^0.0.1"
   },
   "peerDependencies": {
-    "@comvi/core": "^0.7.0",
-    "@comvi/react": "^0.7.0",
+    "@comvi/core": "0.7.1",
+    "@comvi/react": "0.7.1",
     "next": "^15.5.29 || ^16.4.5",
     "react": "^19.3.1"
   },

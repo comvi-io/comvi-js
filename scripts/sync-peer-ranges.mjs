@@ -1,12 +1,14 @@
 /**
- * Pins internal @comvi/* peer ranges to the minor line of the NEXT release.
+ * Pins internal @comvi/* peer ranges to the EXACT version of the next release.
  *
- * Policy: plugins peer-depend on the exact minor they ship with (^0.4.0 for
- * the 0.4.x release). Run before `changeset version` so the new version is
- * already in range — otherwise changesets bumps the peer dependents on its own
- * account (by patch since @changesets/cli 3; cli 2 escalated them, and the
- * whole fixed group, to a major bump). Syncing first keeps the ranges on this
- * policy's minor line.
+ * Policy (owner decision 22.11.2026, B3): core and every binding always ship the
+ * same version, so a non-`workspace:` `@comvi/*` peer (today `@comvi/next`'s
+ * `@comvi/core` and `@comvi/react`) is the next release's exact version — a patch
+ * release too. Run before `changeset version`, so the new version already
+ * satisfies the peer — otherwise changesets bumps the peer dependents on its own
+ * account (by patch since @changesets/cli 3; cli 2 escalated them, and the whole
+ * fixed group, to a major bump). The publish job checks the packed tarballs
+ * (scripts/publish-candidate.mjs `exactComviPeers`).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -54,15 +56,8 @@ export function nextReleaseVersion() {
   return `${maj}.${min}.${patch}`;
 }
 
-export function nextReleaseRange() {
-  const version = nextReleaseVersion();
-  if (version === null) return null;
-  const [maj, min] = version.split(".");
-  return `^${maj}.${min}.0`;
-}
-
 export function syncPeerRanges() {
-  const range = nextReleaseRange();
+  const range = nextReleaseVersion();
   if (range === null) {
     console.log("sync-peer-ranges: no changesets, nothing to do");
     return;

@@ -209,7 +209,7 @@ export function bumpExampleRanges({ root, version, log = console.log }) {
  *      sees an internal peer range that the new version falls outside of and
  *      bumps the peer dependents on its own account (by patch since
  *      @changesets/cli 3; cli 2 escalated them, and the fixed group, to a
- *      major). Syncing first keeps the ranges on the policy's minor line;
+ *      major). Syncing first pins them to the exact version being cut;
  *   2. `changeset version`;
  *   3. the examples' `@comvi/*` ranges, to `^<version>` (not for a pre-release);
  *   4. the breaking-entry hoist over the version blocks step 2 just generated;

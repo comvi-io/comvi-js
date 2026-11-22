@@ -17,7 +17,7 @@ const SYNC_PEER_RANGES = path.join(SCRIPT_DIR, "sync-peer-ranges.mjs");
  */
 function runInFixture(root, body) {
   const source =
-    `import { declaredMaxBump, nextReleaseVersion, nextReleaseRange, syncPeerRanges } from ${JSON.stringify(
+    `import { declaredMaxBump, nextReleaseVersion, syncPeerRanges } from ${JSON.stringify(
       pathToFileURL(SYNC_PEER_RANGES).href,
     )};\n` +
     `const out = (value) => console.log("RESULT " + JSON.stringify(value));\n` +
@@ -118,25 +118,19 @@ test("declaredMaxBump is 0 when no changeset is pending", (t) => {
   assert.equal(resultOf(runInFixture(root, "  out(declaredMaxBump());")), 0);
 });
 
-test("a minor changeset makes the next version 0.5.0 and the next range ^0.5.0", (t) => {
+test("a minor changeset makes the next version 0.5.0", (t) => {
   const root = makeFixtureRepo(t);
 
-  assert.deepEqual(
-    resultOf(runInFixture(root, "  out([nextReleaseVersion(), nextReleaseRange()]);")),
-    ["0.5.0", "^0.5.0"],
-  );
+  assert.equal(resultOf(runInFixture(root, "  out(nextReleaseVersion());")), "0.5.0");
 });
 
-test("a patch-only train bumps the patch digit and keeps the minor range", (t) => {
+test("a patch-only train bumps the patch digit", (t) => {
   const root = makeFixtureRepo(t, { changesets: { "a.md": '"@comvi/core": patch' } });
 
-  assert.deepEqual(
-    resultOf(runInFixture(root, "  out([nextReleaseVersion(), nextReleaseRange()]);")),
-    ["0.4.1", "^0.4.0"],
-  );
+  assert.equal(resultOf(runInFixture(root, "  out(nextReleaseVersion());")), "0.4.1");
 });
 
-test("a major changeset anywhere makes the next version 1.0.0 and the next range ^1.0.0", (t) => {
+test("a major changeset anywhere makes the next version 1.0.0", (t) => {
   const root = makeFixtureRepo(t, {
     changesets: {
       "a.md": '"@comvi/core": minor',
@@ -144,22 +138,16 @@ test("a major changeset anywhere makes the next version 1.0.0 and the next range
     },
   });
 
-  assert.deepEqual(
-    resultOf(runInFixture(root, "  out([nextReleaseVersion(), nextReleaseRange()]);")),
-    ["1.0.0", "^1.0.0"],
-  );
+  assert.equal(resultOf(runInFixture(root, "  out(nextReleaseVersion());")), "1.0.0");
 });
 
-test("with no changesets there is no next version and no next range", (t) => {
+test("with no changesets there is no next version", (t) => {
   const root = makeFixtureRepo(t, { changesets: {} });
 
-  assert.deepEqual(
-    resultOf(runInFixture(root, "  out([nextReleaseVersion(), nextReleaseRange()]);")),
-    [null, null],
-  );
+  assert.equal(resultOf(runInFixture(root, "  out(nextReleaseVersion());")), null);
 });
 
-test("syncPeerRanges pins @comvi peers to the next minor and leaves everything else alone", (t) => {
+test("syncPeerRanges pins @comvi peers to the exact next version and leaves everything else alone", (t) => {
   const root = makeFixtureRepo(t);
   const internalBefore = readRaw(root, "internal");
   const pluginXBefore = readRaw(root, "plugin-x");
@@ -168,7 +156,7 @@ test("syncPeerRanges pins @comvi peers to the next minor and leaves everything e
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 
   assert.deepEqual(readManifest(root, "react").peerDependencies, {
-    "@comvi/core": "^0.5.0",
+    "@comvi/core": "0.5.0",
     // A framework peer is not a @comvi peer: the script must not widen it.
     react: "^18.0.0 || ^19.0.0",
   });
@@ -176,7 +164,7 @@ test("syncPeerRanges pins @comvi peers to the next minor and leaves everything e
   assert.equal(readRaw(root, "plugin-x"), pluginXBefore);
   // Workspace-private and with no @comvi peer: never rewritten.
   assert.equal(readRaw(root, "internal"), internalBefore);
-  assert.match(result.stdout, /sync-peer-ranges: @comvi\/react -> @comvi\/\* peer \^0\.5\.0/);
+  assert.match(result.stdout, /sync-peer-ranges: @comvi\/react -> @comvi\/\* peer 0\.5\.0/);
 });
 
 test("syncPeerRanges with no changesets writes nothing", (t) => {
@@ -203,4 +191,13 @@ test("syncPeerRanges is idempotent: a peer already on the next range is not rewr
   assert.equal(second.status, 0, `${second.stdout}\n${second.stderr}`);
   assert.equal(readRaw(root, "react"), afterFirst);
   assert.doesNotMatch(second.stdout, /sync-peer-ranges: @comvi\/react/);
+});
+
+test("a patch train pins the @comvi peers to the exact patch version, not the minor line", (t) => {
+  const root = makeFixtureRepo(t, { changesets: { "a.md": '"@comvi/core": patch' } });
+
+  const result = runInFixture(root, "  syncPeerRanges();\n  out(null);");
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.equal(readManifest(root, "react").peerDependencies["@comvi/core"], "0.4.1");
 });
