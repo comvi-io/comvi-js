@@ -193,25 +193,23 @@ describe("a never-closed tag renders as its own text, with a development hint fo
   });
 
   it("inside a closed tag and inside a sub-message too", () => {
+    const BR = `[@comvi/core] \`<br>\` in "k" is never closed and renders as text; ${HINT}`;
     const tag = report("<b>a<br>b</b>");
     const sub = report("{n, plural, other {a<br>b}}");
-    expect([tag.out, tag.errors, tag.warnings[0]]).toEqual([
-      [{ name: "b", c: ["a<br>b"] }],
-      [],
-      expect.stringContaining(HINT),
-    ]);
-    expect([sub.out, sub.errors, sub.warnings[0]]).toEqual([
-      "a<br>b",
-      [],
-      expect.stringContaining(HINT),
-    ]);
+    expect([tag.out, tag.errors, tag.warnings]).toEqual([[{ name: "b", c: ["a<br>b"] }], [], [BR]]);
+    expect([sub.out, sub.errors, sub.warnings]).toEqual(["a<br>b", [], [BR]]);
   });
 
   it("another never-closed tag has no hint: the hint is about br", () => {
+    const hr = report("a<hr>b");
     expect(report("a<b>b").warnings).toEqual([
       '[@comvi/core] `<b>` in "k" is never closed and renders as text',
     ]);
-    expect(report("a<hr>b").out).toBe("a<hr>b");
+    expect([hr.out, hr.errors, hr.warnings]).toEqual([
+      "a<hr>b",
+      [],
+      ['[@comvi/core] `<hr>` in "k" is never closed and renders as text'],
+    ]);
   });
 
   it("what the hint says: `<br/>` is valid and renders nothing without a handler", () => {

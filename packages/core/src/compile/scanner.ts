@@ -25,7 +25,7 @@
  *   tags opened after that one, and every tag still open when the (sub-)message ends, were
  *   never closed: each such opening tag is its own literal text (B12, owner 21–22.11.2026).
  *   A closing tag that closes nothing is a `syntax` error.
- * - The compiled tree is at most `DEEPEST` levels high: each ICU sub-message and each
+ * - The compiled tree is at most 200 levels high: each ICU sub-message and each
  *   closed tag is one level, a never-closed tag none. Deeper is a `syntax` error, not a
  *   stack overflow out of `t()`.
  *
@@ -40,11 +40,11 @@ import { argument } from "./icu";
 declare const __DEV__: boolean;
 
 /**
- * How high the compiled tree of one message may be (owner decision P3, 22.11.2026): an
- * internal guard, no option. Render recursion follows the tree, so this bounds the stack.
+ * The compiled tree of one message is at most 200 levels high (owner decision P3,
+ * 22.11.2026): an internal guard, no option, written as a literal at its two checks in
+ * `message()`. Render recursion follows the tree, so this bounds the stack.
  */
-const DEEPEST = 200;
-const DEEP = __DEV__ ? `nested deeper than ${DEEPEST} levels` : "";
+const DEEP = __DEV__ ? "nested deeper than 200 levels" : "";
 
 export type Params = Readonly<Record<string, unknown>>;
 
@@ -74,14 +74,13 @@ export interface Env {
  * rendered values that the parent spreads (a non-string value travels as `[value]`).
  */
 export type Part = string | PartFn;
-export interface PartFn {
-  (p: Params, l: string, x: Env | undefined, h: number): string | unknown[];
-  /** A tag's or an ICU argument's height: the levels of the compiled tree it holds, itself included. */
-  h?: number;
-}
+export type PartFn = (p: Params, l: string, x: Env | undefined, h: number) => string | unknown[];
 
-/** An opening tag: its name, the index of its token in the parts, its offset in the template. */
-export type Open = [name: string, part: number, at: number];
+/**
+ * An opening tag: its name, the index of its token in the parts, the height of the highest
+ * part before it (back to the open tag before it), and, in development, its offset.
+ */
+export type Open = [name: string, part: number, high: number, at?: number];
 
 /** Scanner state over one template. */
 export interface Scan {
@@ -93,6 +92,8 @@ export interface Scan {
   k: string | undefined;
   /** Development: a `#` was left literal inside a select nested in a plural. */
   w?: boolean;
+  /** The height of the (sub-)message or ICU argument scanned last. */
+  h?: number;
   /** Development: every opening tag that was never closed, as the scan found it. */
   u?: Open[];
   /**
@@ -228,12 +229,6 @@ export const run = (
   return out;
 };
 
-/** The height of the highest of `parts` (text has none), or `h` when that is higher. */
-export const high = (parts: readonly Part[], h = 0): number => {
-  for (const q of parts) if ((q as PartFn).h! > h) h = (q as PartFn).h!;
-  return h;
-};
-
 /**
  * Scans one message (the top level or a sub-message) into parts, in one pass: a tag's
  * children are not scanned by a recursive call. An opening tag pushes its token, as text,
@@ -249,13 +244,15 @@ export const high = (parts: readonly Part[], h = 0): number => {
  */
 export const message = (P: Scan, hash: boolean, under: boolean, d: number): Part[] => {
   // On the way down: deeper than the limit would overflow the stack before any height is known.
-  if (d > DEEPEST) {
+  if (d > 200) {
     if (__DEV__) fail(DEEP);
     fail();
   }
   const s = P.s;
   const parts: Part[] = [];
   const open: Open[] = [];
+  // The height of the highest part since the innermost open tag (or since the start).
+  let hi = 0;
   let buf = "";
   let c: string | undefined;
   let m: RegExpExecArray | null;
@@ -303,6 +300,7 @@ export const message = (P: Scan, hash: boolean, under: boolean, d: number): Part
       } else {
         P.i++;
         parts.push(argument(P, name, under, d));
+        if (P.h! > hi) hi = P.h!;
       }
     } else if (c == "}") {
       if (d) break;
@@ -315,28 +313,34 @@ export const message = (P: Scan, hash: boolean, under: boolean, d: number): Part
     } else if (c == "<" && (m = ((TAG.lastIndex = P.i), TAG.exec(s)))) {
       const name = m[2];
       flush();
-      let e: Open = [name, parts.length, P.i];
-      if (m[1] || m[3]) {
-        if (m[1]) {
-          // The nearest open tag of this name; the tags opened after it were never closed.
-          let j = open.length;
-          while (j-- && open[j][0] != name) if (__DEV__ && P.v != null) P.v++;
-          if (m[3] || j < 0) {
-            if (__DEV__) fail(`\`</${name}>\` closes no open tag`);
-            fail();
-          }
-          e = open[j];
-          if (__DEV__) for (const u of open.slice(j + 1)) (P.u ||= []).push(u);
-          open.length = j;
+      let e: Open = [name, parts.length, hi];
+      if (__DEV__) e[3] = P.i;
+      if (m[1]) {
+        // The nearest open tag of this name; the tags opened after it were never closed, and
+        // what they hold belongs to it.
+        let j = open.length;
+        while (j-- && (e = open[j])[0] != name) {
+          if (e[2] > hi) hi = e[2];
+          if (__DEV__ && P.v != null) P.v++;
         }
-        const kids = parts.splice(e[1] + 1);
-        const h = high(kids) + 1;
-        if (d + h > DEEPEST) {
+        if (m[3] || j < 0) {
+          if (__DEV__) fail(`\`</${name}>\` closes no open tag`);
+          fail();
+        }
+        if (__DEV__) for (const u of open.slice(j + 1)) (P.u ||= []).push(u);
+        // pop(), not `open.length = j`: shrinking through `length` is V8's slow path, and a
+        // compile of tag-dense text was about 20 % slower with it (+8 B min+gz for this).
+        while (open.length > j) open.pop();
+      } else hi = 0;
+      if (m[1] || m[3]) {
+        // The tag is one level above the highest part it holds.
+        if (d + ++hi > 200) {
           if (__DEV__) fail(DEEP);
           fail();
         }
-        if (__DEV__ && P.o) P.o(4, name, undefined, e[2]);
-        (parts[e[1]] = tagPart(P.k, name, kids)).h = h;
+        if (__DEV__ && P.o) P.o(4, name, undefined, e[3]);
+        parts[e[1]] = tagPart(P.k, name, parts.splice(e[1] + 1));
+        if (e[2] > hi) hi = e[2];
       } else {
         open.push(e);
         parts.push(m[0]);
@@ -348,8 +352,12 @@ export const message = (P: Scan, hash: boolean, under: boolean, d: number): Part
       P.i++;
     }
   }
-  // What is still open was never closed.
-  if (__DEV__) for (const u of open) (P.u ||= []).push(u);
+  // What is still open was never closed; what it holds counts toward the height here.
+  for (const u of open) {
+    if (u[2] > hi) hi = u[2];
+    if (__DEV__) (P.u ||= []).push(u);
+  }
+  P.h = hi;
   flush();
   return parts;
 };

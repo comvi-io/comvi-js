@@ -60,14 +60,17 @@ export const compile = (template: string, key?: string): Compiled => {
       return fallback;
     };
   }
-  // Development, at compile time only: one warning per never-closed tag (B12), printed once
-  // per (key, offset, name) like the other per-key warnings; never keyed by the template,
-  // which can be long and holds many such tags.
+  // Development: one warning per never-closed tag (B12), in message order, when the message
+  // compiles. Nothing else remembers it: the compiled entry is cached with its catalog
+  // (`lookup`), so a repeat `t()` does not compile, and does not warn, again. The message is
+  // named by at most 60 characters of its key (or of the template, without one), so the
+  // text printed stays linear in the message however many tags it holds.
   if (__DEV__ && P.u) {
-    for (const [name, , at] of P.u) {
-      devWarn(
-        "<\0" + key + "\0" + at + "\0" + name,
-        `\`<${name}>\` in "${key ?? template}" is never closed and renders as text` +
+    let label = key ?? template;
+    if (label.length > 60) label = label.slice(0, 60) + "…";
+    for (const [name] of P.u.sort((a, b) => a[3]! - b[3]!)) {
+      console.warn(
+        `[@comvi/core] \`<${name}>\` in "${label}" is never closed and renders as text` +
           (name == "br" ? BR_HINT : ""),
       );
     }

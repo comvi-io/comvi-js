@@ -60,6 +60,78 @@ describe("a never-closed opening tag", () => {
   });
 });
 
+describe("never-closed warnings: one per occurrence, no process-wide memory, bounded text", () => {
+  const W = '[@comvi/core] `<b>` in "title" is never closed and renders as text';
+
+  it("two locales with the same key and tag warn twice, once each", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const messages = { en: { title: "<b>Note" }, de: { title: "<b>Hinweis" } };
+
+    for (const locale of ["en", "de"]) createI18n({ locale, messages }).t("title");
+
+    expect(warn.mock.calls).toEqual([[W], [W]]);
+  });
+
+  it("two instances with their own catalogs warn once each; one shared catalog compiles, and warns, once", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const shared = { title: "<b>Note" };
+
+    for (const messages of [{ title: "<b>Note" }, { title: "<b>Note" }])
+      createI18n({ locale: "en", messages: { en: messages } }).t("title");
+    for (let i = 0; i < 2; i++) createI18n({ locale: "en", messages: { en: shared } }).t("title");
+
+    expect(warn.mock.calls).toEqual([[W], [W], [W]]);
+  });
+
+  it("the same message compiled again warns again: nothing outside the compiled entry remembers it", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    render(compile("<b>Note", "title"), {}, "en");
+    render(compile("<b>Note", "title"), {}, "en");
+
+    expect(warn.mock.calls).toEqual([[W], [W]]);
+  });
+
+  it("warnings come in message order", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    render(compile("<i>a<b>x</b><u>{n, plural, other {<s>}}", "k"), { n: 1, b: String }, "en");
+
+    expect(warn.mock.calls.map(([m]) => /`<(\w+)>`/.exec(m as string)![1])).toEqual([
+      "i",
+      "u",
+      "s",
+    ]);
+  });
+
+  it("a long key is shown by its first 60 characters; a message without a key by its first 60", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const key = "k".repeat(100);
+
+    render(compile("a<b>", key), {}, "en");
+    render(compile("x".repeat(100) + "<b>"), {}, "en");
+
+    expect(warn.mock.calls).toEqual([
+      [`[@comvi/core] \`<b>\` in "${"k".repeat(60)}…" is never closed and renders as text`],
+      [`[@comvi/core] \`<b>\` in "${"x".repeat(60)}…" is never closed and renders as text`],
+    ]);
+  });
+
+  it.each([
+    ["a 2,000-character key", "k".repeat(2_000)],
+    ["no key", undefined],
+  ])("2,000 never-closed tags under %s: warning text ≤ 50 × the input", (_, key) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const template = "<b>x".repeat(2_000);
+
+    render(compile(template, key), {}, "en");
+    const printed = warn.mock.calls.reduce((n, [m]) => n + (m as string).length, 0);
+
+    expect(warn).toHaveBeenCalledTimes(2_000);
+    expect(printed).toBeLessThanOrEqual(50 * (template.length + (key?.length ?? 0)));
+  });
+});
+
 describe("the depth limit: 200 levels of ICU sub-messages and closed tags", () => {
   const deep = (levels: number, wrap: (s: string) => string) => {
     let s = "x";

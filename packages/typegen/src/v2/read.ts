@@ -182,7 +182,7 @@ export function readMessage(text: string): ReadMessage {
   for (const [, name] of closed.sort((a, b) => a[0] - b[0]))
     if (!tags.includes(name)) tags.push(name);
   const unclosed =
-    error === undefined ? (P.u ?? []).sort((a, b) => a[2] - b[2]).map(([name]) => name) : [];
+    error === undefined ? (P.u ?? []).sort((a, b) => a[3]! - b[3]!).map(([name]) => name) : [];
   const out: ReadMessage = {
     params: [...params.values()],
     tags,
