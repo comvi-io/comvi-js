@@ -21,6 +21,13 @@
  * - `<tag>…</tag>` and `<tag/>` are rich-text tags, always on (R3-11). A tag name
  *   starts with a letter; anything else after `<` is literal text. The handler is
  *   the parameter of the same name; without one, the children render inline.
+ * - A closing tag closes the nearest open tag of its name in the same (sub-)message; the
+ *   tags opened after that one, and every tag still open when the (sub-)message ends, were
+ *   never closed: each such opening tag is its own literal text (B12, owner 21–22.11.2026).
+ *   A closing tag that closes nothing is a `syntax` error.
+ * - The compiled tree is at most `DEEPEST` levels high: each ICU sub-message and each
+ *   closed tag is one level, a never-closed tag none. Deeper is a `syntax` error, not a
+ *   stack overflow out of `t()`.
  *
  * A syntax error never throws out of `compile()` (cache.ts): the message renders
  * as its key and reports `syntax` through the render environment, identically in
@@ -32,9 +39,12 @@ import { argument } from "./icu";
 
 declare const __DEV__: boolean;
 
-/** Development: what an unclosed `<br>` was probably meant to be. Not read in production. */
-const BR_HINT =
-  "; write `<br/>` instead. It renders nothing without a `br` handler or `components` entry";
+/**
+ * How high the compiled tree of one message may be (owner decision P3, 22.11.2026): an
+ * internal guard, no option. Render recursion follows the tree, so this bounds the stack.
+ */
+const DEEPEST = 200;
+const DEEP = __DEV__ ? `nested deeper than ${DEEPEST} levels` : "";
 
 export type Params = Readonly<Record<string, unknown>>;
 
@@ -64,7 +74,14 @@ export interface Env {
  * rendered values that the parent spreads (a non-string value travels as `[value]`).
  */
 export type Part = string | PartFn;
-export type PartFn = (p: Params, l: string, x: Env | undefined, h: number) => string | unknown[];
+export interface PartFn {
+  (p: Params, l: string, x: Env | undefined, h: number): string | unknown[];
+  /** A tag's or an ICU argument's height: the levels of the compiled tree it holds, itself included. */
+  h?: number;
+}
+
+/** An opening tag: its name, the index of its token in the parts, its offset in the template. */
+export type Open = [name: string, part: number, at: number];
 
 /** Scanner state over one template. */
 export interface Scan {
@@ -76,6 +93,13 @@ export interface Scan {
   k: string | undefined;
   /** Development: a `#` was left literal inside a select nested in a plural. */
   w?: boolean;
+  /** Development: every opening tag that was never closed, as the scan found it. */
+  u?: Open[];
+  /**
+   * Development test seam: when a number, counts the open tags closing tags step over while
+   * they look for their own (the work bound of tests/compile/unclosed-tags.test.ts).
+   */
+  v?: number;
   /**
    * Development builds only: the shape observer of the type generator, which reads a
    * message's parameters and tags through THIS scanner instead of a second ICU reader
@@ -87,9 +111,10 @@ export interface Scan {
    * - `2` a selector of a plural/selectordinal/select as matched (`=01` as `=1`), before
    *   its sub-message is scanned (a repeated selector's sub-message is scanned too);
    * - `3` the end of argument `name`, before its `other` check;
-   * - `4` an opening or self-closing tag `name`.
+   * - `4` a closed tag `name` (at its closing tag) or a self-closing one, with the offset
+   *   `at` of its opening tag. A never-closed tag is no event: it is text (`u`).
    */
-  o?: (event: 0 | 1 | 2 | 3 | 4, name: string, type?: string) => void;
+  o?: (event: 0 | 1 | 2 | 3 | 4, name: string, type?: string, at?: number) => void;
 }
 
 /** Thrown inside the scanner, caught by `compile()`; never escapes to callers. */
@@ -203,23 +228,34 @@ export const run = (
   return out;
 };
 
+/** The height of the highest of `parts` (text has none), or `h` when that is higher. */
+export const high = (parts: readonly Part[], h = 0): number => {
+  for (const q of parts) if ((q as PartFn).h! > h) h = (q as PartFn).h!;
+  return h;
+};
+
 /**
- * Scans one message (the top level, a sub-message, or a tag's children) into parts.
+ * Scans one message (the top level or a sub-message) into parts, in one pass: a tag's
+ * children are not scanned by a recursive call. An opening tag pushes its token, as text,
+ * and an entry on this scope's stack of open tags; its closing tag finds the nearest entry
+ * of its name, drops it and every entry above it (those were never closed: their tokens stay
+ * text), and replaces the token with the tag, whose children are the parts after it. Each
+ * entry is pushed once and dropped once; a closing tag that finds no entry ends the scan,
+ * so the stack is searched in full at most once per message.
  *
  * @param hash  `#` is the count here (the immediate sub-message of a plural).
  * @param under Some ancestor is a plural (development diagnostics only).
- * @param tag   The open tag whose children this is; its closing tag ends the scan.
- * @param nested A sub-message: an unquoted `}` ends the scan.
+ * @param d     How many sub-messages deep this is; above 0, an unquoted `}` ends the scan.
  */
-export const message = (
-  P: Scan,
-  hash: boolean,
-  under: boolean,
-  nested: boolean,
-  tag?: string,
-): Part[] => {
+export const message = (P: Scan, hash: boolean, under: boolean, d: number): Part[] => {
+  // On the way down: deeper than the limit would overflow the stack before any height is known.
+  if (d > DEEPEST) {
+    if (__DEV__) fail(DEEP);
+    fail();
+  }
   const s = P.s;
   const parts: Part[] = [];
+  const open: Open[] = [];
   let buf = "";
   let c: string | undefined;
   let m: RegExpExecArray | null;
@@ -266,10 +302,10 @@ export const message = (
         });
       } else {
         P.i++;
-        parts.push(argument(P, name, under));
+        parts.push(argument(P, name, under, d));
       }
     } else if (c == "}") {
-      if (nested) break;
+      if (d) break;
       buf += c;
       P.i++;
     } else if (c == "#" && hash) {
@@ -278,30 +314,42 @@ export const message = (
       P.i++;
     } else if (c == "<" && (m = ((TAG.lastIndex = P.i), TAG.exec(s)))) {
       const name = m[2];
-      P.i += m[0].length;
-      if (m[1]) {
-        // A closing tag ends the children of the tag it names; nothing else may close.
-        if (m[3] || name != tag) {
-          if (__DEV__) fail(`\`</${name}>\` closes no open tag` + (tag == "br" ? BR_HINT : ""));
+      flush();
+      let e: Open = [name, parts.length, P.i];
+      if (m[1] || m[3]) {
+        if (m[1]) {
+          // The nearest open tag of this name; the tags opened after it were never closed.
+          let j = open.length;
+          while (j-- && open[j][0] != name) if (__DEV__ && P.v != null) P.v++;
+          if (m[3] || j < 0) {
+            if (__DEV__) fail(`\`</${name}>\` closes no open tag`);
+            fail();
+          }
+          e = open[j];
+          if (__DEV__) for (const u of open.slice(j + 1)) (P.u ||= []).push(u);
+          open.length = j;
+        }
+        const kids = parts.splice(e[1] + 1);
+        const h = high(kids) + 1;
+        if (d + h > DEEPEST) {
+          if (__DEV__) fail(DEEP);
           fail();
         }
-        flush();
-        return parts;
+        if (__DEV__ && P.o) P.o(4, name, undefined, e[2]);
+        (parts[e[1]] = tagPart(P.k, name, kids)).h = h;
+      } else {
+        open.push(e);
+        parts.push(m[0]);
       }
-      flush();
-      if (__DEV__ && P.o) P.o(4, name);
-      parts.push(tagPart(P.k, name, m[3] ? [] : message(P, hash, under, nested, name)));
+      P.i += m[0].length;
     } else {
       if (__DEV__ && c == "#" && under) P.w = true;
       buf += c;
       P.i++;
     }
   }
-  if (tag != null) {
-    // The loop ended without the closing tag: end of text or the `}` of a sub-message.
-    if (__DEV__) fail(`\`<${tag}>\` is never closed` + (tag == "br" ? BR_HINT : ""));
-    fail();
-  }
+  // What is still open was never closed.
+  if (__DEV__) for (const u of open) (P.u ||= []).push(u);
   flush();
   return parts;
 };

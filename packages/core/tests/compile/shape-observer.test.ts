@@ -12,11 +12,11 @@ const events = (s: string) => {
     s,
     i: 0,
     k: undefined,
-    o: (e, n, t) => out.push(t ? `${e}:${n}:${t}` : `${e}:${n}`),
+    o: (e, n, t, at) => out.push([e, n, t, at].filter((x) => x !== undefined).join(":")),
   };
   let error: string | undefined;
   try {
-    message(P, false, false, false);
+    message(P, false, false, 0);
   } catch (e) {
     if (e !== SYNTAX) throw e;
     error = SYNTAX.m;
@@ -34,10 +34,10 @@ describe("shape observer", () => {
       "0:name",
       "1:n:plural",
       "2:=1",
-      "4:b",
       "0:x",
+      "4:b:32",
       "2:other",
-      "4:br",
+      "4:br:53",
       "3:n",
       "1:g:select",
       "2:a",
@@ -65,9 +65,13 @@ describe("shape observer", () => {
     expect(events("{n, plural, one {a}} {x}").out).toEqual(["1:n:plural", "2:one", "3:n"]);
   });
 
+  it("reports a tag when it closes, with where it opened; a never-closed tag is no event (B12)", () => {
+    expect(events("<a><b>x</b></a><i>y <br/>").out).toEqual(["4:b:3", "4:a:0", "4:br:20"]);
+  });
+
   it("changes nothing the scan returns", () => {
     const P: Scan = { s: "{a} <b>{c}</b>", i: 0, k: undefined };
     const Q: Scan = { ...P, o: () => undefined };
-    expect(message(Q, false, false, false).length).toBe(message(P, false, false, false).length);
+    expect(message(Q, false, false, 0).length).toBe(message(P, false, false, 0).length);
   });
 });

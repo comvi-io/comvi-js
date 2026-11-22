@@ -21,6 +21,7 @@ import { pluralRules } from "./fmt";
 import {
   arg,
   fail,
+  high,
   message,
   missing,
   run,
@@ -42,7 +43,11 @@ const EXACT = /^=[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
 const OFFSET =
   /offset:[\t-\r \x85\u200e\u200f\u2028\u2029]*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)/y;
 
-export const argument = (P: Scan, name: string, under: boolean): PartFn => {
+/**
+ * @param d How many sub-messages deep the argument is; its own are one deeper. The part
+ *          returned carries its height (`h`): one more than its highest sub-message.
+ */
+export const argument = (P: Scan, name: string, under: boolean, d: number): PartFn => {
   const s = P.s;
   let c: string | undefined;
   const type = token(P);
@@ -76,6 +81,7 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
   }
 
   const branches: Record<string, readonly Part[]> = Object.create(null);
+  let top = 0;
   for (;;) {
     skipSpace(P);
     c = s[P.i];
@@ -98,7 +104,9 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
     // `#` is the count in a plural's own sub-messages only; a select passes `false`.
     // A repeated selector keeps its FIRST sub-message, as ICU4C does.
     // `under` only feeds a development warning: production passes `false`.
-    const sub = message(P, !select, __DEV__ && (under || !select), true);
+    // A repeated selector's sub-message never renders; its height counts all the same.
+    const sub = message(P, !select, __DEV__ && (under || !select), d + 1);
+    top = high(sub, top);
     branches[key] ??= sub;
     if (s[P.i++] != "}") {
       if (__DEV__) fail(`a sub-message of \`{${name}, ${type}, …}\` is never closed`);
@@ -113,8 +121,9 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
     fail();
   }
 
+  let f: PartFn;
   if (select) {
-    return (p, l, x, h) => {
+    f = (p, l, x, h) => {
       const v = arg(p, name);
       if (v == null)
         missing(
@@ -126,36 +135,38 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
         );
       return run((v != null && branches[String(v)]) || other, p, l, x, h);
     };
-  }
-
-  // The plural rules of the last locale this message rendered in: one lookup per locale
-  // change instead of one cache-key string per render.
-  let rules: Intl.PluralRules | undefined;
-  let rl: string | undefined;
-  return (p, l, x) => {
-    // A plural selects on a number. A numeric string (`"5"`, `" 2.5 "`) is converted with
-    // Number(), as 0.7 did (owner decision 27.10.2026; ICU4C itself rejects strings). A
-    // blank or non-numeric string, NaN, a missing value or any other type renders `{n}`.
-    const v = arg(p, name);
-    const n = typeof v === "string" && v.trim() ? +v : v;
-    if (typeof n !== "number" || n !== n)
-      return missing(
-        P,
-        x,
+  } else {
+    // The plural rules of the last locale this message rendered in: one lookup per locale
+    // change instead of one cache-key string per render.
+    let rules: Intl.PluralRules | undefined;
+    let rl: string | undefined;
+    f = (p, l, x) => {
+      // A plural selects on a number. A numeric string (`"5"`, `" 2.5 "`) is converted with
+      // Number(), as 0.7 did (owner decision 27.10.2026; ICU4C itself rejects strings). A
+      // blank or non-numeric string, NaN, a missing value or any other type renders `{n}`.
+      const v = arg(p, name);
+      const n = typeof v === "string" && v.trim() ? +v : v;
+      if (typeof n !== "number" || n !== n)
+        return missing(
+          P,
+          x,
+          l,
+          name,
+          __DEV__ &&
+            `{${name}, ${type}} needs a number or a numeric string, got ${typeof v === "string" ? JSON.stringify(v) : typeof v}`,
+        );
+      const c = n - offset;
+      return run(
+        branches["=" + n] ||
+          branches[(rl == l ? rules! : ((rl = l), (rules = pluralRules(l, ordinal)))).select(c)] ||
+          other,
+        p,
         l,
-        name,
-        __DEV__ &&
-          `{${name}, ${type}} needs a number or a numeric string, got ${typeof v === "string" ? JSON.stringify(v) : typeof v}`,
+        x,
+        c,
       );
-    const c = n - offset;
-    return run(
-      branches["=" + n] ||
-        branches[(rl == l ? rules! : ((rl = l), (rules = pluralRules(l, ordinal)))).select(c)] ||
-        other,
-      p,
-      l,
-      x,
-      c,
-    );
-  };
+    };
+  }
+  f.h = top + 1;
+  return f;
 };
