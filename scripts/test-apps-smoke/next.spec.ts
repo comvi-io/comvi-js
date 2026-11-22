@@ -319,6 +319,7 @@ test("10: the client bundle carries no server code and no server secret", async 
     "COMVI_E2E_CATALOGS", // the server-only env name
     "x-comvi-locale", // createGetI18n's request read
     "node:http",
+    "getAlternates: unknown locale", // @comvi/next/routing's getAlternates, server-only by use
   ])
     expect(client.includes(secret), `${secret} in a client chunk`).toBe(false);
 });
@@ -382,6 +383,40 @@ const expectSeo = (html: string, canonical: string, href: string) => {
 };
 
 /**
+ * `GET /uk/slow-meta` read as a stream, split at `</head>`. Its metadata waits on the `uk:seo`
+ * pair, held here. `release: "after-head"` lets it go only once `</head>` has arrived, so the
+ * shell provably went out while the metadata was pending (a client Next does not stream to
+ * never gets that far and the poll fails); `"when-asked"` lets it go as soon as it is asked for.
+ */
+const slowMetaHtml = async (
+  base: string,
+  headers: Record<string, string>,
+  release: "after-head" | "when-asked",
+) => {
+  await mock.mode({ hold: ["uk:seo"] });
+  let html = "";
+  // Started before the request: for a bot, Next sends no byte until the metadata resolved.
+  const released = (async () => {
+    await expect.poll(mock.held).toContain("uk:seo");
+    if (release === "after-head") await expect.poll(() => html.includes("</head>")).toBe(true);
+    await mock.release("uk:seo");
+  })();
+  const response = await fetch(`${base}/uk/slow-meta`, { headers });
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    html += decoder.decode(value, { stream: true });
+  }
+  await released;
+  await mock.mode({});
+  expect(html).toContain("</head>");
+  const at = html.indexOf("</head>");
+  return { head: html.slice(0, at), body: html.slice(at) };
+};
+
+/**
  * Did the document survive? A marker on `window` (a full navigation replaces the window) and
  * Playwright's count of main-frame `load` events (a full navigation fires another one).
  */
@@ -399,6 +434,7 @@ const SAME_DOCUMENT = { marker: "same document", loads: 0 };
 test("11: SEO: canonical, hreflang alternates and x-default on the server render; they follow a switch", async ({
   page,
   request,
+  baseURL,
 }) => {
   // 3: the default locale, no prefix. First: a later /uk response sets the locale cookie, and
   // with it `/admin` redirects to `/uk/admin`.
@@ -413,6 +449,24 @@ test("11: SEO: canonical, hreflang alternates and x-default on the server render
   ).text();
   expect(bot).toContain("</head>");
   expectSeo(bot.slice(0, bot.indexOf("</head>")), `${SITE}/uk/admin`, "/admin");
+  // 5, where it can fail: /slow-meta's metadata resolves only after the page shell. An ordinary
+  // client gets </head> first and the tags streamed into <body>; the bot gets them in <head>.
+  const ordinary = await slowMetaHtml(baseURL!, {}, "after-head");
+  expect(seoLinks(ordinary.head), "nothing in <head> for an ordinary client").toEqual({
+    canonical: [],
+    alternates: [],
+  });
+  expectSeo(ordinary.body, `${SITE}/uk/slow-meta`, "/slow-meta");
+  const slowBot = await slowMetaHtml(
+    baseURL!,
+    { "user-agent": "facebookexternalhit/1.1" },
+    "when-asked",
+  );
+  expectSeo(slowBot.head, `${SITE}/uk/slow-meta`, "/slow-meta");
+  expect(seoLinks(slowBot.body), "nothing streamed after </head> for the bot").toEqual({
+    canonical: [],
+    alternates: [],
+  });
 
   // 6: a client switch replaces the tags, without a full reload in between.
   await page.goto("/uk/admin");
@@ -443,11 +497,11 @@ test("11b: the no-reload check of scenario 11 fails on a full reload or a full n
   const reload = await watchDocument(page);
   await page.reload();
   await hydrated(page);
-  expect(await reload()).toEqual({ marker: null, loads: 1 });
+  await expect.poll(reload).toEqual({ marker: null, loads: 1 });
 
   const assign = await watchDocument(page);
   await page.evaluate(() => location.assign("/de/admin"));
   await expect(page).toHaveURL(/\/de\/admin$/);
   await hydrated(page);
-  expect(await assign()).toEqual({ marker: null, loads: 1 });
+  await expect.poll(assign).toEqual({ marker: null, loads: 1 });
 });
