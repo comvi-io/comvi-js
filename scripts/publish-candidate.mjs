@@ -11,7 +11,8 @@
  * three subcommands, one per job in `release.yml` (GA and RC alike):
  *
  *   pack    (contents: read; no e2e, no browser, no example installs)
- *     packs the dist the job built and checked into `--dir`, writes
+ *     packs the dist the job built and checked into `--dir`, refuses a
+ *     tarball whose `@comvi/*` peer is not its own version (`exactComviPeers`), writes
  *     `<dir>/SHA256SUMS` (the ONLY list of what may be published), asks npm
  *     which versions are new (`<dir>/pending.json`, for humans), and emits
  *     `sums` (the sha256 of SHA256SUMS) and `pending` to GITHUB_OUTPUT, once.
@@ -30,7 +31,8 @@
  *        refused;
  *     2. the candidates come from SHA256SUMS alone — each tarball's name and
  *        version are read from `package/package.json` inside it, and the file
- *        name must be the one `pnpm pack` gives that name and version;
+ *        name must be the one `pnpm pack` gives that name and version, and
+ *        every `@comvi/*` peer must equal that version;
  *        `pending.json` is not read;
  *     3. `npm publish <tgz> --tag release-<sums prefix>` each one npm does not
  *        have yet, core first: a STAGING dist-tag of this candidate, so no
@@ -247,7 +249,7 @@ export function assertVerifiedCandidate(dir, expectSums) {
  * says it is something else is refused, not published under its own claim.
  */
 export function candidatesFromSums(dir, recorded, readManifest = packedManifest) {
-  return listedFiles(recorded).map((file) => {
+  const candidates = listedFiles(recorded).map((file) => {
     const tarball = path.join(dir, file);
     const { name, version } = readManifest(tarball);
     if (typeof name !== "string" || !name.startsWith("@comvi/")) {
@@ -260,6 +262,26 @@ export function candidatesFromSums(dir, recorded, readManifest = packedManifest)
     }
     return { name, version, file, tarball };
   });
+  exactComviPeers(candidates, readManifest);
+  return candidates;
+}
+
+/**
+ * Every `@comvi/*` peer in a packed tarball equals that tarball's own version (owner
+ * decision 22.11.2026, B3): core and every binding ship one version, so `@comvi/next`
+ * asks for exactly its `@comvi/core` and `@comvi/react`, a GA and an `rc.N` alike. Reads
+ * the manifest inside each tarball, the bytes npm receives; throws naming every mismatch.
+ */
+export function exactComviPeers(candidates, readManifest = packedManifest) {
+  const wrong = [];
+  for (const { file, tarball } of candidates) {
+    const { version, peerDependencies = {} } = readManifest(tarball);
+    for (const [name, range] of Object.entries(peerDependencies)) {
+      if (name.startsWith("@comvi/") && range !== version)
+        wrong.push(`${file}: peer ${name} "${range}" must equal its version ${version}`);
+    }
+  }
+  if (wrong.length > 0) throw new Error(wrong.join("\n"));
 }
 
 /** `@comvi/core` first, so a consumer never resolves a binding before its core. */
@@ -637,6 +659,8 @@ function pack(options) {
     fs.renameSync(tarballFor(pkg), tarball);
     return { name: pkg.name, version: pkg.version, file: path.basename(tarball), tarball };
   });
+  // The packed bytes, before anything is recorded as publishable (B3).
+  exactComviPeers(packages);
   const recorded = checksums(packages.map((pkg) => pkg.tarball));
   fs.writeFileSync(path.join(dir, "SHA256SUMS"), `${recorded}\n`);
   const sums = fileDigest(path.join(dir, "SHA256SUMS"));

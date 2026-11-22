@@ -529,3 +529,73 @@ test("with no changesets the examples are left alone", (t) => {
 
   assert.equal(fs.readFileSync(path.join(root, "examples/react/package.json"), "utf8"), before);
 });
+
+/**
+ * The real cut, `sync-peer-ranges` then the real `changeset version`, over a fixed group of
+ * core, react and next where next peers on the other two at EXACTLY its own version (B3):
+ * every package lands on the train's version — a minor and a patch alike — the peers move
+ * with it, and nothing is bumped beyond the changeset (the repo's own changesets config).
+ */
+function realCut(t, bump) {
+  // The real path: the sync script runs only when argv[1] is its own path, and macOS's
+  // tmpdir is a symlink (/var → /private/var), under which it would silently do nothing.
+  const root = fs.realpathSync(
+    makeFixtureRepo(t, { changesets: { "a.md": `"@comvi/core": ${bump}` } }),
+  );
+  const repoConfig = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, ".changeset/config.json")));
+  writeJson(path.join(root, ".changeset/config.json"), {
+    ...repoConfig,
+    fixed: [["@comvi/core", "@comvi/next", "@comvi/react"]],
+    ignore: [],
+  });
+  writeJson(path.join(root, "packages/next/package.json"), {
+    name: "@comvi/next",
+    version: "0.5.0",
+    peerDependencies: {
+      "@comvi/core": "0.5.0",
+      "@comvi/react": "0.5.0",
+      next: "^15.5.28 || ^16.4.3",
+      react: "^19.3.1",
+    },
+  });
+  writeJson(path.join(root, "package.json"), { name: "fixture-root", private: true });
+  fs.writeFileSync(path.join(root, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
+  fs.symlinkSync(path.join(REPO_ROOT, "node_modules"), path.join(root, "node_modules"), "junction");
+  fs.mkdirSync(path.join(root, "scripts"));
+  fs.copyFileSync(
+    path.join(REPO_ROOT, "scripts/sync-peer-ranges.mjs"),
+    path.join(root, "scripts/sync-peer-ranges.mjs"),
+  );
+  const synced = [];
+  const run = (command, args) => {
+    const result = spawnSync(command, args, { cwd: root, encoding: "utf8" });
+    if (result.status !== 0) {
+      throw new Error(
+        `${command} ${args.join(" ")} exited ${result.status}: ${result.stdout}${result.stderr}`,
+      );
+    }
+    if (command === process.execPath) synced.push(result.stdout);
+  };
+  main({ root, run, log: () => {} });
+  assert.match(synced.join("\n"), /sync-peer-ranges: @comvi\/next -> @comvi\/\* peer/);
+  const read = (dir) =>
+    JSON.parse(fs.readFileSync(path.join(root, "packages", dir, "package.json"), "utf8"));
+  return { core: read("core"), react: read("react"), next: read("next") };
+}
+
+for (const [bump, version] of [
+  ["minor", "0.6.0"],
+  ["patch", "0.5.1"],
+]) {
+  test(`a real ${bump} cut: the fixed group lands on ${version}, next's @comvi peers on exactly ${version}`, (t) => {
+    const { core, react, next } = realCut(t, bump);
+
+    assert.deepEqual([core.version, react.version, next.version], [version, version, version]);
+    assert.deepEqual(next.peerDependencies, {
+      "@comvi/core": version,
+      "@comvi/react": version,
+      next: "^15.5.28 || ^16.4.3",
+      react: "^19.3.1",
+    });
+  });
+}
