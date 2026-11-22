@@ -84,15 +84,13 @@ describe("production syntax reports", () => {
   });
 });
 
-describe("production: an unclosed <br>", () => {
-  it("renders its key and reports syntax with no message, no hint", () => {
-    const errors: { code: string; message?: string }[] = [];
-    const i18n = createI18n({
-      locale: "en",
-      messages: { en: { k: "a<br>b" } },
-      onError: (e) => errors.push(e),
-    });
-    expect(i18n.t("k")).toBe("k");
-    expect(errors).toEqual([expect.objectContaining({ code: "syntax", message: undefined })]);
+describe("production: a never-closed <br> (B12)", () => {
+  it("renders as text, with no report and no warning", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const onError = vi.fn();
+    const i18n = createI18n({ locale: "en", messages: { en: { k: "a<br>b" } }, onError });
+    expect(i18n.t("k")).toBe("a<br>b");
+    expect(onError).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
   });
 });

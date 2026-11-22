@@ -1,0 +1,332 @@
+{
+  "$comment": [
+    "The rich-text grammar contract shared by @comvi/core, @comvi/typegen (readMessage) and the platform's parser. js-sdk owns this file; the platform keeps a sha256-checked copy.",
+    "render: the message rendered with `values` and, for every tag name, a handler that returns `[name:` + its children joined + `]`; null when the message does not compile (it renders its key).",
+    "schema: what the generated types ask for. params as readMessage reports them; tags lists CLOSED tags only, ordered by the opening of each name's first closed occurrence. null for a message that does not compile.",
+    "error: null, or `syntax` when the message does not compile. unclosed: how many never-closed opening tags the message has (each renders as its own text and is reported once as a development warning); 0 when the message does not compile.",
+    "depthLimit: the height of the compiled tree a message may have. Each ICU sub-message level and each closed tag adds one; a never-closed tag is text and adds nothing."
+  ],
+  "version": 1,
+  "depthLimit": 200,
+  "values": {
+    "n": 1,
+    "name": "N"
+  },
+  "cases": [
+    {
+      "message": "a<br>b",
+      "render": "a<br>b",
+      "schema": {
+        "params": [],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": 1
+    },
+    {
+      "message": "a<b>{name}",
+      "render": "a<b>N",
+      "schema": {
+        "params": [
+          {
+            "name": "name",
+            "kind": "string"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": 1
+    },
+    {
+      "message": "a<b>x<i>y</i>",
+      "render": "a<b>x[i:y]",
+      "schema": {
+        "params": [],
+        "tags": ["i"]
+      },
+      "error": null,
+      "unclosed": 1
+    },
+    {
+      "message": "<b>x<b>y</b>",
+      "render": "<b>x[b:y]",
+      "schema": {
+        "params": [],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": 1,
+      "note": "a closing tag closes the nearest open tag of its name"
+    },
+    {
+      "message": "{n, plural, one {<b>one} other {many}}",
+      "render": "<b>one",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": 1,
+      "note": "a tag never leaves the } of its sub-message"
+    },
+    {
+      "message": "{n, plural, other {<b># items}}",
+      "render": "<b>1 items",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": 1
+    },
+    {
+      "message": "{n, plural, other {<b>x}}</b>",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": 0,
+      "note": "the <b> in the sub-message is text; the </b> outside closes nothing"
+    },
+    {
+      "message": "a<b>x</i>",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": 0,
+      "note": "a stray closing tag"
+    },
+    {
+      "message": "<b><i>x</b></i>",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": 0,
+      "note": "after </b> closes b, <i> is text, so </i> is stray"
+    },
+    {
+      "message": "<b>a<br>b</b>",
+      "render": "[b:a<br>b]",
+      "schema": {
+        "params": [],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": 1
+    },
+    {
+      "message": "<b><i>x</b>",
+      "render": "[b:<i>x]",
+      "schema": {
+        "params": [],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": 1
+    },
+    {
+      "message": "<b>{n, plural, other {x</b>}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": 0,
+      "note": "the search for an open tag never crosses a plural/select branch"
+    },
+    {
+      "message": "<a><b>x</b></a>",
+      "render": "[a:[b:x]]",
+      "schema": {
+        "params": [],
+        "tags": ["a", "b"]
+      },
+      "error": null,
+      "unclosed": 0,
+      "note": "tags in the schema: by the opening of the first closed occurrence"
+    },
+    {
+      "message": "<a>x<b>y</b><a>z</a>",
+      "render": "<a>x[b:y][a:z]",
+      "schema": {
+        "params": [],
+        "tags": ["b", "a"]
+      },
+      "error": null,
+      "unclosed": 1
+    },
+    {
+      "message": "<link>terms",
+      "render": "<link>terms",
+      "schema": {
+        "params": [],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": 1
+    },
+    {
+      "message": "<b >x",
+      "render": "<b >x",
+      "schema": {
+        "params": [],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": 1,
+      "note": "the token stays as written"
+    },
+    {
+      "message": "<b>x<br>",
+      "render": "<b>x<br>",
+      "schema": {
+        "params": [],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": 2
+    },
+    {
+      "message": "a<br/>b",
+      "render": "a[br:]b",
+      "schema": {
+        "params": [],
+        "tags": ["br"]
+      },
+      "error": null,
+      "unclosed": 0,
+      "note": "a self-closing tag is a closed tag"
+    },
+    {
+      "message": "<b>bold</b> and <i>it</i>",
+      "render": "[b:bold] and [i:it]",
+      "schema": {
+        "params": [],
+        "tags": ["b", "i"]
+      },
+      "error": null,
+      "unclosed": 0
+    },
+    {
+      "message": "x</b>",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": 0,
+      "note": "a stray closing tag"
+    },
+    {
+      "message": "<b>x</b/>",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": 0,
+      "note": "a closing tag cannot be self-closing"
+    },
+    {
+      "message": "{n, plural, other {x}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": 0,
+      "note": "broken ICU stays an error"
+    },
+    {
+      "message": "<b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b>x</b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b>",
+      "render": "[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:x]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+      "schema": {
+        "params": [],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": 0,
+      "note": "200 nested closed tags: the depth limit passes"
+    },
+    {
+      "message": "<b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b>x</b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b>",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": 0,
+      "note": "201 nested closed tags: deeper than the limit"
+    },
+    {
+      "message": "{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {x}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}",
+      "render": "x",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": 0,
+      "note": "200 nested plurals: the depth limit passes"
+    },
+    {
+      "message": "{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {{n, plural, other {x}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": 0,
+      "note": "201 nested plurals: deeper than the limit"
+    },
+    {
+      "message": "<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {x}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>",
+      "render": "[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:[b:x]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": 0,
+      "note": "200 levels, tags and plurals alternating: passes"
+    },
+    {
+      "message": "<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>{n, plural, other {<b>x</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>}}</b>",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": 0,
+      "note": "201 levels, tags and plurals alternating: deeper than the limit"
+    },
+    {
+      "message": "<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>",
+      "render": "<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>",
+      "schema": {
+        "params": [],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": 201,
+      "note": "201 never-closed <br> in a row: text, not depth"
+    },
+    {
+      "message": "<b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b>x</b>",
+      "render": "<b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b>[b:x]",
+      "schema": {
+        "params": [],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": 200,
+      "note": "200 never-closed <b> and one closed: text, not depth"
+    }
+  ]
+}

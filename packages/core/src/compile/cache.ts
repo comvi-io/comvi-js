@@ -31,6 +31,10 @@ export type Render = (params: Params | undefined, locale: string, env?: Env) => 
 export type Compiled = string | Render;
 export type CompiledRecord = Record<string, Compiled>;
 
+/** Development: what a never-closed `<br>` was probably meant to be. Not read in production. */
+const BR_HINT =
+  "; write `<br/>` instead. It renders nothing without a `br` handler or `components` entry";
+
 /** Characters that can start syntax at the top level; a template without them is static. */
 const SYNTAX_START = /[{'<]/;
 
@@ -44,7 +48,7 @@ export const compile = (template: string, key?: string): Compiled => {
   const P: Scan = { s: template, i: 0, k: key };
   let parts;
   try {
-    parts = message(P, false, false, false);
+    parts = message(P, false, false, 0);
   } catch (e) {
     if (e != SYNTAX) throw e;
     // Development: the parser's explanation. Production: only the messages that ship
@@ -55,6 +59,18 @@ export const compile = (template: string, key?: string): Compiled => {
       report(x, { code: "syntax", key, locale: l, message: text });
       return fallback;
     };
+  }
+  // Development, at compile time only: one warning per never-closed tag (B12), printed once
+  // per (key, offset, name) like the other per-key warnings; never keyed by the template,
+  // which can be long and holds many such tags.
+  if (__DEV__ && P.u) {
+    for (const [name, , at] of P.u) {
+      devWarn(
+        "<\0" + key + "\0" + at + "\0" + name,
+        `\`<${name}>\` in "${key ?? template}" is never closed and renders as text` +
+          (name == "br" ? BR_HINT : ""),
+      );
+    }
   }
   // Quoting was the only syntax: the unquoted text is static.
   if (parts.length < 2 && typeof parts[0] !== "function") return parts[0] || "";

@@ -162,20 +162,22 @@ describe.each([
     }
   });
 
-  it("an unclosed <br> renders its key; only the development build explains it", async () => {
+  it("a never-closed <br> renders as text and reports nothing; only the development build warns (B12)", async () => {
     const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
-    const messages: (string | undefined)[] = [];
-    const i18n = createI18n({
-      locale: "en",
-      messages: { en: { k: "a<br>b" } },
-      onError: (e) => messages.push(e.message),
-    });
-    expect(i18n.t("k")).toBe("k");
-    expect(messages).toEqual([
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const onError = vi.fn();
+    const i18n = createI18n({ locale: "en", messages: { en: { k: "a<br>b" } }, onError });
+    expect(i18n.t("k")).toBe("a<br>b");
+    expect(onError).not.toHaveBeenCalled();
+    expect(warn.mock.calls).toEqual(
       label === "dev"
-        ? "`<br>` is never closed; write `<br/>` instead. It renders nothing without a `br` handler or `components` entry"
-        : undefined,
-    ]);
+        ? [
+            [
+              '[@comvi/core] `<br>` in "k" is never closed and renders as text; write `<br/>` instead. It renders nothing without a `br` handler or `components` entry',
+            ],
+          ]
+        : [],
+    );
   });
 
   it(`two namespaces failing in one locale: the default reporter ${label === "dev" ? "prints two lines, each with its namespace and cause" : "prints nothing"}`, async () => {
