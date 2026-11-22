@@ -1445,6 +1445,165 @@
         "i"
       ],
       "note": "200 closed levels, each with a never-closed <i>: accepted"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 199,
+          "wrap": [["<u>", "</u>"]],
+          "inner": "x",
+          "before": "<b>",
+          "after": "<i>x</b>"
+        }
+      },
+      "render": {
+        "nest": {
+          "times": 199,
+          "wrap": [["[u:", "]"]],
+          "inner": "x",
+          "before": "[b:",
+          "after": "<i>x]"
+        }
+      },
+      "schema": {
+        "params": [],
+        "tags": ["b", "u"]
+      },
+      "error": null,
+      "unclosed": ["i"],
+      "note": "<b>, 199 nested <u>, a never-closed <i>, </b>: 200 levels"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 200,
+          "wrap": [["<u>", "</u>"]],
+          "inner": "x",
+          "before": "<b>",
+          "after": "<i>x</b>"
+        }
+      },
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "<b>, 200 nested <u>, a never-closed <i>, </b>: what a closing tag steps over counts, 201 levels"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 199,
+          "wrap": [["<u>", "</u>"]],
+          "inner": "x",
+          "before": "<b>",
+          "after": "<br/></b>"
+        }
+      },
+      "render": {
+        "nest": {
+          "times": 199,
+          "wrap": [["[u:", "]"]],
+          "inner": "x",
+          "before": "[b:",
+          "after": "[br:]]"
+        }
+      },
+      "schema": {
+        "params": [],
+        "tags": ["b", "u", "br"]
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "<b>, 199 nested <u>, <br/>, </b>: 200 levels"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 200,
+          "wrap": [["<u>", "</u>"]],
+          "inner": "x",
+          "before": "<b>",
+          "after": "<br/></b>"
+        }
+      },
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "<b>, 200 nested <u>, <br/>, </b>: the height before a closed tag is kept, 201 levels"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 198,
+          "wrap": [["<u>", "</u>"]],
+          "inner": "x",
+          "before": "<b>{n, plural, other {",
+          "after": "<br>}}</b>"
+        }
+      },
+      "render": {
+        "nest": {
+          "times": 198,
+          "wrap": [["[u:", "]"]],
+          "inner": "x",
+          "before": "[b:",
+          "after": "<br>]"
+        }
+      },
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": ["b", "u"]
+      },
+      "error": null,
+      "unclosed": ["br"],
+      "note": "<b>, a plural, 198 nested <u> and a never-closed <br>, </b>: 200 levels"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 199,
+          "wrap": [["<u>", "</u>"]],
+          "inner": "x",
+          "before": "<b>{n, plural, other {",
+          "after": "<br>}}</b>"
+        }
+      },
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "<b>, a plural, 199 nested <u> and a never-closed <br>, </b>: the height before a tag open at the end of a sub-message counts, 201 levels"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 200,
+          "wrap": [["<u>", "</u>"]],
+          "inner": "x",
+          "after": "<b>x</b>"
+        }
+      },
+      "render": {
+        "nest": {
+          "times": 200,
+          "wrap": [["[u:", "]"]],
+          "inner": "x",
+          "after": "[b:x]"
+        }
+      },
+      "schema": {
+        "params": [],
+        "tags": ["u", "b"]
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "200 nested <u>, then <b>x</b>: a tag's height starts at its opening, 200 levels"
     }
   ]
 }

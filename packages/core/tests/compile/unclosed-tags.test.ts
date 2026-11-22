@@ -158,6 +158,20 @@ describe("the depth limit: 200 levels of ICU sub-messages and closed tags", () =
     ]);
   });
 
+  it("`<b>…<i>y</b>` nested 20,000 times: the tags a closing tag steps over count; syntax, not a RangeError", () => {
+    const env = sink();
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { k: deep(20_000, (s) => `<b>${s}<i>y</b>`) } },
+      onError: (e) => env.r!(e),
+    });
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const out = i18n.t("k", { b: (c: readonly unknown[]) => c });
+
+    expect([out, env.errors.map((e) => e.code)]).toEqual(["k", ["syntax"]]);
+  });
+
   it("10,000 nested closed tags render the key and report syntax, not a RangeError", () => {
     const env = sink();
 
