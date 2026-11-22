@@ -285,22 +285,32 @@ export const CORE = new WeakMap<object, Core>();
 export const VER: symbol = Symbol.for("comvi");
 
 /**
- * The seam of `i18n` (its {@link Core}). An instance another copy of the core created (a
- * binding resolving one `@comvi/core`, the app another, at two versions or at one) throws an
- * error naming both copies' versions, the production build too. Anything else that is not an
- * instance: development throws, production trusts the types.
+ * The seam of `i18n` (its {@link Core}). Anything this copy of the core did not create throws,
+ * the production build too: a binding resolving one `@comvi/core` while the app created its
+ * instance with another (two versions, or one version installed twice) is the likeliest
+ * cause, so production says `two copies of @comvi/core: <the instance's version>, <this
+ * copy's>` — the first is `undefined` for an instance of a core older than 0.8, which carries
+ * no tag, and for anything that is no instance at all. The tag is read only on a miss.
+ * Development tells the cases apart: no tag; a tag of another version; a tag of this one,
+ * which also comes with a copy or a Proxy of the instance (its tag is an own property).
  */
 export const core = (i18n: I18n): Core => {
   const c = CORE.get(i18n);
-  const v = (i18n as unknown as Record<symbol, string> | undefined)?.[VER];
-  if (!c && v)
+  if (!c) {
+    const v = (i18n as unknown as Record<symbol, string> | undefined)?.[VER];
+    if (__DEV__ && !v)
+      throw new TypeError(
+        "[@comvi/core] not an instance of createI18n(), or it was created by a copy of @comvi/core older than 0.8",
+      );
     throw Error(
       __DEV__
-        ? `[@comvi/core] two copies of @comvi/core are loaded: the instance was created by @comvi/core@${v}, and a second copy, @comvi/core@${__VERSION__}, reads it. Put every @comvi/* package on one version and install it once.`
+        ? v == __VERSION__
+          ? `[@comvi/core] this instance was not created by this copy of @comvi/core, though both are @comvi/core@${v}: one version is installed twice (install it once), or the instance is a copy or a Proxy of the real one (pass the instance itself; in Vue, toRaw() it), or the development and production builds of one install meet.`
+          : `[@comvi/core] two copies of @comvi/core are loaded: the instance was created by @comvi/core@${v}, and a second copy, @comvi/core@${__VERSION__}, reads it. Put @comvi/core and every binding on one version and install it once.`
         : `two copies of @comvi/core: ${v}, ${__VERSION__}`,
     );
-  if (__DEV__ && !c) throw new TypeError("[@comvi/core] not an instance of createI18n()");
-  return c!;
+  }
+  return c;
 };
 
 /**

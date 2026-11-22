@@ -121,37 +121,68 @@ function twoCopies(coreDir) {
   const { version } = JSON.parse(fs.readFileSync(path.join(coreDir, "package.json"), "utf8"));
   const OTHER = "0.0.0-copy";
   // The exact texts, both builds: the instance's copy first, then the copy reading it.
-  const expected = {
-    prod: (made, reads) => `two copies of @comvi/core: ${made}, ${reads}`,
-    dev: (made, reads) =>
+  const twoVersions = {
+    prod: `two copies of @comvi/core: ${OTHER}, ${version}`,
+    dev:
       `[@comvi/core] two copies of @comvi/core are loaded: the instance was created by ` +
-      `@comvi/core@${made}, and a second copy, @comvi/core@${reads}, reads it. ` +
-      `Put every @comvi/* package on one version and install it once.`,
+      `@comvi/core@${OTHER}, and a second copy, @comvi/core@${version}, reads it. ` +
+      `Put @comvi/core and every binding on one version and install it once.`,
+  };
+  const oneVersion = {
+    prod: `two copies of @comvi/core: ${version}, ${version}`,
+    dev:
+      `[@comvi/core] this instance was not created by this copy of @comvi/core, though both ` +
+      `are @comvi/core@${version}: one version is installed twice (install it once), or the ` +
+      `instance is a copy or a Proxy of the real one (pass the instance itself; in Vue, ` +
+      `toRaw() it), or the development and production builds of one install meet.`,
+  };
+  const untagged = {
+    prod: `two copies of @comvi/core: undefined, ${version}`,
+    dev:
+      "[@comvi/core] not an instance of createI18n(), or it was created by a copy of " +
+      "@comvi/core older than 0.8",
   };
 
-  /** A copy of the extracted core under `target`, its manifest and inlined version set to `to`. */
-  const copyCore = (target, to) => {
+  /**
+   * A copy of the extracted core under `target`, its manifest and inlined version set to `to`.
+   * `untag` takes the version tag off the instance in both builds: what a core older than 0.8
+   * (0.7.x, no tag) creates.
+   */
+  const copyCore = (target, to, untag = false) => {
     fs.cpSync(coreDir, target, { recursive: true });
-    if (to === version) return;
     const at = new RegExp(`(?<![\\d.])${version.replace(/\./g, "\\.")}(?![\\d.])`, "g");
+    let cut = 0;
     for (const f of fs.readdirSync(path.join(target, "dist"), { recursive: true })) {
       const file = path.join(target, "dist", f);
       if (!/\.js$/.test(f)) continue;
-      fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace(at, to));
+      let src = fs.readFileSync(file, "utf8");
+      if (to !== version) src = src.replace(at, to);
+      if (untag) src = src.replace(/^\s*\[VER(?:\$\d+)?\]: [^,\n]+,\n/m, () => (cut++, ""));
+      fs.writeFileSync(file, src);
     }
+    // Both builds carry the tag once: anything else is a probe that tests nothing.
+    if (untag && cut !== 2) fail(`two copies: took the tag off ${cut} files, not 2`);
+    if (to === version) return;
     const manifest = path.join(target, "package.json");
     const pkg = JSON.parse(fs.readFileSync(manifest, "utf8"));
     fs.writeFileSync(manifest, `${JSON.stringify({ ...pkg, version: to }, null, 2)}\n`);
   };
 
   const layouts = [
-    { name: "different versions", app: OTHER, binding: version },
-    { name: "the same version", app: version, binding: version },
+    { name: "different versions", app: OTHER, binding: version, want: twoVersions },
+    { name: "the same version", app: version, binding: version, want: oneVersion },
+    {
+      name: "an untagged instance (a core older than 0.8)",
+      app: version,
+      untag: true,
+      binding: version,
+      want: untagged,
+    },
     { name: "one copy (control)", app: version, binding: null },
   ];
   for (const layout of layouts) {
     const app = path.join(root, `two-copies-${layouts.indexOf(layout)}`);
-    copyCore(path.join(app, "node_modules", "@comvi", "core"), layout.app);
+    copyCore(path.join(app, "node_modules", "@comvi", "core"), layout.app, layout.untag);
     const binding = path.join(app, "node_modules", "binding");
     fs.mkdirSync(binding, { recursive: true });
     fs.writeFileSync(
@@ -183,9 +214,7 @@ function twoCopies(coreDir) {
       if (result.status !== 0)
         fail(`two copies, ${layout.name}, ${build}:\n${result.stderr.trim()}`);
       const actual = JSON.parse(result.stdout);
-      const want = layout.binding
-        ? { error: expected[build](layout.app, layout.binding) }
-        : { read: "en" };
+      const want = layout.binding ? { error: layout.want[build] } : { read: "en" };
       if (JSON.stringify(actual) !== JSON.stringify(want)) {
         fail(
           `two copies, ${layout.name}, ${build} build:\n  got      ${JSON.stringify(actual)}\n  expected ${JSON.stringify(want)}`,
