@@ -99,6 +99,18 @@ describe("check rule: tags", () => {
     expect(report.errors).toBe(1);
   });
 
+  // B12: a tag counts once it closes, so a target that breaks before its closing tag has
+  // no tags at all; comparing them would report a difference nobody wrote.
+  it.each([
+    ["<b>{n}</b> files", "<b>{n, number}</b> Dateien"],
+    ["<link>terms</link>", "<link>terms {x</link>"],
+    ["<b>{n, plural, one {#} other {#}}</b>", "<b>{n, plural, one {#}}</b>"],
+  ])("a target broken before its closing tag (%s → %s) is no tags finding", (source, target) => {
+    const report = check({ a: source }, { a: target });
+
+    expect(report.locales.de.tags).toEqual([]);
+  });
+
   it("compares no params of a key core cannot read to the end", () => {
     const report = check({ a: "<b>{x}</b> {y}" }, { a: "<b>{x}</i> {y}" });
 
