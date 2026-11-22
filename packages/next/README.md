@@ -24,7 +24,7 @@ rendered to Client Components as data: same first paint, no catalog fetched. App
 
 ```bash
 npm install @comvi/next @comvi/react @comvi/core
-# Peers: next ^15.5.28 || ^16.4.3, react ^19.3.1
+# Peers: next ^15.5.29 || ^16.4.5, react ^19.3.1
 ```
 
 ## Setup
