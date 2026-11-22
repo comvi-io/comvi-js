@@ -20,7 +20,7 @@ import type { Env, Params } from "./compile/scanner";
  * counts from the browser's clock even when a server handed over its `serverNow`.
  */
 export { clock } from "./clock";
-import { CORE, type Core, type I18n } from "./instance";
+import { core, type I18n } from "./instance";
 import { dir } from "./locale";
 import type { CatalogInput } from "./flat";
 import { mk, N, whole, type Slot, type State, type Store } from "./state";
@@ -36,18 +36,12 @@ export { defaultOnError } from "./errors";
 export type { Chain, Core } from "./instance";
 export type { Mark, Slot, State, Store } from "./state";
 
-declare const __DEV__: boolean;
-
 /**
  * The seam of `i18n` (its {@link Core}): a binding calls it once per hook and reads the
- * members it needs, so no wrapper per member ships with it. Development checks that it is
- * an instance; production trusts the types.
+ * members it needs, so no wrapper per member ships with it. An instance of another copy of
+ * the core throws, naming both versions (instance.ts).
  */
-export const core = (i18n: I18n): Core => {
-  const c = CORE.get(i18n);
-  if (__DEV__ && !c) throw new TypeError("[@comvi/core] not an instance of createI18n()");
-  return c!;
-};
+export { core };
 
 /** The published state of `i18n`. */
 export const state = (i18n: I18n): State => core(i18n).s();

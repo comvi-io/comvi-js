@@ -8,6 +8,14 @@
  * `node_modules` (no install, no network, nothing hoisted from the workspace) and imports the
  * entry in a fresh `node` process.
  *
+ * Two copies of the core. A binding that resolves one `@comvi/core` while the app created its
+ * instance with another must fail with an error that names both copies' versions, in the
+ * production build and in the development one (`-C development`). Two layouts from the packed
+ * tarball: the binding's own copy carries a second version (the same build relabelled, which is
+ * what a different published version looks like to the check), and both copies carry the SAME
+ * version (a peer range does not prevent that). A binding that reaches the app's copy is
+ * the control: no error.
+ *
  * Needs the workspace built (`pnpm build`). `pnpm check:node-entries`.
  */
 
@@ -97,6 +105,95 @@ try {
       fail(`${specifier}: ${probe} returned ${actual}, expected ${expected}`);
     console.log(`node-entries: ${specifier} loads in plain Node (${keys.length} exports)`);
   }
+
+  twoCopies(path.join(app, "node_modules", "@comvi", "core"));
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
+}
+
+/**
+ * The two-copies cases against `coreDir`, the extracted tarball. Each layout is an app whose
+ * `node_modules` holds `@comvi/core` (the app's copy, which creates the instance) and `binding`,
+ * a package that reads the instance the way every binding does — `core(i18n)` from
+ * `@comvi/core/internal` — through its OWN nested copy when the case gives it one.
+ */
+function twoCopies(coreDir) {
+  const { version } = JSON.parse(fs.readFileSync(path.join(coreDir, "package.json"), "utf8"));
+  const OTHER = "0.0.0-copy";
+  // The exact texts, both builds: the instance's copy first, then the copy reading it.
+  const expected = {
+    prod: (made, reads) => `two copies of @comvi/core: ${made}, ${reads}`,
+    dev: (made, reads) =>
+      `[@comvi/core] two copies of @comvi/core are loaded: the instance was created by ` +
+      `@comvi/core@${made}, and a second copy, @comvi/core@${reads}, reads it. ` +
+      `Put every @comvi/* package on one version and install it once.`,
+  };
+
+  /** A copy of the extracted core under `target`, its manifest and inlined version set to `to`. */
+  const copyCore = (target, to) => {
+    fs.cpSync(coreDir, target, { recursive: true });
+    if (to === version) return;
+    const at = new RegExp(`(?<![\\d.])${version.replace(/\./g, "\\.")}(?![\\d.])`, "g");
+    for (const f of fs.readdirSync(path.join(target, "dist"), { recursive: true })) {
+      const file = path.join(target, "dist", f);
+      if (!/\.js$/.test(f)) continue;
+      fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace(at, to));
+    }
+    const manifest = path.join(target, "package.json");
+    const pkg = JSON.parse(fs.readFileSync(manifest, "utf8"));
+    fs.writeFileSync(manifest, `${JSON.stringify({ ...pkg, version: to }, null, 2)}\n`);
+  };
+
+  const layouts = [
+    { name: "different versions", app: OTHER, binding: version },
+    { name: "the same version", app: version, binding: version },
+    { name: "one copy (control)", app: version, binding: null },
+  ];
+  for (const layout of layouts) {
+    const app = path.join(root, `two-copies-${layouts.indexOf(layout)}`);
+    copyCore(path.join(app, "node_modules", "@comvi", "core"), layout.app);
+    const binding = path.join(app, "node_modules", "binding");
+    fs.mkdirSync(binding, { recursive: true });
+    fs.writeFileSync(
+      path.join(binding, "package.json"),
+      `${JSON.stringify({ name: "binding", type: "module", exports: "./index.js" })}\n`,
+    );
+    fs.writeFileSync(
+      path.join(binding, "index.js"),
+      'import { core } from "@comvi/core/internal";\nexport const read = (i18n) => core(i18n).s().locale;\n',
+    );
+    if (layout.binding)
+      copyCore(path.join(binding, "node_modules", "@comvi", "core"), layout.binding);
+    fs.writeFileSync(
+      path.join(app, "package.json"),
+      `${JSON.stringify({ name: "two-copies-app", private: true, type: "module" })}\n`,
+    );
+    const script = [
+      'const { createI18n } = await import("@comvi/core");',
+      'const { read } = await import("binding");',
+      'try { console.log(JSON.stringify({ read: read(createI18n({ locale: "en" })) })); }',
+      "catch (e) { console.log(JSON.stringify({ error: e.message })); }",
+    ].join("\n");
+    for (const build of ["prod", "dev"]) {
+      const args = build === "dev" ? ["-C", "development"] : [];
+      const result = spawnSync(process.execPath, [...args, "--input-type=module", "-e", script], {
+        cwd: app,
+        encoding: "utf8",
+      });
+      if (result.status !== 0)
+        fail(`two copies, ${layout.name}, ${build}:\n${result.stderr.trim()}`);
+      const actual = JSON.parse(result.stdout);
+      const want = layout.binding
+        ? { error: expected[build](layout.app, layout.binding) }
+        : { read: "en" };
+      if (JSON.stringify(actual) !== JSON.stringify(want)) {
+        fail(
+          `two copies, ${layout.name}, ${build} build:\n  got      ${JSON.stringify(actual)}\n  expected ${JSON.stringify(want)}`,
+        );
+      }
+      console.log(
+        `node-entries: two copies, ${layout.name}, ${build} build: ${JSON.stringify(actual)}`,
+      );
+    }
+  }
 }

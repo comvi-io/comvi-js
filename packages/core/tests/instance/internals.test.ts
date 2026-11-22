@@ -5,7 +5,9 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { CORE, MS, createI18n } from "../../src/instance";
-import { coming, state, translate, view } from "../../src/internal";
+import { coming, core, handover, state, translate, view } from "../../src/internal";
+
+declare const __VERSION__: string;
 import { flush, make, manualLoader } from "./helpers";
 
 describe("the chain memo", () => {
@@ -172,5 +174,39 @@ describe("coming(i18n, state, ns)", () => {
     await l.answer("en:shop");
     await p;
     expect(coming(i18n, state(i18n), "shop")).toBe(false);
+  });
+});
+
+describe("an instance of another copy of the core (B3)", () => {
+  // What another copy's createI18n() leaves on its instance: the registry symbol and that
+  // copy's version. This copy's CORE has never seen it.
+  const foreign = (version: string) =>
+    ({ [Symbol.for("comvi")]: version }) as unknown as ReturnType<typeof createI18n>;
+  const message = (made: string) =>
+    `[@comvi/core] two copies of @comvi/core are loaded: the instance was created by @comvi/core@${made}, and a second copy, @comvi/core@${__VERSION__}, reads it. Put every @comvi/* package on one version and install it once.`;
+
+  it.each([
+    ["another version", "0.0.0-other"],
+    ["the same version", __VERSION__],
+  ])("core() of an instance at %s → an error naming both versions", (_, made) => {
+    const i18n = foreign(made);
+
+    const read = () => core(i18n);
+
+    expect(read).toThrow(new Error(message(made)));
+  });
+
+  it("handover() of such an instance → the same error", () => {
+    const i18n = foreign("0.0.0-other");
+
+    const hand = () => handover(i18n);
+
+    expect(hand).toThrow(new Error(message("0.0.0-other")));
+  });
+
+  it("core() of an object no copy made → not an instance", () => {
+    const read = () => core({} as ReturnType<typeof createI18n>);
+
+    expect(read).toThrow(new TypeError("[@comvi/core] not an instance of createI18n()"));
   });
 });

@@ -26,6 +26,8 @@ component, `useI18n()` in components, and `<T>` for translations that contain ma
 npm install @comvi/svelte @comvi/core # peer: svelte ^5.3.0; the app imports @comvi/core/cdn
 ```
 
+Every `@comvi/*` package in an app must be on one version. Two copies of `@comvi/core` (two versions, or one version installed twice) throw an error that names both versions.
+
 ## Setup
 
 ```ts title="src/i18n.ts"

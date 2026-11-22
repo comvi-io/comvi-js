@@ -6,7 +6,7 @@
  */
 import type { Catalog } from "./compile/cache";
 import { clock } from "./clock";
-import { CORE, type I18n } from "./instance";
+import { core, type I18n } from "./instance";
 import { N } from "./state";
 
 declare const __DEV__: boolean;
@@ -42,8 +42,7 @@ export interface Handover {
  * the same date differently, and the hydration would not match (design §2.6).
  */
 export const handover = (i18n: I18n): Handover => {
-  const x = CORE.get(i18n)!;
-  if (__DEV__ && !x) throw new TypeError("[@comvi/core] not an instance of createI18n()");
+  const x = core(i18n);
   const s = x.s();
   if (__DEV__ && !x.o.timeZone)
     throw new TypeError(
