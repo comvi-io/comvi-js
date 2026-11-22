@@ -54,7 +54,8 @@ that path today.
       policy: `pnpm release:version` runs `scripts/sync-peer-ranges.mjs` **before**
       `changeset version` (`scripts/version-release.mjs`), which pins them to the exact version
       being cut, a patch release too (`@comvi/next`'s `@comvi/core` and `@comvi/react` peers).
-      The `pack` job refuses a packed tarball whose `@comvi/*` peer is not its own version.
+      The `pack` job refuses a packed tarball whose `@comvi/*` peer or dependency is not its own
+      version.
       Never run bare `pnpm changeset version` in place of `pnpm release:version`.
 
 ## 2. RC rehearsal (optional but recommended)

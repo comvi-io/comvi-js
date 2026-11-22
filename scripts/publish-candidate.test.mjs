@@ -1307,3 +1307,42 @@ test("publish trust path: candidatesFromSums refuses a packed @comvi/next whose 
     /comvi-next-0\.8\.0\.tgz: peer @comvi\/core "\^0\.8\.0" must equal its version 0\.8\.0/,
   );
 });
+
+test.describe("exactComviPeers: @comvi/* dependencies and optional dependencies too", () => {
+  for (const [field, label] of [
+    ["dependencies", "dependency"],
+    ["optionalDependencies", "optional dependency"],
+  ]) {
+    test(`a packed binding whose ${field} carry a caret @comvi/core is refused`, (t) => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "publish-candidate-deps-"));
+      t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+      tarball(dir, "comvi-react-0.8.0.tgz", {
+        name: "@comvi/react",
+        version: "0.8.0",
+        [field]: { "@comvi/core": "^0.8.0", "left-pad": "^1.3.0" },
+      });
+      const file = path.join(dir, "comvi-react-0.8.0.tgz");
+
+      const check = () => exactComviPeers([{ file: "comvi-react-0.8.0.tgz", tarball: file }]);
+
+      assert.throws(check, {
+        message: `comvi-react-0.8.0.tgz: ${label} @comvi/core "^0.8.0" must equal its version 0.8.0`,
+      });
+    });
+  }
+
+  test("a packed binding whose @comvi/core dependency is its exact version passes", (t) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "publish-candidate-deps-"));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    tarball(dir, "comvi-react-0.8.0-rc.1.tgz", {
+      name: "@comvi/react",
+      version: "0.8.0-rc.1",
+      dependencies: { "@comvi/core": "0.8.0-rc.1", "left-pad": "^1.3.0" },
+    });
+    const file = path.join(dir, "comvi-react-0.8.0-rc.1.tgz");
+
+    const check = () => exactComviPeers([{ file: "comvi-react-0.8.0-rc.1.tgz", tarball: file }]);
+
+    assert.doesNotThrow(check);
+  });
+});
