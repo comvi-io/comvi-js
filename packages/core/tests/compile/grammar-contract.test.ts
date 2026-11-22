@@ -5,69 +5,54 @@
  * read by @comvi/typegen's `readMessage` tests, by one row in every binding, and by the
  * platform's parser (a sha256-checked copy).
  *
- * Here: what `t()` renders in development, what it reports, and the one development warning
- * each never-closed tag gets at compile time. The production arms: tests/prod.
+ * Here: what `t()` renders in development, what it reports, and the development warning
+ * each never-closed tag gets, in message order, at compile time. Production: tests/prod.
  */
 import { describe, expect, it, vi } from "vitest";
-import grammar from "../../../../contracts/icu-grammar.json";
 import type { I18nError } from "../../src/errors";
 import { createI18n } from "../../src/instance";
+import { grammarCases, type GrammarCase } from "../grammar";
 
-interface Case {
-  message: string;
-  note?: string;
-  render: string | null;
-  error: "syntax" | null;
-  unclosed: number;
-}
+const cases = grammarCases();
 
-/** A long row (the depth rows) is named by its note. */
-const cases = (grammar.cases as Case[]).map(
-  (c) => [c.message.length > 60 ? c.note! : c.message, c] as const,
-);
-
-/** `values` plus, for every tag-like name in the message, the contract's handler. */
-function params(
-  message: string,
-): Record<string, string | number | ((kids: readonly unknown[]) => string)> {
-  const p: ReturnType<typeof params> = { ...grammar.values };
-  for (const [, name] of message.matchAll(/<\/?([A-Za-z][\w-]*)/g))
-    p[name] = (kids: readonly unknown[]) => `[${name}:${kids.join("")}]`;
-  return p;
-}
-
-function renderOnce(message: string) {
+function renderOnce(c: GrammarCase) {
   const errors: I18nError[] = [];
   const i18n = createI18n({
     locale: "en",
-    messages: { en: { k: message } },
+    messages: { en: { k: c.message } },
     onError: (e) => errors.push(e),
   });
-  const out = i18n.t("k", params(message));
+  const out = i18n.t("k", c.params);
   return { i18n, out, errors };
 }
+
+/** The tag name of each never-closed warning printed so far, in order. */
+const neverClosed = (warn: { mock: { calls: unknown[][] } }) =>
+  warn.mock.calls
+    .map(([m]) => /^\[@comvi\/core\] `<([^>]*)>` in .* is never closed/.exec(m as string)?.[1])
+    .filter((name) => name !== undefined);
 
 describe("contracts/icu-grammar.json in @comvi/core (development)", () => {
   it.each(cases)("%s → the contract's render and error", (_, c) => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const { out, errors } = renderOnce(c.message);
+    const { out, errors } = renderOnce(c);
 
     expect({ out, errors: errors.map((e) => e.code) }).toEqual(
       c.error === null ? { out: c.render, errors: [] } : { out: "k", errors: [c.error] },
     );
   });
 
-  it.each(cases)("%s → one never-closed warning per occurrence, at compile time only", (_, c) => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it.each(cases)(
+    "%s → one warning per never-closed tag, in message order, none on a repeat t()",
+    (_, c) => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const { i18n } = renderOnce(c.message);
-    const first = warn.mock.calls.filter(([m]) => /is never closed/.test(m)).length;
-    i18n.t("k", params(c.message));
+      const { i18n } = renderOnce(c);
+      const first = neverClosed(warn);
+      i18n.t("k", c.params);
 
-    expect([first, warn.mock.calls.filter(([m]) => /is never closed/.test(m)).length]).toEqual([
-      c.unclosed,
-      c.unclosed,
-    ]);
-  });
+      expect([first, neverClosed(warn)]).toEqual([c.unclosed, c.unclosed]);
+    },
+  );
 });

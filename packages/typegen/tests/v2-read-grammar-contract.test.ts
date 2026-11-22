@@ -8,27 +8,45 @@ import { describe, expect, it } from "vitest";
 import grammar from "../../../contracts/icu-grammar.json";
 import { readMessage } from "../src/index";
 
+type Text =
+  | string
+  | { nest: { times: number; wrap: string[][]; inner: string; before?: string; after?: string } };
+
 interface Case {
-  message: string;
+  message: Text;
   note?: string;
   schema: { params: unknown[]; tags: string[] } | null;
   error: "syntax" | null;
-  unclosed: number;
+  unclosed: string[];
 }
 
-/** A long row (the depth rows) is named by its note. */
-const cases = (grammar.cases as Case[]).map(
-  (c) => [c.message.length > 60 ? c.note! : c.message, c] as const,
-);
+/** The file's compact `nest` strings, as its `$comment` defines them. */
+const expand = (t: Text): string => {
+  if (typeof t === "string") return t;
+  const { times, wrap, inner, before = "", after = "" } = t.nest;
+  let s = inner;
+  for (let i = times - 1; i >= 0; i--) s = wrap[i % wrap.length][0] + s + wrap[i % wrap.length][1];
+  return before + s + after;
+};
+
+/** A long or generated message is named by its note. */
+const cases = (grammar.cases as Case[]).map((c) => {
+  const message = expand(c.message);
+  return [
+    message.length > 60 || typeof c.message !== "string" ? c.note! : message,
+    message,
+    c,
+  ] as const;
+});
 
 describe("contracts/icu-grammar.json in readMessage", () => {
-  it.each(cases)("%s → the contract's schema, error and never-closed tags", (_, c) => {
-    const read = readMessage(c.message);
+  it.each(cases)("%s → the contract's schema, error and never-closed tags", (_, message, c) => {
+    const read = readMessage(message);
 
     expect({
       schema: read.error === undefined ? { params: read.params, tags: read.tags } : null,
       error: read.error === undefined ? null : "syntax",
-      unclosed: read.unclosed.length,
+      unclosed: read.unclosed,
     }).toEqual({ schema: c.schema, error: c.error, unclosed: c.unclosed });
   });
 });
