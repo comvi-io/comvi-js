@@ -83,6 +83,17 @@ describe.skipIf(!runSuite)(
       expect(manifest.minimum_chrome_version).toBe("111");
     });
 
+    // The store only accepts a version higher than the published one (0.6.0), and
+    // the version is kept by hand in two files: the built manifest must carry the
+    // package version, and never the stale 0.6.0.
+    it("manifest version equals the package version and is not the stale 0.6.0", () => {
+      const manifest = JSON.parse(read("manifest.json"));
+      const pkg = JSON.parse(readFileSync(resolve(PACKAGE_DIR, "package.json"), "utf8"));
+      expect(manifest.version).toBe(pkg.version);
+      expect(manifest.version).not.toBe("0.6.0");
+      expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
+    });
+
     it("manifest grants exactly one API host permission", () => {
       const manifest = JSON.parse(read("manifest.json"));
       expect(manifest.host_permissions).toHaveLength(1);
