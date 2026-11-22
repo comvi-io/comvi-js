@@ -151,7 +151,7 @@ describe.each([
     );
     await vi.advanceTimersByTimeAsync(10);
     a.abort();
-    expect(await outcome(p)).toEqual(["rejected", "This operation was aborted"]);
+    await expect(p).rejects.toMatchObject({ name: "AbortError" });
     expect(signals[0].reason).toMatchObject({ name: "AbortError" });
     // Armed until the timeout (documented in cdn.ts), then gone; the abort stands.
     expect(vi.getTimerCount()).toBe(1);
