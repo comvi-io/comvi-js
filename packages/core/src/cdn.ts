@@ -199,16 +199,18 @@ const mk = (
     const load = (x: Record<string, string>, s?: AbortSignal) =>
       new Promise<Fetched>((y, no) => {
         const c = new AbortController();
-        const tm = setTimeout(() => c.abort(Error(P + `timeout ${timeout} ms: ${u}`)), timeout);
-        // Settles on the timeout or the abort even when the body never does. A caller's abort
-        // leaves the timer armed while a transport that never settles hangs (bytes): it fires
-        // once, on an aborted controller, and does nothing.
-        c.signal.onabort = () => no(c.signal.reason);
+        // Aborts the request and settles the load with the reason, even when the body never
+        // settles. Called by the timeout and the caller's abort themselves, never through a
+        // listener on `c.signal`: the transport holds that signal and may set its `onabort`.
+        // A caller's abort leaves the timer armed while a transport that never settles hangs
+        // (bytes): it fires once, on an aborted controller and a settled load, and does nothing.
+        const a = (e?: unknown) => (c.abort(e), no(c.signal.reason));
+        const tm = setTimeout(() => a(Error(P + `timeout ${timeout} ms: ${u}`)), timeout);
         // The caller's abort rejects with an AbortError (as `fetch` does). The listener is
         // not removed (bytes): it holds one closure per load until the signal is collected —
         // the instance's signals are per flight; a long-lived signal passed by hand keeps one
         // per load it was passed to.
-        s?.addEventListener("abort", () => c.abort());
+        s?.addEventListener("abort", () => a());
         // An async IIFE that settles the load itself, not `fetch().then()`: one microtask
         // fewer per step, so a body that has settled wins over an abort that lands right
         // after (tests/cdn/loader).

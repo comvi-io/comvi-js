@@ -104,6 +104,63 @@ describe.each([
     );
   });
 
+  it("cdn() with a fetch that assigns signal.onabort and never answers: the timeout rejects the load, `ready` resolves and reports it, load(ns) again loads", async () => {
+    const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
+    const { cdn } = await load<typeof Cdn>(`comvi-core-cdn${suffix}.js`);
+    vi.useFakeTimers();
+    try {
+      const seen: string[] = [];
+      const f = ((u: string, i: RequestInit) => {
+        if (seen.includes(u))
+          return Promise.resolve({ ok: true, status: 200, json: async () => ({ hi: "Hi" }) });
+        seen.push(u);
+        return new Promise<never>(() => {
+          i.signal!.onabort = () => {};
+        });
+      }) as unknown as typeof fetch;
+      const flush = async () => {
+        for (let i = 0; i < 10; i++) await Promise.resolve();
+      };
+      /** Records how `p` settles from now on; `get()` reads it once queued microtasks ran. */
+      const track = (p: Promise<unknown>) => {
+        let r: unknown = "pending";
+        p.then(
+          (v) => (r = ["resolved", v]),
+          (e) => (r = ["rejected", (e as Error).message]),
+        );
+        return async () => (await flush(), r);
+      };
+      const msg = (u: string) => `[@comvi/core/cdn] timeout 50 ms: ${u}`;
+      const alone = track(
+        cdn("https://cdn.example", { fetch: f, timeout: 50 })(
+          "de",
+          "default",
+          new AbortController().signal,
+        ),
+      );
+      const errors: { code: string }[] = [];
+      const i18n = createI18n({
+        locale: "en",
+        loader: cdn("https://cdn.example", { fetch: f, timeout: 50 }),
+        onError: (e) => errors.push(e),
+      });
+      const ready = track(i18n.ready);
+      const extra = track(i18n.load("extra"));
+      await vi.advanceTimersByTimeAsync(50);
+      expect([await alone(), await ready(), await extra()]).toEqual([
+        ["rejected", msg("https://cdn.example/de.json")],
+        ["resolved", undefined],
+        ["rejected", msg("https://cdn.example/extra/en.json")],
+      ]);
+      expect(errors.map((e) => e.code)).toEqual(["load_failed", "load_failed"]);
+      expect(await track(i18n.load("extra"))()).toEqual(["resolved", undefined]);
+      expect(i18n.t("hi", { ns: "extra" })).toBe("Hi");
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("an unclosed <br> renders its key; only the development build explains it", async () => {
     const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
     const messages: (string | undefined)[] = [];
