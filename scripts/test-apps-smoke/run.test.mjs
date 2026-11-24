@@ -188,3 +188,61 @@ test("preflight: an exact pin that is installed, and a range, are not flagged", 
     [],
   );
 });
+
+function floorStandWith({ nuxt, nitropack }) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "smoke-floor-"));
+  for (const [name, version] of [
+    ["nuxt", nuxt],
+    ["nitropack", nitropack],
+  ]) {
+    fs.mkdirSync(path.join(dir, "node_modules", name), { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, "node_modules", name, "package.json"),
+      JSON.stringify({ version }),
+    );
+  }
+  fs.mkdirSync(path.join(dir, ".output", "server"), { recursive: true });
+  fs.writeFileSync(path.join(dir, ".output", "server", "index.mjs"), "");
+  fs.writeFileSync(
+    path.join(dir, "package.json"),
+    JSON.stringify({ dependencies: { nuxt: "4.0.0" } }),
+  );
+  return dir;
+}
+const FLOOR_APP = {
+  kind: "nuxt",
+  framework: "nuxt",
+  major: 4,
+  node: 22,
+  floor: { from: "nuxt4", pins: { nuxt: "4.0.0" }, overrides: { nitropack: "2.12.9" } },
+};
+
+test("preflight: a floor stand on its Node major with the exact Nuxt and override → no problem", () => {
+  const dir = floorStandWith({ nuxt: "4.0.0", nitropack: "2.12.9" });
+
+  assert.deepEqual(preflight("nuxt4-floor", FLOOR_APP, dir, "22.22.3"), []);
+});
+
+test("preflight: a floor stand run on another Node major → a problem naming both", () => {
+  const dir = floorStandWith({ nuxt: "4.0.0", nitropack: "2.12.9" });
+
+  assert.deepEqual(preflight("nuxt4-floor", FLOOR_APP, dir, "24.22.1"), [
+    "the nuxt4-floor stand runs on Node 22, this is Node 24.22.1",
+  ]);
+});
+
+test("preflight: a floor stand whose installed override differs from the one it names → a problem", () => {
+  const dir = floorStandWith({ nuxt: "4.0.0", nitropack: "2.12.0" });
+
+  assert.deepEqual(preflight("nuxt4-floor", FLOOR_APP, dir, "22.22.3"), [
+    "the nuxt4-floor stand overrides nitropack@2.12.9 but 2.12.0 is installed",
+  ]);
+});
+
+test("preflight: a floor stand whose Nuxt resolved past the exact pin → a problem", () => {
+  const dir = floorStandWith({ nuxt: "4.0.3", nitropack: "2.12.9" });
+
+  assert.deepEqual(preflight("nuxt4-floor", FLOOR_APP, dir, "22.22.3"), [
+    "the nuxt4-floor stand pins nuxt@4.0.0 but 4.0.3 is installed",
+  ]);
+});

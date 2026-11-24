@@ -513,3 +513,52 @@ jobs:
         env:
           TEST_APPS: ${{ needs.migration-pending.outputs.test_apps }}
         run: pnpm test-apps:smoke --only "$TEST_APPS"
+
+  # The floors of @comvi/nuxt's peer range `^3.7.0 || ^4.0.0`: test-apps/nuxt on exactly Nuxt
+  # 3.7.0, and test-apps/nuxt4 on exactly Nuxt 4.0.0 with a pinned Nitro override (nitropack
+  # 2.12.9; Nuxt 4.0.0 as installed resolves 2.12.0, whose `/_nuxt/` assets answer 500). Each
+  # stand is installed outside the workspace from packed tarballs, on Node 22, without
+  # `comvi.types`; run.mjs fails it unless the installed Nuxt, the override and the Node major
+  # are exactly those, and prints the installed versions.
+  test-apps-smoke-nuxt-floors:
+    name: Test apps smoke (${{ matrix.label }})
+    needs: [examples-e2e-changes, migration-pending]
+    if: needs.examples-e2e-changes.outputs.test_apps == 'true' && contains(needs.migration-pending.outputs.test_apps, 'nuxt')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: nuxt-floor
+            label: Nuxt 3.7.0, Node 22
+          - app: nuxt4-floor
+            label: Nuxt 4.0.0 with nitropack 2.12.9, Node 22
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        # No `version:` input: the action reads `packageManager` from package.json.
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build, install and smoke-test the floor stand
+        env:
+          APP: ${{ matrix.app }}
+        run: |
+          node --version
+          pnpm test-apps:smoke --only "$APP"
