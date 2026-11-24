@@ -157,7 +157,7 @@ function twoCopies(coreDir) {
       if (!/\.js$/.test(f)) continue;
       let src = fs.readFileSync(file, "utf8");
       if (to !== version) src = src.replace(at, to);
-      if (untag) src = src.replace(/^\s*\[VER(?:\$\d+)?\]: [^,\n]+,\n/m, () => (cut++, ""));
+      if (untag) src = src.replace(/^\s*\[VER(?:\$\d+)?\]: [^,\n]+,?\n/m, () => (cut++, ""));
       fs.writeFileSync(file, src);
     }
     // Both builds carry the tag once: anything else is a probe that tests nothing.

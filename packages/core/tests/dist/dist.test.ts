@@ -5,6 +5,7 @@
  * Ported by meaning from 0.7 dist/destroy-races.dist and dist/missing-key-warning.dist.
  * Requires a fresh build (turbo runs `build` before `test`).
  */
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -280,5 +281,31 @@ describe.each([
   it("inlines the package version into devtools", async () => {
     const { VERSION } = await load<typeof Devtools>(`comvi-core-devtools${suffix}.js`);
     expect(VERSION).toBe(pkg.version);
+  });
+});
+
+describe.each([
+  ["prod", ""],
+  ["dev", ".dev"],
+] as const)("%s dist: the instance's shape (B3 perf)", (_, suffix) => {
+  // V8's own view, in a child with --allow-natives-syntax (counted, not timed). Two instances
+  // share one hidden class: the version tag is the literal's LAST member. Put before the
+  // static members, every instance got a hidden class of its own (its getters are fresh
+  // closures): +8 % construction, and a call site over many instances goes megamorphic.
+  it("two instances share one hidden class", () => {
+    const script = [
+      `const { createI18n } = await import(${JSON.stringify(pathToFileURL(path.join(DIST, `comvi-core${suffix}.js`)).href)});`,
+      'const make = () => createI18n({ locale: "en", messages: { en: { a: "A" } } });',
+      "console.log(String(%HaveSameMap(make(), make())));",
+    ].join("\n");
+
+    const run = spawnSync(
+      process.execPath,
+      ["--allow-natives-syntax", "--input-type=module", "-e", script],
+      { encoding: "utf8" },
+    );
+
+    expect(run.stderr).toBe("");
+    expect(run.stdout.trim()).toBe("true");
   });
 });
