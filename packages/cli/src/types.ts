@@ -109,9 +109,10 @@ export interface ComviConfig {
    *
    * Left out, it is the Comvi package this project declares: `@comvi/core` when
    * it is a dependency, otherwise the framework binding (`@comvi/react`,
-   * `@comvi/next`, `@comvi/vue`, `@comvi/nuxt`, `@comvi/svelte`,
-   * `@comvi/solid`). Set it to name a private wrapper package that re-exports
-   * one of those instead.
+   * `@comvi/vue`, `@comvi/nuxt`, `@comvi/svelte`, `@comvi/solid`); a Next app
+   * declares `@comvi/react` and `@comvi/core` next to `@comvi/next`, which has
+   * no root module to augment. Set it to name a private wrapper package that
+   * re-exports one of those instead.
    */
   augment?: string;
 
