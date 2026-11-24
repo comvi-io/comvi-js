@@ -20,7 +20,17 @@ import {
   type Snippet,
   type SvelteComponent,
 } from "svelte";
-import type { I18n, KeysOf, NsOf, Tag, TComponentFor, TFor, UntypedT } from "@comvi/core";
+import type {
+  Args,
+  Catalogs,
+  I18n,
+  KeysOf,
+  NsOf,
+  ParamsFor,
+  Tag,
+  TComponentFor,
+  UntypedT,
+} from "@comvi/core";
 import { core, N } from "@comvi/core/internal";
 import { use } from "./context.svelte.js";
 import TComponentImpl from "./T.svelte";
@@ -28,7 +38,7 @@ import TComponentImpl from "./T.svelte";
 declare module "@comvi/core" {
   /**
    * What a tag handler of a generated catalog (`{ link: Tag }`) receives: the tag's children
-   * as ONE value. In `t()` always their text; in `<T>` their text when they are all text.
+   * as ONE value: their text when they are all text. `t()` takes no generated rich key.
    */
   interface TagChildren {
     svelte: Children;
@@ -96,6 +106,27 @@ type PropsOf<K extends Key<N>, N extends NsOf> = { i18nKey: K; ns?: N } & {
 type OrSnippet<V> = Tag extends V ? Exclude<V, Tag> | TagSnippet : V;
 
 /**
+ * The keys of each namespace whose message has no tag (no `Tag` param, the core's `OutOf`
+ * test): the keys `t()` takes. A mapped type, as the core's `KeysOf`: resolved once per
+ * namespace and program, not per call.
+ */
+type TextKeysOf = {
+  [N in NsOf]: {
+    [K in KeysOf[N]]: Tag extends Catalogs[N][K][keyof Catalogs[N][K]] ? never : K;
+  }[KeysOf[N]];
+};
+
+/**
+ * The core's typed `t()` without its rich keys: a key whose message has tags is a type error,
+ * and its rich text is `<T>`'s. Same params, same typo guard, `{ ns }` switches the namespace;
+ * the result is always a string.
+ */
+type TextT<NS extends NsOf> = <K extends TextKeysOf[N] | NotAKey, N extends NsOf = NS>(
+  key: K,
+  ...args: Args<N, ParamsFor<N, K>>
+) => string;
+
+/**
  * `<T i18nKey ns? locale? markers? components? {...params}>`: typed by the generated catalogs
  * when declared, in a template by svelte-check: the key, the namespace and the key's params. Typed
  * as svelte-package types a generic `.svelte` component: svelte-check reads the construct
@@ -150,9 +181,10 @@ export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
 export interface UseI18n<NS extends string = "default"> {
   /**
    * `t()` against the instance's state; a template or a `$derived` calling it re-runs on a
-   * new state. Always a string: a tag handler's output is joined into it. Rich text is `<T>`'s.
+   * new state. Always a string. Rich text is `<T>`'s: with generated catalogs a key whose
+   * message has tags is a type error here; without them a tag handler's output joins into it.
    */
-  t: [NsOf] extends [never] ? UntypedT<never, UntypedParams> : TFor<NS, never>;
+  t: [NsOf] extends [never] ? UntypedT<never, UntypedParams> : NS extends NsOf ? TextT<NS> : never;
   /** `<T>` bound to this namespace; the same component for every caller (R3-5(b)). */
   T: BoundT<NS>;
   /** The locale on screen. */
