@@ -26,6 +26,6 @@ assertEqual(
 );
 
 console.log("BUNDLER_MATRIX_OK react-format");
-// The browser build of react-dom/server (Vite resolves the browser condition) keeps a
-// MessageChannel open: end the process once the assertions passed.
-process.exit(0);
+// Under node, react-dom/server may keep a MessageChannel open: end the process once the
+// assertions passed. In the browser (the vite leg) there is no process to end.
+globalThis.process?.exit(0);

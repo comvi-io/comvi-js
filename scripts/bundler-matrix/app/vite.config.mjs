@@ -26,6 +26,8 @@ export default defineConfig(({ mode }) => {
   // Extra resolve conditions a case declares (`conditions` in run.mjs), ahead
   // of Vite's defaults. Unset for every case that models a plain consumer.
   const conditions = process.env.BM_CONDITIONS ? process.env.BM_CONDITIONS.split(",") : [];
+  // Where run.mjs executes this bundle: "browser" (Chromium) or "node" (server cases).
+  const browser = process.env.BM_RUNTIME === "browser";
 
   return {
     logLevel: "warn",
@@ -37,6 +39,10 @@ export default defineConfig(({ mode }) => {
       __VUE_OPTIONS_API__: "true",
       __VUE_PROD_DEVTOOLS__: "false",
       __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: "false",
+      // A Vite APP build replaces `process.env.NODE_ENV` in client code; library mode
+      // leaves it for the consumer, and a browser has no `process`. Browser bundles get
+      // the app's replacement; the node-run (server) cases keep library mode's output.
+      ...(browser && { "process.env.NODE_ENV": JSON.stringify(mode) }),
     },
     plugins: [
       svelte(),
