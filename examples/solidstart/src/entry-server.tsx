@@ -2,8 +2,7 @@
 import { getRequestEvent, useAssets } from "solid-js/web";
 import { createHandler, StartServer } from "@solidjs/start/server";
 import { handover } from "@comvi/solid";
-import { dir } from "@comvi/core/internal";
-import { fallbackLocale, locales } from "~/lib/i18n";
+import { fallbackLocale, i18nFor, locales } from "~/lib/i18n";
 
 /** The locale prefix of this request's URL, checked against `locales`. */
 function requestLocale() {
@@ -17,7 +16,7 @@ function requestLocale() {
  */
 function i18nPayload() {
   const i18n = getRequestEvent()!.locals.i18n;
-  if (!i18n) return undefined; // the 404 page has no translations
+  if (!i18n) return undefined; // nothing in this response used one
   const payload = JSON.stringify(handover(i18n)).replace(/</g, "\\u003c");
   return <script innerHTML={`window.__I18N__=${payload}`} />;
 }
@@ -27,7 +26,7 @@ export default createHandler(() => {
   return (
     <StartServer
       document={({ assets, children, scripts }) => (
-        <html lang={requestLocale()} dir={dir(requestLocale())}>
+        <html lang={requestLocale()} dir={i18nFor(requestLocale()).dir}>
           <head>
             <meta charset="utf-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1" />

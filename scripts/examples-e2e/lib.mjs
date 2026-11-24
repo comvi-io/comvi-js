@@ -1025,8 +1025,18 @@ export const RECIPE_VARIANTS = {
         },
         {
           file: "src/routes/+layout.server.ts",
-          from: "  const i18n = createI18n({ ...options, locale });\n  await i18n.ready;\n",
+          from: "  const { i18n } = locals;\n  await i18n.ready;\n",
           to: "  const i18n = shared;\n  await i18n.setLocale(locale);\n",
+        },
+        {
+          file: "src/hooks.server.ts",
+          from: 'import { createI18n } from "@comvi/svelte";',
+          to: 'import { shared } from "./lib/shared";',
+        },
+        {
+          file: "src/hooks.server.ts",
+          from: "  const i18n = createI18n({ ...options, locale: lang });\n",
+          to: "  const i18n = shared;\n",
         },
         {
           file: "src/routes/+layout.svelte",
