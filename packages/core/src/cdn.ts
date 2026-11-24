@@ -26,8 +26,10 @@
  * `api(base, { key })` reads the same catalogs from the platform API with a project API
  * key (`GET <base>/v1/translations?locales=<l>&namespaces=<ns>`, `Authorization: Bearer`):
  * a server, a script or a development setup — a key in a browser bundle is readable by
- * anyone. Only the body's OWN properties are read (`namespaces[ns][locale]`), and a body
- * without the pair (the platform leaves out unknown locales) fails with its own message.
+ * anyone. Only the body's OWN properties are read (`namespaces[ns][locale]`; the platform
+ * answers its canonical case, `pt-BR` for `pt-br`, so the one key equal in any case is
+ * read when none is spelled exactly), and a body without the pair (the platform leaves
+ * out unknown locales) fails with its own message.
  * In a store, an `api()` loader's catalogs are kept under the SHA-256 of its key (a
  * counter per loader where Web Crypto is missing), never the key: no store, and no map
  * of one, holds the credential, and two keys behind one URL never share a catalog.
@@ -286,8 +288,12 @@ export const api = (base: string, o: ApiOptions): Loader => {
         headers: r.headers,
         async json() {
           const c = own(own(await r.json(), "namespaces"), n);
-          if (!own(c, l)) throw Error(P + `${l}/${n} is not in the response: ${u}`);
-          return c[l];
+          // The platform keys a catalog by its canonical case (`pt-br` asked, `pt-BR`
+          // answered): the one own key equal to `l` in any case; of several, `l` exactly.
+          const m = Object.keys(c || {}).filter((k) => k.toLowerCase() == l.toLowerCase());
+          const v = own(c, m[1] ? l : m[0] || l);
+          if (!v) throw Error(P + `${l}/${n} is not in the response: ${u}`);
+          return v;
         },
       } as Response;
     },
