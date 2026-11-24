@@ -3,7 +3,6 @@
  * `@ts-expect-error` must fire, and every other line must compile.
  */
 import type { Component } from "svelte";
-import type { TFor } from "@comvi/core";
 import {
   createI18n,
   T,
@@ -20,19 +19,14 @@ createI18n({ locale: "en" });
 export function setup() {
   const { t, locale, dir, isReady, isLoading, setLocale, T: DT } = useI18n();
   const s: string = t("greeting", { name: "Ann" });
-  // In `t()` a tag handler's output joins into the string.
-  const r: string = t("terms", { link: (c) => `[${c}]` });
-  // The registered TagChildren types an inline handler's argument.
-  t("terms", {
-    link: (c) => {
-      const child: Children = c;
-      return child;
-    },
-  });
-  // @ts-expect-error a handler's argument is text or the parts, not a number
-  t("terms", { link: (c: number) => c });
-  // @ts-expect-error a rich key's handler is required in t()
+  // `t()` takes no rich key (owner decision 21.11.2026): rich text is `<T>`'s.
+  // @ts-expect-error a rich key in t(), with a handler for its tag
+  t("terms", { link: (c: string) => `[${c}]` });
+  // @ts-expect-error a rich key in t()
   t("terms");
+  // @ts-expect-error a rich key through { ns } too
+  t("terms", { ns: "default", link: (c: string) => c });
+  const r: string = t("title");
   const n: string = t("cart.title", { ns: "shop", count: 2 });
   const m: string = t("greeting", { name: "Ann", markers: false });
   const shop = useI18n("shop");
@@ -60,12 +54,11 @@ export function setup() {
 }
 
 /**
- * The binding's `t` IS the core's guarded one (R3-2 typo guard), as in @comvi/vue: the plan's
- * `TFor<NS, never>`. `<T>` takes the props of the core's `TComponentFor<…, 1, …>`, as a component.
+ * The binding's `t` is the core's guarded one (R3-2 typo guard) without the rich keys: the
+ * lines above. `<T>` takes the props of the core's `TComponentFor<…, 1, …>`, as a component.
  */
-type Equal<A, B> =
-  (<X>() => X extends A ? 1 : 2) extends <X>() => X extends B ? 1 : 2 ? true : false;
-export const sameTr: Equal<UseI18n<"shop">["t"], TFor<"shop", never>> = true;
+// A tag handler's argument type, which `<T>` replaces with a snippet.
+export const children = (c: Children): Children => c;
 // What svelte-check needs of a component in a template.
 export const inMarkup: TComponent extends Component<any> ? true : false = true;
 export const boundInMarkup: BoundT<"shop"> extends Component<any> ? true : false = true;
