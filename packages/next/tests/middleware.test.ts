@@ -17,6 +17,7 @@ describe("middleware locale prefix handling", () => {
     const request = new NextRequest("https://example.com/en/about");
     const response = middleware(request);
 
+    expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("https://example.com/about");
     expect(response.headers.get("x-comvi-locale")).toBe("en");
   });
@@ -29,6 +30,7 @@ describe("middleware locale prefix handling", () => {
     });
     const response = middleware(request);
 
+    expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("https://example.com/fr/about");
     expect(response.headers.get("x-comvi-locale")).toBe("fr");
   });
@@ -49,6 +51,9 @@ describe("middleware locale prefix handling", () => {
     const request = new NextRequest("https://example.com/about");
     const response = middleware(request);
 
+    // Accepted property (owner, 24.11): no preference → the default locale, no redirect.
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBe(null);
     expect(response.headers.get("x-middleware-rewrite")).toBe("https://example.com/en/about");
     expect(response.headers.get("x-middleware-request-x-comvi-locale")).toBe("en");
     expect(response.headers.get("x-comvi-locale")).toBe("en");
@@ -123,6 +128,16 @@ describe("middleware locale detection priority", () => {
     // The cookie wins over Accept-Language.
     expect(response.headers.get("x-comvi-locale")).toBe("de");
     expect(response.headers.get("location")).toBe("https://example.com/de/about");
+  });
+
+  it("a cookie alone redirects the default locale's unprefixed URL to its prefix", () => {
+    const request = new NextRequest("https://example.com/about");
+    request.cookies.set("NEXT_LOCALE", "fr");
+    const response = middleware(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://example.com/fr/about");
+    expect(response.headers.get("x-comvi-locale")).toBe("fr");
   });
 
   it("falls back to default locale for unsupported Accept-Language", () => {
