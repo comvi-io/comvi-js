@@ -9,7 +9,7 @@ import {
   openPopup,
   reservePort,
   storedSession,
-  serveEditorFromLocalBuild,
+  mockEditorCdn,
 } from "./helpers";
 import type { SessionStore, TabStateStore } from "./helpers";
 
@@ -94,7 +94,7 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
   const cdpConnections: Browser[] = [];
 
   try {
-    await serveEditorFromLocalBuild(context);
+    await mockEditorCdn(context);
     const worker = await extensionWorker(context);
     const extensionId = new URL(worker.url()).host;
     const page = await context.newPage();

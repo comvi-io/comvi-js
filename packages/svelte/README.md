@@ -150,12 +150,25 @@ shows first: `await i18n.ready`, `await i18n.load(ns)`; a namespace held with no
 loading branch. Match a locale from a route, cookie or header against your supported locales first:
 `createI18n()` throws a `RangeError` for one that is not a tag.
 
+```ts title="src/lib/i18n.ts"
+import { cdn } from "@comvi/core/cdn";
+
+export const locales = ["en", "uk"];
+// What the server and the browser share; timeZone is required.
+export const options = {
+  fallbackLocale: "en",
+  timeZone: "UTC",
+  loader: cdn("https://cdn.comvi.io/<project-token>"),
+};
+```
+
 ```ts title="src/routes/+layout.server.ts"
 import { createI18n, handover } from "@comvi/svelte";
-import { locales, options } from "$lib/i18n"; // options: { timeZone: "UTC", loader, … }; timeZone required
+import { locales, options } from "$lib/i18n";
+import type { LayoutServerLoad } from "./$types";
 
-export const load = async ({ params }) => {
-  const locale = locales.includes(params.locale) ? params.locale : "en";
+export const load: LayoutServerLoad = async ({ params }) => {
+  const locale = params.locale && locales.includes(params.locale) ? params.locale : "en";
   const i18n = createI18n({ ...options, locale });
   await i18n.ready;
   return handover(i18n);

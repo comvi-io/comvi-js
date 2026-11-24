@@ -48,7 +48,7 @@ describe("ISOLATED-world bridge activation ordering", () => {
       );
       page.dispatchEvent(
         new CustomEvent("comvi-extension:activated", {
-          detail: { success: true, instanceId: "editor-1", collectContext: false },
+          detail: { success: true },
         }),
       );
     });

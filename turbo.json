@@ -43,6 +43,30 @@
       "outputs": [],
       "dependsOn": ["^build"]
     },
+    // The extension's build pins its API origin (host_permissions, the proxy target) from
+    // VITE_COMVI_API_BASE_URL; turbo's strict env mode would drop it, and it must be part of
+    // the hash so a build for another origin is never restored from the cache.
+    "@comvi/chrome-extension#build": {
+      "outputs": ["dist/**"],
+      "dependsOn": ["^build"],
+      "env": ["VITE_COMVI_API_BASE_URL"]
+    },
+    // Gate E serves the built core, editor and framework fixtures to Chromium: every
+    // workspace package the extension declares is built first (`^build`), so no manual
+    // pre-step decides which dist is fresh. Never cached: it is a browser run.
+    "@comvi/chrome-extension#test:e2e": {
+      "outputs": [],
+      "dependsOn": ["^build"],
+      "cache": false,
+      // playwright.config.ts reads CI (forbidOnly, reporters, no server reuse).
+      "passThroughEnv": ["CI", "PLAYWRIGHT_*"]
+    },
+    "@comvi/chrome-extension#test:release": {
+      "outputs": [],
+      "dependsOn": ["^build"],
+      "cache": false,
+      "passThroughEnv": ["CI", "PLAYWRIGHT_*"]
+    },
     "//#size": {
       "outputs": [],
       // The framework fixtures (scripts/size-fixtures/framework/) resolve every

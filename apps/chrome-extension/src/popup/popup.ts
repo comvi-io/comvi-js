@@ -11,8 +11,9 @@ import type {
   SessionStatusResponse,
   SessionStateChangedPayload,
   ActivationOutcomeCode,
+  PageSupport,
 } from "../shared/messages";
-import { asDisplayVersion, editorAvailability } from "../shared/activation";
+import { asDisplayVersion, asPageSupport } from "../shared/activation";
 
 type Theme = "light" | "dark";
 type View = "loading" | "not-detected" | "idle" | "active";
@@ -25,27 +26,36 @@ const THEME_STORAGE_KEY = "comvi_theme";
 // package names no script host of its own (MV3 remote-code review): the docs
 // page the CSP remedy points to names it.
 const SDK_REQUIREMENT =
-  "In-context editing needs @comvi/core 0.6.0 or newer with .use(devtools()) on the i18n instance. Upgrade the site's Comvi packages, then reload this page.";
+  "In-context editing needs @comvi/core 0.8 or newer with plugins: [devtools()] on the i18n instance. Upgrade the site's Comvi packages, then reload this page.";
+
+const EXTENSION_UPDATE =
+  "Update the Comvi In-Context Editor extension, then reload this page. Until then the editor is not offered here.";
 
 const ACTIVATION_FAILED = "The editor could not start on this page. Reload the page and try again.";
 
 const NOT_DETECTED_TITLE = "Comvi i18n not detected on this page.";
 const NOT_DETECTED_REMEDY =
-  "If this site uses Comvi i18n, add .use(devtools()) to its i18n instance (@comvi/core 0.6.0 or newer). That makes the instance visible to this extension and lets the site load the editor when you enable it.";
+  "If this site uses Comvi i18n, add plugins: [devtools()] to its i18n instance (@comvi/core 0.8 or newer). That makes the instance visible to this extension, which then loads the editor when you enable it.";
+
+const UNKNOWN_PROTOCOL_TITLE = "This site runs a newer Comvi i18n than this extension supports.";
 
 /** One reason and one remedy for each way the page can fail to supply the editor. */
 const ACTIVATION_FAILURE_TEXT: Record<ActivationOutcomeCode, string> = {
   "csp-blocked":
-    "This site's Content Security Policy blocked the editor. Allow the editor's CDN in its script-src directive, then reload this page. comvi.io/docs/i18n/troubleshooting names the host, and what a site that enforces Trusted Types also needs.",
+    "This site's Content Security Policy blocked the editor. Allow the editor's CDN in its script-src directive, then reload this page. comvi.io/docs/i18n/troubleshooting names the host.",
+  "trusted-types":
+    "This site enforces Trusted Types, and no policy let the editor's script through. Add a default policy that accepts the editor's script URL, then reload this page. comvi.io/docs/i18n/troubleshooting has the details.",
   "load-error":
-    "The editor could not be downloaded from its CDN. Check your connection and any filter that blocks it, then try again. If the site pins an editor version, check that the version exists.",
+    "The editor could not be downloaded from its CDN. Check your connection and any filter that blocks it, then try again.",
   timeout:
     "The editor did not finish loading from its CDN in time. Check your connection and try again.",
   "no-global":
     "The editor's CDN answered, but what it sent did not start the Comvi editor. Try again. If it keeps happening, a proxy or filter is rewriting the script.",
-  "invalid-editor-version":
-    "This site pins the editor with an invalid version, so nothing was loaded. devtools({ editorVersion }) must be an exact version like 1.2.3. Fix it in the site's code, then reload this page.",
-  "no-loader": `The Comvi i18n on this page cannot load the editor. ${SDK_REQUIREMENT}`,
+  "bad-version":
+    "The editor on this page is not the version this extension works with. Reload the page and try again. If it keeps happening, update the extension.",
+  "old-protocol": `This site runs a Comvi i18n older than 0.8. ${SDK_REQUIREMENT}`,
+  "unknown-protocol": `${UNKNOWN_PROTOCOL_TITLE} ${EXTENSION_UPDATE}`,
+  "no-instance": `The Comvi i18n instance left this page. ${ACTIVATION_FAILED}`,
   unconfirmed: "The editor activation could not be confirmed. Try again.",
   failed: ACTIVATION_FAILED,
 };
@@ -81,12 +91,11 @@ let currentOrigin = "";
 let editorActive = false;
 let comviDetected = false;
 let comviVersion: string | undefined;
-// Whether the page can supply the editor. Unknown until a source says so; an
-// unknown page is offered Enable and answers with a reason if it cannot.
-let editorAvailable: boolean | undefined;
+// What the page's Comvi speaks. Unknown until a source says so; an unknown
+// page is offered Enable and answers with a reason if it cannot.
+let support: PageSupport | undefined;
 let editorVersion: string | undefined;
-// Instances the detector tracks. A truthy `window.__COMVI__` that holds none
-// is not a Comvi site, whatever else it claims.
+// Compatible instances the detector found.
 let instanceCount: number | undefined;
 let initialized = false;
 let operation: Operation = null;
@@ -136,7 +145,7 @@ async function initTheme() {
 // --- View switching ---
 
 // A site may create its i18n instance after the popup opened (a lazy route),
-// and a second copy of core may install the loader hook later. While the popup
+// or replace an old copy of core with a current one. While the popup
 // says the editor cannot start here, it keeps asking the page, so the view
 // moves to Enable without being reopened.
 const STATUS_RECHECK_MS = 1_000;
@@ -204,18 +213,26 @@ function render() {
     return;
   }
 
-  if (!comviDetected || instanceCount === 0) {
-    reasonTitle.textContent = NOT_DETECTED_TITLE;
-    reasonRemedy.textContent = NOT_DETECTED_REMEDY;
+  // An older Comvi (before 0.8): the site must upgrade. Enable is not offered,
+  // and nothing was done to the page.
+  if (comviDetected && support === "old-protocol") {
+    reasonTitle.textContent = `Comvi i18n${comviVersion ? ` v${comviVersion}` : ""} found, but it is older than 0.8.`;
+    reasonRemedy.textContent = SDK_REQUIREMENT;
     setView("not-detected");
     return;
   }
 
-  // An instance is there, but neither an editor nor the hook that loads one:
-  // the site runs @comvi/core older than 0.6.0.
-  if (editorAvailable === false) {
-    reasonTitle.textContent = `Comvi i18n${comviVersion ? ` v${comviVersion}` : ""} found, but it cannot load the editor.`;
-    reasonRemedy.textContent = SDK_REQUIREMENT;
+  // A handle this extension does not know: the extension must update.
+  if (comviDetected && support === "unknown-protocol") {
+    reasonTitle.textContent = UNKNOWN_PROTOCOL_TITLE;
+    reasonRemedy.textContent = EXTENSION_UPDATE;
+    setView("not-detected");
+    return;
+  }
+
+  if (!comviDetected || instanceCount === 0) {
+    reasonTitle.textContent = NOT_DETECTED_TITLE;
+    reasonRemedy.textContent = NOT_DETECTED_REMEDY;
     setView("not-detected");
     return;
   }
@@ -300,7 +317,7 @@ function updateStatus(status: StatusResponsePayload) {
   // a page cannot talk this popup into showing a fake "active" panel.
   liveStatusObserved = true;
   comviDetected = status.comviDetected;
-  editorAvailable = editorAvailability(status) ?? editorAvailable;
+  support = comviDetected ? asPageSupport(status.support) : undefined;
   if (typeof status.instanceCount === "number") instanceCount = status.instanceCount;
   editorVersion = asDisplayVersion(status.editorVersion) ?? editorVersion;
   comviVersion = asDisplayVersion(status.version) ?? comviVersion;
@@ -353,7 +370,7 @@ function applySessionStatus(
   editorActive = status.active === true;
   if (applyCachedDetection && typeof status.comviDetected === "boolean") {
     comviDetected = status.comviDetected;
-    if (typeof status.editorAvailable === "boolean") editorAvailable = status.editorAvailable;
+    support = asPageSupport(status.support) ?? support;
   }
   comviVersion = asDisplayVersion(status.version) ?? comviVersion;
 }
@@ -504,8 +521,9 @@ async function handleEnable() {
     setForgetVisible(true);
     // Arm before page activation: the acknowledgement can be synchronous.
     armActivationTimeout(verified.tabId, session.nonce);
-    // The extension carries no editor. The page's own Comvi SDK loads it on
-    // this request, and the page answers with EDITOR_ACTIVATED when it runs.
+    // The extension carries no editor. The page's own Comvi core loads the
+    // exact version this extension asks for, and the page answers with
+    // EDITOR_ACTIVATED when it runs.
     setProgress("Loading editor…");
 
     try {
@@ -650,7 +668,7 @@ chrome.runtime.onMessage.addListener((message: Message, sender) => {
     }
     if (state.active) {
       comviDetected = true;
-      editorAvailable = true;
+      support = "compatible";
       hideError();
       void refreshEditorVersion();
     } else if (operation === "enabling" && !ownRollback) {

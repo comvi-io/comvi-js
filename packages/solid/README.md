@@ -28,7 +28,7 @@ npm install @comvi/solid @comvi/core # peer: solid-js ^1.8.0; the app imports @c
 
 ## Setup
 
-```tsx title="src/index.tsx"
+```tsx check=group=solid-app title="src/index.tsx"
 import { render } from "solid-js/web";
 import { createI18n, I18nProvider } from "@comvi/solid";
 import { App } from "./App";
@@ -44,7 +44,7 @@ render(Root, document.getElementById("app")!);
 
 ## Use in components
 
-```tsx title="src/App.tsx"
+```tsx check=group=solid-app title="src/App.tsx"
 import { createSignal } from "solid-js";
 import { useI18n } from "@comvi/solid";
 
@@ -73,7 +73,7 @@ keeps the old locale until the new catalogs are in (the last of quick switches w
 for an invalid tag, or when no catalog of the locale or its parent (`de` for `de-AT`) loaded for any
 namespace it waited for.
 
-```tsx title="src/Account.tsx"
+```tsx check=group=solid-app title="src/Account.tsx"
 import { useI18n } from "@comvi/solid";
 
 export function Account() {
@@ -141,19 +141,31 @@ synchronous: load first (`await i18n.load(ns)`) or get the fallback. Match a loc
 cookie or header against your supported locales first: `createI18n()` throws a `RangeError` for one
 that is not a tag.
 
-```tsx title="src/entry-server.tsx"
+```tsx check=group=solid-app title="src/entry-server.tsx"
 import { Suspense } from "solid-js";
 import { renderToStringAsync } from "solid-js/web";
+import { cdn } from "@comvi/core/cdn";
 import { createI18n, handover, I18nProvider } from "@comvi/solid";
+import { App } from "./App";
 
-const i18n = createI18n({ ...options, locale, timeZone: "UTC" }); // timeZone: required
-const Page = () => <I18nProvider i18n={i18n}>{<App />}</I18nProvider>;
-const html = await renderToStringAsync(() => <Suspense>{<Page />}</Suspense>);
-const payload = JSON.stringify(handover(i18n)).replace(/</g, "\\u003c");
-// The page embeds it: <script>window.__I18N__ = ${payload}</script>
+// The instance options, here in the server file; the browser's entry creates its instance
+// with the same values (timeZone is required).
+const options = {
+  fallbackLocale: "en",
+  timeZone: "UTC",
+  loader: cdn("https://cdn.comvi.io/<project-token>"),
+};
+
+export async function render(locale: string) {
+  const i18n = createI18n({ ...options, locale });
+  const Page = () => <I18nProvider i18n={i18n}>{<App />}</I18nProvider>;
+  const html = await renderToStringAsync(() => <Suspense>{<Page />}</Suspense>);
+  const payload = JSON.stringify(handover(i18n)).replace(/</g, "\\u003c");
+  return { html, payload }; // the page embeds it: <script>window.__I18N__ = ${payload}</script>
+}
 ```
 
-In the browser, `createI18n({ ...options, ...window.__I18N__ })` starts from the server's state: the
+In the browser, `createI18n({ ...options, ...window.__I18N__ })`, with the same option values as the server, starts from the server's state: the
 same `isReady`/`isLoading`, no mismatch, nothing fetched that the server rendered. In SolidStart,
 keep the instance on `getRequestEvent().locals` and write the payload with `useAssets`
 ([example](https://github.com/comvi-io/comvi-js/tree/main/examples/solidstart)).

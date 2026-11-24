@@ -8,6 +8,10 @@ protocol 2, the thin hook, the extension as the only path. The 0.6–0.7 loader 
 diagnostics, timeout, hourly salt, `editorVersion` pin, v1 registry, minted ids) is replaced; the
 Decision below is the 0.8 one, and the slot is summarised under Context.
 
+Status: amended · Date: 2026-11-19 · Owner decision(s): lot 8 D1, D3, D4, D5 — what shipped
+with `@comvi/editor` and the protocol-2 extension (section "Shipped in lot 8"); the release
+order is an open pre-release item, not a decision.
+
 ## Context
 
 Until 0.6.0 the Chrome extension carried a copy of the standalone editor and injected it with
@@ -57,11 +61,45 @@ to every visitor of a site that composes it, the editor only to the translator w
   never builds a URL and never inserts a script (the CWS rule above). These duties and their tests
   move to the extension and the editor (lot 8).
 
+## Shipped in lot 8
+
+- **The exact editor version is a build constant (D3).** `vite.config.ts` of the extension
+  bakes the workspace `@comvi/editor` version into the detector (`__COMVI_EDITOR_VERSION__`,
+  `src/shared/protocol.ts`), and the artifact test checks the built file. The detector calls
+  `x.load(EDITOR_VERSION)`, never `latest` and never a lookup; an editor fix reaches
+  translators with an extension release.
+- **The detector's duties** (`apps/chrome-extension/src/content/detector.ts`): read
+  `window.__COMVI__` as a plain array of own data properties; drive only an entry with
+  `x.p === 2` and `x.kind === "comvi"`, deduped by `i`; register the `securitypolicyviolation`
+  listener before `x.load()`; keep one load in flight, reuse an editor already on the page,
+  stop at 12 s, allow a retry after a failure; report `csp-blocked`, `trusted-types`,
+  `load-error`, `timeout`, `no-global`, `bad-version`, `old-protocol` or `unknown-protocol` as
+  a code, never as page text.
+- **No 0.7 support (D1).** A 0.5–0.7 entry, the v1 registry, the 0.7 hook, `x.p !== 2` or an
+  unknown `kind` are rejected: the popup says what to do, and nothing on the page is called,
+  replaced or added.
+- **The editor observes instances.** During a session the editor's adapter
+  (`packages/editor/src/adapter.ts`) owns `push` and `splice` on the page's existing
+  `window.__COMVI__` array, to see instances that arrive or are destroyed later, and restores
+  them on stop; the detector installs no array and wraps nothing.
+- **Self-contained translation markers (D5).** `x.mark(fn)` of every compatible instance
+  frames each `t()` result `U+E007E … U+E007F` with `inst|ns|key`; rich output gets a pair
+  built by the editor's hook. No server render carries a frame; `mark(null)` on Disable
+  re-renders the app's output without them (a string the app kept elsewhere keeps its frames
+  until it is rendered again); a value pasted from the page into the edit form has its complete
+  recognised markers removed on save. Marked text measures the same as unmarked in Chromium; in WebKit on macOS a frame
+  changes the neighbouring glyph's shaping and breaks Arabic joining during a session, a known
+  defect recorded in Gate E (`layout-engines.spec.ts`, `test.fail`).
+- **Context collection is off (D4).** No session opens `/v1/context/handshake` or
+  `/v1/context/usages`; there is no option for it in core, `devtools()`, the platform or the
+  extension. Where a control lives and whether collection returns is an open product question.
+
 ## Consequences
 
-- **Release order is fixed.** The extension release that speaks protocol 2 is published to the
-  Chrome Web Store before `@comvi/core` 0.8 is published to npm: an extension that looks for the
-  0.7 slot reports `no-loader` against a 0.8 site.
+- **Release order is open.** A 0.7 extension looks for the 0.7 slot and finds no editor on a
+  0.8 site, and the protocol-2 extension does not drive a 0.7 site. When the store extension
+  and the npm packages are published, and how current users move, is decided by the owner
+  before the 0.8 release (`RELEASING.md`).
 - **Bytes.** `devtools()` adds about 440 B min+gz to `core-icu` (it was about 1.1 kB); the
   marking hook adds about 40 B to the base, and keeping a save under a landing load (H8) with
   its compiled messages (H3) about 20 B more (`scripts/size-budgets.md`, 2026-10-27 lot 1e).
@@ -95,7 +133,10 @@ to every visitor of a site that composes it, the editor only to the translator w
 - the hook — `packages/core/src/devtools.ts`; the marking hook — `State.mk` in
   `packages/core/src/state.ts` and `translate` in `packages/core/src/instance.ts`
 - the contract — `contracts/chrome-extension-proxy.json` (`discovery`, `handle`)
-- what moved to lot 8 — `.lot1-pending-tests.md` (until lot 8 lands)
+- the extension's side — `apps/chrome-extension/src/content/detector.ts`,
+  `src/shared/protocol.ts`; the editor's — `packages/editor/src/adapter.ts`,
+  `packages/editor/src/marker.ts`
+- the gate — `apps/chrome-extension/gate-e/` (framework rows included)
 
 ## Related
 

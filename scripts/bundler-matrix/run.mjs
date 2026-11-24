@@ -82,15 +82,6 @@ const SOLID_DEV_TEXT = "[@comvi/solid] no <I18nProvider>";
 /** `@comvi/svelte`'s `/format` entry and its `<T>`, published as sources. */
 const SVELTE_FORMAT_08 = `@comvi${path.sep}svelte${path.sep}dist${path.sep}format.svelte`;
 const SVELTE_T_08 = `@comvi${path.sep}svelte${path.sep}dist${path.sep}T.svelte`;
-/**
- * The in-context editor's heaviest chunk (~100 kB gz), reached through a
- * dynamic `import()` inside the editor's Core chunk. It is in the graph under
- * the default export condition and must be gone under `production`, where the
- * package's exports map swaps the whole entry for a no-op stub.
- */
-const EDITOR_MODAL_CHUNK = [
-  `@comvi${path.sep}plugin-in-context-editor${path.sep}dist${path.sep}EditModal-`,
-];
 /** `@comvi/next`'s middleware module, per artifact (the `next-proxy` case). */
 const NEXT_CREATE_MIDDLEWARE = `@comvi${path.sep}next${path.sep}dist${path.sep}middleware${path.sep}createMiddleware`;
 const NEXT_CREATE_MIDDLEWARE_PROD = `${NEXT_CREATE_MIDDLEWARE}.js`;
@@ -122,7 +113,7 @@ const NEXT_PROXY_FORBIDDEN = [
  * That is what lets a case assert "absent in production, present in
  * development" — one claim per direction, because an absence and a presence are
  * different assertions and a module that is merely missing everywhere would
- * satisfy the absence alone. `editor-production` is the case that needs it.
+ * satisfy the absence alone.
  *
  * `devOnlyText` names strings that must appear in the DEVELOPMENT bundle's
  * output and must NOT appear in the production one — the dev-artifact claim
@@ -301,43 +292,6 @@ const CASES = [
     packages: ["@comvi/core", "@comvi/react", "@comvi/next"],
     deps: ["react", "next"],
   },
-  // ---------------------------------------------------------------------
-  // The DEV-CONDITIONS recipes: one per package that ships an `IS_DEV`
-  // diagnostic, each defining NO `__DEV__` anywhere (neither bundler config
-  // does). `devOnlyText` then asserts the diagnostic is in the development
-  // bundle and out of the production one.
-  //
-  // These are THE gate for "the dev-only diagnostics are reachable at all". A
-  // package that bakes `__DEV__: false` into its single artifact ships its
-  // warnings dead in BOTH modes — a defect no other case can see, because the
-  // module graph is identical either way and only the resolved artifact's
-  // text differs.
-  {
-    // The editor's production exclusion, as a gate rather than a claim. The
-    // package's exports map answers the `production` condition with a no-op
-    // stub that imports nothing, so a production app that composes
-    // `inContextEditor(…)` carries neither the editor runtime nor the
-    // capability subpaths it would otherwise pull in. Development must keep
-    // the modal: a stub on BOTH conditions would satisfy the absence and
-    // silently ship an editor that never opens.
-    //
-    // The fixture composes and runs the host in both modes, so the identity
-    // the two entries share (`.use(inContextEditor())` returns the host) is
-    // exercised as well as the graph.
-    name: "editor-production",
-    sentinels: "absent",
-    absentModules: {
-      default: [],
-      "webpack:production": EDITOR_MODAL_CHUNK,
-      "vite:production": EDITOR_MODAL_CHUNK,
-    },
-    presentModules: {
-      default: [],
-      "webpack:development": EDITOR_MODAL_CHUNK,
-      "vite:development": EDITOR_MODAL_CHUNK,
-    },
-    packages: ["@comvi/core", "@comvi/plugin-in-context-editor"],
-  },
 ];
 // MIGRATION_PENDING (tooling/migration-pending.mjs): a case runs once its fixtures are on
 // the 0.8 API ("fixtures-08") and every package it packs is active — case by case, so a binding whose lot has
@@ -371,11 +325,6 @@ const ALL_PACKAGES = [
   { name: "@comvi/svelte", dir: "packages/svelte", distProbe: "dist/index.js" },
   { name: "@comvi/vue", dir: "packages/vue", distProbe: "dist/comvi-vue.js" },
   { name: "@comvi/next", dir: "packages/next", distProbe: "dist/server.js" },
-  {
-    name: "@comvi/plugin-in-context-editor",
-    dir: "packages/plugin-in-context-editor",
-    distProbe: "dist/index.es.js",
-  },
 ];
 
 /** Only the tarballs the ACTIVE cases need are built, packed and installed. */

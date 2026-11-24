@@ -64,7 +64,7 @@ export async function openPendingSession(): Promise<string> {
 
 export async function openActiveSession(): Promise<string> {
   const nonce = await openPendingSession();
-  const promoted = await confirmActivation(TAB, pageSender(), nonce, true, () => true);
+  const promoted = await confirmActivation(TAB, pageSender(), nonce, () => true);
   if (!promoted) throw new Error("session not promoted");
   return nonce;
 }

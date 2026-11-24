@@ -6,16 +6,18 @@
  * Lot 1a replaced `@comvi/core` with the new compile/locale foundation, lot 1b added
  * `createI18n`, the instance and the `/cdn`, `/plugins`, `/format`, `/devtools` subpaths,
  * lot 1c rebuilt `@comvi/react` and moved the React and vanilla examples, lot 4 rebuilt
- * `@comvi/vue` and moved the Vue example and test app, and lot 5 did the same for
- * `@comvi/solid` and `@comvi/svelte` with their SSR examples.
+ * `@comvi/vue` and moved the Vue example and test app, lot 5 did the same for
+ * `@comvi/solid` and `@comvi/svelte` with their SSR examples, lots 6–7 moved Next and Nuxt,
+ * and lot 8 rebuilt `@comvi/editor` and the Chrome extension on protocol 2 (the list is empty
+ * since then; the mechanism stays for the docs below until lot 10).
  * Until a package's lot lands, every repo gate leaves it out EXPLICITLY:
  *
  *   - turbo tasks (build, test, lint, typecheck, coverage): `scripts/turbo-active.mjs`
  *     appends `--filter=!<name>` for each entry;
  *   - per-package gates (package contracts, publint, types exports, inlined version,
  *     size rows): skip the entry and print it with its reason;
- *   - gates that exist only for pending packages (bundler matrix, strict consumer,
- *     node entries, docs snippet types, examples e2e, test-apps smoke, Gate E):
+ *   - gates that need a package that may be pending (strict consumer, docs quickstart;
+ *     the docs snippet gates report a pending package's README as advisory instead):
  *     `exitIfPending()` prints the reason and exits 0 (the perf A/B runs again since
  *     lot 1b, across core generations);
  *   - multi-shard gates (examples e2e per framework, test-apps smoke per app, bundler
@@ -31,38 +33,54 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const MIGRATION_PENDING = {
-  "@comvi/plugin-in-context-editor": "lot 8: editor on the internal hook v2",
-  "@comvi/chrome-extension": "lot 8: depends on @comvi/plugin-in-context-editor",
-};
+export const MIGRATION_PENDING = {};
 
 /**
- * Documents (repo-relative) whose code fences use API that is MIGRATION_PENDING. A
- * README of a pending package is pending by its package; these are the others. Their
- * findings in `pnpm check:snippets` are reported as advisory `migration-pending/*`.
+ * Documents (repo-relative) whose docs-snippets findings are advisory until lot 10, each with
+ * the EXACT rule ids that are advisory there and why. Every other finding in these documents,
+ * and every finding in any other document, blocks (`pnpm check:snippets`,
+ * `pnpm check:snippets:types`; `scripts/check-snippets.mjs`). A README of a pending package is
+ * advisory as a whole (`pendingReason`); none is pending today.
+ *
+ *   - LINT_07: pages already on the 0.8 API. Only the two LINT rules that still require the 0.7
+ *     composition are advisory; their type-check and every other rule block.
+ *   - CORE_07: pages that still document the 0.7 core API (checked against their content on
+ *     2026-11-19); the rules listed per page are the ones that page fails today.
  */
-const CORE_07_DOCS =
-  "documents the 0.7 core API (.use() composition, the capability subpaths); the 0.8 API landed in lot 1b, the pages are rewritten in lot 10";
 const LINT_07_RULES =
   "on the 0.8 API since lot 1c (React), lot 4 (Vue), lot 5 (Solid, Svelte), lot 6a (Next) and lot 7 (Nuxt); the docs-snippets rules still require the 0.7 composition (`.use(installer)`, `compiler: icuCompiler`) — they move to 0.8 with the docs in lot 10";
 const CDN_08_ROOT =
   "its Connect to Comvi section is on the 0.8 API since lot 2c (`loader: cdn(url)` from @comvi/core/cdn, the 0.7 fetch loader is gone); the docs-snippets rules still require the 0.7 composition (`.use(installer)`) — they move to 0.8 with the docs in lot 10";
+const CORE_07_DOCS =
+  "documents the 0.7 core API (.use() composition, the capability subpaths); the 0.8 API landed in lot 1b, the pages are rewritten in lot 10";
+/** The two docs-snippets LINT rules that still require the 0.7 composition. */
+const LINT_07 = ["required/use-composition", "required/icu-compiler"];
+const lint07 = { reason: LINT_07_RULES, rules: LINT_07 };
+const core07 = (...rules) => ({ reason: CORE_07_DOCS, rules });
 export const MIGRATION_PENDING_DOCS = {
-  "README.md": CDN_08_ROOT,
-  "packages/core/README.md": CORE_07_DOCS,
-  "packages/react/README.md": LINT_07_RULES,
-  "packages/next/README.md": LINT_07_RULES,
-  "packages/nuxt/README.md": LINT_07_RULES,
-  "packages/vue/README.md": LINT_07_RULES,
-  "packages/solid/README.md": LINT_07_RULES,
-  "packages/svelte/README.md": LINT_07_RULES,
-  "packages/vite-plugin/README.md": LINT_07_RULES,
-  "examples/README.md": LINT_07_RULES,
-  "docs/design/composition.md": CORE_07_DOCS,
-  "docs/design/formatting.md": CORE_07_DOCS,
-  "docs/design/icu.md": CORE_07_DOCS,
-  "docs/design/rich-text.md": CORE_07_DOCS,
-  "docs/design/ssr.md": CORE_07_DOCS,
+  "README.md": { reason: CDN_08_ROOT, rules: LINT_07 },
+  "packages/react/README.md": lint07,
+  "packages/next/README.md": lint07,
+  "packages/nuxt/README.md": lint07,
+  "packages/vue/README.md": lint07,
+  "packages/solid/README.md": lint07,
+  "packages/svelte/README.md": lint07,
+  "packages/vite-plugin/README.md": lint07,
+  "examples/README.md": lint07,
+  // The README's banner says it: the 0.7 API (`i18n.init()`, `.use()`), rewritten in lot 10.
+  "packages/core/README.md": core07("required/use-composition", "typecheck/error"),
+  // `.use(installer)` as the composition verb, `@comvi/core/loader`, `@comvi/plugin-fetch-loader`.
+  "docs/design/composition.md": core07("banned/unresolved-comvi-import", "typecheck/error"),
+  // Formatters imported from the 0.7 `@comvi/core` root.
+  "docs/design/formatting.md": core07("banned/unresolved-comvi-import", "typecheck/error"),
+  // `compiler: icuCompiler` from the 0.7 `@comvi/core/icu`.
+  "docs/design/icu.md": core07("banned/unresolved-comvi-import", "typecheck/error"),
+  // The 0.7 per-framework SSR helpers (`createNextI18n` and its siblings).
+  "docs/design/ssr.md": core07(
+    "banned/unresolved-comvi-import",
+    "typecheck/error",
+    "typecheck/sfc-error",
+  ),
 };
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -85,7 +103,7 @@ export function packageName(dirOrName) {
  */
 export const PENDING_CAPABILITIES = {
   "fixtures-08":
-    "examples, test apps and bundler-matrix fixtures still on the 0.7 API move to the 0.8 createI18n with their binding's lot (next: lot 6, nuxt: lot 7, the editor: lot 8)",
+    "examples, test apps and bundler-matrix fixtures still on the 0.7 API move to the 0.8 createI18n with their binding's lot",
 };
 
 /**
@@ -132,10 +150,15 @@ export function pendingReason(dirOrName) {
   return PENDING_CAPABILITIES[dirOrName] ?? MIGRATION_PENDING[packageName(dirOrName)];
 }
 
-/** Why a repo-relative document is pending, or `undefined`. */
-export function pendingDocReason(file) {
+/**
+ * Why a finding of `rule` in the repo-relative document `file` is advisory, or `undefined`
+ * when it blocks: only a rule listed for that document in MIGRATION_PENDING_DOCS, or any rule
+ * in the README of a pending package.
+ */
+export function pendingDocReason(file, rule) {
   const rel = file.split(path.sep).join("/");
-  if (MIGRATION_PENDING_DOCS[rel]) return MIGRATION_PENDING_DOCS[rel];
+  const entry = MIGRATION_PENDING_DOCS[rel];
+  if (entry) return entry.rules.includes(rule) ? entry.reason : undefined;
   const m = /^packages\/([^/]+)\/README\.md$/.exec(rel);
   return m ? pendingReason(m[1]) : undefined;
 }
@@ -213,11 +236,6 @@ export const EXAMPLES_E2E_MATRIX = [
 /** The test apps of `pnpm test-apps:smoke` (scripts/test-apps-smoke/run.mjs APPS). */
 export const TEST_APPS = ["next", "next16", "nuxt", "nuxt4"];
 
-/** CI job switches for single-shard jobs: a job runs only when nothing it needs is pending. */
-export const CI_JOBS = {
-  extension: ["@comvi/plugin-in-context-editor", "@comvi/chrome-extension"],
-};
-
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv.includes("--github-output")) {
     const quiet = () => {};
@@ -225,9 +243,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       (e) => activeShards([e.framework], exampleNeeds, "examples-e2e", quiet).length === 1,
     );
     const lines = [
-      ...Object.entries(CI_JOBS).map(
-        ([job, needs]) => `${job}=${needs.some((n) => pendingReason(n)) ? "pending" : "active"}`,
-      ),
       // A JSON matrix of the ACTIVE examples-e2e shards (`[]` when none is active).
       `examples_e2e_matrix=${JSON.stringify(examples)}`,
       // Comma-separated active test apps (empty when none is active).

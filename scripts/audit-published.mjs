@@ -5,7 +5,7 @@
  * user actually installs or downloads, not this repo's own dev/test tooling.
  *
  * "Published" is decided by the FIRST path segment (the workspace root pnpm
- * emits, e.g. `packages__plugin-in-context-editor`) alone: `test-apps/*`,
+ * emits, e.g. `packages__editor`) alone: `test-apps/*`,
  * `tooling/*` and `examples/*` are dev-only fixtures and sample code that
  * never ship, so their roots are excluded. Everything else — `packages/*`
  * (published npm packages) AND `apps/*` (e.g. the Chrome extension, shipped
@@ -13,7 +13,7 @@
  * deliberately NOT narrowed by a package's own `private` field or by whether
  * a dependency is listed under `dependencies` vs `devDependencies`: this
  * repo's build tooling bundles across both without preserving that split —
- * `@comvi/plugin-in-context-editor`'s `./standalone` entry is built with
+ * `@comvi/editor`'s `dist/standalone.iife.js` is built with
  * `external: []`, so it inlines devDependencies (vue, reka-ui, …) into a
  * published artifact, and the two `private: true` packages under `packages/*`
  * (`@comvi/typegen`, `@comvi/locale-routing`) are themselves inlined into

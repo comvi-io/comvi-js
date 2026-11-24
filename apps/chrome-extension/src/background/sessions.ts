@@ -269,8 +269,8 @@ export async function startSession(
         origin: canonicalOrigin,
         apiKey,
         projectId: validation.projectId,
-        // Pending sessions have no proxy authority. The effective value is
-        // supplied by the SDK activation result when the session is promoted.
+        // Context collection is OFF in lot 8 (owner decision D4): no session
+        // ever opens the telemetry routes, whatever the page reports.
         collectContext: false,
         nonce,
         popupLeaseId,
@@ -307,7 +307,6 @@ export async function confirmActivation(
   tabId: number,
   sender: chrome.runtime.MessageSender,
   nonce: unknown,
-  effectiveCollectContext: unknown,
   isPopupLeaseActive: (leaseId: string) => boolean,
 ): Promise<boolean> {
   return withLock(tabLockKey(tabId), async () => {
@@ -336,10 +335,10 @@ export async function confirmActivation(
     const promoted: SessionRecord = {
       ...session,
       status: "active",
-      // Page-reported (MAIN world): an honest editor derives it from the
-      // site's i18n.collectContext, but a hostile page can report true. It is
-      // an opt-out for honest sites, not a boundary. Closed unless true.
-      collectContext: effectiveCollectContext === true,
+      // Context collection is OFF in lot 8 (owner decision D4): nothing the
+      // page reports opens the telemetry routes. Where its control lives, and
+      // whether collection returns, is an open product question before 0.8.
+      collectContext: false,
       expiresAt: 0,
       // Bind the acknowledging document; every proxy request must come from it.
       documentId: sender.documentId,
@@ -540,7 +539,7 @@ export async function getSessionStatus(
       ? {
           comviDetected: tabState.comviDetected,
           version: tabState.version,
-          editorAvailable: tabState.editorAvailable,
+          support: tabState.support,
         }
       : {}),
   };

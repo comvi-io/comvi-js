@@ -112,8 +112,8 @@ test("a stale quoted version inside a template literal that starts with the mani
 });
 
 const EDITOR = {
-  dir: "plugin-in-context-editor",
-  name: "@comvi/plugin-in-context-editor",
+  dir: "editor",
+  name: "@comvi/editor",
   version: "0.5.1",
   configs: { "vite.config.standalone.ts": INLINING_CONFIG },
 };

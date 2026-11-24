@@ -162,8 +162,7 @@ test("the job that publishes under `latest` also names main in its own condition
 // ---------------------------------------------------------------------------
 
 const PURGE_STEP = "Purge jsDelivr's @latest editor file";
-const PURGE_URL =
-  "https://purge.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js";
+const PURGE_URL = "https://purge.jsdelivr.net/npm/@comvi/editor@latest/dist/standalone.iife.js";
 
 /** The steps of a job, in order: each one's name and its text. */
 function readSteps(job) {

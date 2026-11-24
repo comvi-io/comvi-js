@@ -18,7 +18,7 @@ import type {
   SessionStateChangedPayload,
 } from "../shared/messages";
 import { ensureStorageSchema } from "../shared/storage";
-import { asActivationFailureCode, editorAvailability } from "../shared/activation";
+import { asActivationFailureCode, asPageSupport } from "../shared/activation";
 import {
   startSession,
   confirmActivation,
@@ -376,7 +376,7 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
           const state: TabState = {
             comviDetected: true,
             version: typeof payload.version === "string" ? payload.version : undefined,
-            editorAvailable: editorAvailability(payload),
+            support: asPageSupport(payload.support),
             documentId: (await getTabState(tabId))?.documentId,
           };
           await putTabState(tabId, state);
@@ -407,12 +407,8 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
       if (detail.success === true) {
         runInBackground(
           async () => {
-            const active = await confirmActivation(
-              tabId,
-              sender,
-              detail.nonce,
-              detail.collectContext,
-              (leaseId) => popupLeases.has(leaseId),
+            const active = await confirmActivation(tabId, sender, detail.nonce, (leaseId) =>
+              popupLeases.has(leaseId),
             );
             const status = await getSessionStatus({ tabId }, {} as chrome.runtime.MessageSender);
             broadcastSessionState({

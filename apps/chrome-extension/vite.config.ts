@@ -60,7 +60,18 @@ export default defineConfig(({ mode }) => {
     testPageOrigin = testPageUrl.origin;
   }
 
+  // The exact editor version this build works with (owner decision D3): the workspace
+  // `@comvi/editor` version, baked into the detector. An editor fix reaches users with an
+  // extension release; nothing is looked up at runtime.
+  const editorVersion: unknown = JSON.parse(
+    readFileSync(resolve(__dirname, "../../packages/editor/package.json"), "utf8"),
+  ).version;
+  if (typeof editorVersion !== "string" || !/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(editorVersion)) {
+    throw new Error(`packages/editor/package.json has no exact version: ${String(editorVersion)}`);
+  }
+
   return {
+    define: { __COMVI_EDITOR_VERSION__: JSON.stringify(editorVersion) },
     // The copy-static-files plugin below copies exactly what the package needs
     // (manifest, popup.html, PNG icons). Disable Vite's default
     // public/ passthrough so the SVG icon sources don't leak into dist/ and the
@@ -88,6 +99,17 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       tailwindcss(),
+      {
+        // Chrome injects a content script as a classic script, so every top-level `var` and
+        // function of the bundle would land on the global object — for the MAIN-world
+        // detector, on the page's own window, on every site. Each content script runs in a
+        // function scope of its own instead (checked by src/__tests__/artifacts.test.ts).
+        name: "content-script-scope",
+        renderChunk(code, chunk) {
+          if (chunk.name !== "detector" && chunk.name !== "bridge") return null;
+          return { code: `(() => {\n${code}\n})();\n`, map: null };
+        },
+      },
       {
         name: "copy-static-files",
         closeBundle() {

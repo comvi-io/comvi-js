@@ -11,3 +11,9 @@ playwright-report/
 test-results/
 .omc/
 Untitled
+# Gate E framework rows: build outputs of gate-e/frameworks/
+gate-e/frameworks/dist/
+gate-e/frameworks/next/.next/
+gate-e/frameworks/next/next-env.d.ts
+gate-e/frameworks/nuxt/.nuxt/
+gate-e/frameworks/nuxt/.output/

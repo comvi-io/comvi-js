@@ -20,7 +20,7 @@ const SCRIPT = path.join(SCRIPT_DIR, "audit-published.mjs");
 test("workspaceRootWord normalizes both separator conventions the audit JSON uses for the same chain", () => {
   // `actions[].resolves[].path`: "__" for the folder separator, ">" between deps.
   assert.equal(workspaceRootWord("test-apps__nuxt>nuxt>@nuxt/devtools>ws"), "test-apps");
-  assert.equal(workspaceRootWord("packages__plugin-in-context-editor>vue>reka-ui"), "packages");
+  assert.equal(workspaceRootWord("packages__editor>vue>reka-ui"), "packages");
   assert.equal(workspaceRootWord("tooling__test-utils>vitest>@vitest/mocker"), "tooling");
   // `advisories[<id>].findings[].paths`: "/" for the folder separator, " > " between deps.
   assert.equal(workspaceRootWord("test-apps/next > next@15.5.18 > postcss@8.4.31"), "test-apps");
@@ -37,11 +37,11 @@ test("isPublishedPath: RC review M9 — packages/* is published-relevant regardl
 });
 
 test("isPublishedPath: RC review M9 — a devDependency-only path in a published package is still published-relevant", () => {
-  // `@comvi/plugin-in-context-editor`'s `./standalone` entry bundles with
+  // `@comvi/editor`'s `dist/standalone.iife.js` bundles with
   // `external: []`, inlining devDependencies (vue, reka-ui, …) into a
   // published artifact — dependencies-vs-devDependencies is not a signal of
   // what a bundler inlined, so it is no longer consulted.
-  assert.equal(isPublishedPath("packages__plugin-in-context-editor>vue>reka-ui"), true);
+  assert.equal(isPublishedPath("packages__editor>vue>reka-ui"), true);
 });
 
 test("isPublishedPath: only test-apps/tooling/examples roots are private", () => {
@@ -159,7 +159,7 @@ test("CLI end-to-end: RC review M9 — a vulnerability in a packages/* devDepend
       {
         module: "vue",
         target: "3.9.9",
-        resolves: [{ id: 1, path: "packages__plugin-in-context-editor>vue>reka-ui", dev: false }],
+        resolves: [{ id: 1, path: "packages__editor>vue>reka-ui", dev: false }],
       },
     ],
     advisories: { 1: { severity: "high" } },

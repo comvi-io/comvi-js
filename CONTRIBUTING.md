@@ -15,7 +15,7 @@ A pnpm 10 + Turborepo monorepo holding a framework-agnostic i18n runtime and its
 packages/core                      framework-agnostic runtime; everything else depends on it
                                    (`/cdn` CDN and API loaders, `/plugins` locale detection)
 packages/{vue,react,solid,svelte,next,nuxt}   framework bindings; kept in behavioural parity
-packages/plugin-in-context-editor  visual in-page translation editor
+packages/editor                    in-context editor; one IIFE the extension loads on a page
 packages/locale-routing            WORKSPACE-PRIVATE locale routing primitives; inlined into next,
                                    vendored into nuxt's runtime (`pnpm --filter @comvi/nuxt vendor`)
 packages/typegen                   WORKSPACE-PRIVATE declaration emitter; inlined into cli and
@@ -50,7 +50,7 @@ pnpm dev:lib          # packages only — faster, less memory
 ```
 
 Most packages are consumed through source imports, so edits are reflected immediately.
-`@comvi/plugin-in-context-editor` runs in watch mode and rebuilds on change. `Ctrl+C` stops dev
+`@comvi/editor` runs in watch mode and rebuilds on change. `Ctrl+C` stops dev
 mode cleanly.
 
 Scope any turbo task with a filter:
