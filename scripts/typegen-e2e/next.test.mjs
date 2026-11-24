@@ -143,8 +143,12 @@ export default withComvi({
 });
 `;
 
-/** A minimal App Router app on `version`'s Next, its catalogs in src/locales. */
-function app(version) {
+/**
+ * A minimal App Router app on `version`'s Next, its catalogs in src/locales. `realNext` links
+ * the built `@comvi/next` (every entry, not only `./plugin`) and declares it, for the type
+ * checks of `getI18n()`; no Next process runs against that app.
+ */
+function app(version, { realNext = false } = {}) {
   fs.mkdirSync(APPS, { recursive: true });
   const dir = fs.mkdtempSync(path.join(APPS, "app-"));
   dirs.push(dir);
@@ -164,12 +168,18 @@ function app(version) {
   ])
     link(name, fs.realpathSync(path.join(from, name)));
   link("@comvi/react", path.join(ROOT, "packages/react"));
-  link("@comvi/next", pluginPackage());
+  link("@comvi/next", realNext ? NEXT_PKG : pluginPackage());
   const files = {
     "package.json": JSON.stringify({
       name: "next-types-e2e",
       private: true,
-      dependencies: { "@comvi/react": "*", next: "*", react: "*", "react-dom": "*" },
+      dependencies: {
+        ...(realNext ? { "@comvi/next": "*" } : {}),
+        "@comvi/react": "*",
+        next: "*",
+        react: "*",
+        "react-dom": "*",
+      },
     }),
     "tsconfig.json": JSON.stringify({
       compilerOptions: {
@@ -491,6 +501,104 @@ for (const version of VERSIONS) {
         /\[@comvi\/next\] src\/types\/i18n\.d\.ts is outdated/,
       );
       assert.equal(readOut(a.dir), before);
+    });
+  });
+}
+
+/**
+ * What the generated types reject in a Next app's two ways to `t()`: the server
+ * `getI18n().t` of `@comvi/next/server` and the client `useI18n()` of `@comvi/react`. Each
+ * line marked `// rejects: <what>` must carry a diagnostic, every other line none.
+ */
+const ACCOUNT_EN = { profile: "Profile of {user}" };
+const REJECTS = `import type { GetI18n } from "@comvi/next/server";
+import { useI18n } from "@comvi/react";
+
+declare const getI18n: GetI18n;
+
+export async function server() {
+  const { t } = await getI18n();
+  const account = await getI18n({ ns: "account" });
+  t("hello", { name: "Ada" });
+  t("title");
+  account.t("profile", { user: "Ada" });
+  t("helo", { name: "Ada" }); // rejects: server, wrong key
+  t("profile", { user: "Ada" }); // rejects: server, a key of another namespace
+  t("hello"); // rejects: server, missing param (no params)
+  t("hello", {}); // rejects: server, missing param (empty params)
+  t("hello", { name: true }); // rejects: server, wrong param type
+}
+
+export function client() {
+  const { t } = useI18n();
+  const account = useI18n("account");
+  t("hello", { name: "Ada" });
+  t("title");
+  account.t("profile", { user: "Ada" });
+  t("helo", { name: "Ada" }); // rejects: client, wrong key
+  t("profile", { user: "Ada" }); // rejects: client, a key of another namespace
+  t("hello"); // rejects: client, missing param (no params)
+  t("hello", {}); // rejects: client, missing param (empty params)
+  t("hello", { name: true }); // rejects: client, wrong param type
+}
+`;
+
+for (const version of VERSIONS) {
+  describe(`${version.label}, types of getI18n().t and useI18n()`, { timeout: 120_000 }, () => {
+    it("reject a wrong key, a key of another namespace, a missing param and a wrong param type", () => {
+      const a = app(version, { realNext: true });
+      write(a.dir, "src/locales/account/en.json", JSON.stringify(ACCOUNT_EN));
+      const cli = spawnSync(
+        process.execPath,
+        [CLI, "typegen", "--from", "src/locales", "--source-locale", "en", "--out", OUT],
+        {
+          cwd: a.dir,
+          encoding: "utf8",
+          env: { ...process.env, COMVI_API_KEY: "", COMVI_NO_ENV: "1" },
+        },
+      );
+      assert.equal(cli.status, 0, `${cli.stdout}${cli.stderr}`);
+      assert.match(readOut(a.dir), /"profile": \{ "user": string \| number \};/);
+
+      write(a.dir, "src/rejects.ts", REJECTS);
+      const r = spawnSync(process.execPath, [a.tsc, "-p", "tsconfig.json", "--pretty", "false"], {
+        cwd: a.dir,
+        encoding: "utf8",
+      });
+      const diagnostics = `${r.stdout}${r.stderr}`
+        .split("\n")
+        .filter((l) => l.startsWith("src/"))
+        .map((l) => ({ line: Number(/^src\/rejects\.ts\((\d+),/.exec(l)?.[1] ?? 0), text: l }));
+
+      const rows = REJECTS.split("\n").map((source, index) => {
+        const line = index + 1;
+        const expected = /\/\/ rejects: (.*)$/.exec(source)?.[1];
+        const got = diagnostics.filter((d) => d.line === line).map((d) => d.text);
+        return { line, source: source.trim(), expected, got };
+      });
+      const wrong = rows.filter((row) => Boolean(row.expected) !== row.got.length > 0);
+      const table = rows
+        .filter((row) => row.expected || row.got.length > 0)
+        .map(
+          (row) =>
+            `${row.got.length > 0 === Boolean(row.expected) ? "ok  " : "MISS"} ${row.line}: ` +
+            `${row.expected ?? "(must compile)"}\n` +
+            (row.got.length
+              ? row.got.map((g) => `       ${g}`).join("\n")
+              : "       (no diagnostic)"),
+        )
+        .join("\n");
+      console.log(`${version.label}:\n${table}`);
+      // Every diagnostic is on a line of the probe: none from the generated file or elsewhere.
+      assert.deepEqual(
+        diagnostics.filter((d) => d.line === 0).map((d) => d.text),
+        [],
+      );
+      assert.deepEqual(
+        wrong.map((row) => `${row.line}: ${row.expected ?? "must compile"}`),
+        [],
+        table,
+      );
     });
   });
 }
