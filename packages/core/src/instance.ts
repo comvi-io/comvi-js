@@ -791,7 +791,6 @@ export const createI18n = (o: I18nOptions): I18n => {
   };
 
   const i18n: I18n = {
-    [VER]: __VERSION__,
     get locale() {
       return S.locale;
     },
@@ -856,6 +855,12 @@ export const createI18n = (o: I18nOptions): I18n => {
         downs.reverse().forEach(safe);
       }
     },
+    // LAST, after every static member (B3 perf): V8 builds the members before the first
+    // computed key from the literal's boilerplate, one shape shared by every instance. Put
+    // first, each instance was built member by member and its getters (fresh closures) gave
+    // it a hidden class of its own: construction +8 %, and every call site that sees many
+    // instances (a server's one per request) would go megamorphic.
+    [VER]: __VERSION__,
   };
 
   const c: Core = {
