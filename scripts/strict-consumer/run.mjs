@@ -211,6 +211,104 @@ async function declaredPackageCase(specifier, { node10 = false } = {}) {
   return failures;
 }
 
+/**
+ * A Next app's own source: the server `getI18n().t` through `@comvi/next/server` and, when
+ * the app declares `@comvi/react`, the client `useI18n()` a Client Component reads.
+ */
+function writeNextSource(app, { client, assertUnknownKey }) {
+  const unknown = (call) => [
+    ...(assertUnknownKey
+      ? ["  // @ts-expect-error the generated types must reject a key the catalog lacks"]
+      : []),
+    `  ${call}`,
+  ];
+  const lines = [
+    'import type { GetI18n } from "@comvi/next/server";',
+    ...(client ? ['import { useI18n } from "@comvi/react";'] : []),
+    "",
+    "declare const getI18n: GetI18n;",
+    "",
+    "export async function server() {",
+    "  const { t } = await getI18n();",
+    '  t("hello");',
+    '  t("greeting", { name: "Ada" });',
+    ...unknown('t("missing");'),
+    "}",
+    "",
+  ];
+  if (client) {
+    lines.push(
+      "export function client() {",
+      "  const { t } = useI18n();",
+      '  t("hello");',
+      '  t("greeting", { name: "Ada" });',
+      ...unknown('t("missing");'),
+      "}",
+      "",
+    );
+  }
+  fs.writeFileSync(path.join(app, "index.ts"), lines.join("\n"));
+}
+
+/**
+ * A Next app declaring `declares`: either its keys are typed for the server `getI18n().t`
+ * (and the client `useI18n()` when it declares `@comvi/react`), or generation refuses and
+ * names the packages to declare. A generated file that types nothing is the failure.
+ */
+async function nextCase(declares, { expectRefusal }) {
+  const app = makeApp({ declares });
+  const failures = [];
+  const client = declares.includes("@comvi/react");
+
+  let refusal = "";
+  try {
+    await generate(app);
+  } catch (error) {
+    refusal = error instanceof Error ? error.message : String(error);
+  }
+
+  if (refusal) {
+    report(refusal);
+    if (!expectRefusal) failures.push(`generation refused: ${refusal}`);
+    for (const name of ["@comvi/react", "@comvi/core"]) {
+      if (!refusal.includes(name)) failures.push(`the refusal does not name ${name}`);
+    }
+    if (fs.existsSync(path.join(app, "comvi.d.ts"))) {
+      failures.push("the plugin left a declaration file behind");
+    }
+    return failures;
+  }
+
+  const generated = fs.readFileSync(path.join(app, "comvi.d.ts"), "utf8");
+  report(generated.split("\n").slice(0, 2).join("\n"));
+  if (expectRefusal) {
+    failures.push(
+      "generation wrote a declaration; expected a refusal naming the packages to declare",
+    );
+  }
+
+  writeNextSource(app, { client, assertUnknownKey: true });
+  const known = typecheck(app);
+  report(known.output || "(no diagnostics — known keys compile, the unknown ones are rejected)");
+  if (known.output !== "") failures.push(`known keys did not compile:\n${known.output}`);
+
+  writeNextSource(app, { client, assertUnknownKey: false });
+  const unknown = typecheck(app);
+  report(unknown.output || "(no diagnostics — the unknown key COMPILED)");
+  const rejected = unknown.output.split("\n").filter((line) => line.includes("TS2345")).length;
+  const expected = client ? 2 : 1;
+  if (rejected !== expected) {
+    failures.push(
+      `expected TS2345 for the unknown key in ${expected} call(s) ` +
+        `(server getI18n().t${client ? " and client useI18n().t" : ""}), got ${rejected}`,
+    );
+  }
+  if (/TS2307|TS2882/.test(unknown.output)) {
+    failures.push("TypeScript could not resolve a module the app or its declaration names");
+  }
+  return failures;
+}
+
 const cases = [
   {
     name: "A. an app declaring only @comvi/react, with core reachable only through it",
@@ -256,6 +354,24 @@ const cases = [
       }
       return failures;
     },
+  },
+  {
+    // `@comvi/next` has no root module, so a declaration augmenting it attaches to nothing
+    // (TS2882, hidden by Next's `skipLibCheck: true`) and every key compiles; and without
+    // `@comvi/react` declared the app cannot import the client `useI18n()` at all.
+    name: "E. a Next app declaring only @comvi/next: refused, naming what to declare",
+    package: "@comvi/next",
+    run: () => nextCase(["@comvi/next"], { expectRefusal: true }),
+  },
+  {
+    name: "F. a Next app with the README install (@comvi/next, @comvi/react, @comvi/core)",
+    package: "@comvi/next",
+    run: () => nextCase(["@comvi/next", "@comvi/react", "@comvi/core"], { expectRefusal: false }),
+  },
+  {
+    name: "G. a Next app declaring @comvi/next and @comvi/react, core reachable only through them",
+    package: "@comvi/next",
+    run: () => nextCase(["@comvi/next", "@comvi/react"], { expectRefusal: false }),
   },
 ];
 
