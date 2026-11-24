@@ -41,8 +41,9 @@ export function getAlternates<T extends string>(
 
   const canonical = buildLocalizedPath(href, locale, options);
   // No URL belongs to one locale for every visitor: without `pathnames` one URL
-  // serves each visitor's locale (cookie, Accept-Language); with them, the
-  // middleware redirects a visitor whose locale is another to that locale's slug.
+  // serves each visitor's locale (cookie, Accept-Language). With them, a slug of
+  // one locale answers in it to a visitor without a cookie, and the middleware
+  // redirects a visitor whose cookie selects another locale to that locale's URL.
   if (localePrefix === "never") return { canonical };
 
   const languages: Record<string, string> = {};

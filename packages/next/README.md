@@ -205,8 +205,13 @@ prefix, no query, no hash. It reads no request API, so a static page stays stati
 `alternates` replaces its layout's `alternates` entirely.
 
 With `localePrefix: "never"` it returns only `canonical`: no URL belongs to one locale for every
-visitor. Without `pathnames`, one URL serves each visitor's locale (cookie, `Accept-Language`); with
-them, the middleware redirects a visitor whose locale is another to that locale's slug. With
+visitor. Without `pathnames`, one URL serves each visitor's locale (cookie, `Accept-Language`). With
+them, a slug that belongs to one locale answers in that locale to a visitor without a locale cookie,
+whatever their `Accept-Language`; under the default detection order a visitor whose cookie selects
+another locale is redirected to that locale's URL, and the `pathnames` key redirects a visitor whose
+locale has its own slug to that slug. A slug two
+locales share, or one equal to another page's key, names no locale: it is resolved from the cookie
+and `Accept-Language` like any other URL. With
 `as-needed`, the default locale's unprefixed URL redirects a visitor whose cookie or
 `Accept-Language` selects another locale, and answers in the default locale to a client that sends
 neither.

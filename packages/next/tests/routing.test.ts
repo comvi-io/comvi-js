@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { defineRouting, createGetPathname, hasLocale } from "../src/routing/defineRouting";
 import {
   getCanonicalPathname,
+  getSlugLocale,
   localizeHref,
   localizeUrlObject,
   stripLocalePrefix,
@@ -330,6 +331,58 @@ describe("defineRouting: the shared options schema", () => {
   });
 });
 
+describe("getSlugLocale: the locale an unprefixed localized slug names", () => {
+  const SHARED = defineRouting({
+    locales: ["en", "de", "nl"],
+    defaultLocale: "en",
+    localePrefix: "never",
+    pathnames: { "/about": { de: "/info", nl: "/info" } },
+  });
+
+  it("a slug that belongs to one locale names it", () => {
+    expect(getSlugLocale("/ueber-uns", ROUTING_DE_ONLY)).toBe("de");
+    expect(getSlugLocale("/about-us", ROUTING_BOTH)).toBe("en");
+    expect(getSlugLocale("/ueber-uns", ROUTING_BOTH)).toBe("de");
+  });
+
+  it("a slug two locales share names none", () => {
+    expect(getSlugLocale("/info", SHARED)).toBeUndefined();
+  });
+
+  it("a slug equal to a page's key names none, whatever the entry order", () => {
+    expect(getSlugLocale("/about", ROUTING_SLUG_COLLISION)).toBeUndefined();
+    const keyLast = defineRouting({
+      ...ROUTING_SLUG_COLLISION,
+      pathnames: { "/team": { de: "/about" }, "/about": { de: "/ueber-uns" } },
+    });
+    expect(getSlugLocale("/about", keyLast)).toBeUndefined();
+    expect(getSlugLocale("/ueber-uns", ROUTING_SLUG_COLLISION)).toBe("de");
+  });
+
+  it("a key, a path without a slug and the root name none", () => {
+    expect(getSlugLocale("/about", ROUTING_DE_ONLY)).toBeUndefined();
+    expect(getSlugLocale("/contact", ROUTING_DE_ONLY)).toBeUndefined();
+    expect(getSlugLocale("/", ROUTING_DE_ONLY)).toBeUndefined();
+  });
+
+  it("ignores a trailing slash and doubled slashes, but not case or extra segments", () => {
+    expect(getSlugLocale("/ueber-uns/", ROUTING_DE_ONLY)).toBe("de");
+    expect(getSlugLocale("//ueber-uns", ROUTING_DE_ONLY)).toBe("de");
+    expect(getSlugLocale("/Ueber-Uns", ROUTING_DE_ONLY)).toBeUndefined();
+    expect(getSlugLocale("/ueber-uns/team", ROUTING_DE_ONLY)).toBeUndefined();
+  });
+
+  it("names no locale outside the configured locales", () => {
+    const stray = defineRouting({
+      locales: ["en", "de"],
+      defaultLocale: "en",
+      localePrefix: "never",
+      pathnames: { "/about": { fr: "/a-propos" } as Record<string, string> },
+    });
+    expect(getSlugLocale("/a-propos", stray)).toBeUndefined();
+  });
+});
+
 describe("getAlternates: canonical and hreflang for generateMetadata", () => {
   // Imported from the public entry, so the export itself is under test.
   const load = () => import("../src/routing");
@@ -436,7 +489,7 @@ describe("getAlternates: canonical and hreflang for generateMetadata", () => {
     });
   });
 
-  describe("never: every locale shares one URL, so there is a canonical and no hreflang", () => {
+  describe("never: a URL may serve several locales, so there is a canonical and no hreflang", () => {
     const routing = config("never");
 
     it("a nested path, default and non-default locale", async () => {
