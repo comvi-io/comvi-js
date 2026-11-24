@@ -12,7 +12,7 @@ export interface RoutingConfig<T extends string = string> {
    * Locale prefix mode:
    * - 'always': All routes have locale prefix (/en/about, /de/about)
    * - 'as-needed': Only non-default locales have prefix (/about for en, /de/about for de)
-   * - 'never': No locale prefixes (use cookie/header only)
+   * - 'never': No locale prefixes (cookie/header; a `pathnames` slug of one locale when no cookie decides)
    * @default 'as-needed'
    */
   localePrefix?: LocalePrefixMode;

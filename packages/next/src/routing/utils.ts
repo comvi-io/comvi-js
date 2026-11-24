@@ -78,6 +78,30 @@ const getCanonicalPathMatch = (
 };
 
 /**
+ * The locale an unprefixed path names under `localePrefix: "never"`: the one
+ * locale whose `pathnames` value it is. A path that is a page's key, or a slug
+ * two locales share, names none. Compared like `getCanonicalPathMatch`.
+ */
+export const getSlugLocale = (
+  pathname: string,
+  routing: Required<RoutingConfig>,
+): string | undefined => {
+  const { key } = splitTrailingSlash(normalizePath(pathname));
+  let found: string | undefined;
+  for (const [canonicalPath, localizedByLocale] of Object.entries(routing.pathnames)) {
+    if (splitTrailingSlash(normalizePath(canonicalPath)).key === key) return undefined;
+    for (const locale of routing.locales) {
+      const localizedPath = localizedByLocale[locale];
+      if (localizedPath && splitTrailingSlash(normalizePath(localizedPath)).key === key) {
+        if (found && found !== locale) return undefined;
+        found = locale;
+      }
+    }
+  }
+  return found;
+};
+
+/**
  * Re-exported for this package's own routing seam (middleware, hooks) and its
  * tests. Written as an ANNOTATED alias rather than `export { stripLocalePrefix }`
  * because a re-exported imported binding makes tsc name its origin in the

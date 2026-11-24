@@ -871,3 +871,257 @@ describe("middleware: localeCookie and localeDetection, the shared vocabulary", 
     expect(response.headers.get("location")).toBe("https://example.com/de");
   });
 });
+
+/**
+ * `localePrefix: "never"` with `pathnames` (owner's decision P2, 24.11.2026):
+ * a localized slug that belongs to exactly one locale, and is not the key of a
+ * page, names that locale. It takes the place just before `accept-language` in
+ * `localeDetection.order` (the end when `accept-language` is absent), so
+ * `detectLocale`, a prefix in the path, `query`, cookie and `header` stay
+ * stronger. Row labels follow the table in
+ * `.omc/plans/b19-never-pathnames-brief-2026-11-24.md` §2.
+ */
+describe("never + pathnames: an unambiguous localized slug names its locale", () => {
+  type Client = { cookie?: string; al?: string; dest?: string };
+  type Answer = {
+    status: number;
+    location: string | null;
+    rewrite: string | null;
+    locale: string | null;
+    cookie: string | undefined;
+  };
+
+  const never = (
+    locales: string[],
+    pathnames: Record<string, Record<string, string>>,
+    extra: Partial<Parameters<typeof createMiddleware>[0]> = {},
+  ) =>
+    createMiddleware({ locales, defaultLocale: "en", localePrefix: "never", pathnames, ...extra });
+
+  const hit = (
+    middleware: ReturnType<typeof createMiddleware>,
+    path: string,
+    { cookie, al, dest }: Client = {},
+  ): Answer => {
+    const headers: Record<string, string> = {};
+    if (al) headers["accept-language"] = al;
+    if (dest) headers["sec-fetch-dest"] = dest;
+    const request = new NextRequest(`https://example.com${path}`, { headers });
+    if (cookie) request.cookies.set("NEXT_LOCALE", cookie);
+    const response = middleware(request);
+    const strip = (url: string | null) => (url ? url.replace("https://example.com", "") : url);
+    return {
+      status: response.status,
+      location: strip(response.headers.get("location")),
+      rewrite: strip(response.headers.get("x-middleware-rewrite")),
+      locale: response.headers.get("x-comvi-locale"),
+      cookie: response.cookies.get("NEXT_LOCALE")?.value,
+    };
+  };
+
+  const ok = (locale: string, rewrite: string, cookie?: string) => ({
+    status: 200,
+    location: null,
+    rewrite,
+    locale,
+    cookie,
+  });
+  const to = (location: string, locale: string, cookie?: string) => ({
+    status: 307,
+    location,
+    rewrite: null,
+    locale,
+    cookie,
+  });
+
+  const A = never(["en", "de"], { "/about": { de: "/ueber-uns" } });
+  const B = never(["en", "de", "uk"], { "/about": { de: "/ueber-uns" } });
+  const C = never(["en", "de", "nl"], { "/about": { de: "/info", nl: "/info" } });
+  const D = never(["en", "de"], { "/about": { de: "/ueber-uns" }, "/team": { de: "/about" } });
+  const E = never(["en", "de"], { "/about": { en: "/about-us", de: "/ueber-uns" } });
+
+  describe("A: en, de; /about has a de slug", () => {
+    it("A1 slug, no cookie and no Accept-Language: 200 de, cookie := de", () => {
+      expect(hit(A, "/ueber-uns")).toStrictEqual(ok("de", "/de/about", "de"));
+    });
+
+    it("A2 slug, cookie de: 200 de (as today)", () => {
+      expect(hit(A, "/ueber-uns", { cookie: "de" })).toStrictEqual(ok("de", "/de/about"));
+    });
+
+    it("A3 slug, cookie en (also with Accept-Language de): the cookie wins, -> /about (en)", () => {
+      expect(hit(A, "/ueber-uns", { cookie: "en" })).toStrictEqual(to("/about", "en"));
+      expect(hit(A, "/ueber-uns", { cookie: "en", al: "de" })).toStrictEqual(to("/about", "en"));
+    });
+
+    it("A4 slug, Accept-Language en only: the slug comes before it, 200 de, cookie := de", () => {
+      expect(hit(A, "/ueber-uns", { al: "en" })).toStrictEqual(ok("de", "/de/about", "de"));
+    });
+
+    it("A5 slug, cookie en, Sec-Fetch-Dest empty: -> /about (en), no cookie written", () => {
+      expect(hit(A, "/ueber-uns", { cookie: "en", dest: "empty" })).toStrictEqual(
+        to("/about", "en"),
+      );
+    });
+
+    it("A6 the key /about stays outside the rule (as today)", () => {
+      expect(hit(A, "/about")).toStrictEqual(ok("en", "/en/about", "en"));
+      expect(hit(A, "/about", { cookie: "en" })).toStrictEqual(ok("en", "/en/about"));
+      expect(hit(A, "/about", { cookie: "de" })).toStrictEqual(to("/ueber-uns", "de"));
+      expect(hit(A, "/about", { al: "de" })).toStrictEqual(to("/ueber-uns", "de", "de"));
+    });
+
+    it("A7 a path without a slug (as today)", () => {
+      expect(hit(A, "/contact")).toStrictEqual(ok("en", "/en/contact", "en"));
+      expect(hit(A, "/contact", { cookie: "de" })).toStrictEqual(ok("de", "/de/contact"));
+      expect(hit(A, "/contact", { al: "de" })).toStrictEqual(ok("de", "/de/contact", "de"));
+    });
+
+    it("A8 trailing slash and query string, no preference: 200 de", () => {
+      expect(hit(A, "/ueber-uns/")).toStrictEqual(ok("de", "/de/about/", "de"));
+      expect(hit(A, "/ueber-uns?x=1")).toStrictEqual(ok("de", "/de/about?x=1", "de"));
+    });
+
+    it("A9 the prefixed switch URL still wins over a cookie: /de/about -> /ueber-uns, cookie := de", () => {
+      expect(hit(A, "/de/about", { cookie: "en" })).toStrictEqual(to("/ueber-uns", "de", "de"));
+    });
+  });
+
+  it("A + localeDetection: false: the slug still decides, 200 de for any client", () => {
+    const off = never(["en", "de"], { "/about": { de: "/ueber-uns" } }, { localeDetection: false });
+    for (const client of [{}, { cookie: "en" }, { al: "en" }, { cookie: "en", al: "en" }]) {
+      const answer = hit(off, "/ueber-uns", client);
+      expect(answer.status).toBe(200);
+      expect(answer.rewrite).toBe("/de/about");
+      expect(answer.locale).toBe("de");
+    }
+  });
+
+  describe("B: en, de, uk; only de has a slug", () => {
+    it("B1 the key /about for a locale without its own slug (as today)", () => {
+      expect(hit(B, "/about", { cookie: "uk" })).toStrictEqual(ok("uk", "/uk/about"));
+      expect(hit(B, "/about", { al: "uk" })).toStrictEqual(ok("uk", "/uk/about", "uk"));
+    });
+
+    it("B2 slug, cookie uk: the cookie wins, -> /about (uk)", () => {
+      expect(hit(B, "/ueber-uns", { cookie: "uk" })).toStrictEqual(to("/about", "uk"));
+    });
+
+    it("B3 slug, Accept-Language uk only: 200 de, cookie := de", () => {
+      expect(hit(B, "/ueber-uns", { al: "uk" })).toStrictEqual(ok("de", "/de/about", "de"));
+    });
+  });
+
+  it("C: a slug shared by two locales names neither (as today)", () => {
+    expect(hit(C, "/info")).toStrictEqual(to("/about", "en", "en"));
+    expect(hit(C, "/info", { cookie: "en" })).toStrictEqual(to("/about", "en"));
+    expect(hit(C, "/info", { cookie: "nl" })).toStrictEqual(ok("nl", "/nl/about"));
+    expect(hit(C, "/info", { al: "nl" })).toStrictEqual(ok("nl", "/nl/about", "nl"));
+  });
+
+  it("D: a slug equal to another page's key names no locale (as today)", () => {
+    expect(hit(D, "/about")).toStrictEqual(ok("en", "/en/about", "en"));
+    expect(hit(D, "/about", { cookie: "de" })).toStrictEqual(to("/ueber-uns", "de"));
+  });
+
+  describe("E: the default locale has its own slug", () => {
+    it("E1 the en slug, cookie de: the cookie wins, -> /ueber-uns (de)", () => {
+      expect(hit(E, "/about-us", { cookie: "de" })).toStrictEqual(to("/ueber-uns", "de"));
+    });
+
+    it("E2 the en slug, Accept-Language de only: 200 en, cookie := en", () => {
+      expect(hit(E, "/about-us", { al: "de" })).toStrictEqual(ok("en", "/en/about", "en"));
+    });
+  });
+
+  describe("only the sources after the slug's place are weaker", () => {
+    const pathnames = { "/about": { de: "/ueber-uns" } };
+
+    it("detectLocale, query and header stay stronger than the slug", () => {
+      const custom = never(["en", "de"], pathnames, { detectLocale: () => "en" });
+      expect(hit(custom, "/ueber-uns")).toStrictEqual(to("/about", "en", "en"));
+
+      const query = never(["en", "de"], pathnames, { localeDetection: { queryParam: "lang" } });
+      expect(hit(query, "/ueber-uns?lang=en")).toStrictEqual(to("/about?lang=en", "en", "en"));
+
+      const header = never(["en", "de"], pathnames, {
+        localeDetection: { order: ["header", "accept-language"], headerName: "x-user-locale" },
+      });
+      const request = new NextRequest("https://example.com/ueber-uns", {
+        headers: { "x-user-locale": "en" },
+      });
+      expect(header(request).headers.get("location")).toBe("https://example.com/about");
+    });
+
+    it("with accept-language before cookie in the order, the slug inherits that place", () => {
+      const alFirst = never(["en", "de"], pathnames, {
+        localeDetection: { order: ["accept-language", "cookie"] },
+      });
+      expect(hit(alFirst, "/ueber-uns", { cookie: "en" })).toStrictEqual(
+        ok("de", "/de/about", "de"),
+      );
+    });
+
+    it("without accept-language in the order, the slug comes last, after the cookie", () => {
+      const cookieOnly = never(["en", "de"], pathnames, { localeDetection: { order: ["cookie"] } });
+      expect(hit(cookieOnly, "/ueber-uns", { al: "en" })).toStrictEqual(
+        ok("de", "/de/about", "de"),
+      );
+      expect(hit(cookieOnly, "/ueber-uns", { cookie: "en" })).toStrictEqual(to("/about", "en"));
+    });
+  });
+
+  it("the canonical getAlternates returns for a slugged locale answers 200 in that locale to a client with no preference", async () => {
+    const { getAlternates, defineRouting } = await import("../src/routing");
+    const routing = defineRouting({
+      locales: ["en", "uk", "de"],
+      defaultLocale: "en",
+      localePrefix: "never",
+      pathnames: { "/about": { uk: "/pro-nas", de: "/ueber-uns" } },
+    });
+    const middleware = createMiddleware(routing);
+    for (const locale of ["uk", "de"]) {
+      const { canonical } = getAlternates(routing, { locale, href: "/about" });
+      expect(hit(middleware, canonical)).toStrictEqual(ok(locale, `/${locale}/about`, locale));
+    }
+  });
+
+  it("redirect chains end, and no chain is longer than two steps", () => {
+    const configs = [A, B, C, D, E];
+    const paths = [
+      "/",
+      "/about",
+      "/about-us",
+      "/ueber-uns",
+      "/info",
+      "/team",
+      "/contact",
+      "/de/about",
+    ];
+    const values = [undefined, "en", "de", "uk", "nl"];
+    let longest = 0;
+    for (const middleware of configs) {
+      for (const start of paths) {
+        for (const cookie of values) {
+          for (const al of values) {
+            for (const dest of [undefined, "document", "empty"]) {
+              let path = start;
+              let jar = cookie;
+              let steps = 0;
+              for (;;) {
+                const answer = hit(middleware, path, { cookie: jar, al, dest });
+                if (answer.cookie) jar = answer.cookie;
+                if (answer.status !== 307) break;
+                steps += 1;
+                expect(steps, `${start} cookie=${cookie} al=${al}`).toBeLessThanOrEqual(2);
+                path = answer.location!;
+              }
+              longest = Math.max(longest, steps);
+            }
+          }
+        }
+      }
+    }
+    expect(longest).toBeLessThanOrEqual(2);
+  });
+});

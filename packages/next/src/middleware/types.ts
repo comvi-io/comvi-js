@@ -2,9 +2,10 @@ import type { NextRequest } from "next/server";
 import type { RoutingConfig } from "../routing/types";
 
 /**
- * A detection source. The URL path is always consulted first and is not one of
- * these. `query` reads `queryParam`, `header` reads `headerName`; each is inert
- * until its name is set.
+ * A detection source. A locale prefix in the URL path is always consulted first
+ * and is not one of these; under `localePrefix: "never"` a localized slug of one
+ * locale ranks just before `accept-language`. `query` reads `queryParam`,
+ * `header` reads `headerName`; each is inert until its name is set.
  */
 export type LocaleDetectionSource = "query" | "cookie" | "header" | "accept-language";
 
@@ -66,7 +67,9 @@ export type LocaleCookieConfig = false | string | LocaleCookieOptions;
 
 export interface LocaleDetectionConfig {
   /**
-   * Detection order. The URL path is always checked first; `query` and
+   * Detection order. A locale prefix in the URL path is always checked first;
+   * under `localePrefix: "never"` a localized slug of one locale takes the place
+   * just before `accept-language` (the end when it is absent). `query` and
    * `header` do nothing until `queryParam` and `headerName` are set.
    * @default ['query', 'cookie', 'accept-language']
    */
@@ -106,7 +109,8 @@ export interface MiddlewareConfig extends RoutingConfig {
 
   /**
    * Where the locale comes from after the URL path. `false` turns detection
-   * off: the path decides, otherwise `defaultLocale`.
+   * off: the path decides (a locale prefix, or under `never` a slug of one
+   * locale), otherwise `defaultLocale`.
    */
   localeDetection?: false | LocaleDetectionConfig;
 }

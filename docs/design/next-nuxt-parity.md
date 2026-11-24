@@ -38,8 +38,9 @@ framework itself does not force a difference. Every API difference that remains 
 justified by a framework constraint, never by history. One implementation is not required.
 
 **Must match:** key fallback and the order locales are walked; namespace and fallback-chain
-loading, on the server and after hydration; detection precedence — URL, then query, then cookie,
-then headers; redirects, under the same routing policy; cookie control, and disabling persistence
+loading, on the server and after hydration; detection precedence — URL (its locale prefix; a
+`never` slug in `@comvi/next`: the 2026-11-24 correction below), then query, then cookie, then
+headers; redirects, under the same routing policy; cookie control, and disabling persistence
 altogether; the outcome of SSR, hydration and a locale change; behaviour when a catalog fails to
 load.
 
@@ -270,6 +271,13 @@ packages. Both now end a switch with the user on the locale they chose and the c
 | first visit, no cookie                          | detection, as before                                   | the same                                                   |
 | direct visit to `/`, cookie says `de`           | redirected to `/de`, as before                         | the same                                                   |
 | direct visit to `/about`, cookie says `de`      | redirected to `/de/about` (the known difference above) | serves `en`, keeps the cookie (the known difference above) |
+
+**Correction (2026-11-24, `@comvi/next` only).** Under `never` with `pathnames`, a URL that is a
+localized slug of exactly one locale (not a slug two locales share, not another page's key) names
+that locale, ranked just before `accept-language` in `localeDetection.order`. So "resolved from the
+cookie" still holds whenever the cookie is set (default order); a visitor without one gets the slug's locale rather
+than a redirect to the default locale's URL, and with `localeDetection: false` the slug decides.
+Nuxt has no `pathnames`, so its row is unchanged.
 
 The mechanism differs because the middleware runs in different places. Nuxt's runs in the browser
 on every navigation, so it can see the switch itself: a navigation from a locale-prefixed URL to

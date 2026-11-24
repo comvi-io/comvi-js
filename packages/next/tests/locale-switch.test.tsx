@@ -290,7 +290,7 @@ describe("the switch records the choice in the cookie before any request", () =>
   });
 });
 
-describe("explicit switch under never, where no URL names a locale", () => {
+describe("explicit switch under never without pathnames, where no URL names a locale", () => {
   const NEVER: RoutingConfig = { ...AS_NEEDED, localePrefix: "never" };
 
   it("router.push(href, 'de') from en with an en cookie → lands on de at the unprefixed URL", () => {
