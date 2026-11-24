@@ -1,7 +1,7 @@
 /**
  * Locale tags: canonicalization, the fallback parent chain, text direction and
- * negotiation — ONE module for core, the locale detector, Next and Nuxt (design
- * §1.5, synthesis §4.2), so every package agrees on the golden table:
+ * negotiation — ONE module for core, the locale detector, Next and Nuxt, so every
+ * package agrees on the golden table:
  *
  *   pt-BR → pt → (fallbackLocale);  zh-HK → zh-TW, never zh-CN;  zh-Hant → zh-TW;
  *   sr-Cyrl never → sr-Latn;  iw → he;  en_US / EN-us → en-US;

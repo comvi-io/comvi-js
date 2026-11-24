@@ -12,10 +12,10 @@ import { N } from "./state";
 declare const __DEV__: boolean;
 
 /**
- * What a server render hands the browser (design §2.6, R3-21): the locale, the time zone and
+ * What a server render hands the browser: the locale, the time zone and
  * the clock the render used, and every catalog the instance has in place — inline, loaded or
  * `add()`ed, of every locale (a per-call `{ locale }` read outside the locale's chain, its
- * parents and fallback locales too; owner 30.10) — in the shape of `createI18n({ catalogs })`,
+ * parents and fallback locales too) — in the shape of `createI18n({ catalogs })`,
  * every slot whose load failed as `null`. Nothing is tracked during the render, and handing a
  * catalog over makes no namespace active and changes no locale. The browser's
  * `createI18n({ ...options, ...handover })` then renders what the server rendered and asks
@@ -29,7 +29,7 @@ export interface Handover {
    * The request's clock (epoch ms): the `now` option, else the one a server instance took
    * when it first read the clock (clock.ts). A binding's `useFormat()` counts from it on
    * both sides for a component's hydration, from the browser's clock for every other
-   * render (lot 4b).
+   * render.
    */
   serverNow: number;
   /** By namespace, then locale; `null`: the load of that slot failed on the server. */
@@ -39,7 +39,7 @@ export interface Handover {
 /**
  * The {@link Handover} of `i18n` as of now (call it after the render). Development throws
  * when the instance has no `timeZone`: a server and a browser in different zones format
- * the same date differently, and the hydration would not match (design §2.6).
+ * the same date differently, and the hydration would not match.
  */
 export const handover = (i18n: I18n): Handover => {
   const x = core(i18n);

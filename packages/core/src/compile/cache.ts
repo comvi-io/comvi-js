@@ -128,7 +128,7 @@ export const lookup = (
 /**
  * The record for `next`, a catalog derived from `prev` (copy-on-write `add()`), that
  * reuses every compiled entry of `prev` whose template string is unchanged: adding one
- * key to a fully compiled 10K catalog compiles one message, not 10K (R4-1b). `keys`
+ * key to a fully compiled 10K catalog compiles one message, not 10K. `keys`
  * limits the walk to the keys of another object (a patch: O(patch), not O(catalog)).
  */
 export const inherit = (

@@ -14,7 +14,7 @@
 
 export const WIRE_VERSION = 2;
 
-/** Every kind a v2 schema can carry. `date`/`time`/`number` exist in messages core refuses (R3-8). */
+/** Every kind a v2 schema can carry. `date`/`time`/`number` exist in messages core refuses. */
 export const PARAM_KINDS = [
   "string",
   "number",

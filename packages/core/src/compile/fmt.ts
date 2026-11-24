@@ -2,19 +2,19 @@
  * The one shared Intl cache, the plural count `#`, and what a plain `{x}` prints.
  *
  * A plain `{x}` prints `String(value)` for every type — a number, a Date, a string list
- * — with no Intl (owner decision R3-17, 28.10.2026), as 0.7, FormatJS, i18next and
+ * — with no Intl, as 0.7, FormatJS, i18next and
  * vue-i18n do: `{orderId}` with 1004 prints `1004` and `{year}` with 2026 prints `2026`,
  * never `1,004` / `2,026`. A function or an object (a framework node too) prints
  * `String(value)` as well: a plain `{x}` is always text, and markup comes only from tags
- * through their handlers (owner decision 04.11.2026); the scanner calls `String()` itself.
+ * through their handlers; the scanner calls `String()` itself.
  * A localized number or date is formatted in code with `@comvi/core/format` and passed as
  * a string. `#` in a plural sub-message is the one
- * value the compiler localizes (owner decision 11.10): {@link formatNumber}.
+ * value the compiler localizes: {@link formatNumber}.
  *
- * There are no `{x, number|date|time}` arguments (design rev 3, R3-8).
+ * There are no `{x, number|date|time}` arguments.
  *
  * The cache is process-level and keyed by plain strings — never JSON.stringify on
- * the hot path (R4-7). Its content is a pure function of the key, so sharing it
+ * the hot path. Its content is a pure function of the key, so sharing it
  * across instances and requests leaks nothing; a size cap keeps an unbounded
  * stream of locales (a per-call `{ locale }` from user input) from growing it
  * without limit. `@comvi/core/format` and `#` share it.
@@ -71,7 +71,7 @@ const numberFormat = (locale: string): Intl.NumberFormat => intl("NumberFormat",
  * A number formatted for the locale. Non-negative integers below 1000 skip Intl when
  * the locale's actual output for 109 is "109" — a probe of the real output, cached
  * per locale, because `ar-EG`, `fa`, `bn`, `th-u-nu-thai`, `hi-u-nu-deva` print other
- * digits and no locale metadata reliably says so (R4-7).
+ * digits and no locale metadata reliably says so.
  */
 export const formatNumber = (n: number, locale: string): string =>
   n >= 0 &&
