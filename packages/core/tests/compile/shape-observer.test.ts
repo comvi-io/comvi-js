@@ -69,6 +69,34 @@ describe("shape observer", () => {
     expect(events("<a><b>x</b></a><i>y <br/>").out).toEqual(["4:b:3", "4:a:0", "4:br:20"]);
   });
 
+  // The height of a sub-message travels on a module-level scratch (`SYNTAX.h`): an observer
+  // that starts another scan must not be able to overwrite it before it is read.
+  it.each([0, 1, 2, 3, 4])(
+    "an observer that starts another scan at event %i leaves the depth limit intact",
+    (event) => {
+      const s =
+        "{p}<a>{n, plural, other {" + "<u>".repeat(199) + "x" + "</u>".repeat(199) + "}}</a>";
+      const P: Scan = {
+        s,
+        i: 0,
+        k: undefined,
+        o: (e) => {
+          if (e === event) message({ s: "x", i: 0, k: undefined }, false, false, 0);
+        },
+      };
+      let error: string | undefined;
+
+      try {
+        message(P, false, false, 0);
+      } catch (e) {
+        if (e !== SYNTAX) throw e;
+        error = SYNTAX.m;
+      }
+
+      expect(error).toBe("nested deeper than 200 levels");
+    },
+  );
+
   it("changes nothing the scan returns", () => {
     const P: Scan = { s: "{a} <b>{c}</b>", i: 0, k: undefined };
     const Q: Scan = { ...P, o: () => undefined };

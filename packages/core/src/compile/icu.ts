@@ -114,8 +114,10 @@ export const argument = (P: Scan, name: string, under: boolean, d: number): Part
     }
   }
   P.i++;
-  SYNTAX.h = top + 1;
   if (__DEV__ && P.o) P.o(3, name);
+  // Written after the observer, so nothing runs between this write and its read in
+  // `message()` (a scan the observer started would overwrite it).
+  SYNTAX.h = top + 1;
   const other = branches.other;
   if (!other) {
     if (__DEV__) fail(`\`{${name}, ${type}, …}\` needs an \`other\` branch`);
