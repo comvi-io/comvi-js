@@ -70,6 +70,13 @@ const OUT_DIR = path.join(APP_DIR, "out");
  */
 const coreEntry08 = (name) => `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-${name}`;
 const CORE_SUBPATHS_08 = ["cdn", "plugins", "devtools", "format"].map(coreEntry08);
+/**
+ * The chunk that holds `core()`, the bindings' way to an instance. The base entry and
+ * `/internal` share it since an instance carries its core's version. A binding that takes
+ * from `/internal` only what lives in shared chunks leaves that entry a re-export shell,
+ * which webpack and Rollup drop from the graph: those cases assert this chunk, not the entry.
+ */
+const CORE_INSTANCE_CHUNK_08 = `@comvi${path.sep}core${path.sep}dist${path.sep}chunks${path.sep}comvi-core-instance`;
 const REACT_FORMAT_08 = `@comvi${path.sep}react${path.sep}dist${path.sep}comvi-react-format`;
 /** The binding's one dev-only diagnostic (`useI18n()` outside a provider), development artifact only. */
 const REACT_DEV_TEXT = "[@comvi/react] no <I18nProvider>";
@@ -154,7 +161,7 @@ const CASES = [
     name: "react-default",
     sentinels: "absent",
     absentModules: [...CORE_SUBPATHS_08, REACT_FORMAT_08],
-    presentModules: [coreEntry08("internal")],
+    presentModules: [CORE_INSTANCE_CHUNK_08],
     packages: ["@comvi/core", "@comvi/react"],
     deps: ["react"],
   },
@@ -171,7 +178,7 @@ const CASES = [
     name: "vue-default",
     sentinels: "absent",
     absentModules: [...CORE_SUBPATHS_08, VUE_FORMAT_08],
-    presentModules: [coreEntry08("internal")],
+    presentModules: [CORE_INSTANCE_CHUNK_08],
     packages: ["@comvi/core", "@comvi/vue"],
     deps: ["vue"],
   },
@@ -206,7 +213,7 @@ const CASES = [
     bundlers: ["vite"],
     sentinels: "absent",
     absentModules: [...CORE_SUBPATHS_08, SVELTE_FORMAT_08],
-    presentModules: [coreEntry08("internal")],
+    presentModules: [CORE_INSTANCE_CHUNK_08],
     packages: ["@comvi/core", "@comvi/svelte"],
     deps: ["svelte"],
   },
@@ -233,7 +240,7 @@ const CASES = [
     conditions: ["react-server"],
     sentinels: "absent",
     absentModules: [...CORE_SUBPATHS_08, REACT_FORMAT_08],
-    presentModules: [coreEntry08("ssr"), coreEntry08("internal")],
+    presentModules: [coreEntry08("ssr"), CORE_INSTANCE_CHUNK_08],
     packages: ["@comvi/core", "@comvi/react", "@comvi/next"],
     deps: ["react", "next"],
   },
