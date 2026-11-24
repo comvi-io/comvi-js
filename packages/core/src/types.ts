@@ -49,6 +49,19 @@ export type RichParts = readonly unknown[];
 /** The declared namespaces. */
 export type NsOf = keyof Catalogs;
 
+/**
+ * The type of a namespace argument (`useI18n(ns)`, `getI18n({ ns })`) that infers `NS`: `NS`
+ * itself without generated catalogs (any name), else `NS` when it is a declared namespace and
+ * the declared names when it is not, so a typo errs on the argument, naming the allowed
+ * names. A plain `string` is no declared namespace. `NsArg<string>` is the type of a name that
+ * infers nothing (the declared names, or any string).
+ */
+export type NsArg<NS extends string> = [NsOf] extends [never]
+  ? NS
+  : NS extends NsOf
+    ? NS
+    : NsOf & string;
+
 declare const notAKey: unique symbol;
 /**
  * Marker for "the key could not be inferred" (a typo): params stay loose, only the key errs.

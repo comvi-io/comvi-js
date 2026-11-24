@@ -30,7 +30,7 @@ import {
   type JSX,
 } from "solid-js";
 import { Dynamic, isServer } from "solid-js/web";
-import type { BoundTFor, I18n, NsOf, TComponentFor, TFor, UntypedT } from "@comvi/core";
+import type { BoundTFor, I18n, NsArg, NsOf, TComponentFor, TFor, UntypedT } from "@comvi/core";
 import { core, loading, N, type State } from "@comvi/core/internal";
 
 declare const __DEV__: boolean;
@@ -271,7 +271,7 @@ const Ts = N<(p: object) => JSX.Element>();
  * again by a remount — `i18n.load(ns)` retries.
  * On a server it is held for the request, and the nearest `<Suspense>` waits for its load.
  */
-export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => {
+export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<NS> => {
   const [i, s, locale, dir] = useCtx();
   const x = core(i);
   const n = ns || "default";

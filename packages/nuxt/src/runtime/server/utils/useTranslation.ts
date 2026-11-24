@@ -1,6 +1,6 @@
 import type { H3Event } from "h3";
 import { getCookie, getHeader, getQuery } from "h3";
-import { createI18n, type I18n, type RichParts, type TFor } from "@comvi/core";
+import { createI18n, type I18n, type NsArg, type RichParts, type TFor } from "@comvi/core";
 import { useRuntimeConfig } from "#imports";
 import { config, options } from "#comvi/options";
 import { resolveAcceptLanguage } from "#comvi/detection";
@@ -10,8 +10,8 @@ import { extractLocaleFromPath } from "../../utils/locale-path";
 import { track } from "../../utils/instances";
 
 export interface UseTranslationOptions<NS extends string = "default"> {
-  /** The namespace of `t()`; default `default`. */
-  ns?: NS;
+  /** The namespace of `t()`; default `default`. With generated catalogs, a declared one. */
+  ns?: NsArg<NS>;
   /** Overrides detection; must be one of `comvi.locales`. */
   locale?: string;
 }

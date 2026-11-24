@@ -17,6 +17,7 @@ export type {
   Catalogs,
   CoreUntypedParams,
   KeysOf,
+  NsArg,
   NsOf,
   OutOf,
   ParamsFor,
