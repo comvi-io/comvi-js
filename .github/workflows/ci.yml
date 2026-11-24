@@ -183,6 +183,11 @@ jobs:
         env:
           TURBO_FORCE: "true"
 
+      # Every .d.ts in the packed tarballs explains the API to a user: no review
+      # rounds, lots, tickets or design-section numbers in editor tooltips.
+      - name: Declaration comments gate
+        run: pnpm check:dts-internal-refs
+
       # The built dist must inline the manifest version (core's devtools
       # discovery and duplicate-copy guard key on it). Same gate the release
       # workflow runs after its build.
