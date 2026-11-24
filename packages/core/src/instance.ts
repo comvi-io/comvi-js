@@ -857,9 +857,9 @@ export const createI18n = (o: I18nOptions): I18n => {
     },
     // LAST, after every static member (B3 perf): V8 builds the members before the first
     // computed key from the literal's boilerplate, one shape shared by every instance. Put
-    // first, each instance was built member by member and its getters (fresh closures) gave
-    // it a hidden class of its own: construction +8 %, and every call site that sees many
-    // instances (a server's one per request) would go megamorphic.
+    // first, a computed key makes V8 define every member at runtime, and the getters (fresh
+    // closures) give each instance a hidden class of its own: construction gets slower, and
+    // a call site that sees many instances (a server's one per request) goes megamorphic.
     [VER]: __VERSION__,
   };
 

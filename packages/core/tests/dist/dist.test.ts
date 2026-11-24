@@ -290,8 +290,10 @@ describe.each([
 ] as const)("%s dist: the instance's shape (B3 perf)", (_, suffix) => {
   // V8's own view, in a child with --allow-natives-syntax (counted, not timed). Two instances
   // share one hidden class: the version tag is the literal's LAST member. Put before the
-  // static members, every instance got a hidden class of its own (its getters are fresh
-  // closures): +8 % construction, and a call site over many instances goes megamorphic.
+  // static members, a computed key makes V8 define every member at runtime and each instance
+  // gets a hidden class of its own (its getters are fresh closures): construction gets
+  // slower, and a call site over many instances goes megamorphic. This pins a V8
+  // implementation detail on purpose; a Node major upgrade may need a look at it.
   it("two instances share one hidden class", () => {
     const script = [
       `const { createI18n } = await import(${JSON.stringify(pathToFileURL(path.join(DIST, `comvi-core${suffix}.js`)).href)});`,
@@ -305,7 +307,9 @@ describe.each([
       { encoding: "utf8" },
     );
 
-    expect(run.stderr).toBe("");
-    expect(run.stdout.trim()).toBe("true");
+    // stderr is reported, not asserted empty: a debugger notice or a NODE_OPTIONS warning
+    // there says nothing about the shape.
+    expect(run.status, `child stderr:\n${run.stderr}`).toBe(0);
+    expect(run.stdout.trim(), `child stderr:\n${run.stderr}`).toBe("true");
   });
 });
