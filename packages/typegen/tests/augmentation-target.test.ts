@@ -73,11 +73,14 @@ describe("chooseAugmentationTarget", () => {
     expect(chooseAugmentationTarget({ dependencies })).toBeUndefined();
   });
 
-  it("offers core and the six bindings, core first", () => {
+  it("does not choose @comvi/next, which has no root module to augment", () => {
+    expect(chooseAugmentationTarget({ dependencies: { "@comvi/next": "^0.8.0" } })).toBeUndefined();
+  });
+
+  it("offers core and the bindings with a root module, core first", () => {
     expect([...AUGMENTABLE_MODULES]).toEqual([
       "@comvi/core",
       "@comvi/react",
-      "@comvi/next",
       "@comvi/vue",
       "@comvi/nuxt",
       "@comvi/svelte",
@@ -137,9 +140,10 @@ describe("resolveAugmentationTarget", () => {
     const app = appDir({ dependencies: { react: "^19.0.0" } });
 
     expect(errorMessage(app)).toBe(
-      `Generated types have to augment a Comvi module, and ${path.join(app, "package.json")} declares none.\n` +
+      `Generated types have to augment a Comvi module, and ${path.join(app, "package.json")} declares none ` +
+        "(@comvi/next has no root module).\n" +
         "Add the package this app imports `t()` from to its dependencies — one of " +
-        "@comvi/react, @comvi/next, @comvi/vue, @comvi/nuxt, @comvi/svelte, @comvi/solid — " +
+        "@comvi/react, @comvi/vue, @comvi/nuxt, @comvi/svelte, @comvi/solid — " +
         "or `@comvi/core` itself. Declaring it in a workspace root or under peerDependencies " +
         "is not enough: this app's own package.json must list it, or set `augment` — which " +
         "is also how a private wrapper package that re-exports one of them is named.",
@@ -179,6 +183,34 @@ describe("resolveAugmentationTarget", () => {
     });
 
     expect(resolveAugmentationTarget(app)).toBe("@comvi/react");
+  });
+
+  it("refuses an app that declares only @comvi/next, naming @comvi/react and @comvi/core", () => {
+    // `@comvi/next` has no root module: a declaration augmenting it attaches to nothing
+    // (TS2882, hidden by Next's `skipLibCheck: true`) and every key compiles.
+    const app = appDir({ dependencies: { "@comvi/next": "^0.8.0", next: "^16.0.0" } });
+
+    expect(errorMessage(app)).toBe(
+      `Generated types have to augment a Comvi module, and ${path.join(app, "package.json")} declares none ` +
+        "(@comvi/next has no root module).\n" +
+        "Add the package this app imports `t()` from to its dependencies — one of " +
+        "@comvi/react, @comvi/vue, @comvi/nuxt, @comvi/svelte, @comvi/solid — " +
+        "or `@comvi/core` itself. Declaring it in a workspace root or under peerDependencies " +
+        "is not enough: this app's own package.json must list it, or set `augment` — which " +
+        "is also how a private wrapper package that re-exports one of them is named.",
+    );
+  });
+
+  it("takes the binding an app declares next to @comvi/next", () => {
+    const app = appDir({ dependencies: { "@comvi/next": "^0.8.0", "@comvi/react": "^0.8.0" } });
+
+    expect(resolveAugmentationTarget(app)).toBe("@comvi/react");
+  });
+
+  it("keeps an explicit override in an app that declares only @comvi/next", () => {
+    const app = appDir({ dependencies: { "@comvi/next": "^0.8.0" } });
+
+    expect(resolveAugmentationTarget(app, "@my/own-wrapper")).toBe("@my/own-wrapper");
   });
 
   it("says where it looked when the app has no manifest", () => {

@@ -20,11 +20,15 @@ import { join } from "node:path";
  * and core arrives as its transitive dependency, which a strict pnpm layout or
  * Yarn PnP will not let the app name. Core comes first because an app that
  * declares it means it.
+ *
+ * `@comvi/next` is not one of them: it has subpath entries only, no root module, so
+ * `declare module '@comvi/next'` attaches to nothing (TS2882, which Next's
+ * `skipLibCheck: true` hides) and every key compiles. An app declaring it alone is
+ * refused by `resolveAugmentationTarget`, which names the packages to add.
  */
 export const AUGMENTABLE_MODULES = [
   "@comvi/core",
   "@comvi/react",
-  "@comvi/next",
   "@comvi/vue",
   "@comvi/nuxt",
   "@comvi/svelte",
@@ -128,7 +132,8 @@ export function resolveAugmentationTarget(appRoot: string, override?: string): s
   if (target !== undefined) return target;
 
   throw new Error(
-    `Generated types have to augment a Comvi module, and ${manifestPath} declares none.\n` +
+    `Generated types have to augment a Comvi module, and ${manifestPath} declares none ` +
+      `(@comvi/next has no root module).\n` +
       `Add the package this app imports \`t()\` from to its dependencies — one of ` +
       `${AUGMENTABLE_MODULES.slice(1).join(", ")} — or \`${DEFAULT_AUGMENTED_MODULE}\` itself. ` +
       `Declaring it in a workspace root or under peerDependencies is not enough: this app's ` +
