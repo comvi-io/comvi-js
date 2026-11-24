@@ -25,6 +25,7 @@ import {
   missing,
   run,
   skipSpace,
+  SYNTAX,
   token,
   type Part,
   type PartFn,
@@ -44,7 +45,7 @@ const OFFSET =
 
 /**
  * @param d How many sub-messages deep the argument is; its own are one deeper. Leaves the
- *          argument's height (one more than its highest sub-message) in `P.h`.
+ *          argument's height (one more than its highest sub-message) in `SYNTAX.h`.
  */
 export const argument = (P: Scan, name: string, under: boolean, d: number): PartFn => {
   const s = P.s;
@@ -105,7 +106,7 @@ export const argument = (P: Scan, name: string, under: boolean, d: number): Part
     // `under` only feeds a development warning: production passes `false`.
     // A repeated selector's sub-message never renders; its height counts all the same.
     const sub = message(P, !select, __DEV__ && (under || !select), d + 1);
-    if (P.h! > top) top = P.h!;
+    if (SYNTAX.h! > top) top = SYNTAX.h!;
     branches[key] ??= sub;
     if (s[P.i++] != "}") {
       if (__DEV__) fail(`a sub-message of \`{${name}, ${type}, …}\` is never closed`);
@@ -113,7 +114,7 @@ export const argument = (P: Scan, name: string, under: boolean, d: number): Part
     }
   }
   P.i++;
-  P.h = top + 1;
+  SYNTAX.h = top + 1;
   if (__DEV__ && P.o) P.o(3, name);
   const other = branches.other;
   if (!other) {

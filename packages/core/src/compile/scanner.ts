@@ -92,8 +92,6 @@ export interface Scan {
   k: string | undefined;
   /** Development: a `#` was left literal inside a select nested in a plural. */
   w?: boolean;
-  /** The height of the (sub-)message or ICU argument scanned last. */
-  h?: number;
   /** Development: every opening tag that was never closed, as the scan found it. */
   u?: Open[];
   /**
@@ -118,10 +116,17 @@ export interface Scan {
   o?: (event: 0 | 1 | 2 | 3 | 4, name: string, type?: string, at?: number) => void;
 }
 
-/** Thrown inside the scanner, caught by `compile()`; never escapes to callers. */
+/** Thrown inside the scanner, caught by `compile()`; never escapes to callers. Also the scan's scratch (`h`). */
 export const SYNTAX: {
   /** The message of the last failure (development, plus the one hint that ships). */
   m?: string;
+  /**
+   * The height of the (sub-)message or ICU argument scanned last. Kept on this module-level
+   * object, never on the `Scan`: every compiled message that reads a parameter keeps its
+   * `Scan` alive, and one more field there cost ~20 B of heap per compiled message
+   * (tests/prod/scan-state.test.ts).
+   */
+  h?: number;
 } = {};
 
 /**
@@ -300,7 +305,7 @@ export const message = (P: Scan, hash: boolean, under: boolean, d: number): Part
       } else {
         P.i++;
         parts.push(argument(P, name, under, d));
-        if (P.h! > hi) hi = P.h!;
+        if (SYNTAX.h! > hi) hi = SYNTAX.h!;
       }
     } else if (c == "}") {
       if (d) break;
@@ -357,7 +362,7 @@ export const message = (P: Scan, hash: boolean, under: boolean, d: number): Part
     if (u[2] > hi) hi = u[2];
     if (__DEV__) (P.u ||= []).push(u);
   }
-  P.h = hi;
+  SYNTAX.h = hi;
   flush();
   return parts;
 };
