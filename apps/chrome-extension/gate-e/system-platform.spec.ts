@@ -235,18 +235,17 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
       expect(read.translations.en.value).toBe("System value");
     });
 
-    await test.step("observation: api() of @comvi/core asks the platform for pt-br", async () => {
-      // From Node with the project key: the documented server/script use of api().
-      try {
-        const catalog = await api(apiBaseUrl, { key: apiKey })(
-          "pt-br",
-          "common",
-          AbortSignal.timeout(20_000),
-        );
-        observations.ptBrApiLoader = { ok: true, headline: catalog["system.headline"] ?? null };
-      } catch (error) {
-        observations.ptBrApiLoader = { ok: false, error: String(error) };
-      }
+    await test.step("api() of @comvi/core loads pt-br, which the platform keys pt-BR", async () => {
+      // From Node with the project key: the documented server/script use of api(). The text
+      // is the pt-BR one, so the catalog of a parent or fallback locale cannot pass for it.
+      const catalog = await api(apiBaseUrl, { key: apiKey })(
+        "pt-br",
+        "common",
+        AbortSignal.timeout(20_000),
+      );
+      expect(headline["pt-BR"]).not.toBe(headline.en);
+      expect(catalog["system.headline"]).toBe(headline["pt-BR"]);
+      observations.ptBrApiLoader = { ok: true, headline: catalog["system.headline"] ?? null };
     });
 
     await test.step("observation: the API's answer to the app's spelling pt-br", async () => {
