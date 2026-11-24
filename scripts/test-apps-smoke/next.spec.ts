@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { test as base, expect, type Page } from "@playwright/test";
+import { test as base, expect, type APIRequest, type Page } from "@playwright/test";
 
 /**
  * Lot 6a scenarios (owner brief 2026-11-06 §8) on a production build of `test-apps/next`
@@ -383,6 +383,26 @@ const expectSeo = (html: string, canonical: string, href: string) => {
 };
 
 /**
+ * A GET in a request context of its own, so no cookie of an earlier response rides along (the
+ * middleware's locale cookie would redirect `/admin`); redirects are not followed.
+ */
+const isolatedGet =
+  (playwright: { request: APIRequest }, baseURL: string) =>
+  async (path: string, headers: Record<string, string> = {}) => {
+    const context = await playwright.request.newContext({ baseURL });
+    try {
+      const response = await context.get(path, { headers, maxRedirects: 0 });
+      return {
+        status: response.status(),
+        location: response.headers()["location"],
+        text: await response.text(),
+      };
+    } finally {
+      await context.dispose();
+    }
+  };
+
+/**
  * `GET /uk/slow-meta` read as a stream, split at `</head>`. Its metadata waits on the `uk:seo`
  * pair, held here. `release: "after-head"` lets it go only once `</head>` has arrived, so the
  * shell provably went out while the metadata was pending (a client Next does not stream to
@@ -433,20 +453,18 @@ const SAME_DOCUMENT = { marker: "same document", loads: 0 };
 
 test("11: SEO: canonical, hreflang alternates and x-default on the server render; they follow a switch", async ({
   page,
-  request,
+  playwright,
   baseURL,
 }) => {
-  // 3: the default locale, no prefix. First: a later /uk response sets the locale cookie, and
-  // with it `/admin` redirects to `/uk/admin`.
-  expectSeo(await (await request.get("/admin")).text(), `${SITE}/admin`, "/admin");
+  const get = isolatedGet(playwright, baseURL!);
   // 1–2: a dynamic page in a non-default locale.
-  expectSeo(await (await request.get("/uk/admin")).text(), `${SITE}/uk/admin`, "/admin");
+  expectSeo((await get("/uk/admin")).text, `${SITE}/uk/admin`, "/admin");
+  // 3: the default locale, no prefix.
+  expectSeo((await get("/admin")).text, `${SITE}/admin`, "/admin");
   // 4: the static page; scenario 8 proves it is still in prerender-manifest.json.
-  expectSeo(await (await request.get("/uk")).text(), `${SITE}/uk`, "/");
+  expectSeo((await get("/uk")).text, `${SITE}/uk`, "/");
   // 5: a bot without JavaScript gets every tag before </head>, not streamed into <body>.
-  const bot = await (
-    await request.get("/uk/admin", { headers: { "user-agent": "facebookexternalhit/1.1" } })
-  ).text();
+  const { text: bot } = await get("/uk/admin", { "user-agent": "facebookexternalhit/1.1" });
   expect(bot).toContain("</head>");
   expectSeo(bot.slice(0, bot.indexOf("</head>")), `${SITE}/uk/admin`, "/admin");
   // 5, where it can fail: /slow-meta's metadata resolves only after the page shell. An ordinary
@@ -487,6 +505,26 @@ test("11: SEO: canonical, hreflang alternates and x-default on the server render
     "href",
     `${SITE}/admin`,
   );
+});
+
+test("11c: the default locale's unprefixed URL: the default locale without a preference, a redirect with one", async ({
+  playwright,
+  baseURL,
+}) => {
+  const get = isolatedGet(playwright, baseURL!);
+  const plain = await get("/admin");
+  expect(plain.status).toBe(200);
+  expect(plain.text).toMatch(/<html lang="en"/);
+  expect(seoLinks(plain.text).canonical).toEqual([`${SITE}/admin`]);
+
+  const preferring = await get("/admin", { cookie: "NEXT_LOCALE=uk" });
+  expect(preferring.status).toBe(307);
+  expect(preferring.location).toMatch(/^(https?:\/\/[^/]+)?\/uk\/admin$/);
+  const target = await get(preferring.location!, { cookie: "NEXT_LOCALE=uk" });
+  expect(target.status).toBe(200);
+  const languages = new Map(seoLinks(target.text).alternates);
+  expect(languages.get("en")).toBe(`${SITE}/admin`);
+  expect(languages.get("x-default")).toBe(`${SITE}/admin`);
 });
 
 test("11b: the no-reload check of scenario 11 fails on a full reload or a full navigation", async ({
