@@ -62,4 +62,12 @@ describe("useTranslation(event)", () => {
     expectTypeOf<R["dir"]>().toEqualTypeOf<"ltr" | "rtl">();
     expectTypeOf<keyof R>().toEqualTypeOf<"t" | "locale" | "dir" | "i18n">();
   });
+
+  it("takes any namespace name without generated catalogs, a string variable too", () => {
+    const calls = (use: typeof useTranslation, event: H3Event, name: string) => [
+      use(event, { ns: "not-declared-anywhere" }),
+      use(event, { ns: name }),
+    ];
+    expectTypeOf(calls).toBeFunction();
+  });
 });

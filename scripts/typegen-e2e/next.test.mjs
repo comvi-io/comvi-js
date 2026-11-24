@@ -515,6 +515,8 @@ const REJECTS = `import type { GetI18n } from "@comvi/next/server";
 import { useI18n } from "@comvi/react";
 
 declare const getI18n: GetI18n;
+declare const more: boolean;
+declare const dyn: string;
 
 export async function server() {
   const { t } = await getI18n();
@@ -524,6 +526,12 @@ export async function server() {
   account.t("profile", { user: "Ada" });
   t("helo", { name: "Ada" }); // rejects: server, wrong key
   t("profile", { user: "Ada" }); // rejects: server, a key of another namespace
+  await getI18n({ ns: "acount" }); // rejects: server, wrong namespace
+  await getI18n({ ns: ["account", "acount"] }); // rejects: server, wrong secondary namespace
+  await getI18n({ ns: ["acount", "account"] }); // rejects: server, wrong first namespace
+  await getI18n({ ns: dyn }); // rejects: server, a plain string where namespaces are declared
+  (await getI18n({ ns: ["account", "default"] })).t("profile", { user: "Ada" });
+  (await getI18n({ ns: more ? ["default", "account"] : "default" })).i18n;
   t("hello"); // rejects: server, missing param (no params)
   t("hello", {}); // rejects: server, missing param (empty params)
   t("hello", { name: true }); // rejects: server, wrong param type
@@ -537,6 +545,9 @@ export function client() {
   account.t("profile", { user: "Ada" });
   t("helo", { name: "Ada" }); // rejects: client, wrong key
   t("profile", { user: "Ada" }); // rejects: client, a key of another namespace
+  useI18n("acount"); // rejects: client, wrong namespace
+  useI18n(dyn); // rejects: client, a plain string where namespaces are declared
+  useI18n("account").isReady satisfies boolean;
   t("hello"); // rejects: client, missing param (no params)
   t("hello", {}); // rejects: client, missing param (empty params)
   t("hello", { name: true }); // rejects: client, wrong param type
@@ -545,7 +556,7 @@ export function client() {
 
 for (const version of VERSIONS) {
   describe(`${version.label}, types of getI18n().t and useI18n()`, { timeout: 120_000 }, () => {
-    it("reject a wrong key, a key of another namespace, a missing param and a wrong param type", () => {
+    it("reject a wrong key, a wrong namespace, a missing param and a wrong param type", () => {
       const a = app(version, { realNext: true });
       write(a.dir, "src/locales/account/en.json", JSON.stringify(ACCOUNT_EN));
       const cli = spawnSync(

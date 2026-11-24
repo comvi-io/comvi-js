@@ -25,6 +25,7 @@ import type {
   Catalogs,
   I18n,
   KeysOf,
+  NsArg,
   NsOf,
   ParamsFor,
   Tag,
@@ -226,7 +227,7 @@ const Ts = N<Component<any>>();
  * switch does not load it. A failed load of it is not asked again by a remount: `i18n.load(ns)`
  * retries.
  */
-export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => {
+export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<NS> => {
   const c = use();
   const i = c.i;
   const x = core(i);

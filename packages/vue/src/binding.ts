@@ -46,6 +46,7 @@ import {
   type BoundTFor,
   type I18n,
   type I18nOptions,
+  type NsArg,
   type NsOf,
   type TComponentFor,
   type TFor,
@@ -363,7 +364,7 @@ export const render = (
  * `i18n.load(ns)` retries. Outside a component (a store, a router guard) it holds nothing:
  * call `i18n.load(ns)` there, or name the namespace in the `namespaces` option.
  */
-export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => {
+export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<NS> => {
   const i = use();
   const [s, locale, dir, Ts] = cell(i);
   const n = ns || "default";

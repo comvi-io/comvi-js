@@ -27,3 +27,10 @@ export const annotated: TProps = { i18nKey: "m", strong: (c: Children) => c };
 // A snippet of the tag's name keeps its text contract.
 export const snippet: TProps = { i18nKey: "m", strong: {} as Snippet<[children: string]> };
 export const inMarkup: TComponent extends Component<any> ? true : false = true;
+
+/** Without catalogs any namespace name compiles, a `string` variable too (B21). */
+export function useAnyNamespace(name: string) {
+  const fromVariable: string = useI18n(name).t("k");
+  const fromLiteral: string = useI18n("not-declared-anywhere").t("k");
+  return fromVariable + fromLiteral;
+}

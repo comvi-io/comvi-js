@@ -31,7 +31,16 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import type { BoundTFor, Catalog, I18n, NsOf, TComponentFor, TFor, UntypedT } from "@comvi/core";
+import type {
+  BoundTFor,
+  Catalog,
+  I18n,
+  NsArg,
+  NsOf,
+  TComponentFor,
+  TFor,
+  UntypedT,
+} from "@comvi/core";
 import { core, N, type State } from "@comvi/core/internal";
 
 declare const __DEV__: boolean;
@@ -232,7 +241,7 @@ const Ts = N<(props: object) => ReactNode>();
  * consumer left it stays cached but a switch does not load it. A failed load of it is not
  * asked again by a remount — `i18n.load(ns)` retries.
  */
-export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => {
+export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<NS> => {
   const c = useContext(C);
   if (__DEV__ && !c) throw Error("[@comvi/react] no <I18nProvider> above this component");
   const [i, s] = c!;

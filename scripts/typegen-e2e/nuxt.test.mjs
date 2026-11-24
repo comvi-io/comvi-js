@@ -102,6 +102,7 @@ t("welcome", { ns: "nope", who: "Ada" });
 `;
 /** `file(line,…): error TSxxxx` for each wrong call of {@link WRONG_VUE}. */
 const WRONG_VUE_ERRORS = [
+  [3, /TS2345: Argument of type '"nope"'/],
   [4, /TS2345: Argument of type '"helo"'/],
   [5, /TS2349: This expression is not callable/],
   [6, /TS2554: Expected 2 arguments, but got 1/],
@@ -121,12 +122,14 @@ const WRONG_ROUTE = `export default defineEventHandler(async (event) => {
   const { t } = await useTranslation(event);
   t("helo", { name: "Ada" });
   t("hello");
+  await useTranslation(event, { ns: "nope" });
   return "";
 });
 `;
 const WRONG_ROUTE_ERRORS = [
   [3, /TS2345: Argument of type '"helo"'/],
   [4, /TS2554: Expected 2 arguments, but got 1/],
+  [5, /TS2322: Type '"nope"' is not assignable to type/],
 ];
 
 const nuxtConfig = (major, extra = "") => `export default defineNuxtConfig({
