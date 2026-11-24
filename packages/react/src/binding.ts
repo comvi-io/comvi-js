@@ -39,8 +39,8 @@ declare const __DEV__: boolean;
 declare module "@comvi/core" {
   /**
    * A tag handler of a generated catalog (`{ link: Tag }`) receives ONE React node: the
-   * binding joins the children into a Fragment (R4-20). Registered here, so an inline
-   * `(chunks) => <a>{chunks}</a>` needs no annotation (lot 3; review 1c, LOW).
+   * binding joins the children into a Fragment. Registered here, so an inline
+   * `(chunks) => <a>{chunks}</a>` needs no annotation.
    */
   interface TagChildren {
     react: ReactNode;
@@ -138,7 +138,7 @@ export const I18nProvider = ({
 
 /**
  * What a plain `{x}` prints as text (`String(value)`), or a list of them. A plain `{x}` is
- * always text (owner decision 04.11.2026): markup comes only from tags.
+ * always text: markup comes only from tags.
  */
 type Text = string | number | bigint | boolean | Date | null | undefined;
 
@@ -181,7 +181,7 @@ export interface UseI18n<NS extends string = "default"> {
    * catalogs: the message decides at run time.
    */
   t: [NsOf] extends [never] ? UntypedT<ReactElement, UntypedParams> : TFor<NS, ReactElement>;
-  /** `<T>` bound to this namespace; the same component on every render (R3-5(b)). */
+  /** `<T>` bound to this namespace; the same component on every render. */
   T: BoundT<NS>;
   locale: string;
   dir: "ltr" | "rtl";
@@ -270,7 +270,7 @@ export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => 
 };
 
 /**
- * What renders a tag through `components` (R3-24): an HTML tag name (`"strong"`), a
+ * What renders a tag through `components`: an HTML tag name (`"strong"`), a
  * component, or `{ component, props }` for one that needs props of its own
  * (`{ component: "a", props: { href: "/terms" } }`); the tag's content is its `children`.
  */
@@ -286,7 +286,7 @@ export const useLocale = (): string => useContext(L);
  * `<T i18nKey ns? locale? markers? components? {...params}>`: typed by the generated
  * catalogs when declared. A tag param is required unless `components` is passed (it may
  * render the tag; which tags it covers is not checked).
- * `markers={false}` keeps an in-context editor session from marking this message (R3-14 H9).
+ * `markers={false}` keeps an in-context editor session from marking this message.
  */
 export type TComponent = [NsOf] extends [never]
   ? (
@@ -335,9 +335,9 @@ const read = ({
  * content renders as text. Every prop but `i18nKey`, `components` and the per-call options
  * `ns`, `locale` and `markers` is a message param — `children` and `className` too, so a tag
  * named like a DOM prop is still a handler. `ns` is explicit: `<T>` never takes the namespace
- * of a `useI18n(ns)` above it (R3-5); `useI18n(ns).T` is the bound one. `<T>` reads only: it
+ * of a `useI18n(ns)` above it; `useI18n(ns).T` is the bound one. `<T>` reads only: it
  * loads nothing, `<T ns="account">` neither — `useI18n("account")` in the component (or
- * `i18n.load`, the `namespaces` option) loads it (lot 4c). `markers={false}` opts the message
- * out of an in-context editor session (R3-14 H9).
+ * `i18n.load`, the `namespaces` option) loads it. `markers={false}` opts the message
+ * out of an in-context editor session.
  */
 export const T = ((p) => read(p as never)) as TComponent;

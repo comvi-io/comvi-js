@@ -60,7 +60,7 @@ export const acquire = (i18n: I18n, ns: string): (() => void) => core(i18n).h(ns
  * as failed in this snapshot, so `isLoading` predicts no load for it) in place of its
  * slots, rendered in `locale` (default: the state's own; a binding's
  * locale handover renders the target before `setLocale()` lands at commit). A handed slot
- * IS its catalog (lot 6a, one rule): a key the catalog lacks is gone, `{}` is empty. Nothing
+ * IS its catalog: a key the catalog lacks is gone, `{}` is empty. Nothing
  * is published and `rev`/`lrev` do not move; untouched namespaces and locales keep their
  * slots (and compiled messages), and a slot that already holds exactly the catalog's messages,
  * in the same locale, gives back `state` itself (no copy per render).
@@ -132,14 +132,14 @@ export const translate = (
 ): Rendered => core(i18n).tr(state, key, params, ns, join);
 
 /**
- * `isLoading` of namespace `ns` of `i18n` in `state` (lot 4c): a load of it is in flight, or
+ * `isLoading` of namespace `ns` of `i18n` in `state`: a load of it is in flight, or
  * the instance has a loader and a pair of the chain of the state's locale is neither in
  * place nor failed (what a consumer's hold loads; its render comes first).
  */
 export const coming = (i18n: I18n, state: State, ns: string): boolean => !!core(i18n).w(state, ns);
 
 /**
- * `isReady` of namespace `ns` of `i18n` in `state` (lot 4c): a catalog of it from the chain
+ * `isReady` of namespace `ns` of `i18n` in `state`: a catalog of it from the chain
  * of the state's locale (that locale, its parents, the fallback locales) is in place — an
  * empty one too; a catalog of a locale outside the chain does not count.
  */
@@ -149,5 +149,5 @@ export const available = (i18n: I18n, state: State, ns: string): boolean => core
 export const loading = (state: State, ns?: string): boolean =>
   state.ld.some((k) => ns === undefined || k.endsWith("\0" + ns));
 
-/** What a server render hands the browser: public since lot 6a as `@comvi/core/ssr`. */
+/** What a server render hands the browser, public as `@comvi/core/ssr`. */
 export { handover, type Handover } from "./ssr";

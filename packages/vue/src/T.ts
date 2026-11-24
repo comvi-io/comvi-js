@@ -19,10 +19,10 @@ const setup = (_: unknown, c: { attrs: Record<string, unknown>; slots: Record<st
  * that is `undefined` leaves the tag to the next. Every attribute but `i18nKey`,
  * `components` and the per-call options `ns`, `locale` and `markers` is a message param —
  * `class` too (nothing falls through). `ns` is explicit: `<T>` never takes the namespace of
- * a `useI18n(ns)` above it (R3-5); `useI18n(ns).T` is the bound one. `<T>` reads only: it
+ * a `useI18n(ns)` above it; `useI18n(ns).T` is the bound one. `<T>` reads only: it
  * loads nothing, `<T ns="account">` neither — `useI18n("account")` in the component (or
- * `i18n.load`, the `namespaces` option) loads it (lot 4c).
- * `:markers="false"` opts the message out of an in-context editor session (R3-14 H9).
+ * `i18n.load`, the `namespaces` option) loads it.
+ * `:markers="false"` opts the message out of an in-context editor session.
  */
 // No props: every attribute, `i18nKey` (`i18n-key` in a template) too, is read camelized.
 export const T = { inheritAttrs: false, setup } as unknown as TComponent;

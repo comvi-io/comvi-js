@@ -89,7 +89,7 @@ export interface I18nOptions {
   plugins?: readonly Plugin[];
   /**
    * IANA time zone of the Date formatters of `@comvi/core/format` (SSR bindings pass the
-   * server's). A plain `{x}` prints a Date as `String(date)`, without it (R3-17).
+   * server's). A plain `{x}` prints a Date as `String(date)`, without it.
    */
   timeZone?: string;
   /**
@@ -149,8 +149,9 @@ export interface I18n {
    * With no message for the key in the locale's chain it returns what `missing(key, locale,
    * ns)` returns (default: the key) — also while the key's namespace is still loading or has
    * no catalog of the chain, when no `missing_key` is reported (see `onError`). `t()` never
-   * returns a placeholder: a UI that should not show that text while loading checks
-   * `isLoading` (bindings) and renders its own.
+   * returns a placeholder: a UI that should not show that text renders its own, checking a
+   * binding's `isReady` first, then `isLoading`. `isReady === false && isLoading === false`
+   * means the text is not available, not necessarily that a load failed.
    */
   t: TFor<"default", RichParts>;
   /** `t()` bound to namespace `name`. */
@@ -215,7 +216,7 @@ export interface Core {
    * a setup) while nothing holds it — its hold comes at the commit or mount, which Suspense
    * may delay past the idle-read check. Until that hold, a read of `ns` is not reported as
    * idle. Not a hold: nothing loads for it, and a render that never commits keeps only this
-   * development marker (Codex re-check of lot 4c, F1).
+   * development marker.
    */
   p?(ns: string): void;
   /** The lookup chain of a locale. */
@@ -223,7 +224,7 @@ export interface Core {
   /** The options the instance was made with (`timeZone`, `now`, `formats` for `/format`). */
   o: I18nOptions;
   /**
-   * Hold counts by namespace (lot 4c); the active set is the keys above 0. Its keys are every
+   * Hold counts by namespace; the active set is the keys above 0. Its keys are every
    * namespace the instance ever needed (pinned, held or `load()`ed) — what `handover()` hands
    * over and the editor's `state().ns`, whatever the counts are now.
    */
@@ -231,7 +232,7 @@ export interface Core {
   /** Pairs whose load failed (the negative cache), by `locale + "\0" + ns`. */
   b: ReadonlyMap<string, unknown>;
   /**
-   * A consumer holds namespace `ns` (lot 4c): it joins the active set and what the displayed
+   * A consumer holds namespace `ns`: it joins the active set and what the displayed
    * locale's chain lacks of it loads, WITHOUT asking its failed loads again — a binding holding
    * on every mount must not turn one failure into a refetch per mount (`load()` is the explicit
    * retry). Counted before anything publishes. Returns the release (a second call of it does
@@ -247,7 +248,7 @@ export interface Core {
   /** `isReady` of namespace `ns` in `state` (see `usable` in createI18n). */
   r(state: State, ns: string): boolean;
   /**
-   * A slot a server payload hands over after creation (a binding's handover, lot 6a, one rule):
+   * A slot a server payload hands over after creation (a binding's handover):
    * it fully replaces the instance's slot, every time. A catalog BECOMES the slot (a key the
    * server no longer has is gone, `{}` is empty) and a failure of the pair is forgotten; `null`
    * (or none) means what `createI18n({ catalogs })` gives it — the pair joins the negative cache
@@ -314,7 +315,7 @@ export const core = (i18n: I18n): Core => {
 };
 
 /**
- * The marking hook's setter, per instance (R3-14 H4): it sets (or, with `null`, clears) the
+ * The marking hook's setter, per instance: it sets (or, with `null`, clears) the
  * hook of an in-context editor session and publishes a state carrying it. Keyed by the
  * instance, so an instance created during another one's plugin setup never takes its
  * setter. Only `devtools()` reads it, for the instance it is set up on — a plugin's `setup`

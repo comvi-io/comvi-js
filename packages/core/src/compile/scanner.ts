@@ -50,21 +50,21 @@ export type Params = Readonly<Record<string, unknown>>;
 
 /**
  * Per-instance data a compiled message reads at render time — never at compile
- * time, so one compiled message is shared by every instance (R4-2).
+ * time, so one compiled message is shared by every instance.
  */
 export interface Env {
   /** Error sink; `defaultOnError` when absent. */
   r?: OnError;
   /**
-   * Joiner: what a tag handler receives as its children, from their parts (R4-20). A
+   * Joiner: what a tag handler receives as its children, from their parts. A
    * binding passes one that makes ONE node of them (React: a Fragment with the parts as
    * varargs); absent, the handler gets the parts array.
    */
   j?: (parts: unknown[]) => unknown;
   /**
    * Text mode: no tag handler runs, a tag's children render inline — the text of a tag's
-   * content that the core hands a handler declaring a second parameter (lot 4b: the text a
-   * Vue slot receives, built from the message before any nested handler runs).
+   * content that the core hands a handler declaring a second parameter (the text a Vue slot
+   * receives, built from the message before any nested handler runs).
    */
   t?: 1;
 }
@@ -101,8 +101,8 @@ export interface Scan {
   v?: number;
   /**
    * Development builds only: the shape observer of the type generator, which reads a
-   * message's parameters and tags through THIS scanner instead of a second ICU reader
-   * (R3-18). Every call site is `__DEV__ && P.o && …`, so production builds carry none
+   * message's parameters and tags through THIS scanner instead of a second ICU reader,
+   * so the generated types and the runtime agree on every message. Every call site is `__DEV__ && P.o && …`, so production builds carry none
    * of it. Events, in scan order (numbers, so nothing but the literal ships to dev):
    * - `0` a plain `{name}`;
    * - `1` a complex argument `name` and its `type` token, before the type is checked

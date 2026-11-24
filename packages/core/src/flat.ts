@@ -1,5 +1,5 @@
 /**
- * Nested catalogs (lot 6a, owner decision D1 of 2026-11-10): the ONE rule by which a catalog of
+ * Nested catalogs: the ONE rule by which a catalog of
  * JSON becomes the flat catalog the core reads. The core runs it on every catalog it accepts
  * (`messages`, `catalogs`, `add()`, a loader's result, a binding's handover); the type
  * generator imports this file and the CLI reaches it through the generator, so the three see the

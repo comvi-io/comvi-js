@@ -116,7 +116,7 @@ export const I18nProvider = (p: I18nProviderProps): JSX.Element => {
 
 /**
  * What a plain `{x}` prints as text (`String(value)`), or a list of them. A plain `{x}` is
- * always text (owner decision 04.11.2026): markup comes only from tags.
+ * always text: markup comes only from tags.
  */
 type Text = string | number | bigint | boolean | Date | null | undefined;
 
@@ -135,7 +135,7 @@ export type UntypedParams<C = never> = Record<
 >;
 
 /**
- * What renders a tag through `components` (R3-24): an HTML tag name (`"strong"`), a component,
+ * What renders a tag through `components`: an HTML tag name (`"strong"`), a component,
  * or `{ component, props }` for one that needs props of its own
  * (`{ component: "a", props: { href: "/terms" } }`); the tag's content is its `children`.
  */
@@ -183,7 +183,7 @@ export interface UseI18n<NS extends string = "default"> {
    * JSX child), or a string when its handlers returned text or the key is missing.
    */
   t: [NsOf] extends [never] ? UntypedT<JSX.Element, UntypedParams> : TFor<NS, JSX.Element>;
-  /** `<T>` bound to this namespace; the same component for every caller (R3-5(b)). */
+  /** `<T>` bound to this namespace; the same component for every caller. */
   T: BoundT<NS>;
   /** The locale on screen. Re-runs its readers on a locale change only. */
   locale: Accessor<string>;
@@ -214,7 +214,7 @@ export interface UseI18n<NS extends string = "default"> {
 }
 
 /**
- * `<T>`'s body: reads the message, never loads (lot 4c). A memo, so a handler's nodes have one
+ * `<T>`'s body: reads the message, never loads. A memo, so a handler's nodes have one
  * owner and go with the next render. `n`: the namespace of a bound `<T>`, which wins over an
  * `ns` prop.
  */

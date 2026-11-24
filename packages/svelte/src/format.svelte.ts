@@ -1,6 +1,6 @@
 /**
  * @comvi/svelte/format — `useFormat()`: the `@comvi/core/format` formatters with the real
- * instance and the locale read reactively at each call (design §3.3), so a template or a
+ * instance and the locale read reactively at each call, so a template or a
  * `$derived` that formats re-runs on a switch. Nothing of it is in an app that does not import
  * this subpath.
  */
