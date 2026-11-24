@@ -39,7 +39,7 @@ declare const __DEV__: boolean;
  * sign, digits with an optional fraction (`1.`, `.5`), optional exponent; after
  * `offset:`, ICU Pattern_White_Space (scanner.ts `isSpace`).
  */
-const EXACT = /^=[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
+const EXACT = /^=[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 const OFFSET =
   /offset:[\t-\r \x85\u200e\u200f\u2028\u2029]*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)/y;
 

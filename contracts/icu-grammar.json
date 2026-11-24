@@ -1604,6 +1604,335 @@
       "error": null,
       "unclosed": [],
       "note": "200 nested <u>, then <b>x</b>: a tag's height starts at its opening, 200 levels"
+    },
+    {
+      "message": "{n, plural, =0 {hit} other {miss}}",
+      "values": {
+        "n": 0
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =0: an exact match"
+    },
+    {
+      "message": "{n, plural, =1 {hit} other {miss}}",
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =1: the plain spelling"
+    },
+    {
+      "message": "{n, plural, =12 {hit} other {miss}}",
+      "values": {
+        "n": 12
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =12: an exact match"
+    },
+    {
+      "message": "{n, plural, =007 {hit} other {miss}}",
+      "values": {
+        "n": 7
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =007: leading zeros name the same number"
+    },
+    {
+      "message": "{n, plural, =1. {hit} other {miss}}",
+      "values": {
+        "n": 1
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =1.: a dot with no fraction digits"
+    },
+    {
+      "message": "{n, plural, =.5 {hit} other {miss}}",
+      "values": {
+        "n": 0.5
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =.5: a fraction with no integer digits"
+    },
+    {
+      "message": "{n, plural, =1.50 {hit} other {miss}}",
+      "values": {
+        "n": 1.5
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =1.50: trailing fraction zeros name the same number"
+    },
+    {
+      "message": "{n, plural, =+1 {hit} other {miss}}",
+      "values": {
+        "n": 1
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =+1: a plus sign"
+    },
+    {
+      "message": "{n, plural, =-1 {hit} other {miss}}",
+      "values": {
+        "n": -1
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =-1: a minus sign"
+    },
+    {
+      "message": "{n, plural, =1e1 {hit} other {miss}}",
+      "values": {
+        "n": 10
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =1e1: an exponent"
+    },
+    {
+      "message": "{n, plural, =1.e1 {hit} other {miss}}",
+      "values": {
+        "n": 10
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =1.e1: a dot with no fraction digits, then an exponent"
+    },
+    {
+      "message": "{n, plural, =15E-1 {hit} other {miss}}",
+      "values": {
+        "n": 1.5
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =15E-1: a capital E and a signed exponent"
+    },
+    {
+      "message": "{n, plural, = {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector = is a syntax error: an empty number"
+    },
+    {
+      "message": "{n, plural, =a {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =a is a syntax error: a letter instead of a number"
+    },
+    {
+      "message": "{n, plural, =+-1 {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =+-1 is a syntax error: a doubled sign"
+    },
+    {
+      "message": "{n, plural, =1..0 {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1..0 is a syntax error: a doubled dot"
+    },
+    {
+      "message": "{n, plural, =1x {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1x is a syntax error: a trailing letter"
+    },
+    {
+      "message": "{n, plural, =. {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =. is a syntax error: a dot alone"
+    },
+    {
+      "message": "{n, plural, =e1 {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =e1 is a syntax error: an exponent with no number before it"
+    },
+    {
+      "message": "{n, plural, =1e {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1e is a syntax error: an exponent with no digits"
+    },
+    {
+      "message": "{n, plural, =1e+ {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1e+ is a syntax error: a signed exponent with no digits"
+    },
+    {
+      "message": "{n, plural, =1.5. {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1.5. is a syntax error: a second dot"
+    },
+    {
+      "message": "{n, plural, =1e1.5 {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1e1.5 is a syntax error: a fraction in the exponent"
+    },
+    {
+      "message": "{n, plural, =1 1 {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1 1 is a syntax error: two numbers"
+    },
+    {
+      "message": "{n, plural, =1111111111111111111111111111111111111111x {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1111111111111111111111111111111111111111x is a syntax error: 40 digits, then a trailing letter"
     }
   ]
 }
