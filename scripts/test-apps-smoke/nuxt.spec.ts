@@ -868,10 +868,19 @@ test("17: the whole catalog route missing (under /api and outside it): the marke
   expect(asked).toEqual([]);
 });
 
-test("18: a translated error page is unchanged; an outside request carrying the catalog header gets a 404 and leaves a swr page intact", async ({
-  page,
-  request,
-}) => {
+/**
+ * Nuxt versions that print their own `[nuxt] error caught during app initialization … Page not
+ * found` when a 404 page hydrates: a plain Nuxt app without Comvi prints it on exactly these
+ * (the floors of the peer range; Nuxt 4.0.0 with nitropack 2.12.9), not on 3.21.11 or 4.6.2
+ * (packages/nuxt/README.md, Version notes). Test 18 lets through that one message on them, and
+ * requires it, so the exclusion cannot outlive the defect unnoticed.
+ */
+const NUXT_404_HYDRATION_MESSAGE = ["3.7.0", "4.0.0"];
+const NUXT_VERSION: string = JSON.parse(
+  fs.readFileSync(path.join(APP_DIR, "node_modules/nuxt/package.json"), "utf8"),
+).version;
+
+test("18: a translated error page is unchanged", async ({ page, request, errors }) => {
   for (const [url, locale] of [
     ["/boom", "en"],
     ["/uk/boom", "uk"],
@@ -883,6 +892,20 @@ test("18: a translated error page is unchanged; an outside request carrying the 
   await page.goto("/xx/nope");
   await hydrated(page);
   await expect(id(page, "error-title")).toHaveText(EN["home.title"]);
+  if (NUXT_404_HYDRATION_MESSAGE.includes(NUXT_VERSION)) {
+    const at = errors.findIndex((e) =>
+      /^error: \[nuxt\] error caught during app initialization \S+: Page not found: \/xx\/nope(\n|$)/.test(
+        e,
+      ),
+    );
+    expect(at, `Nuxt ${NUXT_VERSION}'s own 404 hydration message`).toBeGreaterThanOrEqual(0);
+    errors.splice(at, 1);
+  }
+});
+
+test("18b: an outside request carrying the catalog header gets a 404 and leaves a swr page intact", async ({
+  request,
+}) => {
   // An ordinary page asked with the header: the 404 of a catalog request with no route.
   expect((await get(request, "/", { "x-comvi-catalog": "1" })).status()).toBe(404);
   // `/cached` (`swr`): Nitro renders it for the cache with only the headers it varies on, so
