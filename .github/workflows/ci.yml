@@ -250,10 +250,16 @@ jobs:
       - name: Size gate (min+gz budgets)
         run: pnpm size
 
+      # The bundler matrix runs the vite (client) bundles in headless Chromium.
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
       # pnpm-packs every workspace package the matrix needs, asserts core's
       # sideEffects array against the packed dist files, then bundles the
       # consumer fixtures with webpack AND vite under development AND
-      # production conditions and runs every bundle in node.
+      # production conditions and runs every bundle: the webpack (target node)
+      # and server-case bundles in node without a DOM, the vite client bundles
+      # in Chromium.
       - name: Bundler matrix (webpack + vite, dev + prod, packed tarballs)
         run: pnpm bundler-matrix
 

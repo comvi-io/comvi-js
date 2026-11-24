@@ -42,4 +42,5 @@ assertEqual(
 );
 
 console.log("BUNDLER_MATRIX_OK next-client-default");
-process.exit(0);
+// Ends a node run (see react-default.mjs); the browser has no process.
+globalThis.process?.exit(0);

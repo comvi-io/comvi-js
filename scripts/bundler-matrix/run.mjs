@@ -29,8 +29,29 @@ import { bundlerCaseNeeds, pendingReason } from "../../tooling/migration-pending
  *    carry: a package's prod and dev artifacts are the same module by
  *    identity, and only their content differs.
  *
- * A case renders where its framework can in plain node (React and Vue to a string); the
- * Svelte cases only build and load (a client component needs a DOM).
+ * WHAT EACH COMBINATION VERIFIES (bundler × mode × case):
+ *   - the build succeeds from the packed tarballs through the stock resolver;
+ *   - the export condition: core's dev-only text in the development bundle and not in the
+ *     production one (`DEV_MARKER`; `noCore` cases assert it on module IDs instead), and the
+ *     case's own `devOnlyText` in the same two directions;
+ *   - the module graph: tag sentinels absent/present, `absentModules` absent and
+ *     `presentModules` present (tree-shaking across the re-export hops, sideEffects);
+ *   - EXECUTING the bundle: the fixture asserts its own behaviour — the exports exist,
+ *     `createI18n` builds an instance, `t()` translates (ICU in the base), formatters
+ *     format, React/Vue render to a string — and prints `BUNDLER_MATRIX_OK <case>`.
+ *
+ * WHERE A BUNDLE RUNS follows what it was built for (`runtimeOf`):
+ *   - "node": the webpack leg (`target: "node18"`, node resolve conditions) and every case
+ *     with `target: "server"` (Next's server layer, the proxy). A fresh `node` process with
+ *     NO DOM globals: a browser-global access in our server/SSR code fails the matrix.
+ *   - "browser": every other vite build. Vite builds for the CLIENT (the `browser` resolve
+ *     condition, Svelte compiled for the client), so the bundle runs in headless Chromium
+ *     (Playwright, as the examples e2e and test-app smoke do), never in bare node. A client
+ *     runtime may read `window`/`document` on import (Svelte 5.59 does), so bare node is the
+ *     wrong place to run it. The two never share a process.
+ * React, Vue and Solid run under both legs, so their render is still checked without a DOM
+ * on the webpack leg; the Svelte cases are vite-only and load in the browser (mounting is
+ * the e2e scenario's and the package's tests').
  * Each `*-dev-conditions` case imports whichever module carries its package's
  * dev-only diagnostic — `createNextI18n` for `@comvi/next`; on 0.8 the `react-format`,
  * `vue-format` and `solid-format` cases carry the binding's — so that module is in the graph under
@@ -113,6 +134,9 @@ const NEXT_PROXY_FORBIDDEN = [
  * `bundlers` narrows a case to a subset of the matrix legs (the webpack leg
  * has no svelte loader, and `@comvi/svelte` publishes `.svelte` and `.svelte.js`
  * sources a consumer's Svelte tooling compiles, so the Svelte cases are vite-only).
+ *
+ * `target: "server"` marks a case that models server code (see "WHERE A BUNDLE RUNS"
+ * above): it runs in bare node on both legs.
  *
  * `packages` are the workspace tarballs the case needs, `deps` the framework
  * peer deps its bundle imports. A case carrying `pending` is declared but not
@@ -214,6 +238,7 @@ const CASES = [
     // provider: that module is in the graph only as a client reference (client-references.mjs,
     // what Next's flight loader makes of it), never with its React imports.
     name: "next-server-on-default",
+    target: "server",
     conditions: ["react-server"],
     sentinels: "absent",
     absentModules: [...CORE_SUBPATHS_08, REACT_FORMAT_08],
@@ -260,6 +285,7 @@ const CASES = [
     // in production. The one-line `proxy` re-export module itself is pruned by
     // both bundlers (side-effect free), so it is not a presence sentinel.
     name: "next-proxy",
+    target: "server",
     noCore: true,
     sentinels: "absent",
     absentModules: {
@@ -553,7 +579,12 @@ function perMode(value, bundler, mode) {
   return value[`${bundler}:${mode}`] ?? value.default;
 }
 
-function bundle(bundler, mode, fixture, conditions) {
+/** Where a case's bundle runs: "node" (no DOM) or "browser" (Chromium). See the header. */
+function runtimeOf(bundler, testCase) {
+  return bundler === "vite" && testCase.target !== "server" ? "browser" : "node";
+}
+
+function bundle(bundler, mode, fixture, conditions, runtime) {
   const entry = path.join(APP_DIR, "src", `${fixture}.mjs`);
   const outFile = path.join(
     OUT_DIR,
@@ -564,7 +595,7 @@ function bundle(bundler, mode, fixture, conditions) {
     bundler === "webpack"
       ? ["--config", "webpack.config.mjs", "--mode", mode, "--json", `${outFile}.stats.json`]
       : ["build", "--config", "vite.config.mjs", "--mode", mode];
-  const env = { ...childEnv, BM_ENTRY: entry, BM_OUT: outFile };
+  const env = { ...childEnv, BM_ENTRY: entry, BM_OUT: outFile, BM_RUNTIME: runtime };
   if (conditions !== undefined) env.BM_CONDITIONS = conditions.join(",");
   if (bundler === "vite") {
     // Vite's `development|production` resolve condition follows NODE_ENV, not
@@ -584,6 +615,70 @@ function bundle(bundler, mode, fixture, conditions) {
   return { outFile, moduleIds: readModuleIds(bundler, outFile) };
 }
 
+/** Runs a bundle in a fresh `node` process: no DOM globals. */
+function execInNode(outFile, fixture) {
+  const exec = spawnSync(process.execPath, [outFile], { encoding: "utf8" });
+  return {
+    ok: exec.status === 0 && exec.stdout.includes(`BUNDLER_MATRIX_OK ${fixture}`),
+    output: `(exit ${exec.status})\n${exec.stdout}${exec.stderr}`,
+  };
+}
+
+/**
+ * Runs a bundle as a module script of a page in headless Chromium, served from a routed
+ * origin (no server, no file:// module restrictions). It passes when the fixture logged its
+ * OK line and the page raised no error by the time it finished loading.
+ */
+let browser;
+async function execInBrowser(outFile, fixture) {
+  if (browser === undefined) {
+    const { chromium } = await import("playwright");
+    browser = await chromium.launch();
+  }
+  const page = await browser.newPage();
+  const lines = [];
+  const errors = [];
+  let ok = false;
+  let settle;
+  const settled = new Promise((resolve) => (settle = resolve));
+  page.on("console", (message) => {
+    lines.push(`${message.type()}: ${message.text()}`);
+    if (message.text() === `BUNDLER_MATRIX_OK ${fixture}`) {
+      ok = true;
+      settle();
+    }
+  });
+  page.on("pageerror", (error) => {
+    errors.push(error.stack ?? String(error));
+    settle();
+  });
+  const origin = "http://bundler-matrix.localhost";
+  await page.route(`${origin}/**`, (route) => {
+    const name = new URL(route.request().url()).pathname.slice(1);
+    if (name === "") {
+      return route.fulfill({
+        contentType: "text/html",
+        body: `<!doctype html><script type="module" src="/${path.basename(outFile)}"></script>`,
+      });
+    }
+    const file = path.join(path.dirname(outFile), name);
+    if (!fs.existsSync(file)) return route.fulfill({ status: 404 });
+    return route.fulfill({ contentType: "text/javascript", body: fs.readFileSync(file) });
+  });
+  try {
+    await page.goto(`${origin}/`, { waitUntil: "load" });
+    await Promise.race([settled, new Promise((resolve) => setTimeout(resolve, 15_000))]);
+  } catch (error) {
+    errors.push(String(error));
+  } finally {
+    await page.close();
+  }
+  return {
+    ok: ok && errors.length === 0,
+    output: `(chromium)\n${[...lines, ...errors].join("\n")}`,
+  };
+}
+
 const failures = [];
 const results = [];
 for (const bundler of BUNDLERS) {
@@ -597,7 +692,8 @@ for (const bundler of BUNDLERS) {
         continue;
       }
       const label = `${bundler} × ${mode} × ${fixture}`;
-      const { outFile, moduleIds } = bundle(bundler, mode, fixture, testCase.conditions);
+      const runtime = runtimeOf(bundler, testCase);
+      const { outFile, moduleIds } = bundle(bundler, mode, fixture, testCase.conditions, runtime);
 
       // Export-condition check: dev builds must contain the dev-only core
       // chunk marker, prod builds must not.
@@ -664,13 +760,12 @@ for (const bundler of BUNDLERS) {
         failures.push(`${label}: modules expected present, none matched ${absent.join(", ")}`);
       }
 
-      const exec = spawnSync(process.execPath, [outFile], { encoding: "utf8" });
-      const ran = exec.status === 0 && exec.stdout.includes(`BUNDLER_MATRIX_OK ${fixture}`);
-      if (!ran) {
-        failures.push(
-          `${label}: bundle execution failed (exit ${exec.status})\n${exec.stdout}${exec.stderr}`,
-        );
-      }
+      const exec =
+        runtime === "browser"
+          ? await execInBrowser(outFile, fixture)
+          : execInNode(outFile, fixture);
+      const ran = exec.ok;
+      if (!ran) failures.push(`${label}: bundle execution failed in ${runtime} ${exec.output}`);
       const ok =
         ran &&
         sentinelsOk &&
@@ -678,10 +773,11 @@ for (const bundler of BUNDLERS) {
         absent.length === 0 &&
         devTextWrong.length === 0;
       results.push(`${ok ? "PASS" : "FAIL"}  ${label}`);
-      console.log(`${ok ? "PASS" : "FAIL"}  ${label} [tags ${expectTags}]`);
+      console.log(`${ok ? "PASS" : "FAIL"}  ${label} [tags ${expectTags}, ran in ${runtime}]`);
     }
   }
 }
+await browser?.close();
 
 for (const testCase of PENDING_CASES) {
   console.log(`SKIP  ${testCase.name} — pending: ${testCase.pending}`);
