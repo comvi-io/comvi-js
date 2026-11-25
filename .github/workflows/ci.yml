@@ -9,30 +9,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # MIGRATION_PENDING (tooling/migration-pending.mjs): during the 0.8 core rebuild the
-  # packages that do not build against the new core yet are listed there with the lot
-  # that rebuilds them. The sharded jobs below read this job's outputs and run only
-  # their active shards. The package-level gates (build, test, lint, typecheck, size,
-  # contracts, publint, types exports) skip the pending packages by name themselves
-  # and print the reason.
-  migration-pending:
-    name: MIGRATION_PENDING switches
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      # JSON list of the ACTIVE examples-e2e shards ({framework, mode}); `[]` when none.
-      examples_e2e_matrix: ${{ steps.pending.outputs.examples_e2e_matrix }}
-      # Comma-separated active test apps; empty when none.
-      test_apps: ${{ steps.pending.outputs.test_apps }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Read tooling/migration-pending.mjs
-        id: pending
-        run: node tooling/migration-pending.mjs --github-output
-
   quality:
     name: Quality and security
     runs-on: ubuntu-24.04
@@ -418,19 +394,50 @@ jobs:
   # `tests/dist/missing-key-warning.dist.test.ts` (see run.mjs's header).
   examples-e2e:
     name: Examples e2e (${{ matrix.framework }}, ${{ matrix.mode }})
-    needs: [examples-e2e-changes, migration-pending]
-    if: needs.examples-e2e-changes.outputs.run == 'true' && needs.migration-pending.outputs.examples_e2e_matrix != '[]'
+    needs: examples-e2e-changes
+    if: needs.examples-e2e-changes.outputs.run == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     strategy:
       fail-fast: false
       # Every framework x mode (default, cdn) plus the SSR recipes (sveltekit,
-      # solidstart; default only) — minus the shards whose example still needs a
-      # MIGRATION_PENDING package. The list lives in tooling/migration-pending.mjs
-      # (EXAMPLES_E2E_MATRIX) so a framework rejoins CI the moment its lot lands.
+      # solidstart; default only: they read bundled catalogs, --cdn leaves them out).
+      # scripts/examples-e2e/lib.test.mjs checks this list against examples/.
       matrix:
-        include: ${{ fromJSON(needs.migration-pending.outputs.examples_e2e_matrix) }}
+        include:
+          - framework: react
+            mode: default
+          - framework: react
+            mode: cdn
+          - framework: next
+            mode: default
+          - framework: next
+            mode: cdn
+          - framework: vue
+            mode: default
+          - framework: vue
+            mode: cdn
+          - framework: nuxt
+            mode: default
+          - framework: nuxt
+            mode: cdn
+          - framework: svelte
+            mode: default
+          - framework: svelte
+            mode: cdn
+          - framework: solid
+            mode: default
+          - framework: solid
+            mode: cdn
+          - framework: vanilla
+            mode: default
+          - framework: vanilla
+            mode: cdn
+          - framework: sveltekit
+            mode: default
+          - framework: solidstart
+            mode: default
 
     steps:
       - name: Checkout
@@ -488,8 +495,8 @@ jobs:
   # their peer ranges; this job is what proves the lower one.
   test-apps-smoke:
     name: Test apps smoke (Next 15/16, Nuxt 3/4)
-    needs: [examples-e2e-changes, migration-pending]
-    if: needs.examples-e2e-changes.outputs.test_apps == 'true' && needs.migration-pending.outputs.test_apps != ''
+    needs: examples-e2e-changes
+    if: needs.examples-e2e-changes.outputs.test_apps == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
 
@@ -514,10 +521,9 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
 
+      # No --only: the default set is every app except the floor stands (next, next16, nuxt, nuxt4).
       - name: Build and smoke-test the apps
-        env:
-          TEST_APPS: ${{ needs.migration-pending.outputs.test_apps }}
-        run: pnpm test-apps:smoke --only "$TEST_APPS"
+        run: pnpm test-apps:smoke
 
   # The floors of @comvi/nuxt's peer range `^3.7.0 || ^4.0.0`: test-apps/nuxt on exactly Nuxt
   # 3.7.0, and test-apps/nuxt4 on exactly Nuxt 4.0.0 with a pinned Nitro override (nitropack
@@ -527,8 +533,8 @@ jobs:
   # are exactly those, and prints the installed versions.
   test-apps-smoke-nuxt-floors:
     name: Test apps smoke (${{ matrix.label }})
-    needs: [examples-e2e-changes, migration-pending]
-    if: needs.examples-e2e-changes.outputs.test_apps == 'true' && contains(needs.migration-pending.outputs.test_apps, 'nuxt')
+    needs: examples-e2e-changes
+    if: needs.examples-e2e-changes.outputs.test_apps == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
 

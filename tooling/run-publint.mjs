@@ -18,7 +18,6 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { publint } from "publint";
-import { pendingReason } from "./migration-pending.mjs";
 import { formatMessage } from "publint/utils";
 
 const rootDir = path.resolve(fileURLToPath(import.meta.url), "..", "..");
@@ -50,11 +49,6 @@ for (const packageDir of packageDirs) {
   if (manifest.private === true) continue;
 
   const packageName = manifest.name ?? path.basename(packageDir);
-  const pending = pendingReason(packageName);
-  if (pending) {
-    console.log(`- ${packageName}: skipped — MIGRATION_PENDING (${pending})`);
-    continue;
-  }
   // `pack: 'pnpm'` packs via pnpm so the linted file set equals the published tarball.
   const { messages, pkg } = await publint({ pkgDir: packageDir, pack: "pnpm" });
   checked += 1;

@@ -41,7 +41,6 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { activeShards, testAppNeeds } from "../../tooling/migration-pending.mjs";
 import { workspacePackages } from "../docs-snippets/link-sdk.mjs";
 import { scopeRegistryLine, startCandidateRegistry } from "../examples-e2e/candidate-registry.mjs";
 import {
@@ -717,18 +716,6 @@ async function smoke(name) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  // MIGRATION_PENDING: each app runs once everything it needs is active, independently of
-  // the other apps (tooling/migration-pending.mjs).
-  // A floor stand needs what the app it copies needs.
-  args.only = activeShards(
-    args.only,
-    (name) => testAppNeeds(APPS[name].floor?.from ?? name),
-    "test-apps-smoke",
-  );
-  if (args.only.length === 0) {
-    console.log("test-apps-smoke: every requested app is MIGRATION_PENDING — nothing to run");
-    return;
-  }
   let mock;
   try {
     mock = await startCatalogMock(LOCALES, MOCK_PORT);

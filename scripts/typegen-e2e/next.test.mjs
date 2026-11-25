@@ -18,19 +18,15 @@
  *
  *   pnpm build && pnpm typegen:e2e
  *
- * `@comvi/next/plugin` is the built `packages/next/dist/plugin.cjs`; while `@comvi/next`
- * is MIGRATION_PENDING (its other entries do not build yet), the same esbuild command its
- * build runs bundles `src/plugin.ts` for the test.
+ * `@comvi/next/plugin` is the built `packages/next/dist/plugin.cjs`.
  */
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
-import { createRequire } from "node:module";
 import net from "node:net";
 import path from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { MIGRATION_PENDING } from "../../tooling/migration-pending.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const CLI = path.join(ROOT, "packages/cli/bin/comvi.js");
@@ -80,26 +76,14 @@ after(async () => {
   if (fs.existsSync(APPS) && fs.readdirSync(APPS).length === 0) fs.rmdirSync(APPS);
 });
 
-/** `@comvi/next` with `./plugin` only: the built one, or a bundle of the source. */
+/** `@comvi/next` with `./plugin` only, copied from the built package. */
 function pluginPackage() {
   const dir = path.join(APPS, "comvi-next");
   if (fs.existsSync(dir)) return dir;
   fs.mkdirSync(path.join(dir, "dist"), { recursive: true });
   dirs.push(dir);
   const built = path.join(NEXT_PKG, "dist/plugin.cjs");
-  if (!MIGRATION_PENDING["@comvi/next"]) fs.copyFileSync(built, path.join(dir, "dist/plugin.cjs"));
-  else
-    createRequire(path.join(NEXT_PKG, "package.json"))("esbuild").buildSync({
-      absWorkingDir: NEXT_PKG,
-      entryPoints: ["src/plugin.ts"],
-      bundle: true,
-      platform: "node",
-      format: "cjs",
-      target: "node18",
-      external: ["next"],
-      logLevel: "warning",
-      outfile: path.join(dir, "dist/plugin.cjs"),
-    });
+  fs.copyFileSync(built, path.join(dir, "dist/plugin.cjs"));
   fs.writeFileSync(
     path.join(dir, "package.json"),
     JSON.stringify({

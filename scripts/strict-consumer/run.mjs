@@ -38,7 +38,6 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { pendingReason } from "../../tooling/migration-pending.mjs";
 import { cleanTarballs, tarballFor, workspacePackages } from "../docs-snippets/link-sdk.mjs";
 import { fetchRegistryTarballs } from "../docs-quickstart/registry.mjs";
 import { buildStore, importTarget, parseArgs, workspaceResolver } from "./tarballs.mjs";
@@ -395,7 +394,6 @@ const cases = [
   },
   {
     name: "B. an app declaring only @comvi/nuxt, whose Catalogs is a named re-export",
-    package: "@comvi/nuxt",
     run: () => declaredPackageCase("@comvi/nuxt"),
   },
   {
@@ -403,7 +401,6 @@ const cases = [
     // node10 reads no `exports`: without a top-level `types` the package does not resolve,
     // the declaration attaches to nothing and every key compiles.
     name: "B2. the same @comvi/nuxt app under node10 resolution (Nuxt 3.7–3.9's default)",
-    package: "@comvi/nuxt",
     run: () => declaredPackageCase("@comvi/nuxt", { node10: true }),
   },
   {
@@ -439,32 +436,21 @@ const cases = [
     // (TS2882, hidden by Next's `skipLibCheck: true`) and every key compiles; and without
     // `@comvi/react` declared the app cannot import the client `useI18n()` at all.
     name: "E. a Next app declaring only @comvi/next: refused, naming what to declare",
-    package: "@comvi/next",
     run: () => nextCase(["@comvi/next"], { expectRefusal: true }),
   },
   {
     name: "F. a Next app with the README install (@comvi/next, @comvi/react, @comvi/core)",
-    package: "@comvi/next",
     run: () => nextCase(["@comvi/next", "@comvi/react", "@comvi/core"], { expectRefusal: false }),
   },
   {
     name: "G. a Next app declaring @comvi/next and @comvi/react, core reachable only through them",
-    package: "@comvi/next",
     run: () => nextCase(["@comvi/next", "@comvi/react"], { expectRefusal: false }),
   },
 ];
 
 const failures = [];
-let skipped = 0;
-for (const { name, run, package: needs } of cases) {
+for (const { name, run } of cases) {
   console.log(`\n${name}`);
-  // A binding still on the 0.7 core is not built (tooling/migration-pending.mjs); its case
-  // runs again the moment its lot removes it from the list.
-  if (needs && pendingReason(needs)) {
-    console.log(`  skipped — ${needs} is MIGRATION_PENDING (${pendingReason(needs)})`);
-    skipped++;
-    continue;
-  }
   const reasons = await run();
   for (const reason of reasons) console.log(`  FAILED: ${reason}`);
   if (reasons.length === 0) console.log("  ok");
@@ -480,5 +466,5 @@ if (failures.length > 0) {
 
 for (const root of appRoots) fs.rmSync(root, { recursive: true, force: true });
 console.log(
-  `strict-consumer: OK — ${cases.length - skipped} cases${skipped ? `, ${skipped} skipped (MIGRATION_PENDING)` : ""} (${options.source === "dist" ? "workspace dist" : source.split(":")[0]}).`,
+  `strict-consumer: OK — ${cases.length} cases (${options.source === "dist" ? "workspace dist" : source.split(":")[0]}).`,
 );

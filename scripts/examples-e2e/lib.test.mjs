@@ -635,14 +635,14 @@ const REPO = path.resolve(import.meta.dirname, "../..");
 
 test("CI shards every gallery example in both modes, the SSR recipes in the default mode", async () => {
   const { exampleDirs } = await import("../examples-verify.mjs");
-  // The matrix lives in tooling/migration-pending.mjs (EXAMPLES_E2E_MATRIX): CI runs its
-  // ACTIVE shards, read through `migration-pending.mjs --github-output`.
-  const { EXAMPLES_E2E_MATRIX } = await import("../../tooling/migration-pending.mjs");
+  // The matrix is the static `include:` list of the examples-e2e job in ci.yml.
   const ci = fs.readFileSync(path.join(REPO, ".github/workflows/ci.yml"), "utf8");
-  assert.match(
-    ci,
-    /include: \$\{\{ fromJSON\(needs\.migration-pending\.outputs\.examples_e2e_matrix\) \}\}/,
+  const job = ci.slice(ci.indexOf("\n  examples-e2e:\n"));
+  const include = job.slice(job.indexOf("include:"), job.indexOf("\n    steps:"));
+  const EXAMPLES_E2E_MATRIX = [...include.matchAll(/- framework: (\S+)\n\s+mode: (\S+)/g)].map(
+    ([, framework, mode]) => ({ framework, mode }),
   );
+  assert.equal(EXAMPLES_E2E_MATRIX.length, include.split("- framework:").length - 1);
   const frameworks = (mode) =>
     EXAMPLES_E2E_MATRIX.filter((e) => e.mode === mode).map((e) => e.framework);
   // A new example with no shard would never run in CI, and nothing else says so.
