@@ -194,11 +194,11 @@ catalog at all, the key or your "not available" branch.
 
 ```ts title="comvi.i18n.ts" check=group=nuxt-cdn
 import { cdn, defineI18nOptions } from "@comvi/nuxt/i18n";
-import en from "./locales/default/en.json";
 
 export default defineI18nOptions(() => ({
   loader: cdn("https://cdn.comvi.io/<project-token>", {
-    fallback: { en: () => en }, // keys: "<locale>", or "<locale>:<namespace>"
+    // keys: "<locale>", or "<locale>:<namespace>"
+    fallback: { en: () => import("./locales/default/en.json").then((m) => m.default) },
   }),
   onError(error) {
     if (error.code === "load_failed")

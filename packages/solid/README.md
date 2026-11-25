@@ -164,12 +164,12 @@ renders the key, so what the user sees is up to your `isReady` branch and your `
 ```ts title="src/i18n.ts" check=group=solid-app
 import { createI18n } from "@comvi/solid";
 import { cdn } from "@comvi/core/cdn";
-import en from "./locales/en.json";
 
 export const i18n = createI18n({
   locale: "en",
   loader: cdn("https://cdn.comvi.io/<project-token>", {
-    fallback: { en: () => en }, // keys: "<locale>", or "<locale>:<namespace>"
+    // keys: "<locale>", or "<locale>:<namespace>"
+    fallback: { en: () => import("./locales/en.json").then((m) => m.default) },
   }),
   onError(error) {
     if (error.code === "load_failed")

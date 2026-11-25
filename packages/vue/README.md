@@ -164,12 +164,12 @@ import { createApp } from "vue";
 import { createI18n } from "@comvi/vue";
 import { cdn } from "@comvi/core/cdn";
 import App from "./App.vue";
-import en from "./locales/en.json";
 
 const i18n = createI18n({
   locale: "en",
   loader: cdn("https://cdn.comvi.io/<project-token>", {
-    fallback: { en: () => en }, // keys: "<locale>", or "<locale>:<namespace>"
+    // keys: "<locale>", or "<locale>:<namespace>"
+    fallback: { en: () => import("./locales/en.json").then((m) => m.default) },
   }),
   onError(error) {
     if (error.code === "load_failed")

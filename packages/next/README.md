@@ -223,10 +223,10 @@ catalog the CDN should serve. For a bundled catalog that is used when the CDN do
 ```ts check=group=next-1
 // In src/i18n/server.ts, the CDN loader in place of the import() one:
 import { cdn } from "@comvi/core/cdn";
-import en from "@/locales/en.json";
 
 export const loader = cdn("https://cdn.comvi.io/<project-token>", {
-  fallback: { en: () => en }, // keys: "<locale>", or "<locale>:<namespace>"
+  // keys: "<locale>", or "<locale>:<namespace>"
+  fallback: { en: () => import("@/locales/en.json").then((m) => m.default) },
 });
 ```
 

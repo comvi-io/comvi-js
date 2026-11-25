@@ -158,12 +158,12 @@ user sees is up to your `isReady` branch and your `catch` of `setLocale()`.
 ```ts title="src/i18n.ts" check=group=svelte-cdn
 import { createI18n } from "@comvi/svelte";
 import { cdn } from "@comvi/core/cdn";
-import en from "./locales/en.json";
 
 export const i18n = createI18n({
   locale: "en",
   loader: cdn("https://cdn.comvi.io/<project-token>", {
-    fallback: { en: () => en }, // keys: "<locale>", or "<locale>:<namespace>"
+    // keys: "<locale>", or "<locale>:<namespace>"
+    fallback: { en: () => import("./locales/en.json").then((m) => m.default) },
   }),
   onError(error) {
     if (error.code === "load_failed")
