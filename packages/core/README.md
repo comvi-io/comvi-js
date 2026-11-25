@@ -30,8 +30,8 @@ npm install @comvi/core
 ```
 
 `@comvi/core` and every binding in an app must be on one version. With two copies of `@comvi/core`
-nothing fails at import: the error `two copies of @comvi/core`, with both versions, is thrown when
-an instance created by one copy reaches code of the other (a binding, or `@comvi/core/format`).
+nothing fails at import: an error that names both versions is thrown when an instance created by
+one copy reaches code of the other (a binding, or `@comvi/core/format`).
 
 ## Create the i18n instance
 
