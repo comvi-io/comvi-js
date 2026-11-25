@@ -57,9 +57,9 @@ i18n.t("cart", { count: 2 }); // "2 items"
 `createI18n()` is synchronous: inline `messages` render on the next line, and there is no `init()`
 to await. `messages` holds the `default` namespace by locale, written flat (`"account.title"`) or
 nested (`{ account: { title } }`); both are the key `account.title`. A key with no message in the
-locale or its fallback locales renders the key, and `onError` receives `missing_key` unless the
-key's namespace has no catalog or one still loading. Without a `loader` the instance makes no
-request, so this file runs with no Comvi project and no account.
+locale or its fallback locales renders the key, and `onError` receives `missing_key`, unless the
+key's namespace has no catalog or its catalog is still loading. Without a `loader` the instance
+makes no request, so this file runs with no Comvi project and no account.
 
 ## Write messages
 

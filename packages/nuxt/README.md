@@ -239,11 +239,12 @@ const toggle = () =>
 
 `localePrefix` decides the URLs: `as-needed` (the default) gives `/about` and `/de/about`, `always`
 `/en/about` and `/de/about`, `never` `/about` for every locale. Under `as-needed` `/about` is the
-default locale's URL, cookie or not; `/` and any URL under `never` read the `i18n_locale` cookie,
-then `Accept-Language`, and the module records the locale in the cookie. A query parameter named in
-`localeDetection.queryParam` wins on any unprefixed URL. `useLocalePath()`, `useSwitchLocalePath()`,
-`useLocaleRoute()` and `<NuxtLinkLocale>` build the links, and `useLocaleHead()` adds canonical,
-hreflang and `og:locale` ([Nuxt guide](https://comvi.io/docs/i18n/nuxt)).
+default locale's URL, cookie or not; `/`, and any unprefixed URL under `never` or `always`, reads
+the `i18n_locale` cookie, then `Accept-Language`, and the module records the locale in the cookie. A
+query parameter named in `localeDetection.queryParam` wins on any unprefixed URL. `useLocalePath()`,
+`useSwitchLocalePath()`, `useLocaleRoute()` and `<NuxtLinkLocale>` build the links, and
+`useLocaleHead()` adds canonical, hreflang and `og:locale` ([Nuxt
+guide](https://comvi.io/docs/i18n/nuxt)).
 
 ## Limits
 
