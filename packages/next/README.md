@@ -25,7 +25,7 @@ Define the routing, create `getI18n()`, and wrap the layout in `<I18nProvider>`.
 
 ```bash
 npm install @comvi/next @comvi/react @comvi/core
-# peers: next ^15.5.29 || ^16.4.5, react ^19.3.1
+# Peers: next ^15.5.29 || ^16.4.5, react ^19.3.1
 ```
 
 `@comvi/next` asks for `@comvi/react` and `@comvi/core` at exactly its own version: `@comvi/core`
