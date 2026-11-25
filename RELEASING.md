@@ -318,7 +318,7 @@ description).
       `@comvi/editor` 0.8.0 is on npm:
       `npm deprecate @comvi/plugin-in-context-editor "Renamed to @comvi/editor since 0.8.0; loaded by the Comvi browser extension"`.
 
-- [ ] Keep the post-release observation window.
+- [ ] Re-snapshot the test manifest, and keep the post-release observation window.
 
 ## Known release-tooling gaps (recorded, not fixed)
 
