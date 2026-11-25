@@ -157,7 +157,7 @@ await i18n.load("billing"); // load() does not follow a switch: ask again for th
 ```
 
 `setLocale()` reloads only the namespaces of the `namespaces` option, so await the switch first
-and `load()` second ([the limit](https://comvi.io/docs/i18n/limitations#vanilla-load-not-kept)).
+and `load()` second ([the limit](https://comvi.io/docs/i18n/limitations#vanilla-load-and-switch)).
 `t()` and `has()` only read: they never start a request.
 
 ## Load from Comvi

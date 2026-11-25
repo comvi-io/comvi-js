@@ -1,9 +1,10 @@
 /**
  * Lot 4b completion criterion (owner brief 29.10): the README's React app behaves
  * predictably on success, a slow load, an error, a fast double switch and a hydration. The
- * components are the README's (`App` with its `<select>`, a `<T>` with `components`), the
- * loader stands for `cdn()`. No case may leave an unhandled rejection or a raw key the
- * contract does not name.
+ * components are the README's (`App` with its toggle button from "Setup", the `<T>` of "Markup
+ * in a translation", `Account` from "Retry with `load()`"), the loader stands for `cdn()`. The
+ * README switches between `en` and `uk`; a third locale is reached through `i18n.setLocale()`.
+ * No case may leave an unhandled rejection or a raw key the contract does not name.
  */
 import { useState } from "react";
 import { renderToString } from "react-dom/server";
@@ -29,17 +30,15 @@ const CATALOGS = {
   },
 };
 
-/** The README's `src/App.tsx`, plus its markup example. */
+/** The README's `App` (Setup), plus its markup example. */
 function App() {
   const { t, locale, setLocale } = useI18n();
+  const toggle = () => setLocale(locale === "en" ? "uk" : "en");
   return (
     <>
-      <h1>{t("greeting", { name: "Alice" })}</h1>
-      <select value={locale} onChange={(e) => setLocale(e.target.value).catch(() => {})}>
-        <option value="en">English</option>
-        <option value="uk">Українська</option>
-        <option value="de">Deutsch</option>
-      </select>
+      <button className="greeting" onClick={toggle}>
+        {t("greeting", { name: "Alice" })}
+      </button>
       <p>
         <T
           i18nKey="terms"
@@ -79,11 +78,14 @@ const start = () => {
     onError: (e) => errors.push(`${e.code} ${e.locale}`),
   });
   const view = render(ui(i18n));
-  const h1 = () => view.container.querySelector("h1")?.textContent;
-  const select = () => view.container.querySelector("select")!;
+  const h1 = () => view.container.querySelector("button.greeting")?.textContent;
   const terms = () => view.container.querySelector("p")?.innerHTML;
-  const pick = (v: string) => act(() => void fireEvent.change(select(), { target: { value: v } }));
-  return { l, i18n, view, h1, select, terms, pick, errors };
+  /** A click on the README's toggle: `en` to `uk` and back. */
+  const toggle = () =>
+    act(() => void fireEvent.click(view.container.querySelector("button.greeting")!));
+  /** A switch to a locale the toggle does not reach, as a caller that handles the rejection. */
+  const pick = (v: string) => act(() => void i18n.setLocale(v).catch(() => {}));
+  return { l, i18n, view, h1, terms, toggle, pick, errors };
 };
 
 describe("README React app (lot 4b)", () => {
@@ -95,19 +97,19 @@ describe("README React app (lot 4b)", () => {
     expect(s.terms()).toBe(
       'Read the <a href="/terms">terms</a>, <strong>in <em>full</em></strong>.',
     );
-    await s.pick("uk");
+    await s.toggle();
     await s.l.answer("uk:default");
-    expect([s.h1(), s.select().value]).toEqual(["Привіт, Alice!", "uk"]);
+    expect([s.h1(), s.i18n.locale]).toEqual(["Привіт, Alice!", "uk"]);
     expect(s.errors).toEqual([]);
   });
 
   it("slow load: the old locale stays on screen (text and control) until the new one is in", async () => {
     const s = start();
     await s.l.answer("en:default");
-    await s.pick("uk");
-    expect([s.h1(), s.select().value, s.i18n.locale]).toEqual(["Hello, Alice!", "en", "en"]);
+    await s.toggle();
+    expect([s.h1(), s.i18n.locale]).toEqual(["Hello, Alice!", "en"]);
     await s.l.answer("uk:default");
-    expect([s.h1(), s.select().value]).toEqual(["Привіт, Alice!", "uk"]);
+    expect([s.h1(), s.i18n.locale]).toEqual(["Привіт, Alice!", "uk"]);
   });
 
   it("error: a failed switch keeps the locale, reports load_failed, rejects nothing unhandled", async () => {
@@ -116,7 +118,7 @@ describe("README React app (lot 4b)", () => {
     await s.pick("de");
     await s.l.fail("de:default");
     await settle();
-    expect([s.h1(), s.select().value, s.i18n.locale]).toEqual(["Hello, Alice!", "en", "en"]);
+    expect([s.h1(), s.i18n.locale]).toEqual(["Hello, Alice!", "en"]);
     expect(s.errors).toEqual(["load_failed de"]);
   });
 
@@ -132,11 +134,11 @@ describe("README React app (lot 4b)", () => {
   it("fast double switch: the last one wins, the earlier never shows", async () => {
     const s = start();
     await s.l.answer("en:default");
-    await s.pick("uk");
+    await s.toggle();
     await s.pick("de");
     expect(s.l.signals.get("uk:default")!.aborted).toBe(true);
     await s.l.answer("de:default");
-    expect([s.h1(), s.select().value]).toEqual(["Hallo, Alice!", "de"]);
+    expect([s.h1(), s.i18n.locale]).toEqual(["Hallo, Alice!", "de"]);
     expect(s.errors).toEqual([]);
   });
 
@@ -150,7 +152,7 @@ describe("README React app (lot 4b)", () => {
     const container = document.createElement("div");
     container.innerHTML = renderToString(ui(server));
     const html = container.innerHTML;
-    expect(container.querySelector("h1")!.textContent).toBe("Привіт, Alice!");
+    expect(container.querySelector("button.greeting")!.textContent).toBe("Привіт, Alice!");
     // The page embeds handover(server); the browser's instance starts from it (README).
     const payload = JSON.parse(JSON.stringify(handover(server)));
     const l = manualLoader(CATALOGS);
@@ -172,12 +174,9 @@ describe("README React app (lot 4b)", () => {
     // R3-21: nothing is asked for after the hydration.
     expect(l.requested).toEqual([]);
     // The app goes on: a switch loads what the payload did not carry.
-    await act(
-      async () =>
-        void fireEvent.change(container.querySelector("select")!, { target: { value: "de" } }),
-    );
+    await act(async () => void client.setLocale("de").catch(() => {}));
     await l.answer("de:default");
-    expect(container.querySelector("h1")!.textContent).toBe("Hallo, Alice!");
+    expect(container.querySelector("button.greeting")!.textContent).toBe("Hallo, Alice!");
     expect(l.requested).toEqual(["de:default"]);
     act(() => root.unmount());
   });
@@ -226,11 +225,27 @@ describe("README React app (lot 4b)", () => {
   });
 });
 
-/** The README's `src/Account.tsx` (lot 4c): a namespace held while mounted, shown on isReady. */
+/**
+ * The README's `src/Account.tsx` (lot 4c): a namespace held while mounted, shown on isReady; a
+ * switch that reports its failure; a retry through `i18n.load()`.
+ */
 function Account() {
-  const { t, isReady, isLoading } = useI18n("account");
-  if (!isReady) return isLoading ? <p className="spinner" /> : <p>Not available</p>;
-  return <h2>{t("title")}</h2>;
+  const { t, locale, setLocale, isReady, isLoading, i18n } = useI18n("account");
+  const [failed, setFailed] = useState(false);
+  const toggle = () =>
+    setLocale(locale === "en" ? "uk" : "en").then(
+      () => setFailed(false),
+      () => setFailed(true),
+    );
+  // load() rejects when the catalog fails again: `isReady` stays false, `onError` has the report.
+  const retry = () => i18n.load("account").catch(() => {});
+  if (!isReady && !isLoading) return <button onClick={retry}>Not available. Retry</button>;
+  return (
+    <>
+      {isReady ? <h2>{t("title")}</h2> : <p className="spinner" />}
+      <button onClick={toggle}>{failed ? "Could not switch. Try again" : locale}</button>
+    </>
+  );
 }
 
 const ACCOUNT = {
@@ -265,13 +280,16 @@ describe("README Account (lot 4c)", () => {
         <Page />
       </I18nProvider>,
     );
-    const account = () => view.container.querySelector("h2, p.spinner, p:not(:has(*))")?.outerHTML;
-    const pick = (v: string) =>
-      act(
-        () =>
-          void fireEvent.change(view.container.querySelector("select")!, { target: { value: v } }),
-      );
-    return { l, i18n, view, account, pick, errors, show: (b: boolean) => act(() => show(b)) };
+    /** The buttons of `Account`: the last one is its only one in the "not available" branch. */
+    const button = () => [...view.container.querySelectorAll("button:not(.greeting)")].at(-1)!;
+    const account = () =>
+      view.container.querySelector("h2, p.spinner")?.outerHTML ?? button().outerHTML;
+    const click = () => act(() => void fireEvent.click(button()));
+    const pick = (v: string) => act(() => void i18n.setLocale(v).catch(() => {}));
+    return {
+      ...{ l, i18n, view, account, button, click, pick, errors },
+      show: (b: boolean) => act(() => show(b)),
+    };
   };
 
   it("success: the spinner while it loads, then the title; a switch while mounted loads it too", async () => {
@@ -280,7 +298,7 @@ describe("README Account (lot 4c)", () => {
     expect(s.account()).toBe('<p class="spinner"></p>');
     await s.l.answer("en:account");
     expect(s.account()).toBe("<h2>Account</h2>");
-    await s.pick("uk");
+    await s.click(); // the README's toggle: en to uk
     expect(s.l.requested).toEqual(["en:default", "en:account", "uk:default", "uk:account"]);
     await s.l.answer("uk:default");
     expect(s.account()).toBe("<h2>Account</h2>"); // the switch waits for account
@@ -289,16 +307,41 @@ describe("README Account (lot 4c)", () => {
     expect(s.errors).toEqual([]);
   });
 
-  it("error: 'Not available', never a spinner forever; i18n.load() retries", async () => {
+  it("error: 'Not available', never a spinner forever; the Retry button's i18n.load() retries", async () => {
     const s = mount();
     await s.l.answer("en:default");
     await s.l.fail("en:account");
-    expect(s.account()).toBe("<p>Not available</p>");
+    expect(s.account()).toBe("<button>Not available. Retry</button>");
     expect(s.errors).toEqual(["load_failed en"]);
-    act(() => void s.i18n.load("account").catch(() => {}));
+    await s.click(); // Retry, still failing: the rejection is handled, the branch stays
     expect(s.account()).toBe('<p class="spinner"></p>');
+    await s.l.fail("en:account");
+    expect(s.account()).toBe("<button>Not available. Retry</button>");
+    await s.click();
     await s.l.answer("en:account");
     expect(s.account()).toBe("<h2>Account</h2>");
+    expect(s.l.requested.filter((r) => r === "en:account")).toHaveLength(3);
+  });
+
+  it("a rejected setLocale(): the locale and the text stay, the button says so; a second click asks again", async () => {
+    const s = mount();
+    await s.l.answer("en:default");
+    await s.l.answer("en:account");
+    await s.click();
+    await s.l.fail("uk:default");
+    await s.l.fail("uk:account");
+    await settle();
+    expect([s.account(), s.button().textContent, s.i18n.locale]).toEqual([
+      "<h2>Account</h2>",
+      "Could not switch. Try again",
+      "en",
+    ]);
+    expect(s.errors).toEqual(["load_failed uk", "load_failed uk"]);
+    await s.click();
+    await s.l.answer("uk:default");
+    await s.l.answer("uk:account");
+    await settle();
+    expect([s.account(), s.button().textContent]).toEqual(["<h2>Обліковий запис</h2>", "uk"]);
   });
 
   it("fast double switch: the last wins, account included", async () => {
@@ -341,7 +384,7 @@ describe("README Account (lot 4c)", () => {
     );
     const container = document.createElement("div");
     container.innerHTML = renderToString(ui2(server));
-    expect(container.innerHTML).toBe("<h2>Обліковий запис</h2>");
+    expect(container.innerHTML).toBe("<h2>Обліковий запис</h2><button>uk</button>");
     const l = manualLoader(ACCOUNT);
     const client = createI18n({
       locale: "en",
@@ -354,7 +397,10 @@ describe("README Account (lot 4c)", () => {
     await settle();
     expect(err).not.toHaveBeenCalled();
     err.mockRestore();
-    expect([container.innerHTML, l.requested]).toEqual(["<h2>Обліковий запис</h2>", []]);
+    expect([container.innerHTML, l.requested]).toEqual([
+      "<h2>Обліковий запис</h2><button>uk</button>",
+      [],
+    ]);
     act(() => root.unmount());
   });
 });
