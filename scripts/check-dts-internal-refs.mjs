@@ -21,7 +21,6 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 import { Parser } from "tar";
-import { partition } from "../tooling/migration-pending.mjs";
 import { TYPED_PACKAGES } from "../tooling/typed-packages.mjs";
 
 export const DTS_INTERNAL_REF =
@@ -109,7 +108,7 @@ function publishablePackageDirs(root, only) {
 async function main() {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const only = process.argv.slice(2);
-  const { active } = partition(publishablePackageDirs(root, only), "check:dts-internal-refs");
+  const active = publishablePackageDirs(root, only);
   if (active.length === 0) throw new Error("no package to scan");
   let total = 0;
   for (const packageDir of active) {

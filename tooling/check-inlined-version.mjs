@@ -40,7 +40,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { pendingReason } from "./migration-pending.mjs";
 
 const BUILT_EXTENSIONS = new Set([".js", ".mjs", ".cjs"]);
 const VITE_CONFIG = /^vite\.config.*\.(ts|mts|js|mjs)$/;
@@ -158,21 +157,8 @@ export function checkPackage(pkg) {
   return { ...pkg, matched, problems };
 }
 
-export function checkInlinedVersions({ root, log = console.log, pending = () => undefined } = {}) {
-  const found = packagesInliningVersion(root);
-  // `pending(name)`: the CLI passes MIGRATION_PENDING (tooling/migration-pending.mjs) —
-  // packages not built on this branch are skipped by name, and said so.
-  const packages = found.filter((pkg) => {
-    const reason = pending(pkg.name);
-    if (reason) log(`check-inlined-version: skipping ${pkg.name} — MIGRATION_PENDING (${reason})`);
-    return !reason;
-  });
-  if (packages.length === 0 && found.length > 0) {
-    log(
-      "check-inlined-version: every version-inlining package is MIGRATION_PENDING; nothing to check",
-    );
-    return { packages, problems: [] };
-  }
+export function checkInlinedVersions({ root, log = console.log } = {}) {
+  const packages = packagesInliningVersion(root);
   if (packages.length === 0) {
     return {
       packages,
@@ -192,7 +178,7 @@ export function checkInlinedVersions({ root, log = console.log, pending = () => 
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const { problems } = checkInlinedVersions({ root: process.cwd(), pending: pendingReason });
+  const { problems } = checkInlinedVersions({ root: process.cwd() });
   if (problems.length > 0) {
     for (const problem of problems) console.error(`check-inlined-version: ${problem}`);
     process.exit(1);

@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import url from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
-import { bundlerCaseNeeds, pendingReason } from "../../tooling/migration-pending.mjs";
 
 /**
  * Pack-based bundler-matrix gate.
@@ -227,9 +226,6 @@ const CASES = [
     packages: ["@comvi/core", "@comvi/svelte"],
     deps: ["svelte"],
   },
-  // ---------------------------------------------------------------------
-  // The 0.7 cases below run again when their binding's lot moves them to 0.8
-  // (`fixtures-08`, tooling/migration-pending.mjs).
   {
     // The 0.8 server recipe under `react-server`: `createGetI18n` and `handover()`. The core
     // subpaths the app does not name stay out. The server `<I18nProvider>` renders the client
@@ -300,20 +296,10 @@ const CASES = [
     deps: ["react", "next"],
   },
 ];
-// MIGRATION_PENDING (tooling/migration-pending.mjs): a case runs once its fixtures are on
-// the 0.8 API ("fixtures-08") and every package it packs is active — case by case, so a binding whose lot has
-// landed is covered again while the others stay pending.
-for (const testCase of CASES) {
-  if (testCase.pending !== undefined) continue;
-  const needs = bundlerCaseNeeds(testCase.name, testCase.packages);
-  const pending = needs.filter((n) => pendingReason(n));
-  if (pending.length > 0)
-    testCase.pending = `MIGRATION_PENDING ${pending.map((n) => `${n} (${pendingReason(n)})`).join("; ")}`;
-}
 const ACTIVE_CASES = CASES.filter((testCase) => testCase.pending === undefined);
 const PENDING_CASES = CASES.filter((testCase) => testCase.pending !== undefined);
 if (ACTIVE_CASES.length === 0) {
-  console.log("bundler-matrix: every case is MIGRATION_PENDING — nothing to run");
+  console.log("bundler-matrix: every case is pending — nothing to run");
   for (const testCase of PENDING_CASES) console.log(`SKIP  ${testCase.name} — ${testCase.pending}`);
   process.exit(0);
 }
