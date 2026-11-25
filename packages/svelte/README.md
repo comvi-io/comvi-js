@@ -27,8 +27,10 @@ and read translations in any component below it.
 npm install @comvi/svelte @comvi/core # peer: svelte ^5.3.0
 ```
 
-`@comvi/core` and every binding in an app must be on one version: two copies of `@comvi/core` (two
-versions, or one version installed twice) throw an error that names both versions.
+`@comvi/core` and every binding in an app must be on one version. With two copies of `@comvi/core`
+(two versions, or one version installed twice) nothing fails at import: an error that names both
+versions is thrown when an instance created by one copy reaches code of the other (a binding, or
+`@comvi/core/format`).
 
 ## Setup
 
