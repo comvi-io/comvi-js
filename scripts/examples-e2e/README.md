@@ -86,7 +86,7 @@ export const i18n = createI18n({
 subpaths; plain `t()` parses `<tag>…</tag>` itself (rich text is always on in 0.8).
 
 The other examples are still on the 0.7 API until their binding moves to the 0.8 core (Svelte and
-Solid lot 5, Next lot 6, Nuxt lot 7; `tooling/migration-pending.mjs` lists them): ICU
+Solid lot 5, Next lot 6, Nuxt lot 7): ICU
 through the constructor's `compiler`, then `.use(loader({…}))` (or `cdnLoader`), then
 `.use(localeDetector({…}))`. Of those:
 

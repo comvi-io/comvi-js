@@ -32,15 +32,6 @@ test("a row whose budget exceeds its design ceiling fails before it is measured"
   );
 });
 
-test("a MIGRATION_PENDING entry is skipped before the ceiling check", async () => {
-  const results = await runSizeCheck({
-    budgets: { fixtures: [row({ gzipBudgetBytes: 2001, ceilingBytes: 2000 })] },
-    fixturesDir: "/nonexistent",
-    pending: (name) => (name === "@comvi/core" ? "lot 1b" : undefined),
-  });
-  assert.equal(results[0].status, "skipped");
-});
-
 test("the remaining-bytes line reads the measured row", () => {
   const line = renderDesignCeilings(
     [{ name: "core + ICU (R3-10)", bytes: 3250, measuredBy: "a", missing: "the instance" }],

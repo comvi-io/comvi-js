@@ -21,7 +21,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import ts from "typescript";
 import { TYPED_PACKAGES } from "../tooling/typed-packages.mjs";
-import { partition } from "../tooling/migration-pending.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -219,9 +218,8 @@ export async function checkPackages(pkgDirs) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const { active } = partition(TYPED_PACKAGES, "check-export-names");
   const { failures, checked, skipped } = await checkPackages(
-    active.map((dir) => path.join(ROOT, "packages", dir)),
+    TYPED_PACKAGES.map((dir) => path.join(ROOT, "packages", dir)),
   );
   for (const entry of skipped) console.log(`check-export-names: no dist for ${entry}`);
   if (process.argv.includes("--require-dist") && skipped.length > 0) {
