@@ -62,10 +62,11 @@ npm install @comvi/core
 | Vanilla JavaScript | `@comvi/core`   | none              | [Vanilla](https://comvi.io/docs/i18n/vanilla) | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/vanilla) |
 
 The packages are ESM-only and released together, so install the same version of every
-`@comvi/*` package: two copies of `@comvi/core` in one app throw an error that names both
-versions. The runtime packages need Node 20 or newer (`@comvi/nuxt` 22.20), `@comvi/cli` and
-`@comvi/vite-plugin` Node 22. An example that does not open in StackBlitz runs locally:
-[examples](examples/README.md).
+`@comvi/*` package. With two copies of `@comvi/core` in one app nothing fails at import: an error
+that names both versions is thrown when an instance created by one copy reaches code of the other
+(a binding, or `@comvi/core/format`). The runtime packages need Node 20 or newer (`@comvi/nuxt`
+22.20), `@comvi/cli` and `@comvi/vite-plugin` Node 22. An example that does not open in StackBlitz
+runs locally: [examples](examples/README.md).
 
 ## Quick start
 

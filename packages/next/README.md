@@ -29,8 +29,9 @@ npm install @comvi/next @comvi/react @comvi/core
 ```
 
 `@comvi/next` asks for `@comvi/react` and `@comvi/core` at exactly its own version: `@comvi/core`
-and every binding in an app must be on one version, and two copies of `@comvi/core` (two versions,
-or one version installed twice) throw an error that names both versions.
+and every binding in an app must be on one version. With two copies of `@comvi/core` (two versions,
+or one version installed twice) nothing fails at import: an error that names both versions is thrown
+when an instance created by one copy reaches code of the other (a binding, or `@comvi/core/format`).
 
 ## Setup
 

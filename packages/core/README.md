@@ -29,8 +29,9 @@ npm install @comvi/core
 # Node 20 or newer. ESM only. No dependencies.
 ```
 
-`@comvi/core` and every binding in an app must be on one version: two copies of `@comvi/core`
-throw `two copies of @comvi/core` with both versions.
+`@comvi/core` and every binding in an app must be on one version. With two copies of `@comvi/core`
+nothing fails at import: an error that names both versions is thrown when an instance created by
+one copy reaches code of the other (a binding, or `@comvi/core/format`).
 
 ## Create the i18n instance
 
@@ -149,7 +150,7 @@ await `load()`, which rejects with the loader's error.
 ```ts title="src/billing.ts" check=group=core-2
 import { i18n } from "./i18n";
 
-await i18n.load("billing"); // call it again to retry a failed load
+await i18n.load("billing"); // after a failed load, calling it again calls the loader again
 i18n.has("invoice.title", { ns: "billing" }); // true
 
 await i18n.setLocale("uk");
@@ -201,10 +202,12 @@ page is [`messages` and `loader`](https://comvi.io/docs/i18n/limitations#message
 | `@comvi/core/devtools` | `devtools()`: lets the Comvi browser extension find the instance                 |
 
 Plugins go in the `plugins` option: `plugins: [detect({ supported: ["en", "uk"] }), persist()]`.
-`detect()` starts the instance in the first supported locale it finds in the `?lang=` query, the
-`comvi_locale` cookie, `localStorage` or the browser's languages; `persist()` writes every switch
-to that cookie. `destroy()` aborts the loads and drops the subscribers; a loaded catalog stays in
-the instance until then.
+`detect()` takes the first supported locale it finds in the `?lang=` query, the `comvi_locale`
+cookie, `localStorage` or the browser's languages: with that locale's catalog inline the instance
+starts in it, and when a `loader` has to fetch the catalog, `i18n.locale` is still the `locale`
+option on the line after `createI18n()` and becomes the detected locale once the catalog is in, so
+await `i18n.ready` first. `persist()` writes every switch to that cookie. `destroy()` aborts the
+loads and drops the subscribers; a loaded catalog stays in the instance until then.
 
 ## Read next
 

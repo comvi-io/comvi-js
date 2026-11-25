@@ -29,8 +29,9 @@ npm install @comvi/nuxt # peer: nuxt ^3.7.0 || ^4.0.0; Node 22.20 or newer
 ```
 
 The module brings `@comvi/core` and `@comvi/vue` with it. `@comvi/core` and every binding in an app
-must be on one version: two copies of `@comvi/core` (two versions, or one version installed twice)
-throw an error that names both versions.
+must be on one version. With two copies of `@comvi/core` (two versions, or one version installed
+twice) nothing fails at import: an error that names both versions is thrown when an instance
+created by one copy reaches code of the other (a binding, or `@comvi/core/format`).
 
 On Nuxt 4.0.0, add a `nitropack` override first (`pnpm.overrides`, npm `overrides` or Yarn
 `resolutions`): `"nitropack": "2.12.9"`. That is the configuration the module is tested with on Nuxt
