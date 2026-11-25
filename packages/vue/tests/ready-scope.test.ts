@@ -4,7 +4,7 @@
  * some loading — and `useI18n(ns)` only `ns`; `t` and the bound `T` of `useI18n()` stay on
  * `default`. A server render of `useI18n()` waits for the set too (else the server renders the
  * loading branch and the browser, handed the catalog, the content). Contract:
- * `.lot1-pending-tests.md` "Ready/loading scope of `useI18n()`".
+ * `docs/design/namespaces.md`, "Scope of a binding's `useI18n()`".
  */
 import { defineComponent, h, ref } from "vue";
 import { describe, expect, it } from "vitest";

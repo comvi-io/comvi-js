@@ -1,32 +1,31 @@
 # Design records
 
 Contributor-facing decision records: why the library has the shape it has, and which alternatives
-are already settled. **The user guide is the package READMEs and [comvi.io/docs](https://comvi.io/docs/i18n/).**
-Nothing here is needed to use Comvi i18n.
+are already settled. **The user guide is the package READMEs and
+[comvi.io/docs](https://comvi.io/docs/i18n).** Nothing here is needed to use Comvi i18n.
 
-Each record carries a `Status` line and then five sections: **Context**, **Decision**,
-**Consequences**, **Alternatives rejected**, **Where it lives** (symbols, never line numbers).
-`limitations.md` and `ssr.md` are the two exceptions — they are user-facing pages, mirrored on the
-site, and keep their own structure.
+A record has a `Status` line and five sections: **Context**, **Decision**, **Consequences**,
+**Alternatives rejected**, **Where it lives** (files and symbols, never line numbers). `ssr.md` also
+carries the snapshot contract; `limitations.md` is a pointer to the public page.
 
-**A record is amended by a new dated line under `Status`, never silently rewritten.** These are the
-decisions, not a description of the code; when the code and a record disagree, that is a bug in one
-of them and worth saying so.
+A record states the current decision. A small change adds a dated line under `Status`; when a release
+replaces a decision, the record is rewritten for it and its `Status` line says what it replaced, and
+the earlier version stays in git history. When the code and a record disagree, one of them has a bug.
 
-The vocabulary every record assumes — the host is what `createI18n` returns, and `.use(installer)`
-is the one composition verb.
+The instance is what `createI18n()` returns; everything it has is passed to `createI18n()`.
 
-| Record                                     | The decision it records                                                                 |
-| ------------------------------------------ | --------------------------------------------------------------------------------------- |
-| [composition.md](composition.md)           | one entry per package, `.use(installer)` as the only composition verb                   |
-| [icu.md](icu.md)                           | ICU never enables itself, and its gaps fail loudly                                      |
-| [rich-text.md](rich-text.md)               | `<T>` renders structurally; string-API tags are an ambient opt-in                       |
-| [formatting.md](formatting.md)             | formatters are free functions, and every binding's formatters follow the locale         |
-| [next-runtimes.md](next-runtimes.md)       | one shared config module per runtime, nothing composed on the Edge                      |
-| [next-nuxt-parity.md](next-nuxt-parity.md) | one behaviour contract run against both adapters; what must match, what may differ      |
-| [examples-e2e.md](examples-e2e.md)         | a locale switch shows only whole-language states, judged per delivered DOM batch        |
-| [editor-loader.md](editor-loader.md)       | the site's `devtools()` puts the in-context editor on the page; the extension only asks |
-| [catalog-store.md](catalog-store.md)       | one catalog store per server process, and none by default                               |
-| [typegen.md](typegen.md)                   | one schema, one reader, one emitter, one Node API and one writer for typed translations |
-| [ssr.md](ssr.md)                           | the four module-scope rules side by side (user-facing)                                  |
-| [limitations.md](limitations.md)           | everything the library does not do (user-facing)                                        |
+| Record                                     | The decision it records                                                                  |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| [composition.md](composition.md)           | everything is passed to `createI18n()`; each concern is its own subpath                  |
+| [icu.md](icu.md)                           | one message syntax, built into the core: plural, select and selectordinal                |
+| [rich-text.md](rich-text.md)               | tags are part of the syntax; markup comes only from handlers and mapped components       |
+| [formatting.md](formatting.md)             | formatters are functions of the instance; `useFormat()` follows the locale on screen     |
+| [namespaces.md](namespaces.md)             | who loads a namespace, what `isReady` / `isLoading` mean, when `missing_key` is reported |
+| [reentrancy.md](reentrancy.md)             | what may call `setLocale()`, and what the instance guarantees when it does               |
+| [ssr.md](ssr.md)                           | an instance per request; the browser starts from the server's snapshot                   |
+| [catalog-store.md](catalog-store.md)       | one catalog store per server process, and none by default                                |
+| [next-nuxt-parity.md](next-nuxt-parity.md) | one behaviour contract run against both adapters; what must match, what may differ       |
+| [examples-e2e.md](examples-e2e.md)         | a locale switch shows only whole-language states, judged per delivered DOM batch         |
+| [editor-loader.md](editor-loader.md)       | the site's `devtools()` puts the in-context editor on the page; the extension only asks  |
+| [typegen.md](typegen.md)                   | one schema, one reader, one emitter, one Node API and one writer for typed translations  |
+| [limitations.md](limitations.md)           | a pointer to the public limitations page                                                 |

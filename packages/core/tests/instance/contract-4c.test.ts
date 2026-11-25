@@ -2,7 +2,7 @@
  * Lot 4c (owner brief 29.10, R3-26): reading, loading and holding a namespace; `isReady` and
  * `isLoading` as core predicates; consumer accounting; `setLocale()` against the active set;
  * the handover accounting; the development diagnostic of an idle read. The contract is in
- * `.lot1-pending-tests.md` ("Lot 4c contract"); the bindings run the same cases through
+ * `docs/design/namespaces.md`; the bindings run the same cases through
  * components (`packages/react/tests/namespaces-4c.test.tsx`, `packages/vue/tests/namespaces-4c.test.ts`).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";

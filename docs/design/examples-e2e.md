@@ -1,6 +1,7 @@
 # Examples e2e: what a locale switch may show, and how the suite observes it
 
-Status: accepted · Date: 2026-10-04 · Owner decision(s): step r is a strict contract with no
+Status: accepted · Date: 2026-10-04 · Amended 2026-11-25: the Consequences describe the 0.8
+adapters (the 0.7 fixes, `targetLocale` and the Svelte auto-init gate, are gone) · Owner decision(s): step r is a strict contract with no
 sub-frame exemption, the paint counter is diagnostics only, 04.10.2026; the unit of observation is
 one delivered batch of DOM mutations, no `EXPECTED_FAILURES` entry for a mixed state, 04.10.2026
 
@@ -49,22 +50,11 @@ listed in `EXPECTED_FAILURES`.
 
 ## Consequences
 
-The two recorded states became failures and were fixed in their adapters:
-
-- `@comvi/react` gained `<I18nProvider targetLocale>`: the tree renders in the locale a caller is
-  switching the i18n instance to, from the render in which it changes until the i18n instance's
-  locale next moves. Any move of the i18n instance's locale ends the handover. The instance counts
-  its own moves (`localeRevision`), so a move no render or listener of the provider saw still ends it. `@comvi/next`'s
-  provider passes the handed-over catalog as `messages` and its `locale` as `targetLocale`. The
-  translated text now commits in the same React commit as the new `<html lang>`, and the browser
-  no longer re-fetches the catalog the server sent.
-- Until it commits, `messages` reaches the children through core's `withMessages` read view: only
-  `t`, `tRaw` and `hasTranslation`. The view never writes catalogs, the locale or the active
-  namespaces, and never emits `namespaceLoaded` or `localeChanged`. Translation diagnostics still
-  fire as for any `t()` call: a missing key emits `missingKey`, and a throwing post-processor
-  reaches `onError`.
-- `@comvi/svelte`'s `isInitializing` reads `true` while the auto-init that `setI18nContext`
-  scheduled has not started, so the documented gate is closed from the first render.
+The two recorded states became failures and were fixed in their adapters. In 0.8 the fix is the
+switch itself, in every binding: `setLocale()` keeps the locale on screen until the new locale's
+catalogs are in, then publishes one state, so text, `<html lang>` and `dir` move in one batch
+([namespaces.md](namespaces.md)). In Next a switch is a navigation, and the new payload reaches the
+client instance through `<I18nHandover catalogs locale>` at commit ([ssr.md](ssr.md)).
 
 A new adapter behaviour that commits locale-dependent markup in two batches fails step r on its
 first run, on every machine.
@@ -78,13 +68,6 @@ first run, on every machine.
   page.
 - **An `EXPECTED_FAILURES` entry per adapter until a later lot.** A release would have shipped a
   known mixed state behind a green run.
-- **Pinning Next's render locale to the route parameter outright.** `localePrefix: "never"` apps
-  switch with `setLocale()` and no navigation, which a pinned render locale would ignore. The
-  handover ends as soon as the i18n instance's locale moves.
-- **Starting the Svelte auto-init synchronously.** It would run `init()` before anything composed
-  later in the same component setup, and the documented manual `init()` right after
-  `setI18nContext` would no longer be the one that starts it. Core's `init()` is single-flight, so
-  this is about ordering, not about a double init.
 
 ## Addendum, 2026-10-05: a second namespace
 
@@ -113,12 +96,11 @@ before it releases the namespace's. That forces the one state the step exists fo
 the browser fetches catalogs (the five Vite examples and Nuxt). Next's second page is prerendered
 and its browser fetches nothing, so there the switch is observed unheld.
 
-**The activation lives in the component that needs it, and the rows wait for it to settle.** The
-five client-rendered examples call `addActiveNamespace("account")` when the second view mounts and
-render its rows only afterwards, because a namespace that is not in yet renders its keys as
-themselves. The rows do not gate on `isLoading`: it is also true during a locale switch, and the
-rows would blank then instead of keeping the old language until the new one is in. Rendering the
-rows without waiting fails step x with a raw-key state.
+**The namespace is held by the component that needs it.** The framework examples call
+`useI18n("account")` in the second view, which loads the namespace for the locale on screen and for
+every switch while the view is mounted; the vanilla example, which has no component to hold it,
+calls `i18n.load("account")` for each locale it renders and shows its loading row meanwhile.
+Rendering the rows before the namespace is in fails step x with a raw-key state.
 
 Core loads a namespace for the active locale and for the fallback chain, so the en-only row shows
 English however the second page is reached: opened in en and switched, opened first in another
@@ -134,7 +116,5 @@ Next and Nuxt.
   `scripts/examples-e2e/lib.mjs`, `PHASES` and `CDN_STEERED` in `scripts/examples-e2e/run.mjs`
 - the `account` namespace: `examples/locales/account/`, `Account.*` in the five client-rendered
   examples, `about/` in `examples/next`, `pages/about.vue` in `examples/nuxt`
-- `targetLocale`: `I18nProvider` in `packages/react/src/I18nProvider.tsx`
-- the Next handover: `I18nProvider` in `packages/next/src/client/I18nProvider.tsx`
-- the Svelte gate: `autoInitPending` in `packages/svelte/src/stores.ts`, `setI18nContext` in
-  `packages/svelte/src/context.ts`
+- the Next handover: `I18nProvider` in `packages/next/src/client/I18nProvider.tsx`, `<I18nHandover>`
+  in `packages/react/src/handover.ts`

@@ -3,7 +3,7 @@
  * reads the configured namespaces (`namespaces`, default `["default"]`) — every one ready,
  * some loading — and `useI18n(ns)` only `ns`; `t` and the bound `T` of `useI18n()` stay on
  * `default`. A Svelte server render is synchronous: the app loads first (`await i18n.ready`).
- * Contract: `.lot1-pending-tests.md` "Ready/loading scope of `useI18n()`".
+ * Contract: `docs/design/namespaces.md`, "Scope of a binding's `useI18n()`".
  */
 import { flushSync } from "svelte";
 import { describe, expect, it } from "vitest";

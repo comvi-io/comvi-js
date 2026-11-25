@@ -1,113 +1,68 @@
-# Formatters are free functions, and every binding's formatters follow the locale
+# Formatters are functions of the instance; a binding's `useFormat()` follows the locale on screen
 
-Status: accepted · Date: 2026-09-14 · Owner decision(s): 0.5.0 base-host convergence — formatting
-stays off the instance and off the binding roots (`.changeset/vue-single-package-slim.md`), and
-every binding's formatters follow the locale being rendered, with no per-binding exception
-(`.changeset/solid-reactive-formatters.md`, `.changeset/svelte-reactive-formatters.md`)
+Status: accepted · Date: 2026-11-25 · Rewritten for 0.8 (formatters moved to `@comvi/core/format`
+and take the instance; messages have no `{x, number}`). The 0.5–0.7 version is in git history.
 
 ## Context
 
-Numbers, dates, currency and relative time follow the active locale, and native `Intl` already does
-all four correctly. Bolting them onto the host as methods would put four `Intl` wrappers in every
-graph, including the graphs that never format anything. The bindings then raise a second question of
-their own: `useI18n()` hands the four back, and a call site re-renders on a locale switch only if
-the formatter it calls reads the locale reactively. React and Vue build them inside a tracked read;
-Solid and Svelte read the reactive locale inside each formatter.
+Numbers, dates, currency, lists and relative time follow the locale, and `Intl` already formats
+them. Methods on the instance would put every formatter into every bundle, including the bundles
+that never format. Formatting inside messages (`{price, number}`) would put an argument grammar and
+its options into the message compiler and make a translator responsible for number options.
 
 ## Decision
 
-- **On a core host the formatters are free functions taking the host as their first argument.**
-  Nothing is bolted onto the instance, so a graph that never formats never pays for it.
-- **`Intl` does the formatting; the catalog never does.** The ICU `number`, `date` and `time`
-  argument types are not implemented. The catalog chooses grammar — plural category, select branch;
-  the code chooses presentation — digits, currency, date style.
-- **A plain `{x}` prints `String(value)`** for every type: `{orderId}` with `1004` is `1004`,
-  `{year}` with `2026` is `2026`, a Date and a string list print as `String()` prints them
-  (owner decision 28.10.2026, R3-17, as 0.7, FormatJS, i18next and vue-i18n do). The 0.8 draft
-  localized them as ICU4J does (`1,004`, `2,026`): a trap for ids, years and indexes, and about
-  350 ns per number. The one value the compiler localizes is `#` in a plural, through the same
-  shared `Intl` cache as these formatters.
-- **Every binding hands the same four back off `useI18n()`, together with `dir`**, and in every
-  binding they follow the locale being rendered: a call in markup or in that framework's derived
-  value re-runs on a switch. A trailing `locale` argument overrides the active one. There is no
-  per-binding exception to document.
-- **`Intl` gets the fallback-locale chain.** Without an explicit `locale` argument the formatters
-  pass `[locale, ...fallbackLocales]`, so a locale the runtime has no data for formats in the first
-  fallback it does have. For an instance, an explicit `locale` argument formats in its own chain
-  (the locale, its parents, the fallback locales — as `t()` resolves `{ locale }`, lot 4d), and one
-  that is not a tag (`""`, `"!!"`) throws a `RangeError`; a valid tag `Intl` has no data for (`xx`)
-  is no error and walks its chain. Validity is enforced at two entries, `createI18n()` and React's
-  `<I18nHandover locale>`, both with a `RangeError`, so the locale a binding renders with is a tag; a
-  route locale is matched against the supported locales before it is passed to the API. Not every
-  invalid locale throws: `t(key, { locale })`, `has()`, `add()` and `fallbackLocale` entries report
-  `invalid_locale`, and `setLocale()` rejects.
-- **The formatters take a real instance.** Anything this copy of the core did not create throws
-  what `core()` throws, whatever the other arguments are, before the arguments are read. In
-  production that is an `Error` with the text
-  `two copies of @comvi/core: <the instance's version>, <this copy's>`, the first `undefined`
-  for an object without the version tag (no instance at all, or one of a core older than 0.8).
-  In development an untagged object is a `TypeError` ("not an instance of createI18n(), or it was
-  created by a copy of @comvi/core older than 0.8") and an instance of another copy is an
-  `Error` naming both versions.
-- **Core behaves identically under all of them.** `setLocale()` moves what the formatters read.
+- **Messages do not format.** `{x, number}`, `{x, date}` and `{x, time}` are not part of the
+  message syntax ([icu.md](icu.md)). A value is formatted in code and passed as a plain `{x}`.
+- **The formatters are functions** in `@comvi/core/format`: `formatNumber`, `formatCurrency`,
+  `formatDate`, `formatDateRange`, `formatRelativeTime`, `formatList`, `displayName`. Each takes the
+  instance first and formats in its locale chain (the locale, its parents, the fallback locales),
+  or in the chain of a `locale` argument, as `t()` resolves `{ locale }`. Dates use the instance's
+  `timeZone` unless the options name one. `formatNumber` and `formatDate` also accept the name of
+  an entry of the instance's `formats` option.
+- **One cache.** The formatters share the process-wide `Intl` cache of the message compiler, keyed
+  by locale and option values.
+- **Each binding's `useFormat()`** (`@comvi/react/format`, `@comvi/vue/format`,
+  `@comvi/svelte/format`, `@comvi/solid/format`) returns the same functions bound to the provider's
+  instance and to the locale its render shows, and re-renders on a locale change.
+- **Relative time has one clock per render.** `formatRelativeTime` counts from the instance's clock:
+  its `now` option, the `serverNow` a server handed over, else the running clock. A binding's
+  `useFormat().relative()` counts from the handed-over server clock while a component hydrates and
+  from the browser's clock for every other render, so a hydration matches the server's text.
+  Nothing re-renders as time passes.
+
+```ts title="src/price.ts"
+import { createI18n } from "@comvi/core";
+import { formatCurrency, formatNumber, formatRelativeTime } from "@comvi/core/format";
+
+const i18n = createI18n({
+  locale: "uk",
+  fallbackLocale: "en",
+  timeZone: "Europe/Kyiv",
+  messages: { uk: { total: "Разом: {total}", seen: "Востаннє: {when}" } },
+  formats: { number: { compact: { notation: "compact" } } },
+});
+
+i18n.t("total", { total: formatCurrency(i18n, 1250, "UAH") });
+i18n.t("seen", { when: formatRelativeTime(i18n, Date.now() - 3_600_000) });
+formatNumber(i18n, 12_500, "compact");
+```
 
 ## Consequences
 
-```ts
-import { createI18n, formatCurrency, formatNumber, getTextDirection } from "@comvi/core";
-
-const i18n = createI18n({ locale: "en" });
-
-formatNumber(i18n, 1234.5); // "1,234.5" · "1.234,5" · "1 234,5"
-formatCurrency(i18n, 99.99, "USD"); // "$99.99" · "99,99 $"
-getTextDirection(i18n.locale); // "ltr" | "rtl" — handles script subtags (ku-Arab → rtl, ks-Deva → ltr)
-```
-
-The cross-binding table, which is the fact no single README can carry:
-
-| binding | formatters re-render on a locale change                                                | `dir`                        |
-| ------- | -------------------------------------------------------------------------------------- | ---------------------------- |
-| React   | **yes**. The `formatters` memo closes over the tracked locale and passes it explicitly | reactive                     |
-| Vue     | **yes**. Each assignment defaults its `locale` argument to the reactive `locale` ref   | reactive (`ComputedRef`)     |
-| Svelte  | lot 5. Still on 0.7 (a locale source), `MIGRATION_PENDING`; it moves to the instance   | reactive (a `derived` store) |
-| Solid   | lot 5. Still on 0.7 (a locale source), `MIGRATION_PENDING`; it moves to the instance   | reactive                     |
-
-React's and Vue's formatters are already inside a tracked read at the point the binding builds them.
-Solid's stay plain functions: a function that reads a signal is tracked by whatever JSX expression,
-memo or effect calls it, so reading the locale signal inside costs no contract change. An explicit
-trailing `locale` argument short-circuits in core before the getter runs. Svelte's stay plain
-functions the same way: `fromStore` subscribes to the locale store when `current` is read inside an
-effect, so markup or a `$derived` that calls a formatter re-runs on a switch without `$locale` in the
-expression. Outside an effect, and on the server, it reads the store once.
+- An app that never formats carries none of this code; one that imports `/format` pays for the
+  functions it calls.
+- The formatters throw a `RangeError` for a `locale` argument that is not a tag, like `createI18n`.
+- A relative time does not tick. A component that needs a live "3 minutes ago" re-renders on its own
+  timer.
 
 ## Alternatives rejected
 
-- **Formatter methods on the host** — four `Intl` wrappers in every graph, including the ones that
-  never format.
-- **An ICU format grammar in the catalog** (`{price, number, currency/EUR}`) — a second format
-  grammar, a currency table and a skeleton parser, shipped to do worse what `Intl.NumberFormat`
-  already does correctly in the platform. Formatting a value is code's job, because code has the
-  value's type and a catalog has a string.
-- **A store or memo per formatter** — Svelte's and Solid's hooks are documented as returning plain
-  functions, and a reactive read inside the function makes them follow the locale without changing
-  that contract.
-- **A documented per-binding exception** — "call it where the locale is tracked, or pass it" is a
-  rule every reader has to learn and every call site can break. The table is pinned to symbols
-  rather than to line numbers because an earlier version of it was wrong the day it was written.
+- **`{x, number}` and `{x, date}` in messages.** A second grammar in the compiler and in typegen,
+  for a job `Intl` does in code; see [limitations](https://comvi.io/docs/i18n/limitations).
+- **`{ live: true }` on `relative()`.** A formatter call inside a render cannot own a timer.
 
 ## Where it lives
 
-- `formatNumber`, `formatDate`, `formatCurrency`, `formatRelativeTime`, `getTextDirection` —
-  `packages/core/src/index.ts`; `@comvi/svelte/format` (`packages/svelte/src/format.ts`) carries
-  the four formatters, not `getTextDirection`, for plain Node; the four formatters are re-exported by name from every binding
-  entry (and auto-imported by `@comvi/nuxt`), pinned by each binding's root-entry test
-- the `formatters` memo — `packages/react/src/useI18n.ts`; the `useFormatters` selector hook, whose
-  identity is stable per `(i18n, locale, fallback chain)` — `packages/react/src/useFormatters.ts`
-- the four `this.format*` assignments in the `VueI18n` constructor — `packages/vue/src/VueI18n.ts`
-- the same four, each beside that binding's `dir` — `packages/svelte/src/useI18n.ts` and
-  `packages/solid/src/useI18n.ts`
-
-## Related
-
-- [Composition](composition.md) · [ICU](icu.md) · [Rich text](rich-text.md) ·
-  [Limitations](limitations.md)
+`packages/core/src/format.ts` (the functions, `RelativeTimeOptions`), `packages/core/src/clock.ts`
+(the instance clock), `packages/{react,vue,svelte,solid}/src/format*.ts` (`useFormat`).

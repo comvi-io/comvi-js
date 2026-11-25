@@ -2,7 +2,7 @@
  * The scope of `isReady` / `isLoading` (owner brief 2026-11-10): `useI18n()` (or `undefined`)
  * reads the configured namespaces (`namespaces`, default `["default"]`) — every one ready,
  * some loading — and `useI18n(ns)` only `ns`; `t` and the bound `T` of `useI18n()` stay on
- * `default`. Contract: `.lot1-pending-tests.md` "Ready/loading scope of `useI18n()`".
+ * `default`. Contract: `docs/design/namespaces.md`, "Scope of a binding's `useI18n()`".
  */
 import { useState, type ReactNode } from "react";
 import { hydrateRoot } from "react-dom/client";
