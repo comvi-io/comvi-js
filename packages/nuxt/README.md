@@ -243,8 +243,8 @@ default locale's URL, cookie or not; `/`, and any unprefixed URL under `never` o
 the `i18n_locale` cookie, then `Accept-Language`, and the module records the locale in the cookie. A
 query parameter named in `localeDetection.queryParam` wins on any unprefixed URL. `useLocalePath()`,
 `useSwitchLocalePath()`, `useLocaleRoute()` and `<NuxtLinkLocale>` build the links, and
-`useLocaleHead()` adds canonical, hreflang and `og:locale` ([Nuxt
-guide](https://comvi.io/docs/i18n/nuxt)).
+`useLocaleHead()` adds canonical, hreflang and `og:locale`
+([Nuxt guide](https://comvi.io/docs/i18n/nuxt)).
 
 ## Limits
 
