@@ -341,13 +341,13 @@ const PHASES = {
   ),
   // sveltekit, solidstart: `ssr-recipe.spec.ts`, then each RECIPE_VARIANTS build.
   recipe: {
-    args: ["--grep-invert", "\\b(e|e2|g|h|h2|h3|h4): "],
+    args: ["--grep-invert", "\\b(e|e2|g|h|h2|h3|h4|h5): "],
     expect: ["a", "b", "c", "d"],
     rename: {},
   },
   failed: {
-    args: ["--grep", "\\b(g|h|h2|h3|h4): "],
-    expect: ["g", "h", "h2", "h3", "h4"],
+    args: ["--grep", "\\b(g|h|h2|h3|h4|h5): "],
+    expect: ["g", "h", "h2", "h3", "h4", "h5"],
     rename: {},
   },
   pressure: { args: ["--grep", "\\b(a|e): "], expect: ["a", "e"], rename: { a: "a2" } },
@@ -747,7 +747,7 @@ async function recipePhases(ctx, result) {
     applyVariant(target, failed);
     Object.assign(result.steps, await buildServeRun(ctx, "failed", null));
   } catch (error) {
-    failSteps(result, example, ["g", "h", "h2", "h3", "h4"], error);
+    failSteps(result, example, ["g", "h", "h2", "h3", "h4", "h5"], error);
   } finally {
     for (const [file, source] of committed) fs.writeFileSync(path.join(target, file), source);
   }
