@@ -3,7 +3,7 @@
  * holds `ns` from commit to cleanup; `<T>` reads only; `isReady` / `isLoading` from the render
  * snapshot, with no "unavailable" frame before the commit; the first-paint gate on the core's
  * `isReady` (the owner's review of e5a3788d); the key scenario; SSR hydration with a branch on
- * `isReady`. Contract: `.lot1-pending-tests.md` "Lot 4c contract".
+ * `isReady`. Contract: `docs/design/namespaces.md`.
  */
 import { startTransition, StrictMode, Suspense, useState, type ReactNode } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";

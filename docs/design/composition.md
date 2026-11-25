@@ -1,140 +1,79 @@
-# One entry per package, and `.use(installer)` is the only composition verb
+# Everything is passed to `createI18n()`; each concern is its own subpath
 
-Status: accepted · Date: 2026-09-14 · Owner decision(s): 0.5.0 single-entry convergence and the
-one-verb rule; ICU as a constructor option, D1 29.08.2026, reaffirmed 14.09.2026
-Amended 2026-10-04: one artifact for `@comvi/react`, `@comvi/solid` and `@comvi/svelte` (no
-`development` build); see the last paragraph of Consequences.
-Superseded in part 2026-10-27 (0.8 design R3-11, R3-14, R3-15): post-processors
-(`registerPostProcessor`) and `devtools({ instanceId })` / `instanceId` / `exposeGlobal` are removed;
-discovery is `plugins: [devtools()]` with the protocol-2 handle (`editor-loader.md`). The rest of
-this page describes the 0.7 composition and is rewritten for 0.8 in lot 10.
+Status: accepted · Date: 2026-11-25 · Rewritten for 0.8. It replaces the 0.5–0.7 record of
+`.use(installer)` as the composition verb, which 0.8 removed; that version is in git history.
 
 ## Context
 
-The 0.4 root carried ICU, the loader, the plugin host, discovery and the tag grammar whether an app
-used them or not, and a second entry, `@comvi/core/slim`, made picking a tier the reader's first
-decision. The first 0.5 pre-release then shipped two composition verbs — `.with(installer)`, a
-synchronous widening pipe, and `.use(plugin)`, a deferred queue — one letter apart, opposite timing.
-Three constraints: a capability is in the bundle only because the app asked, the ask is visible at
-the call site, one verb.
+Up to 0.7 an instance was created and then composed: `.use()` installed a loader, a detector, the
+devtools hook or the ICU compiler, and `init()` started it. The order of those calls mattered, a
+composed instance could be used before it was complete, and every package needed rules for what
+`.use()` may do after the first `t()`. The 0.8 core has one message syntax built in, so there is no
+compiler to install, and every other capability is either a function of the instance (a loader, a
+formatter) or a plugin with a lifetime.
 
 ## Decision
 
-- **One host entry per package.** A capability is an import you add, never an entry you switch to;
-  `@comvi/core/slim` is deleted.
-- **`.use(installer)` is the only composition verb**, and a pipe and nothing more: `i18n.use(f)`
-  **is** `f(i18n)`. No registry, no ordering rules, no capability semantics.
-- **An installer is any `(host) => host`**, checked by IDENTITY rather than shape: `.use(f)` throws
-  `E_USE_NOT_INSTALLER` unless `f` handed back the object it was given, so the `attach*` functions
-  are already installers.
-- **A plugin goes to `registerPlugin`, never into `.use`**; an app's own inline plugin reaches the
-  queue as `.use(definePlugin(fn))`, attaching the host and queuing one plugin in one call.
-- **ICU is the `compiler` constructor option**, and no `.use(…)` composes it: a compiler must be in
-  place before the first catalog is ingested, the only moment true of every host.
-- **`loader(map)` requires its map; `attachLoader` is the attach-only installer**, so a bare
-  `loader()` is a compile error and there is no third form to weigh.
-- **`attachPlugins` and `attachDevtools` live on `@comvi/core/plugins` and `@comvi/core/devtools`
-  only**, never on a binding root.
-- **Compose before `init()`.** A later `.use` warns once per host, in development only.
-- **The CDN global is the one composed build**, because a `<script src>` has no tree-shaking and so
-  no byte choice to offer. Every constructor, `createNextI18n` included, leaves the compiler open.
+- **One constructor, complete at creation.** `createI18n(options)` takes everything the instance
+  will ever have: `locale`, `fallbackLocale`, inline `messages` and `catalogs`, `loader`,
+  `namespaces`, `plugins`, `timeZone`, `formats`, `onError`, `missing`. It starts the loads of its
+  `namespaces` itself; `i18n.ready` settles when those loads settle. There is no `init()` and no
+  `.use()`.
+- **Configuration is immutable.** Options are read at creation; changing an object that was passed
+  is not a way to reconfigure an instance.
+- **A plugin is `{ name, setup(i18n) }`.** `setup` runs once in `createI18n()`; the function it may
+  return runs on `destroy()`. `detect()` and `persist()` (`@comvi/core/plugins`) and `devtools()`
+  (`@comvi/core/devtools`) are plugins of this shape.
+- **A loader is a function** `(locale, ns, signal) => Promise<catalog>`. `cdn()` and `api()`
+  (`@comvi/core/cdn`) build one; any function of that shape is one.
+- **One subpath per concern**, so an app pays only for what it imports: `@comvi/core` (the
+  instance, `negotiate`), `/cdn` (loaders and the catalog store), `/plugins`, `/format`,
+  `/devtools`, `/ssr` (`handover()`). `/internal` holds the seams the bindings use and carries no
+  semver guarantee.
+- **The bindings add rendering, not composition.** React, Svelte and Solid re-export the core's
+  `createI18n`; Vue's `createI18n` returns the same instance with an `install()` for `app.use()`.
+
+```ts title="src/i18n.ts"
+import { createI18n, type Plugin } from "@comvi/core";
+import { cdn } from "@comvi/core/cdn";
+import { detect, persist } from "@comvi/core/plugins";
+import { devtools } from "@comvi/core/devtools";
+
+const logSwitches: Plugin = {
+  name: "log-switches",
+  setup(i18n) {
+    let last = i18n.locale;
+    return i18n.on(() => {
+      if (i18n.locale !== last) console.info(`locale: ${(last = i18n.locale)}`);
+    });
+  },
+};
+
+export const i18n = createI18n({
+  locale: "en",
+  fallbackLocale: "en",
+  loader: cdn("https://cdn.comvi.io/<distribution>"),
+  plugins: [detect({ supported: ["en", "uk"] }), persist(), devtools(), logSwitches],
+});
+```
 
 ## Consequences
 
-A capability member is a compile error on the base host until its subpath is composed in, so one is
-never discovered missing in production:
-
-| Capability            | Subpath                                                 | Members                                                                                                                                                                                                |
-| --------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Async loading         | `@comvi/core/loader` (`attachLoader`)                   | `registerLoader`, `getLoader`, `reloadMessages`, `addActiveNamespace(s)`, `removeActiveNamespace(s)`, `onLoadError`                                                                                    |
-| Import-map loading    | `@comvi/core/loader`                                    | `createImportMapLoader`, and `loader(map)` to attach + register in one call                                                                                                                            |
-| Plugin host           | `@comvi/core/plugins` (`plugins()`, `definePlugin(fn)`) | `registerPlugin`, `setPluginData`, `getPluginData`                                                                                                                                                     |
-| Locale detection      | `@comvi/core/plugins`                                   | `registerLocaleDetector`, `getLanguageDetector`                                                                                                                                                        |
-| Missing-key callbacks | `@comvi/core/plugins`                                   | `onMissingKey`                                                                                                                                                                                         |
-| Post-processors       | `@comvi/core/plugins`                                   | `registerPostProcessor`                                                                                                                                                                                |
-| Devtools discovery    | `@comvi/core/devtools` (`devtools()`)                   | `instanceId`, the `window.__COMVI__` queue protocol, removal on `destroy()`                                                                                                                            |
-| ICU plural/select     | `@comvi/core/icu`                                       | `createI18n({ …, compiler: icuCompiler })`                                                                                                                                                             |
-| Component-side access | `@comvi/core/loader`, `@comvi/core/plugins`             | `acquireLoaderApi(host)`, `acquirePluginsApi(host)`: the one implementation behind every binding's `useI18nLoader()` / `useI18nPlugins()`; throws the capability error when the host never composed it |
-| Rich-text components  | `@comvi/core/rich-text`                                 | `prepareTranslation` / VirtualNode toolbox, plus `registerTagSyntax` for the ambient opt-in                                                                                                            |
-| String-API tags       | `@comvi/core/tags`                                      | ambient registration plus the same rich-text toolbox, and `&lt;` / `&gt;` / `&amp;` and the `\<` escape                                                                                                |
-
-**Three placements are not where a reader guesses.** `addActiveNamespace(s)` /
-`removeActiveNamespace(s)` and `onLoadError` are on `/loader`, because activating a namespace and
-emitting `loadError` only mean anything when something loads — the base host self-activates instead,
-as `addMessages` activates the namespaces it carries. Discovery is on `/devtools`, so an app
-shipping no extension integration carries no `window` protocol. Nested-catalog flattening is on no
-subpath at all: it happens at the one place a catalog enters, composed or not.
-
-**An option whose capability never arrived says so, once, at `init()`, in development only.** `ns`
-with no loader names `.use(loader(map))`; `instanceId` or `exposeGlobal: true` with no discovery
-names `.use(devtools({ instanceId }))`. At `init()` rather than in the constructor, because both are
-legally composed in between. `exposeGlobal: false` is deliberately silent: it asks for the absence a
-base host already delivers. The `postProcess` and `onMissingKey` **constructor options** stay
-universal; only the runtime registration APIs are the capability's. And **composing twice is a
-no-op while configuring twice is not**: `loader(map)` is the one installer that also configures, so
-a second `loader(map)` on a composed host still registers its map.
-
-### Installer or plugin: swapping the slots is loud both ways
-
-```ts
-import { createI18n } from "@comvi/core";
-import { attachLoader } from "@comvi/core/loader";
-import { plugins } from "@comvi/core/plugins";
-import { cdnLoaderPlugin } from "@comvi/plugin-fetch-loader";
-
-const i18n = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
-i18n.registerPlugin(
-  cdnLoaderPlugin({ cdnUrl: "https://cdn.comvi.io/51db17c3d52f4e7eba810b7bb9b6576b" }),
-);
-```
-
-Swapping the slots is a type error, and both halves are caught at runtime too.
-`registerPlugin(cdnLoader(…))` throws `E_INSTALLER_AS_PLUGIN` at `init()`, before any capability is
-attached. `.use(cdnLoaderPlugin(…))` throws
-`E_USE_NOT_INSTALLER` — and `.use` calls the function before it checks, so an async plugin runs
-outside `init()`'s drain loop and hands back a promise nobody awaits. The queue is what gives a
-plugin `required`, `timeout`, `onError` and cleanup.
-
-**`@comvi/react`, `@comvi/solid` and `@comvi/svelte` publish one artifact.** Each binding used to
-ship a second build behind the `development` export condition (svelte through a `#dev-warn`
-package import), and the only thing it carried was the `<T raw>` rename warning plus react's
-`ssrInitialLocale` clash warning. 0.5 has no aliases, so both warnings went with the names, and a
-development artifact with no development-only code is a byte-identical copy that only costs a build
-and an exports-map entry. `@comvi/core`, `@comvi/vue` and `@comvi/next` keep theirs: each carries
-real development-only diagnostics (core's readable errors, vue's late-`.use` warning, next's
-readable `.use` identity error), and the bundler matrix proves each one reaches a development
-bundle and stays out of a production one. A binding gets its development build back the day it
-gains a genuine binding-level diagnostic that must not ship to production, together with a
-bundler-matrix `*-dev-conditions` case asserting that diagnostic's text.
+- An instance is usable from the line that creates it: `t()` renders what is in place and the
+  key for the rest, and `ready` says when the startup loads settled.
+- Adding a capability later means creating another instance. A server creates one per request
+  ([ssr.md](ssr.md)).
+- A plugin cannot change the options of the instance it is given; it reads and subscribes like any
+  caller, and its teardown runs on `destroy()`.
 
 ## Alternatives rejected
 
-- **A full root beside a lean `@comvi/core/slim`** — made a tier the reader's first decision.
-  Deleted; it never published.
-- **`.with(installer)` beside `.use(plugin)`** — two verbs one letter apart, opposite timing, a coin
-  toss at every call site. No alias survives.
-- **A shape probe for installers** — a `*Plugin` factory is async, so calling one returns a Promise,
-  which IS an object; the plugin would have run at composition time, rejection unhandled.
-- **An `icu()` installer, and the two catalog-source-keyed enable forms `E_COMPILER_LOCKED` policed**
-  — composable too late, after `messages` was walked, and a rule to learn for no benefit.
-- **A bare attach-only `loader()`** — it names the import-map adapter statically, so it pulled
-  ~111–124 B min+gz into a graph that registered no map: invisible bytes for a reader to weigh.
-- **Installers returning a derived object** — refused, so `.use` can never lie about what an
-  instance has.
+- **Keep `.use()` for plugins only.** It brings back the ordering question (a plugin composed after
+  the first load) for a gain of one call site.
+- **A compiler option for ICU.** The message syntax is one and built in; see [icu.md](icu.md).
 
 ## Where it lives
 
-- `createI18n`, `class I18n` and `use` — `packages/core/src/index.ts`, `packages/core/src/core/i18n.ts`
-- `loader`, `attachLoader`, `createImportMapLoader`, `acquireLoaderApi` — `.../src/loader.ts`;
-  `plugins`, `definePlugin`, `attachPlugins`, `acquirePluginsApi` — `.../src/plugins.ts`;
-  `devtools`, `attachDevtools` — `packages/core/src/devtools.ts`
-- `WrapperI18nInstance` — `packages/core/src/types.ts`; `missingCapability`, `hasLoaderApi`,
-  `hasPluginApi` — `packages/core/src/utils/capability.ts`
-- `warnLateCompose` and its `warned` WeakSet — `packages/core/src/utils/lateCompose.ts`; the fully
-  composed global — `packages/core/src/umd.ts`; `cdnLoader` / `cdnLoaderPlugin` —
-  `packages/plugin-fetch-loader/src/cdn/installer.ts` and `.../cdn/loader.ts`
-
-## Related
-
-- [ICU](icu.md) · [Rich text](rich-text.md) · [Formatting](formatting.md) · [SSR](ssr.md) ·
-  [Limitations](limitations.md)
+`createI18n`, `I18nOptions`, `Plugin`, `Loader` (`packages/core/src/instance.ts`); `detect`,
+`persist` (`packages/core/src/plugins.ts`); `devtools` (`packages/core/src/devtools.ts`); `cdn`,
+`api`, `createCatalogStore` (`packages/core/src/cdn.ts`); the export map of `packages/core/package.json`.

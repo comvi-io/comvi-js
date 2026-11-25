@@ -2,8 +2,7 @@
  * Lot 4c (owner brief 29.10, R3-26) through Vue components: `useI18n(ns)` reads, loads and
  * holds `ns` from mount to unmount (`KeepAlive`: while active; `v-show` keeps it); `<T>` and
  * `$t` read only; `isReady` / `isLoading` with no "unavailable" frame before the mount; the
- * key scenario; SSR hydration with `v-if` on `isReady`. Contract: `.lot1-pending-tests.md`
- * "Lot 4c contract".
+ * key scenario; SSR hydration with `v-if` on `isReady`. Contract: `docs/design/namespaces.md`.
  */
 import {
   createSSRApp,

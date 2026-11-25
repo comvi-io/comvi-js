@@ -1090,8 +1090,8 @@ budget; a handover at arbitrary depth under the gate is no longer required (the 
 data → gate → content); the budget comes from the simplest correct implementation with the
 repo's headroom, `ceil(measured × 1.05)`, and the `react-icu-cdn` ceiling and the React
 increment cap follow from it. The commit-time gate (a server-guarded layout effect, 5,487 B,
-+62 B) failed the owner's lifecycle conditions (`.lot1-pending-tests.md`, fix pass 3: a DOM
-copy of the children, a second mount, effects before the gate opens) and is not shipped. The
++62 B) failed the owner's lifecycle conditions (`docs/design/ssr.md`, "React: data, then the
+gate, then the content": a DOM copy of the children, a second mount, effects before the gate opens) and is not shipped. The
 simplest correct implementation is the binding as it was: no binding code changed (JSDoc
 only). One sweep after `TURBO_FORCE=true` builds, `node --version` v24.22.1.
 
@@ -1313,8 +1313,7 @@ not move.
 
 Three correctness fixes on `next`: typed rich keys, the fallback chain of `useFormat()` and one
 section guard for `setLocale()`, `load()` and holds, destroy paths included. Nearly all the growth
-is that guard and the destroy rules (`.lot1-pending-tests.md`, "Lot 4d re-entrancy", which has the
-cost per pass). The owner approved it on 31.10 under the ×1.02 policy above: each ceiling is
+is that guard and the destroy rules (`docs/design/reentrancy.md`). The owner approved it on 31.10 under the ×1.02 policy above: each ceiling is
 `ceil(measured × 1.02)`, each budget `min(ceiling, ceil(measured × 1.05))`. Increment caps are
 unchanged and hold: `react-icu-cdn` +526 of +547, `vue-icu-cdn` +703 of +753, `core-icu-devtools`
 +451 of +500.

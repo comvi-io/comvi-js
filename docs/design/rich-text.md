@@ -1,106 +1,67 @@
-# `<T>` renders structurally; string-API tags are a separate, ambient opt-in
+# Tags are part of the message syntax; markup comes only from handlers and mapped components
 
-Status: accepted · Date: 2026-09-14 · Owner decision(s): 0.5.0 rich-text/tags split
-
-> **Partly outdated (0.8).** This record describes 0.5: `@comvi/core/rich-text` and
-> `@comvi/core/tags` no longer exist. The current contract: `t()` and `<T>` share one message
-> syntax; a tag `<x>…</x>` renders through a handler of its name or a `components` entry, else as
-> its text (Svelte's `<T>` takes `components` and named snippets, no handler); a plain `{name}` is always text (see the 04.11.2026 paragraph below). The full rewrite
-> is in lot 10.
+Status: accepted · Date: 2026-11-25 · Rewritten for 0.8. The 0.5–0.7 record (`@comvi/core/rich-text`,
+the ambient `@comvi/core/tags` import) described subpaths that 0.8 removed; that version is in git
+history. The rule that a plain `{name}` is always text dates from 04.11.2026.
 
 ## Context
 
-A sentence with a link in the middle of it has to stay one translation unit, or translators get
-fragments they cannot order. Doing that with an HTML string means a sanitiser in the render path and
-an escape hatch someone will forget. It also raises a separate question: should a plain
-`t("Click <b>here</b>")` parse those tags at all? One mechanism cannot answer both, because `<T>`
-knows its tag map per call while `t()` returns a string and has nowhere to put one.
+A sentence with a link in the middle has to stay one translation unit, or translators get fragments
+they cannot order. An HTML string would need a sanitiser in the render path. Up to 0.7, `<T>` and
+`t()` parsed tags by different rules, and `t()` parsed them only after a process-wide import.
 
 ## Decision
 
-- **`<T>` renders structurally**, from real nodes built out of the parsed translation tree. There is
-  no HTML-string sink in the path, so no sanitiser to configure and no escape hatch to forget: a
-  translator can only produce text and the tags the app mapped, and an unmapped tag falls back to
-  its inner text.
-- **`<T>` registers nothing.** It goes through the pure `@comvi/core/rich-text` path, which takes
-  the tag grammar per call, so rendering it never changes what `t()` does with `<b>` markup.
-- **Making `t()` parse tags is a separate opt-in, `import "@comvi/core/tags"`**, and it is a
-  property of the BUNDLE: the grammar registers process-wide and retroactively, including for
-  instances built before the import ran. There is no per-instance opt-out.
-- **No framework entry re-exports `@comvi/core/tags`.** A named re-export of a side-effectful module
-  would put a process-wide grammar change one autocomplete away from a reader who wanted a
-  component.
-- **Without a tag extension, markup stays literal** — dev warns once per template, production stays
-  quiet. A literal `<b>` is visibly broken in review, whereas a wrong plural is not.
-- **The tag grammar's escapes travel with it.** `&lt;`, `&gt;`, `&amp;` and `\<` are decoded only
-  where `<` is syntax.
+- **Tags are always parsed.** `<b>…</b>` and the self-closing `<br/>` are part of the one message
+  syntax ([icu.md](icu.md)), in `t()` and in every binding's `<T>`, with no import or option.
+- **A tag renders through what the app gives for its name**, else as its content:
+  - `t()`: a param named like the tag is its handler and gets the tag's children as an array
+    (`RichParts`); with any handler the result is an array of parts. A tag with no handler renders
+    its content as text. A self-closing tag with no handler renders nothing.
+  - `<T>`: a handler prop of the tag's name, else its `components` entry (a tag name, a component,
+    or `{ component, props }`), else its content as text. Vue also takes a slot of the tag's name;
+    Svelte takes `components` and named snippets, no handler.
+- **No HTML sink.** A translation can produce text and the tags the app mapped, nothing else: an
+  unmapped tag is its inner text, and text that looks like markup stays text.
+- **A plain `{name}` is always text**, in the core and in every binding: a number, a Date, a list,
+  an object and a framework node (React element, Vue VNode, Solid JSX) all print as `String(value)`.
+  Markup goes in a tag around the param: `"Hello, <strong>{name}</strong>!"`.
+- **An unclosed tag is text.** `a <b>bold` renders `a <b>bold`; development warns, production does
+  not report. Nesting is limited to 200 levels; deeper renders the key and reports `syntax`.
+- **`markers: false`** on a call (`t(key, { markers: false })`, `<T markers={false}>`) keeps the
+  in-context editor's invisible markers out of that one result.
 
-## Consequences
-
-Each binding maps tags with its own idiom, and a map built outside the template is typed as
-`ComponentMap` in all four. `tagInterpolation: { strict: "warn" }` on `createI18n` catches
-translations referencing tags the app forgot to handle, before they ship.
-
-**A tags-less graph returns markup and escapes verbatim**, so the two mechanisms are never confused
-for one:
-
-```ts
+```ts title="src/terms.ts"
 import { createI18n } from "@comvi/core";
 
 const i18n = createI18n({
   locale: "en",
-  messages: { en: { hi: "Hi, <b>{who}</b>!", legal: "a &lt;b&gt; &amp; c" } },
+  messages: { en: { terms: "Read <b>the <i>new</i> terms</b>.", lines: "a<br/>b" } },
 });
 
-i18n.t("hi", { who: "Alice" }); // "Hi, <b>Alice</b>!"  — with a tag extension: "Hi, Alice!"
-i18n.t("legal"); // "a &lt;b&gt; &amp; c"           — with a tag extension: "a <b> & c"
+i18n.t("terms"); // "Read the new terms." — no handler: the content as text
+i18n.t("terms", { b: (children) => ({ bold: children }) }); // ["Read ", { bold: ["the new terms"] }, "."]
+i18n.t("lines"); // "ab" — a self-closing tag with no handler renders nothing
 ```
 
-Tag parsing returns the moment an extension is in the graph: `import "@comvi/core/tags"` for the
-ambient registration, `registerTagSyntax` from `@comvi/core/rich-text` to opt into the same thing
-explicitly beside `prepareTranslation`, or `tagInterpolation.extensions` per call. **An SSR app has
-two bundles and must import the ambient module in both.** ICU apostrophe quoting is not part of
-this: `'{literal}'` and `''` are core grammar and work on every graph.
+## Consequences
 
-**A plain `{name}` is always text** (owner decision 04.11.2026), in the core and in every binding:
-a present value prints `String(value)` — a number, a Date, a list, and a function or an object too,
-a framework node (React element, Vue VNode, Solid JSX) included; a missing one renders as before.
-Markup comes only from tags, through their handlers or `components`. A param keyed by a tag's name
-is that tag's handler, not a `{name}` value:
-
-```tsx
-import { T } from "@comvi/react";
-// Before: "Hello, {name}!"   t("greeting", { name: <strong>Olena</strong> })
-// After:  "Hello, <strong>{name}</strong>!"
-<T i18nKey="greeting" name="Olena" components={{ strong: "strong" }} />;
-```
-
-**`<T markers={false}>` keeps the in-context editor's invisible markers out of one result**, the
-same as `t(key, { markers: false })`. Nothing else reads it.
+- A catalog with tags renders the same text under `t()` and `<T>`; only the handlers differ.
+- A translator cannot inject markup: the worst a translation can do is show a tag's content
+  unstyled.
+- An app that renders `t()` output with tags outside a framework turns the parts into nodes itself
+  (the vanilla example's `toDom()`).
 
 ## Alternatives rejected
 
-- **One mechanism for both** — `t()` has nowhere to carry a per-call tag map, so unifying them meant
-  making the ambient grammar the only grammar.
-- **HTML passthrough with a sanitiser** — keeps a markup sink in the render path and an option to
-  get wrong. There is no sink at all instead.
-- **A per-instance opt-out for ambient tags** — the registration is a property of the bundle; a flag
-  pretending otherwise would be a lie on every host built before the import ran.
-- **Re-exporting `@comvi/core/tags` by name from a framework entry** — puts a process-wide side
-  effect next to component exports in autocomplete.
-- **Throwing on literal markup in production** — a visibly literal `<b>` is cheaper than a crash,
-  and unlike a plural it cannot read as correct.
+- **HTML passthrough with a sanitiser.** A markup sink in the render path and an option to get wrong.
+- **Framework nodes as `{name}` values.** They hydrate differently on server and client (Solid) and
+  blur what a translator can change; markup belongs to a tag.
+- **Throwing on an unclosed tag in production.** Text that is visibly literal is cheaper than a
+  failed render.
 
 ## Where it lives
 
-- pure toolbox: `prepareTranslation`, the VirtualNode types, `registerTagSyntax`,
-  `tagSyntaxExtension` — `packages/core/src/rich-text.ts`; ambient registration —
-  `packages/core/src/tags.ts` and `packages/core/src/register-tags.ts`
-- the tag parser, escapes and `tagInterpolation.strict` — `packages/core/src/core/translate/tags.ts`
-- `<T>` per binding — `packages/react/src/T.tsx`, `packages/solid/src/T.tsx`,
-  `packages/svelte/src/T.svelte`, `packages/vue/src/components/T.ts`
-
-## Related
-
-- [Composition](composition.md) · [ICU](icu.md) · [Formatting](formatting.md) ·
-  [Limitations](limitations.md)
+`packages/core/src/compile/scanner.ts` (tags, the depth limit), `packages/core/src/types.ts`
+(`RichParts`, `Tag`); `<T>` per binding: `packages/react/src/binding.ts`, `packages/vue/src/T.ts`,
+`packages/svelte/src/T.svelte`, `packages/solid/src/T.ts`.

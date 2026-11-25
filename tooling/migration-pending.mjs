@@ -46,8 +46,8 @@ export const MIGRATION_PENDING = {};
  * (`.use()` on the instance, `compiler: icuCompiler`, `i18n.init()`, the removed subpaths and
  * packages). So only pages that still document the 0.7 API are listed — the rules per page are
  * the ones it fails on 2026-11-25 (raw runner with `--typecheck`, `origin/next` 2c1989db) —
- * and each entry leaves with the lot that rewrites the page: S3 (core README), S5 (design
- * records). The pages already on the 0.8 API pass the 0.8 rules and are not listed.
+ * and each entry leaves with the lot that rewrites the page: S3 (core README); the design
+ * records left with S5. The pages already on the 0.8 API pass the 0.8 rules and are not listed.
  */
 const CORE_07_DOCS =
   "documents the 0.7 core API (`.use()` composition, `i18n.init()`, the removed subpaths); the 0.8 API landed in lot 1b, the page is rewritten in stage D";
@@ -55,33 +55,6 @@ const core07 = (...rules) => ({ reason: CORE_07_DOCS, rules });
 export const MIGRATION_PENDING_DOCS = {
   // The README's banner says it: the 0.7 API (`await i18n.init()`), rewritten in lot S3.
   "packages/core/README.md": core07("banned/instance-init", "typecheck/error"),
-  // `.use(installer)` as the composition verb, `@comvi/core/loader`, `@comvi/plugin-fetch-loader`,
-  // `registerPlugin` (lot S5).
-  "docs/design/composition.md": core07(
-    "banned/register-plugin-without-plugins",
-    "banned/removed-entry",
-    "banned/unresolved-comvi-import",
-    "banned/use-on-instance",
-    "typecheck/error",
-  ),
-  // Formatters imported from the 0.7 `@comvi/core` root (lot S5).
-  "docs/design/formatting.md": core07("banned/unresolved-comvi-import", "typecheck/error"),
-  // `compiler: icuCompiler` from the 0.7 `@comvi/core/icu` (lot S5).
-  "docs/design/icu.md": core07(
-    "banned/icu-compiler",
-    "banned/removed-entry",
-    "banned/unresolved-comvi-import",
-    "typecheck/error",
-  ),
-  // The 0.7 per-framework SSR helpers (`createNextI18n` and its siblings), `i18n.init()`,
-  // `compiler: icuCompiler` (lot S5).
-  "docs/design/ssr.md": core07(
-    "banned/icu-compiler",
-    "banned/instance-init",
-    "banned/unresolved-comvi-import",
-    "typecheck/error",
-    "typecheck/sfc-error",
-  ),
 };
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
