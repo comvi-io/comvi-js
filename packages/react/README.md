@@ -109,14 +109,15 @@ component is mounted: it loads for the locale on screen and for every locale a s
 is `true` while one is on the way. Check `isReady` first: a switch loads the new catalogs beside the
 text on screen. Both `false` means the text is not available and nothing is loading. `i18n.ready` is
 something else: a promise that resolves when the loads in flight have settled, the failed ones too.
-After a failed first load, `ready` has resolved and `isReady` is `false`.
+After a failed first load, `ready` has resolved, and `isReady` is `false` only when no usable
+catalog exists in the locale's lookup chain (the locale, its parents, the `fallbackLocale`).
 
 ## Load from Comvi
 
 `cdn()` from `@comvi/core/cdn` is a `loader` that reads the catalogs your Comvi project published to
-its CDN. Pass `loading` to `<I18nProvider>` to paint a placeholder until the first catalogs are in
-(`<I18nProvider i18n={i18n} loading={<Spinner />}>`), or `suspense` to suspend to the nearest
-`<Suspense>` instead.
+its CDN. Pass `loading` to `<I18nProvider>` to paint a placeholder until the initial loads settle,
+the failed ones too (`<I18nProvider i18n={i18n} loading={<Spinner />}>`), or `suspense` to suspend
+to the nearest `<Suspense>` instead.
 
 ### `messages` beside `loader`
 
@@ -133,7 +134,7 @@ catalog the CDN should serve. For a bundled catalog that is used when the CDN do
 others) and the `locale`, `ns` and `key` it concerns. Without it, a development build prints
 problems to the console and a production build prints nothing. `onError` reports and changes nothing
 else: after a failed first load `i18n.ready` still resolves, the `loading` gate opens and `t()`
-renders the key: what the user sees is your `isReady` branch.
+renders the lookup chain's text or the key: what the user sees is your `isReady` branch.
 
 ```ts title="src/i18n.ts" check=group=react-app
 import { createI18n } from "@comvi/react";
@@ -162,8 +163,8 @@ the text on screen stay as they were. Calling `setLocale()` again calls the load
 
 A namespace whose load failed renders its "not available" branch, and mounting the component again
 does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
-that failed, and it rejects with the loader's error when the catalog of the locale on screen fails
-again.
+that failed, and it rejects with the loader's error only when the locale's own catalog fails again
+and no catalog of its parents (`de` for `de-AT`) is usable; a `fallbackLocale`'s does not count.
 
 ```tsx title="src/Account.tsx" check=group=react-app
 import { useState } from "react";
@@ -177,8 +178,7 @@ export function Account() {
       () => setFailed(false),
       () => setFailed(true),
     );
-  // load() rejects when the catalog fails again: `isReady` stays false, `onError` has the report.
-  const retry = () => i18n.load("account").catch(() => {});
+  const retry = () => i18n.load("account").catch(() => {}); // `onError` has the report
   if (!isReady && !isLoading) return <button onClick={retry}>Not available. Retry</button>;
   return (
     <>
@@ -201,14 +201,15 @@ takes the same handlers: `t("terms", { link: (c) => <a href="/terms">{c}</a> })`
 
 ## Server payload
 
-On a server, create an i18n instance per request, render, and embed `handover(i18n)` from
-`@comvi/core/ssr` in the page. In the browser, create the instance from that payload first,
-`createI18n({ ...options, ...payload })`: it asks the loader for nothing the server sent.
-`<I18nHandover catalogs locale>` hands a later payload to a running instance. On a client render, an
-`<I18nHandover>` under a shut `loading` or `suspense` gate hands nothing over until the gate opens,
-so the order is data, then gate, then content. With two `<I18nHandover>` on one instance, the last
-payload applied wins for each pair of locale and namespace
-([Server-side rendering](https://comvi.io/docs/i18n/ssr)).
+On a server, create an i18n instance per request (`timeZone` is required), `await i18n.ready` and
+`await i18n.load(ns)` for each namespace the route uses (a server render starts no load from
+`useI18n(ns)`), render, and embed `handover(i18n)` from `@comvi/core/ssr` in the page. In the
+browser, create the instance from that payload first, `createI18n({ ...options, ...payload })`: it
+asks the loader for nothing the server sent. `<I18nHandover catalogs locale>` hands a later payload
+to a running instance. On a client render, an `<I18nHandover>` under a shut `loading` or `suspense`
+gate hands nothing over until the gate opens, so the order is data, then gate, then content. With
+two `<I18nHandover>` on one instance, the last payload applied wins for each pair of locale and
+namespace ([Server-side rendering](https://comvi.io/docs/i18n/ssr)).
 
 ## Limits
 

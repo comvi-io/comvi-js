@@ -57,8 +57,9 @@ i18n.t("cart", { count: 2 }); // "2 items"
 `createI18n()` is synchronous: inline `messages` render on the next line, and there is no `init()`
 to await. `messages` holds the `default` namespace by locale, written flat (`"account.title"`) or
 nested (`{ account: { title } }`); both are the key `account.title`. A key with no message in the
-locale or its fallback locales renders the key, and `onError` receives `missing_key`. Without a
-`loader` the instance makes no request, so this file runs with no Comvi project and no account.
+locale or its fallback locales renders the key, and `onError` receives `missing_key`, unless the
+key's namespace has no catalog or its catalog is still loading. Without a `loader` the instance
+makes no request, so this file runs with no Comvi project and no account.
 
 ## Write messages
 
@@ -136,16 +137,15 @@ await i18n.ready;
 i18n.ns("account")("title");
 ```
 
-The loader receives `(locale, ns, signal)` and returns the catalog itself. Return
-`module.default`: a JSON module returned whole is a catalog with one key, `default`, so every
-`t()` renders its key and the only report is `missing_key`. `i18n.ns("account")` is `t()` bound to
-that namespace.
+The loader receives `(locale, ns, signal)` and returns the catalog itself. Return `module.default`:
+a JSON module returned whole is a catalog with one key, `default`, so every `t()` renders its key
+and the only report is `missing_key`. `i18n.ns("account")` is `t()` bound to that namespace.
 
-The first loads start inside `createI18n()`. `ready` resolves when the loads in flight have
-settled, the failed ones too, and it never rejects: after a failed load `t()` still renders keys,
-and `onError` has received `load_failed`. A binding's `isReady` answers the other question, whether
-a catalog is in place for the locale on screen. With the core alone, ask `i18n.has(key)`, or
-await `load()`, which rejects with the loader's error.
+The first loads start inside `createI18n()`. `ready` resolves when the loads in flight have settled,
+the failed ones too, and never rejects: after a failed load `t()` still renders keys, and `onError`
+has received `load_failed`. A binding's `isReady` answers another question: whether a catalog is
+usable for the locale on screen. With the core alone, ask `i18n.has(key)` or await `load(ns)`: it
+rejects only when the locale's own catalog failed and no parent's (`de` for `de-AT`) is usable.
 
 ```ts title="src/billing.ts" check=group=core-2
 import { i18n } from "./i18n";

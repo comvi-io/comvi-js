@@ -36,6 +36,7 @@ Run it as `npx comvi <command>` once it is a dev dependency, or as
 
 ```bash title="Terminal"
 export COMVI_API_KEY=comvi_xxxxxxxxxxxxxxxx
+npx comvi init   # once: writes .comvirc.json, which pull needs
 npx comvi pull
 ```
 
