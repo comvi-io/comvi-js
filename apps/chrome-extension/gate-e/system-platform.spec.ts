@@ -41,6 +41,8 @@ import { EXPECTED_CONTENT_SCRIPTS } from "../src/shared/__fixtures__/manifest-co
  * routes are the runner's (never the extension's): the request audit, the database's view of
  * a key, and the Content Deploy log (uploads, purges, deploy results, CDN reads).
  *
+ * COM-175 with the Content Deploy filter `translated` is asserted: a same-text demotion and a
+ * changed draft keep the published text until approval, then the new text is published.
  * Observations the plan asks for (pt-br, the next server snapshot after a save, COM-175,
  * Content Deploy) are recorded to `COMVI_SYSTEM_OBSERVATIONS_PATH` as they are, with timings
  * on this test's own clock; what is a correctness claim is asserted.
@@ -72,7 +74,7 @@ type AuditEntry = {
 };
 type StoredValue = { locale: string; value: string; status: string };
 type DeployLog = {
-  lastDeployResult: { status?: string; timestamp?: string } | null;
+  lastDeployResult: { status?: string; timestamp?: string; duration?: number } | null;
   purges: Array<{ at: number; files: string[] }>;
   puts: Array<{ at: number; key: string }>;
   gets: Array<{ at: number; key: string; status: number; servedKey?: string }>;
@@ -104,19 +106,52 @@ const cdnFile = async (path: string) => {
 };
 
 /**
- * Wait, on this test's clock, for a Content Deploy newer than `before` (the platform debounces
- * one after a write: 5 s, at most 60 s). No manual deploy is triggered.
+ * Wait for a Content Deploy that started after `writeAt` (epoch ms), so its files were built
+ * from the database as the writes left it, and check that it published `files`. No manual
+ * deploy is triggered (the platform debounces one after a write: 5 s, at most 60 s).
+ *
+ * `lastDeployResult.timestamp` is when a deploy finished and `duration` how long it ran; the
+ * platform writes both for a failed deploy too, so a failed one throws. Upload times (`puts[].at`)
+ * are the runner's `Date.now()`. Both clocks are compared with this process's `Date.now()`,
+ * which holds because the runner, the API and this test run on one host.
  */
-async function waitForDeploy(before: DeployLog, timeoutMs = 90_000) {
+async function waitForDeployAfter(writeAt: number, files: string[], timeoutMs = 90_000) {
   const deadline = clock() + timeoutMs;
-  let after = before;
   while (clock() < deadline) {
-    after = await deployLog();
-    const stamp = after.lastDeployResult?.timestamp;
-    if (stamp && stamp !== before.lastDeployResult?.timestamp) return { after, deployed: true };
+    const log = await deployLog();
+    const result = log.lastDeployResult;
+    const finished = result?.timestamp ? Date.parse(result.timestamp) : Number.NaN;
+    if (finished - (result?.duration ?? 0) > writeAt) {
+      if (result?.status === "failed") {
+        throw new Error(`Content Deploy after the write failed: ${JSON.stringify(result)}`);
+      }
+      const uploaded = new Set(log.puts.filter(({ at }) => at > writeAt).map(({ key }) => key));
+      const missing = files.filter(
+        (file) => ![...uploaded].some((key) => key.endsWith(`/${file}`)),
+      );
+      if (missing.length > 0) {
+        throw new Error(
+          `Content Deploy after the write did not upload ${missing.join(", ")}: ${JSON.stringify(result)}`,
+        );
+      }
+      return log;
+    }
     await new Promise((resolveWait) => setTimeout(resolveWait, 1_000));
   }
-  return { after, deployed: false };
+  throw new Error(`no Content Deploy started after ${new Date(writeAt).toISOString()}`);
+}
+
+/** What a new visitor sees: a page with an empty HTTP cache, loaded through cdn(). */
+async function visitorSees(browser: Browser, locale: string) {
+  const context = await browser.newContext();
+  try {
+    const fresh = await context.newPage();
+    await fresh.goto(`${ORIGIN}${systemPath(locale)}`);
+    await expect(fresh.locator("body")).toHaveAttribute("data-booted", "true", POLL);
+    return await visibleText(fresh, "#system-headline");
+  } finally {
+    await context.close();
+  }
 }
 
 /** Hand the page the next server snapshot of `system.headline` and read what it shows. */
@@ -277,6 +312,9 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
 
     const edited = `Edited in the editor ${Date.now()}`;
     let savedAt = 0;
+    let deployBeforeSave: DeployLog | undefined;
+    // Epoch ms after the last write the next deploy must reflect (see waitForDeployAfter).
+    let lastWriteAt = 0;
     await test.step("enable → select → change → save → see, in the editor's UI", async () => {
       await expect
         .poll(() => framesIn(page, "#system-headline"), POLL)
@@ -285,9 +323,11 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
       await expect(dialog(page)).toContainText("system.headline");
       await expect(field(page, localeNames.en!)).toHaveValue(headline.en!, POLL);
       await expect(field(page, localeNames.es!)).toHaveValue(headline.es!, POLL);
+      deployBeforeSave = await deployLog();
       await typeInto(page, localeNames.en!, edited);
       expect(await save(page)).toContain("Saved");
       savedAt = clock();
+      lastWriteAt = Date.now();
       await expect.poll(() => visibleText(page, "#system-headline"), POLL).toBe(edited);
       await closeDialog(page);
     });
@@ -330,8 +370,36 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
       }
     });
 
+    await test.step("COM-175: a save that sends every locale of the key demotes the unchanged ones", async () => {
+      // The 0.8 editor sends only the edited locale (asserted above). The 0.6 editor sent every
+      // locale of the key, each with status not_reviewed; this write is that save, through the
+      // editor's route, session and MV3 proxy (which accepts only this payload shape). es and
+      // pt-BR go translated -> not_reviewed with unchanged text: the same-text demotion.
+      const resave = await proxy(page, "/v1/keys", {
+        method: "PUT",
+        body: JSON.stringify({
+          key: "system.headline",
+          namespace: "common",
+          isPlural: false,
+          translations: {
+            en: { value: edited, status: "not_reviewed" },
+            es: { value: headline.es, status: "not_reviewed" },
+            "pt-BR": { value: headline["pt-BR"], status: "not_reviewed" },
+          },
+        }),
+      });
+      expect([200, 201]).toContain(resave.status);
+      lastWriteAt = Date.now();
+      const stored = await storedKey("common", "system.headline");
+      expect(stored.toSorted((a, b) => a.locale.localeCompare(b.locale))).toEqual([
+        { locale: "en", value: edited, status: "not_reviewed" },
+        { locale: "es", value: headline.es, status: "not_reviewed" },
+        { locale: "pt-BR", value: headline["pt-BR"], status: "not_reviewed" },
+      ]);
+    });
+
     await test.step("observation: Content Deploy after the save, and the next server snapshot", async () => {
-      const before = await deployLog();
+      const before = deployBeforeSave!;
       const firstSnapshot = {
         tSinceSaveMs: clock() - savedAt,
         snapshot: await page.evaluate(() =>
@@ -339,7 +407,12 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
         ),
         visible: await visibleText(page, "#system-headline"),
       };
-      const { after, deployed: automaticDeploy } = await waitForDeploy(before);
+      // The deploy the COM-175 criteria below read: it follows both writes above.
+      const after = await waitForDeployAfter(lastWriteAt, [
+        "common/en.json",
+        "common/es.json",
+        "common/pt-BR.json",
+      ]);
       const deployedAt = clock();
       const servedEn = await cdnFile("common/en.json");
       const servedEs = await cdnFile("common/es.json");
@@ -347,22 +420,23 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
       // Controlled snapshots after the deploy, every 5 s for 45 s: what the page shows when a
       // server snapshot arrives through the browser's HTTP cache (max-age=30).
       const snapshots: Array<Record<string, unknown>> = [];
-      if (automaticDeploy) {
-        for (let i = 0; i <= 9; i += 1) {
-          snapshots.push({
-            tSinceSaveMs: clock() - savedAt,
-            tSinceDeployMs: clock() - deployedAt,
-            tSinceVisitorLoadMs: clock() - visitorLoadedAt,
-            editorPage: await readSnapshot(page),
-            visitorPage: await readSnapshot(visitor),
-          });
-          if (i < 9) await page.waitForTimeout(5_000);
-        }
+      for (let i = 0; i <= 9; i += 1) {
+        snapshots.push({
+          tSinceSaveMs: clock() - savedAt,
+          tSinceDeployMs: clock() - deployedAt,
+          tSinceVisitorLoadMs: clock() - visitorLoadedAt,
+          editorPage: await readSnapshot(page),
+          visitorPage: await readSnapshot(visitor),
+        });
+        if (i < 9) await page.waitForTimeout(5_000);
       }
+      // `deployObservedSinceSaveMs`, `firstSnapshot` and the `*SinceSave` lists start at the
+      // editor's save; the deploy waited for follows the later every-locale save, so the lists
+      // may span two deploys.
       observations.contentDeploy = {
         deployBeforeSave: before.lastDeployResult,
         deployAfterSave: after.lastDeployResult,
-        automaticDeploy,
+        automaticDeploy: true,
         deployObservedSinceSaveMs: deployedAt - savedAt,
         purgesBeforeSave: before.purges,
         purgesSinceSave: after.purges.slice(before.purges.length),
@@ -378,6 +452,58 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
       };
     });
 
+    // COM-175 with the filter `translated`, on the deploy after both writes above. Soft, so a
+    // red run shows each criterion; any failure fails the test.
+    await test.step("COM-175: the visitor keeps the published text while drafts wait for review", async () => {
+      // 1. Same text, demoted translated -> not_reviewed by the every-locale save above (the
+      //    0.6 editor's save shape).
+      for (const locale of ["es", "pt-BR"] as const) {
+        expect
+          .soft((await cdnFile(`common/${locale}.json`)).body?.["system.headline"] ?? null, {
+            message: `published ${locale} file keeps the demoted, unchanged text`,
+          })
+          .toBe(headline[locale]);
+      }
+      expect
+        .soft(await visitorSees(plainBrowser, "es"), "a new es visitor sees the demoted text")
+        .toBe(headline.es);
+      // 2. A changed draft: the visitor keeps the previous published text, the draft stays
+      //    not_reviewed.
+      expect
+        .soft(
+          (await cdnFile("common/en.json")).body?.["system.headline"] ?? null,
+          "published en file keeps the previous approved text",
+        )
+        .toBe(headline.en);
+      expect
+        .soft(await visitorSees(plainBrowser, "en"), "a new en visitor sees the previous text")
+        .toBe(headline.en);
+      const en = (await storedKey("common", "system.headline")).find((v) => v.locale === "en");
+      expect(en).toEqual({ locale: "en", value: edited, status: "not_reviewed" });
+    });
+
+    await test.step("COM-175: after approval and the next deploy the visitor sees the new text", async () => {
+      // 3. Approval through the editor's route and session: the same text, status translated.
+      const approved = await proxy(page, "/v1/keys", {
+        method: "PUT",
+        body: JSON.stringify({
+          key: "system.headline",
+          namespace: "common",
+          isPlural: false,
+          translations: { en: { value: edited, status: "translated" } },
+        }),
+      });
+      expect([200, 201]).toContain(approved.status);
+      lastWriteAt = Date.now();
+      const en = (await storedKey("common", "system.headline")).find((v) => v.locale === "en");
+      expect(en).toEqual({ locale: "en", value: edited, status: "translated" });
+      await waitForDeployAfter(lastWriteAt, ["common/en.json", "common/es.json"]);
+      expect((await cdnFile("common/en.json")).body?.["system.headline"] ?? null).toBe(edited);
+      expect(await visitorSees(plainBrowser, "en")).toBe(edited);
+      // es was not approved: it still publishes its demoted, unchanged text.
+      expect((await cdnFile("common/es.json")).body?.["system.headline"] ?? null).toBe(headline.es);
+    });
+
     await test.step("observation: the same save with no Content Deploy status filter", async () => {
       // Every status published (the platform's default, `[]`): what a save looks like when the
       // filter COM-175 is about does not apply.
@@ -391,6 +517,7 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
       await typeInto(page, localeNames.en!, again);
       const toast = await save(page);
       const againAt = clock();
+      const againWriteAt = Date.now();
       const shown = await expect
         .poll(() => visibleText(page, "#system-headline"), { timeout: 5_000 })
         .toBe(again)
@@ -399,11 +526,11 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
           () => false,
         );
       await closeDialog(page);
-      const { after, deployed } = await waitForDeploy(before);
+      const after = await waitForDeployAfter(againWriteAt, ["common/en.json"]);
       const deployedAt = clock();
       const snapshots: Array<Record<string, unknown>> = [];
       // Every 5 s until the visitor's cached catalog is 35 s old.
-      while (deployed) {
+      for (;;) {
         snapshots.push({
           tSinceSaveMs: clock() - againAt,
           tSinceDeployMs: clock() - deployedAt,
@@ -418,13 +545,21 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
         edited: again,
         toast,
         shownAfterSave: shown,
-        deployed,
+        deployed: true,
         deployObservedSinceSaveMs: deployedAt - againAt,
         purgesSinceSave: after.purges.slice(before.purges.length),
         servedEnHeadline: (await cdnFile("common/en.json")).body?.["system.headline"] ?? null,
         storedAfterSave: await storedKey("common", "system.headline"),
         snapshots,
       };
+      // With no status filter the draft itself is published: the COM-175 fallback is not used.
+      const stored = await storedKey("common", "system.headline");
+      expect(stored.find((v) => v.locale === "en")).toEqual({
+        locale: "en",
+        value: again,
+        status: "not_reviewed",
+      });
+      expect((await cdnFile("common/en.json")).body?.["system.headline"] ?? null).toBe(again);
     });
 
     await test.step("no destructive route ran and the key never reached the page", async () => {
