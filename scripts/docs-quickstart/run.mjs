@@ -5,7 +5,7 @@
  *
  *   pnpm docs:quickstart --content <dir> [--only react,vue] [--sdk-root <dir>]
  *                        [--no-build] [--no-pack] [--fresh] [--keep] [--jobs N]
- *                        [--next-webpack]
+ *                        [--next-webpack] [--from-registry <dist-tag|version>]
  *
  *     --content   the docs directory holding quick-start.mdx and connect-comvi.mdx
  *                 (the www app's src/content/docs/docs/i18n)
@@ -18,6 +18,11 @@
  *     --next-webpack  build the Next projects with `next build --webpack` instead of
  *                 the scaffold's `build` script (Turbopack on Next 16), so the
  *                 webpack graph of the same files is proven too
+ *     --from-registry  install `@comvi/*` from tarballs `npm pack`ed off the registry at
+ *                 this dist-tag or version (`registry.mjs`) instead of packing this
+ *                 checkout; no build, no pack. For D′, against the published RC. The
+ *                 provenance check is unchanged: every `@comvi` resolution must still
+ *                 be a local tarball, now the downloaded one.
  *
  * Per framework and page:
  *
@@ -76,6 +81,7 @@ import {
   stripAnsi,
   substituteCdn,
 } from "./plan.mjs";
+import { fetchRegistryTarballs, registrySpec } from "./registry.mjs";
 
 const CACHE_ROOT = path.join(os.tmpdir(), "comvi-docs-quickstart");
 const CDN_TOKEN = "docs-quickstart";
@@ -91,6 +97,7 @@ export function parseArgs(argv) {
     keep: false,
     jobs: 3,
     nextWebpack: false,
+    fromRegistry: null,
   };
   const value = (flag, index) => {
     const next = argv[index];
@@ -107,6 +114,7 @@ export function parseArgs(argv) {
     else if (arg === "--fresh") options.fresh = true;
     else if (arg === "--keep") options.keep = true;
     else if (arg === "--next-webpack") options.nextWebpack = true;
+    else if (arg === "--from-registry") options.fromRegistry = registrySpec(argv, ++index);
     else if (arg === "--jobs") options.jobs = Math.max(1, Number(value(arg, ++index)) || 1);
     else throw new Error(`unknown argument "${arg}"`);
   }
@@ -238,6 +246,11 @@ async function scaffoldOnce(step, options) {
   return { ...result, projectDir };
 }
 
+/** The package name of an install spec: `@comvi/react@^0.8` -> `@comvi/react`. */
+export function packageName(spec) {
+  return spec.startsWith("@") ? `@${spec.slice(1).split("@")[0]}` : spec.split("@")[0];
+}
+
 /** Write the page's files, the local-tarball overrides and the install deps. */
 function prepareProject(dir, fw, plan, packages, cdnUrl) {
   for (const rel of SCAFFOLD_DELETES[fw] ?? []) {
@@ -264,7 +277,7 @@ function prepareProject(dir, fw, plan, packages, cdnUrl) {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   manifest.dependencies ??= {};
   for (const spec of plan.installs) {
-    const name = spec.startsWith("@") ? `@${spec.slice(1).split("@")[0]}` : spec.split("@")[0];
+    const name = packageName(spec);
     const pkg = packages.find((entry) => entry.name === name);
     if (pkg) manifest.dependencies[name] = `file:${tarballFor(pkg)}`;
     else manifest.dependencies[name] ??= spec.slice(name.length + 1) || "latest";
@@ -534,9 +547,8 @@ async function pool(tasks, size) {
   return results;
 }
 
-async function main(argv) {
-  const started = Date.now();
-  const options = parseArgs(argv);
+/** The plans, the package source and one task per framework and page. */
+async function prepare(options) {
   const pagePlans = new Map();
   for (const page of PAGES) {
     const file = path.join(options.content, page.file);
@@ -544,6 +556,54 @@ async function main(argv) {
     pagePlans.set(page.key, planPage(fs.readFileSync(file, "utf8"), page.key, page.file));
   }
 
+  const frameworks = FRAMEWORKS.filter((fw) => !options.only || options.only.includes(fw.key));
+  const projects = frameworks.flatMap((fw) =>
+    PAGES.map((page) => ({ fw, page, plan: projectPlan(pagePlans, fw.key, page.key) })),
+  );
+
+  fs.mkdirSync(CACHE_ROOT, { recursive: true });
+  let packages;
+  if (options.fromRegistry) {
+    const roots = new Set(["@comvi/core"]);
+    for (const { plan } of projects) {
+      for (const name of plan.installs.map(packageName)) {
+        if (name.startsWith("@comvi/")) roots.add(name);
+      }
+    }
+    const packDir = fs.mkdtempSync(path.join(CACHE_ROOT, "registry-"));
+    console.error(`docs-quickstart: fetching @comvi/*@${options.fromRegistry} into ${packDir}`);
+    packages = fetchRegistryTarballs([...roots], options.fromRegistry, packDir, {
+      log: (line) => console.error(line),
+    });
+  } else {
+    packages = await packCheckout(options);
+  }
+
+  const cdn = await startCdn();
+  const tasks = [];
+  for (const { fw, page, plan } of projects) {
+    tasks.push(async () => {
+      console.error(`docs-quickstart: ${fw.key} / ${page.key}...`);
+      const result = await runProject({
+        fw: fw.key,
+        page: page.key,
+        plan,
+        packages,
+        cdn,
+        options,
+      });
+      const verdict = Object.values(result.steps).every((step) => step.status === "pass")
+        ? "pass"
+        : "FAIL";
+      console.error(`docs-quickstart: ${fw.key} / ${page.key}: ${verdict}`);
+      return result;
+    });
+  }
+  return { tasks, cdn, packages };
+}
+
+/** This checkout's packages, built and packed (the default source). */
+async function packCheckout(options) {
   if (options.build) {
     const built = await exec("pnpm", ["build"], { cwd: options.sdkRoot });
     if (built.status !== 0) throw new Error(`pnpm build failed\n${built.output}`);
@@ -555,32 +615,20 @@ async function main(argv) {
   }
   const packages = workspacePackages(options.sdkRoot);
   if (!options.pack) assertTarballsFresh(packages);
+  return packages;
+}
 
-  fs.mkdirSync(CACHE_ROOT, { recursive: true });
-  const cdn = await startCdn();
-  const frameworks = FRAMEWORKS.filter((fw) => !options.only || options.only.includes(fw.key));
-  const tasks = [];
-  for (const fw of frameworks) {
-    for (const page of PAGES) {
-      const plan = projectPlan(pagePlans, fw.key, page.key);
-      tasks.push(async () => {
-        console.error(`docs-quickstart: ${fw.key} / ${page.key}...`);
-        const result = await runProject({
-          fw: fw.key,
-          page: page.key,
-          plan,
-          packages,
-          cdn,
-          options,
-        });
-        const verdict = Object.values(result.steps).every((step) => step.status === "pass")
-          ? "pass"
-          : "FAIL";
-        console.error(`docs-quickstart: ${fw.key} / ${page.key}: ${verdict}`);
-        return result;
-      });
-    }
-  }
+async function main(argv) {
+  const started = Date.now();
+  const options = parseArgs(argv);
+  const { tasks, cdn, packages } = await prepare(options);
+  const source = options.fromRegistry
+    ? `registry @${options.fromRegistry}`
+    : `local tarballs of ${options.sdkRoot}`;
+  console.error(
+    `docs-quickstart: @comvi/* from ${source}: ` +
+      packages.map((pkg) => `${pkg.name}@${pkg.version}`).join(", "),
+  );
 
   let results;
   try {
@@ -591,6 +639,7 @@ async function main(argv) {
   }
 
   console.log(renderTable(results));
+  console.log(`\n@comvi/* from ${source}.`);
   const notes = results.flatMap((result) =>
     result.notes.map((note) => `- ${result.fw} / ${result.page}: ${note}`),
   );

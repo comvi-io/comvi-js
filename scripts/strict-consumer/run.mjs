@@ -22,15 +22,26 @@
  *
  * Needs the workspace built (`pnpm build`) — it consumes `packages/*\/dist`, the
  * published artifacts, not the sources. `pnpm check:strict-consumer`.
+ *
+ * Two more sources, for the bytes a user installs rather than the workspace
+ * `dist` (`tarballs.mjs`):
+ *
+ *   pnpm check:strict-consumer --packed                 # this checkout, `pnpm pack:release`
+ *   pnpm check:strict-consumer --from-registry <tag|v>  # `npm pack @comvi/<pkg>@<tag|v>` (D′)
+ *
+ * In both, the emitter is the packed `@comvi/vite-plugin` and every case runs
+ * against the packed packages.
  */
 
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { comviTypes } from "@comvi/vite-plugin";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { pendingReason } from "../../tooling/migration-pending.mjs";
+import { cleanTarballs, tarballFor, workspacePackages } from "../docs-snippets/link-sdk.mjs";
+import { fetchRegistryTarballs } from "../docs-quickstart/registry.mjs";
+import { buildStore, importTarget, parseArgs, workspaceResolver } from "./tarballs.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const TSC = path.join(REPO_ROOT, "node_modules", "typescript", "bin", "tsc");
@@ -40,19 +51,87 @@ const CATALOG = JSON.stringify({ hello: "Hello", greeting: "Hi {name}" });
 /** Every fixture root built, removed once all cases pass. */
 const appRoots = [];
 
+/** Every `@comvi/*` specifier a case declares, and the emitter. */
+const COMVI_PACKAGES = [
+  "@comvi/core",
+  "@comvi/next",
+  "@comvi/nuxt",
+  "@comvi/react",
+  "@comvi/vite-plugin",
+];
+
 function fail(message) {
   console.error(`strict-consumer: ${message}`);
   process.exit(1);
 }
 
 /** The workspace package behind a specifier, with its build output in place. */
-function packageDir(specifier) {
+function workspaceDir(specifier) {
   const dir = path.join(REPO_ROOT, "packages", specifier.replace("@comvi/", ""));
   if (!fs.existsSync(path.join(dir, "dist"))) {
     fail(`${specifier} has no build output in ${dir}/dist. Run \`pnpm build\` first.`);
   }
   return dir;
 }
+
+let options;
+try {
+  options = parseArgs(process.argv.slice(2));
+} catch (error) {
+  fail(error.message);
+}
+
+/** The directory of the package behind a specifier, in the selected source. */
+let packageDir = workspaceDir;
+let comviTypes;
+let source = "packages/*/dist (workspace links)";
+if (options.source === "dist") {
+  ({ comviTypes } = await import("@comvi/vite-plugin"));
+} else {
+  const storeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-strict-consumer-store-"));
+  appRoots.push(storeRoot);
+  let tarballs;
+  if (options.source === "packed") {
+    cleanTarballs(REPO_ROOT);
+    const packed = spawnSync("pnpm", ["pack:release"], { cwd: REPO_ROOT, encoding: "utf8" });
+    if (packed.status !== 0) {
+      fail(`pnpm pack:release failed:\n${packed.stdout ?? ""}${packed.stderr ?? ""}`);
+    }
+    tarballs = workspacePackages(REPO_ROOT).map((pkg) => ({
+      name: pkg.name,
+      version: pkg.version,
+      file: tarballFor(pkg),
+    }));
+    source = `tarballs packed from ${REPO_ROOT}`;
+  } else {
+    const packDir = path.join(storeRoot, ".tarballs");
+    console.log(`Fetching @comvi/*@${options.spec} from the registry`);
+    try {
+      tarballs = fetchRegistryTarballs(COMVI_PACKAGES, options.spec, packDir, {
+        log: (line) => console.log(line),
+      });
+    } catch (error) {
+      fail(error.message);
+    }
+    source = `registry @${options.spec}`;
+  }
+  const store = buildStore(tarballs, storeRoot, {
+    resolveThirdParty: workspaceResolver(REPO_ROOT),
+  });
+  for (const entry of store.unresolved) {
+    console.log(`  note: third-party dependency not in this checkout's install: ${entry}`);
+  }
+  packageDir = (specifier) => {
+    const dir = store.dirs.get(specifier);
+    if (!dir) fail(`${specifier} is not among the tarballs (${[...store.dirs.keys()].join(", ")})`);
+    return dir;
+  };
+  const plugin = "@comvi/vite-plugin";
+  const entry = path.join(packageDir(plugin), importTarget(store.manifests.get(plugin)));
+  ({ comviTypes } = await import(pathToFileURL(entry).href));
+  source += `: ${tarballs.map((tarball) => `${tarball.name}@${tarball.version}`).join(", ")}`;
+}
+console.log(`strict-consumer: @comvi/* from ${source}`);
 
 function link(target, linkPath) {
   fs.mkdirSync(path.dirname(linkPath), { recursive: true });
@@ -401,5 +480,5 @@ if (failures.length > 0) {
 
 for (const root of appRoots) fs.rmSync(root, { recursive: true, force: true });
 console.log(
-  `strict-consumer: OK — ${cases.length - skipped} cases${skipped ? `, ${skipped} skipped (MIGRATION_PENDING)` : ""}.`,
+  `strict-consumer: OK — ${cases.length - skipped} cases${skipped ? `, ${skipped} skipped (MIGRATION_PENDING)` : ""} (${options.source === "dist" ? "workspace dist" : source.split(":")[0]}).`,
 );
