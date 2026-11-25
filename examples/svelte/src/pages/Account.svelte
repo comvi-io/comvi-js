@@ -1,16 +1,25 @@
 <script lang="ts">
   import { useI18n } from '@comvi/svelte';
   import Card from '../components/Card.svelte';
+  import LoadError from '../components/LoadError.svelte';
   import { name } from '../name';
   import { link } from '../router';
   import { fetched } from '../i18n';
-
 
   const { t } = useI18n();
   // Loads the namespace and keeps it loaded across language switches while this
   // page shows; once the page closes it stays cached and a switch skips it.
   const account = useI18n('account');
   const tAccount = account.t;
+
+  // `load()` settles with that load: it rejects when the catalog could not be loaded
+  // (onError has the details), and calling it again asks the loader again.
+  let failed = $state(false);
+  function loadAccount() {
+    failed = false;
+    account.i18n.load('account').catch(() => (failed = true));
+  }
+  loadAccount();
 </script>
 
 <div class="cards">
@@ -20,7 +29,9 @@
   </Card>
 
   <Card title={t('demo.lazy.title')} body={t('demo.lazy.body')}>
-    {#if !account.isReady && account.isLoading}
+    {#if failed}
+      <LoadError onretry={loadAccount} />
+    {:else if !account.isReady && account.isLoading}
       <p class="widget">{t('app.loading')}</p>
     {:else}
       <p class="widget" data-testid="account-signed-in">{tAccount('profile.signed_in', { name: $name })}</p>

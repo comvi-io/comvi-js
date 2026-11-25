@@ -17,6 +17,17 @@
   // Every later payload (a link to /uk, Back) switches the same instance. A `null` slot is
   // a load that failed on the server.
   let routeLocale = i18n.locale;
+  // The locale whose switch failed in the browser, if any: the page stays in the language
+  // on screen, and calling setLocale() again asks the loader again.
+  let failed = $state<string | null>(null);
+  function switchTo(locale: string) {
+    failed = null;
+    i18n.setLocale((routeLocale = locale)).catch(() => {
+      if (routeLocale != locale) return;
+      routeLocale = i18n.locale;
+      failed = locale;
+    });
+  }
   $effect.pre(() => {
     for (const ns in data.catalogs)
       for (const locale in data.catalogs[ns]) {
@@ -28,10 +39,7 @@
     // switch that fails forgets its locale, so a later payload for it asks again: the
     // switcher's link to the page on screen runs the load again.
     const locale = data.locale;
-    if (locale != routeLocale)
-      i18n.setLocale((routeLocale = locale)).catch(() => {
-        if (routeLocale == locale) routeLocale = i18n.locale;
-      });
+    if (locale != routeLocale) switchTo(locale);
   });
 
   const r = useI18n();
@@ -59,5 +67,14 @@
       {/each}
     </nav>
   </header>
+  {#if failed}
+    {@const locale = failed}
+    <p class="note" role="alert" data-testid="load-error">
+      {t("app.load_failed")}
+      <button type="button" data-testid="load-retry" onclick={() => switchTo(locale)}
+        >{t("app.retry")}</button
+      >
+    </p>
+  {/if}
   {@render children()}
 </main>

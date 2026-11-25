@@ -4,7 +4,7 @@
  * or one of the `namespaces` option — so the server renders the branch the browser, started from
  * `handover()`, hydrates. Without that wait the server renders the loading branch and the
  * browser, handed the catalog, the content: a hydration mismatch. Contract:
- * `.lot1-pending-tests.md` "Ready/loading scope of `useI18n()`", "Server-render wait".
+ * `docs/design/namespaces.md`, "Scope of a binding's `useI18n()`", "Server-render wait".
  */
 import { createSSRApp, defineComponent, h } from "vue";
 import { renderToString } from "vue/server-renderer";

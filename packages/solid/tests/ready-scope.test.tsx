@@ -3,7 +3,7 @@
  * reads the configured namespaces (`namespaces`, default `["default"]`) — every one ready,
  * some loading — and `useI18n(ns)` only `ns`; `t` and the bound `T` of `useI18n()` stay on
  * `default`. The server half of check 9 is tests/ssr/ready-scope.test.tsx. Contract:
- * `.lot1-pending-tests.md` "Ready/loading scope of `useI18n()`".
+ * `docs/design/namespaces.md`, "Scope of a binding's `useI18n()`".
  */
 import { createEffect, createSignal, type JSX } from "solid-js";
 import { render } from "@solidjs/testing-library";

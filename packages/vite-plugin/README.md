@@ -121,6 +121,9 @@ rendered text agree on every message.
 
 - [Type safety](https://comvi.io/docs/i18n/type-safety): what the declaration checks, and how it
   reaches `useI18n()`.
+- [Limitations](https://comvi.io/docs/i18n/limitations): what the library does not do, such as
+  [`{x, number}` in a message](https://comvi.io/docs/i18n/limitations#no-number-date-args), which
+  the generator warns about.
 
 ## Contributing
 

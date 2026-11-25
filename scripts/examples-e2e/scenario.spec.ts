@@ -268,6 +268,11 @@ type BrowserErrors = {
   errors: string[];
   /** Watch another page (a second browser context, as in step m) the same way. */
   watch: (page: Page) => void;
+  /**
+   * Allow Chromium's report of a request this test refused on purpose (steps j2, w3):
+   * `net::ERR_FAILED` for a URL matching `pattern`, and nothing else.
+   */
+  allowRefused: (pattern: RegExp) => void;
 };
 
 /**
@@ -283,11 +288,19 @@ const test = base.extend<{ browserErrors: BrowserErrors }>({
     async ({ page }, use, testInfo) => {
       const errors: string[] = [];
       const lines: string[] = [];
+      const refused: RegExp[] = [];
+      const refusedOnPurpose = (entry: ConsoleMessage) =>
+        entry.text() === "Failed to load resource: net::ERR_FAILED" &&
+        refused.some((pattern) => pattern.test(entry.location().url));
       const watch = (target: Page) => {
         target.on("console", (entry) => {
           const where = entry.location().url;
           lines.push(`${entry.type()}: ${entry.text()}${where ? ` (${where})` : ""}`);
-          if (entry.type() === "error" && !allowedNetworkMessage(entry)) {
+          if (
+            entry.type() === "error" &&
+            !allowedNetworkMessage(entry) &&
+            !refusedOnPurpose(entry)
+          ) {
             errors.push(`console.error: ${entry.text()}${where ? ` (${where})` : ""}`);
           }
         });
@@ -297,7 +310,7 @@ const test = base.extend<{ browserErrors: BrowserErrors }>({
         });
       };
       watch(page);
-      await use({ errors, watch });
+      await use({ errors, watch, allowRefused: (pattern) => refused.push(pattern) });
       const step = testInfo.title.split(":")[0];
       fs.appendFileSync(CONSOLE_LOG, lines.map((line) => `[${step}] ${line}\n`).join(""));
       if (errors.length > 0) {
@@ -585,6 +598,73 @@ test("j: a catalog is requested only when its locale is first needed", async ({ 
   await page.getByTestId("locale-uk").click();
   if (onDemand) await onDemand;
   await expect(page.getByTestId("greeting")).toHaveText(greeting("uk"));
+});
+
+/**
+ * Every request for a catalog from the moment this is called (`armed`), from the CDN and
+ * from the bundled `fallback` both, fails as a network error does. `release()` lets them
+ * through again. `files` are the catalog's possible URLs: the CDN's under `--cdn`, and the
+ * bundled chunk, which is the CDN loader's fallback or the only loader.
+ */
+async function refuseCatalog(page: Page, browserErrors: BrowserErrors, files: RegExp[]) {
+  let refusing = true;
+  const matches = (url: URL) => files.some((pattern) => pattern.test(url.href));
+  for (const pattern of files) browserErrors.allowRefused(pattern);
+  await page.route(matches, (route) => (refusing ? route.abort("failed") : route.fallback()));
+  return {
+    release: () => {
+      refusing = false;
+    },
+  };
+}
+
+/** The URLs `locale:ns`'s catalog may come from in this build: the CDN's, then the bundle's. */
+function catalogFiles(locale: Shown, ns: "default" | "account"): RegExp[] {
+  const cdnFile = ns === "default" ? `${locale}.json` : `${ns}/${locale}.json`;
+  const key = ns === "default" ? locale : `${locale}:${ns}`;
+  const chunk =
+    KIND === "vite"
+      ? // Vite names a chunk after the file: `en.json` and `account/en.json` are both `en-<hash>.js`.
+        new RegExp(`/assets/${locale}-[^/]+\\.js$`)
+      : new RegExp(`${escapeRegExp(CATALOG_CHUNKS[key] ?? `no chunk for ${key}`)}$`);
+  return CDN_URL ? [new RegExp(`^${escapeRegExp(`${CDN_URL}/${cdnFile}`)}$`), chunk] : [chunk];
+}
+
+/** The error a failed load shows, in `locale`, with its retry button. */
+async function expectLoadError(page: Page, locale: Shown): Promise<void> {
+  await expect(page.getByTestId("load-error")).toContainText(message(locale, "app.load_failed"));
+  await expect(page.getByTestId("load-retry")).toHaveText(message(locale, "app.retry"));
+}
+
+test("j2: a switch whose catalog cannot load keeps the page and offers a retry", async ({
+  page,
+  browserErrors,
+}) => {
+  test.skip(KIND === "next", "the browser loads no catalog: the server renders each locale's page");
+  test.skip(KIND === "nuxt", "a switch is a navigation to the locale's URL");
+  await open(page);
+  await ready(page);
+  await expect(page.getByTestId("load-error")).toHaveCount(0);
+  const refused = await refuseCatalog(page, browserErrors, catalogFiles("uk", "default"));
+
+  await page.getByTestId("locale-uk").click();
+  await expectLoadError(page, "en");
+  // The switch did not happen: the page is English in full, under `lang="en"`.
+  await expect(page.getByTestId("greeting")).toHaveText(greeting("en"));
+  await expect(page.getByTestId("locale-uk")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  expect(rawKeysIn(await pageText(page)), "raw keys after the failed switch").toEqual([]);
+
+  if (!CDN_URL) {
+    // Chromium keeps a failed `import()` failed for the life of the document, so the
+    // bundled catalog is not fetched again until a reload: the retry is the CDN's.
+    return;
+  }
+  refused.release();
+  await page.getByTestId("load-retry").click();
+  await expect(page.getByTestId("greeting")).toHaveText(greeting("uk"));
+  await expect(page.getByTestId("locale-uk")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("load-error")).toHaveCount(0);
 });
 
 test("k2: CDN down — the bundled fallback imports serve the catalogs", async ({ page }) => {
@@ -1620,6 +1700,41 @@ test("w2: a namespace no page holds is not loaded by a switch; its page loads it
   expect((await watching.seen()).loads, "uk:account loaded once, on return").toHaveLength(
     shared + 1,
   );
+});
+
+test("w3: a second page whose namespace cannot load offers a retry in place of its rows", async ({
+  page,
+  browserErrors,
+}) => {
+  test.skip(KIND === "next", "the browser loads no catalog: the server renders the namespace");
+  // Nuxt declares every catalog chunk as a prefetch hint, downloaded before the click: it is
+  // refused from the first request on. Vite names `account/en.json` like `en.json`, so there
+  // the refusal starts once the first page has its own catalog.
+  const early = KIND === "nuxt" && !CDN_URL;
+  const refused = early
+    ? await refuseCatalog(page, browserErrors, catalogFiles("en", "account"))
+    : null;
+  await open(page);
+  await ready(page);
+  const refusal =
+    refused ?? (await refuseCatalog(page, browserErrors, catalogFiles("en", "account")));
+
+  await page.getByTestId("nav-about").click();
+  await expect(page).toHaveURL(new RegExp(`${escapeRegExp(aboutPath("en"))}$`));
+  await expectLoadError(page, "en");
+  await expect(page.getByTestId("about-body")).toHaveText(message("en", "about.body"));
+  await expect(page.getByTestId("account-signed-in")).toHaveCount(0);
+  expect(accountKeysIn(await pageText(page)), "raw account keys on the second page").toEqual([]);
+  expect(rawKeysIn(await pageText(page)), "raw keys on the second page").toEqual([]);
+
+  if (!CDN_URL) {
+    // As in j2: a failed bundled `import()` is not fetched again before a reload.
+    return;
+  }
+  refusal.release();
+  await page.getByTestId("load-retry").click();
+  await expectAccount(page, "en");
+  await expect(page.getByTestId("load-error")).toHaveCount(0);
 });
 
 test("x: every DOM state of the second page during en → uk → de is one whole language", async ({

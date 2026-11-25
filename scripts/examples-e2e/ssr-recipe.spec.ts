@@ -503,6 +503,34 @@ test("h4: a switch that failed in the browser is retried by its switcher link ag
   expect(await requested(page), "one new request for uk").toEqual(["uk:default", "uk:default"]);
 });
 
+test("h5: a switch that failed in the browser shows the error, and its retry button loads it", async ({
+  page,
+}) => {
+  await openFailed(page, "/");
+  await expectPage(page, "en");
+  await expect(page.getByTestId("load-error")).toHaveCount(0);
+  await page.evaluate(() => ((window as { __fail?: boolean }).__fail = true));
+  await follow(page, "locale-uk", "/uk");
+  await settled(page, "uk:rejected");
+  // The page stays in the language on screen, and says so in it.
+  await expect(page.getByTestId("load-error")).toContainText(flat.en["app.load_failed"]);
+  await expect(page.getByTestId("load-retry")).toHaveText(flat.en["app.retry"]);
+  expect(await page.getByTestId("greeting").textContent(), "the greeting once uk failed").toBe(
+    GREETING.en,
+  );
+  expect(rawKeysIn(await page.locator("body").innerText()), "raw keys on the page").toEqual([]);
+  await page.evaluate(() => ((window as { __fail?: boolean }).__fail = false));
+
+  // The button asks for uk again, on the URL already on screen: one request, then Ukrainian.
+  await page.getByTestId("load-retry").click();
+  await expect(page).toHaveURL((url) => url.pathname === "/uk");
+  await expect(page.getByTestId("greeting")).toHaveText(GREETING.uk);
+  await expect(page.locator("html")).toHaveAttribute("lang", "uk");
+  await expect(page.getByTestId("load-error")).toHaveCount(0);
+  expect(await sameDocument(page), "the retry reloaded the page").toBe(true);
+  expect(await requested(page), "one new request for uk").toEqual(["uk:default", "uk:default"]);
+});
+
 async function render(request: APIRequestContext, locale: Locale) {
   const response = await request.get(pathFor(locale));
   const html = await response.text();

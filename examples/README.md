@@ -46,10 +46,18 @@ Each card on the page is one feature, in the same order in all seven:
 - **A missing parameter** renders as its own placeholder, `{name}`.
 - **The `onError` hook**, wired to a counter of distinct missing keys you could send to your
   tracker.
+- **A failed load:** a language whose catalog cannot be loaded leaves the page in the language it
+  shows, with an error and a **Try again** button; so does the Account page when its namespace
+  cannot be loaded. The button calls `setLocale()` or `load()` again, which asks the loader again.
 - **A second page**, Account, that loads the `account` namespace and keeps the chosen language on
   the way there and back.
 - **Right-to-left:** pick Arabic in the switcher and the page turns RTL through the library's
   `dir`.
+
+Every example also has **typed keys**: a declaration generated from the English catalogs makes
+`t()` reject a key no catalog has and a call that leaves out a parameter its message uses. The
+fallback and missing-parameter cards make exactly those two calls on purpose, under
+`@ts-expect-error`, so the example's `typecheck` fails if the types are not in place.
 
 Each example has its own README with the file where the setup lives.
 
@@ -98,6 +106,36 @@ export const i18n = createI18n({
   plugins: [detect({ supported: ["en", "uk", "de", "ar"] }), persist(), devtools()],
 });
 ```
+
+### Typed keys
+
+The five Vite examples and the two SSR recipes add `comviTypes()` from `@comvi/vite-plugin` to
+`vite.config.ts`; it writes `src/types/i18n.d.ts` on `vite build` and on every catalog change in
+`vite dev`. Next passes `types` to `withComvi()` in `next.config.ts`; Nuxt sets `comvi.types` in
+`nuxt.config.ts`, which writes the file under `.nuxt/` before `nuxt typecheck`:
+
+```ts title="vite.config.ts"
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { comviTypes } from "@comvi/vite-plugin";
+
+export default defineConfig({
+  plugins: [comviTypes({ from: "./src/locales", sourceLocale: "en" }), react()],
+});
+```
+
+The file is generated, so it is not committed. `npm run typecheck` writes the same bytes with
+`comvi typegen --from src/locales --source-locale en` first, so it checks a fresh clone too.
+
+### A failed load
+
+`setLocale()` rejects when the new locale's catalog cannot be loaded and keeps the current locale
+on screen; `load("account")` rejects when the namespace cannot be loaded for the locale on
+screen. Both report the error through `onError` first. The examples catch the rejection, show
+`app.load_failed` with an `app.retry` button, and call the same function again on a click. With
+the CDN variable set, the retry fetches the catalog again. A bundled catalog is a dynamic
+`import()`, and Chromium keeps a failed `import()` failed until the page reloads, so there the
+retry fails again until then.
 
 ## Run locally
 

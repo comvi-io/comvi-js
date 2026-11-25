@@ -4,7 +4,8 @@
  * `{ v, i, x }` on `window.__COMVI__`, spliced out on `destroy()`, and the handle `x` =
  * `{ p: 2, kind: "comvi", read, state, mark, load }`. What moved to the extension and the
  * editor (CSP diagnostics, timeout, cross-copy dedupe, the cache salt, the v1 registry and
- * hook probes, `comvi-<n>` ids) is listed in `.lot1-pending-tests.md` for lot 8.
+ * hook probes, `comvi-<n>` ids) is listed in `docs/design/editor-loader.md` ("The extension
+ * owns the rest").
  *
  * happy-dom settles a `<script src>` synchronously on insertion; `hold()` inserts it with
  * its handlers detached, so a test fires `load` / `error` itself.

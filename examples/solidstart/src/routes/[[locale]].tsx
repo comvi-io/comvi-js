@@ -1,4 +1,4 @@
-import { createEffect, For, type ParentProps } from "solid-js";
+import { createEffect, createSignal, For, Show, type ParentProps } from "solid-js";
 import { useLocation, useParams, type RouteDefinition } from "@solidjs/router";
 import { I18nProvider, useI18n } from "@comvi/solid";
 import { fallbackLocale, i18nFor, localePath, locales } from "~/lib/i18n";
@@ -18,19 +18,28 @@ export default function LocaleLayout(props: ParentProps) {
   // runs again only when the route's locale changes: after a failed /uk, /uk/about or the uk
   // link again asks for nothing, and a switch away and back retries.
   let routeLocale = i18n.locale;
+  // The locale whose switch failed in the browser, if any: the page stays in the language
+  // on screen, and calling setLocale() again asks the loader again.
+  const [failed, setFailed] = createSignal<string | null>(null);
+  const switchTo = (locale: string) => {
+    setFailed(null);
+    i18n.setLocale((routeLocale = locale)).catch(() => setFailed(locale));
+  };
   createEffect(() => {
     const locale = params.locale ?? fallbackLocale;
-    if (locale != routeLocale) i18n.setLocale((routeLocale = locale)).catch(() => {});
+    if (locale != routeLocale) switchTo(locale);
   });
 
   return (
     <I18nProvider i18n={i18n}>
-      <Shell>{props.children}</Shell>
+      <Shell failed={failed()} onRetry={switchTo}>
+        {props.children}
+      </Shell>
     </I18nProvider>
   );
 }
 
-function Shell(props: ParentProps) {
+function Shell(props: ParentProps<{ failed: string | null; onRetry: (locale: string) => void }>) {
   const { t, locale, dir } = useI18n();
   const params = useParams();
   const location = useLocation();
@@ -62,6 +71,16 @@ function Shell(props: ParentProps) {
           </For>
         </nav>
       </header>
+      <Show when={props.failed}>
+        {(locale) => (
+          <p class="note" role="alert" data-testid="load-error">
+            {t("app.load_failed")}{" "}
+            <button type="button" data-testid="load-retry" onClick={() => props.onRetry(locale())}>
+              {t("app.retry")}
+            </button>
+          </p>
+        )}
+      </Show>
       {props.children}
     </main>
   );

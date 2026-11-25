@@ -32,6 +32,7 @@ export const STEPS = [
   "h",
   "i",
   "j",
+  "j2",
   "k",
   "k2",
   "k3",
@@ -50,6 +51,7 @@ export const STEPS = [
   "v2",
   "w",
   "w2",
+  "w3",
   "x",
   "y",
   "z",
@@ -70,7 +72,22 @@ export const CDN_CONTROL_STEPS = ["t", "t2", "u", "v", "v2"];
  */
 export const RECIPE_KINDS = ["sveltekit", "solidstart"];
 
-export const RECIPE_STEPS = ["a", "a2", "b", "c", "d", "e", "e2", "g", "h", "h2", "h3", "h4", "f"];
+export const RECIPE_STEPS = [
+  "a",
+  "a2",
+  "b",
+  "c",
+  "d",
+  "e",
+  "e2",
+  "g",
+  "h",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "f",
+];
 
 export const RECIPE_LEGEND = {
   a: "SSR: plain-HTTP /, /uk, /de, /ar, /about and /uk/about are translated, with <html lang dir>; with JavaScript off the text is on screen",
@@ -85,6 +102,7 @@ export const RECIPE_LEGEND = {
   h2: "on the FAILED build: / → /uk with the browser's uk load held, then back to / before it lands: the page stays English",
   h3: "on the FAILED build: / → /uk with the browser's uk load failing stays English; /uk/about asks for nothing, then /about → /uk/about retries uk once and renders Ukrainian",
   h4: "on the FAILED build, SvelteKit: / → /uk with the browser's uk load failing stays English; the uk link again reruns the layout's load, which retries uk once and renders Ukrainian (SolidStart skips: no route param changes)",
+  h5: "on the FAILED build: / → /uk with the browser's uk load failing shows the error in English; its retry button asks for uk once and renders Ukrainian",
   f: "the example's own typecheck (svelte-check, tsc)",
 };
 
@@ -107,6 +125,7 @@ export const STEP_LEGEND = {
   h: "a second page is translated and the locale survives navigation and Back",
   i: "locale in the URL: /de renders German, switching navigates, Back restores",
   j: "a locale's catalog is requested only when first needed, then renders",
+  j2: "a switch whose catalog cannot load (CDN and bundle both refused) keeps the page in en and shows the error with a retry button; --cdn: the retry, once the network is back, renders uk (bundled: Chromium does not fetch a failed import() again)",
   k: "--cdn: every catalog came from the mock CDN, nothing 404'd",
   k2: "--cdn: CDN unreachable → the bundled `fallback` imports serve the catalogs",
   k3: "--cdn: the CDN's uk bundle lacks a key → the en value renders, not the key",
@@ -125,6 +144,7 @@ export const STEP_LEGEND = {
   v2: "--cdn: uk's catalog is corrupt JSON → the bundled uk renders",
   w: "namespace: the first page never requests `account`; the second page loads `en:account` once and renders it",
   w2: "namespace (0.8, lot 4c): after the second page closes, a switch on the first page does not load `account`; back on the second page it loads for the new locale (0.7 bindings: skipped)",
+  w3: "namespace: a second page whose `account` catalog cannot load shows the error with a retry button in place of its rows; --cdn: the retry, once the network is back, renders them",
   x: "namespace: every DOM state of the second page during en → uk → de is one whole language, `account` included; its en-only key renders en",
   y: "SSR: plain-HTTP /uk/about already carries the `account` text, then hydrates without changing it or refetching the catalog",
   z: "--cdn: CDN unreachable → the bundled `locale:account` fallback imports serve the namespace",
@@ -822,6 +842,10 @@ export function allowedSkips({ kind, cdn }) {
   if (kind === "solidstart") allowed.add("h4");
   if (isRecipe(kind)) return allowed;
   if (kind === "vite") for (const step of ["f", "i", "o", "s", "t", "t2", "y"]) allowed.add(step);
+  // next: the browser loads no catalog, the server renders them; nuxt: a switch is a
+  // navigation to the locale's URL, not a setLocale() the page waits on.
+  if (kind === "next") for (const step of ["j2", "w3"]) allowed.add(step);
+  if (kind === "nuxt") allowed.add("j2");
   if (cdn) allowed.add("s");
   else for (const step of ["k", "k2", "k3", "g2", "z", ...CDN_CONTROL_STEPS]) allowed.add(step);
   return allowed;
@@ -1126,8 +1150,8 @@ export const RECIPE_VARIANTS = {
         },
         {
           file: "src/routes/[[locale]].tsx",
-          from: 'import { createEffect, For, type ParentProps } from "solid-js";',
-          to: 'import { createEffect, createResource, For, type ParentProps } from "solid-js";',
+          from: 'import { createEffect, createSignal, For, Show, type ParentProps } from "solid-js";',
+          to: 'import { createEffect, createResource, createSignal, For, Show, type ParentProps } from "solid-js";',
         },
         {
           file: "src/routes/[[locale]].tsx",

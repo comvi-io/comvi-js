@@ -11,6 +11,8 @@ interface State {
   formality: Formality;
   /** A locale switch is waiting for its catalog. */
   switching: boolean;
+  /** The locale whose switch failed: its catalog could not be loaded. */
+  failed: string | null;
 }
 
 export const state: State = {
@@ -19,6 +21,7 @@ export const state: State = {
   gender: "female",
   formality: "formal",
   switching: false,
+  failed: null,
 };
 
 const listeners = new Set<() => void>();

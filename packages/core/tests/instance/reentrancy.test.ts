@@ -1,5 +1,5 @@
 /**
- * Lot 4d re-entrancy (`.lot1-pending-tests.md`, "Lot 4d re-entrancy"): a subscriber may call
+ * Lot 4d re-entrancy (`docs/design/reentrancy.md`): a subscriber may call
  * `setLocale()`, the last call wins and no order of notifications is promised; these tests read
  * the final state. A flight is registered before its loader runs, detached before its abort
  * listeners, and only the same flight removes itself; `destroy()` follows the same rules.

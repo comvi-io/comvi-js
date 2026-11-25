@@ -57,7 +57,12 @@ test("after lot 7 every example, both SSR recipes and every test app run", () =>
 });
 
 test("a rewritten example or bundler case does not need fixtures-08; the others do", () => {
-  assert.deepEqual(exampleNeeds("react").sort(), ["@comvi/core", "@comvi/react"]);
+  assert.deepEqual(exampleNeeds("react").sort(), [
+    "@comvi/cli",
+    "@comvi/core",
+    "@comvi/react",
+    "@comvi/vite-plugin",
+  ]);
   assert.deepEqual(bundlerCaseNeeds("react-default", ["@comvi/core"]), ["@comvi/core"]);
   assert.deepEqual(bundlerCaseNeeds("vue-default", ["@comvi/vue"]), ["@comvi/vue"]);
   assert.deepEqual(bundlerCaseNeeds("next-client-default", ["@comvi/next"]), ["@comvi/next"]);
@@ -74,5 +79,10 @@ test("a test app runs once it is active, independently of the others", () => {
 });
 
 test("example needs come from the example's own package.json", () => {
-  assert.deepEqual(exampleNeeds("sveltekit").sort(), ["@comvi/core", "@comvi/svelte"]);
+  assert.deepEqual(exampleNeeds("sveltekit").sort(), [
+    "@comvi/cli",
+    "@comvi/core",
+    "@comvi/svelte",
+    "@comvi/vite-plugin",
+  ]);
 });
