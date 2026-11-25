@@ -155,9 +155,10 @@ export const i18n = createI18n({
 
 ## A rejected `setLocale()`
 
-With a `loader`, `setLocale()` loads the new locale's catalogs before it switches. When none of them
-loads, the promise rejects with the loader's error, `onError` gets `load_failed`, and the locale and
-the text on screen stay as they were. Calling `setLocale()` again calls the loader again.
+With a `loader`, `setLocale()` loads the catalogs of the new locale and its parents (`de` for
+`de-AT`) before it switches. When none of them loads, the promise rejects with the loader's error,
+`onError` gets `load_failed`, and the locale and the text on screen stay as they were. Calling
+`setLocale()` again calls the loader again.
 
 ## Retry with `load()`
 
