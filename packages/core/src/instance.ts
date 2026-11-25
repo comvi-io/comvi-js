@@ -35,7 +35,7 @@ import { defaultOnError, noop, type I18nError, type OnError } from "./errors";
 import { flat, type CatalogInput } from "./flat";
 import { canonicalize, dir as dirOf, parents } from "./locale";
 import { find, mk, N, put, whole, type Mark, type State, type Store } from "./state";
-import type { RichParts, TFor } from "./types";
+import type { NsArg, RichParts, TFor } from "./types";
 
 declare const __DEV__: boolean;
 declare const __VERSION__: string;
@@ -154,8 +154,8 @@ export interface I18n {
    * means the text is not available, not necessarily that a load failed.
    */
   t: TFor<"default", RichParts>;
-  /** `t()` bound to namespace `name`. */
-  ns<N extends string>(name: N): TFor<N, RichParts>;
+  /** `t()` bound to namespace `name`. With generated catalogs, a declared namespace. */
+  ns<N extends string>(name: NsArg<N>): TFor<N, RichParts>;
   /**
    * Loads what `locale` needs for the namespaces active NOW — those of the `namespaces`
    * option and those a component's `useI18n(ns)` holds; one held later loads after the
