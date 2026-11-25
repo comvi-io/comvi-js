@@ -195,7 +195,7 @@ tag renders through a prop of its name (a function that gets the tag's content),
 `components` entry (a tag name, a component, or `{ component, props }`), else as its inner text.
 Every prop but `i18nKey`, `components`, `ns`, `locale` and `markers` is a param, and a param is
 always text, an element too ([limit](https://comvi.io/docs/i18n/limitations#params-are-text)). `t()`
-takes the same handlers: `t("terms", { link: (c) => <a href="/terms">{c}</a> })` .
+takes the same handlers: `t("terms", { link: (c) => <a href="/terms">{c}</a> })`.
 
 ## Server payload
 
