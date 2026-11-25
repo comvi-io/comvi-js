@@ -53,8 +53,6 @@ const CORE_07_DOCS =
   "documents the 0.7 core API (`.use()` composition, `i18n.init()`, the removed subpaths); the 0.8 API landed in lot 1b, the page is rewritten in stage D";
 const core07 = (...rules) => ({ reason: CORE_07_DOCS, rules });
 export const MIGRATION_PENDING_DOCS = {
-  // The README's banner says it: the 0.7 API (`await i18n.init()`), rewritten in lot S3.
-  "packages/core/README.md": core07("banned/instance-init", "typecheck/error"),
   // `.use(installer)` as the composition verb, `@comvi/core/loader`, `@comvi/plugin-fetch-loader`,
   // `registerPlugin` (lot S5).
   "docs/design/composition.md": core07(

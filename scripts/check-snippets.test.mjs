@@ -41,15 +41,30 @@ test("the 0.7 rules are listed nowhere", () => {
   }
 });
 
-test("a 0.7 page's listed rules stay advisory, with its reason", () => {
+// A listed page, as a fixture: the live list shrinks to nothing as stage D rewrites the 0.7 pages,
+// and these two tests must keep failing for the right reason when it is empty.
+const LISTED = {
+  "docs/design/a-07-page.md": {
+    reason: "fixture: still on the 0.7 API",
+    rules: ["banned/instance-init", "typecheck/error"],
+  },
+};
+const listedReason = (file, rule) =>
+  LISTED[file]?.rules.includes(rule) ? LISTED[file].reason : undefined;
+
+test("a listed page's listed rules stay advisory, with its reason", () => {
   const findings = [
-    finding("packages/core/README.md", "banned/instance-init"),
-    finding("docs/design/icu.md", "banned/icu-compiler"),
+    finding("docs/design/a-07-page.md", "banned/instance-init"),
+    finding("docs/design/a-07-page.md", "typecheck/error"),
   ];
-  const pending = applyPendingDocs(findings);
+  const pending = applyPendingDocs(findings, listedReason);
   assert.deepEqual(blocking(findings), []);
   assert.equal(findings[0].rule, "migration-pending/banned/instance-init");
-  assert.deepEqual([...pending.get("packages/core/README.md").rules], ["banned/instance-init"]);
+  assert.deepEqual(
+    [...pending.get("docs/design/a-07-page.md").rules],
+    ["banned/instance-init", "typecheck/error"],
+  );
+  assert.equal(pending.get("docs/design/a-07-page.md").reason, "fixture: still on the 0.7 API");
 });
 
 test("a finding in a document that is not listed blocks the run", () => {
@@ -61,10 +76,23 @@ test("a finding in a document that is not listed blocks the run", () => {
   assert.equal(blocking(findings).length, 2);
 });
 
-test("a 0.7 page is advisory only for the rules listed for it", () => {
-  assert.ok(pendingDocReason("docs/design/composition.md", "typecheck/error"));
-  assert.ok(pendingDocReason("docs/design/composition.md", "banned/use-on-instance"));
-  assert.equal(pendingDocReason("docs/design/composition.md", "typecheck/sfc-error"), undefined);
-  assert.equal(pendingDocReason("docs/design/composition.md", "banned/instance-init"), undefined);
-  assert.equal(pendingDocReason("packages/core/README.md", "banned/use-on-instance"), undefined);
+test("a listed page is advisory only for the rules listed for it", () => {
+  const findings = [
+    finding("docs/design/a-07-page.md", "banned/instance-init"),
+    finding("docs/design/a-07-page.md", "banned/use-on-instance"),
+    finding("docs/design/a-07-page.md", "typecheck/sfc-error"),
+  ];
+  applyPendingDocs(findings, listedReason);
+  assert.deepEqual(
+    blocking(findings).map((f) => f.rule),
+    ["banned/use-on-instance", "typecheck/sfc-error"],
+  );
+});
+
+test("every live entry names its reason and at least one rule", () => {
+  for (const [file, entry] of Object.entries(MIGRATION_PENDING_DOCS)) {
+    assert.ok(entry.reason, file);
+    assert.ok(Array.isArray(entry.rules) && entry.rules.length > 0, file);
+    for (const rule of entry.rules) assert.ok(pendingDocReason(file, rule), `${file}: ${rule}`);
+  }
 });

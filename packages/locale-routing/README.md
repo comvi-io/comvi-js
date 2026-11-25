@@ -37,13 +37,15 @@ the two ever disagree, and names the command in its failure message.
 
 ## What consumers use instead
 
-The public routing API for Next.js is three subpaths of `@comvi/next`:
+The public routing API for Next.js is these subpaths of `@comvi/next`:
 `@comvi/next/routing` (`defineRouting`, `hasLocale`, `createGetPathname`,
 `getAlternates`),
 `@comvi/next/navigation` (`Link`, `usePathname`, `useLocalizedRouter`) and
-`@comvi/next/middleware` (`createMiddleware`). For Nuxt it is the module's own
+`@comvi/next/middleware` (`createMiddleware`; `@comvi/next/proxy` exports the
+same for Next.js 16). For Nuxt it is the module's own
 auto-imported composables: `useLocalePath`, `useLocaleRoute`,
-`useSwitchLocalePath`, `<NuxtLinkLocale>`.
+`useSwitchLocalePath`, `<NuxtLinkLocale>`. The routing limits a user meets are on
+the public limits page: [Limitations](https://comvi.io/docs/i18n/limitations#next-as-needed-default).
 
 ## Semantics this package pins
 

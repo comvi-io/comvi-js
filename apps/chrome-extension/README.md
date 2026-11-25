@@ -33,7 +33,8 @@ again. Gate E checks marking and live edit on React, Vue, Solid and Svelte apps
 and on Next.js and Nuxt server renders (`gate-e/README.md`). On Next.js, text
 rendered only by a Server Component is not editable in context: the browser
 never renders it again, so it carries no marker and a click on it opens
-nothing; change it in the Comvi platform.
+nothing; change it in the Comvi platform. The editor's limits are listed on
+[Limitations](https://comvi.io/docs/i18n/limitations#editor-server-components).
 
 ## How the editor reaches the page
 
