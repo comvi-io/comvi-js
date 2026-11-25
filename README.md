@@ -32,21 +32,22 @@
 
 ---
 
-Comvi i18n puts translated text on screen, from a catalog in your source or from the
-[Comvi platform](https://comvi.io) over a CDN. It is a framework-agnostic core with bindings for
-React, Next.js, Vue, Nuxt, Svelte and Solid, and plugins you add only when you need them.
+Comvi i18n renders translated text from a catalog in your source or from the
+[Comvi platform](https://comvi.io) over a CDN. Install the package for your framework, create one
+i18n instance and call `t()` in components.
 
 ## Install
 
-One package per framework; each binding brings `@comvi/core` with it.
+Pick the line for your framework. `@comvi/core` is on each line because the app imports its
+subpaths (`@comvi/core/cdn` for the CDN loader).
 
 ```bash
-npm install @comvi/react
-npm install @comvi/next
-npm install @comvi/vue
+npm install @comvi/react @comvi/core
+npm install @comvi/next @comvi/react @comvi/core
+npm install @comvi/vue @comvi/core
 npm install @comvi/nuxt
-npm install @comvi/svelte
-npm install @comvi/solid
+npm install @comvi/svelte @comvi/core
+npm install @comvi/solid @comvi/core
 npm install @comvi/core
 ```
 
@@ -61,8 +62,10 @@ npm install @comvi/core
 | Vanilla JavaScript | `@comvi/core`   | none              | [Vanilla](https://comvi.io/docs/i18n/vanilla) | [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/vanilla) |
 
 The packages are ESM-only and released together, so install the same version of every
-`@comvi/*` package. The runtime packages need Node 20 or newer; `@comvi/cli` and
-`@comvi/vite-plugin` need Node 22.
+`@comvi/*` package: two copies of `@comvi/core` in one app throw an error that names both
+versions. The runtime packages need Node 20 or newer (`@comvi/nuxt` 22.20), `@comvi/cli` and
+`@comvi/vite-plugin` Node 22. An example that does not open in StackBlitz runs locally:
+[examples](examples/README.md).
 
 ## Quick start
 
@@ -93,24 +96,26 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-`<I18nProvider>` initializes the i18n instance, and `useI18n()` gives your components `t()`, the
-current locale and `setLocale()`. Every binding has the same shape: create the instance, hand it
-to the framework, call `useI18n()` in components. The other frameworks are on
+`<I18nProvider>` hands the i18n instance to the tree, and `useI18n()` gives your components
+`t()`, the current locale and `setLocale()`. Every binding has the same shape: create the
+instance, hand it to the framework, call `useI18n()` in components. The other frameworks are on
 [Quick start](https://comvi.io/docs/i18n/quick-start).
 
 ### How it works
 
-`createI18n()` returns the i18n instance: it holds the catalog, the current locale and `t()`. A
-binding hands the instance to your framework and re-renders what reads it when the locale or the
-catalog changes. The base instance does text and `{param}` interpolation. Async loading, locale
-detection and the in-context editor are capabilities you compose with `.use(installer)`, and ICU
-plurals are a constructor option, `compiler: icuCompiler`; what you never name never enters your
-bundle.
+`createI18n()` returns the i18n instance, ready on the next line: it holds the catalogs, the
+current locale and `t()`. A binding hands the instance to your framework and re-renders what reads
+it when the locale or a catalog changes. ICU `plural`, `select` and `selectordinal` and `<tag>`
+markup are part of every message, with nothing to turn on. Everything else is an option of
+`createI18n()` that you import from a subpath of `@comvi/core`: a `loader` for catalogs that
+arrive later, and `plugins` for locale detection and the in-context editor. A subpath you never
+import never enters your bundle. What the library does not do is listed on
+[Limitations](https://comvi.io/docs/i18n/limitations).
 
 ## Connect to Comvi
 
-The CDN loader is part of `@comvi/core`, which every framework package brings. Pass it as the
-instance's `loader`, in `src/main.tsx`:
+The CDN loader is `cdn()` from `@comvi/core/cdn`. Pass it as the instance's `loader`, in
+`src/main.tsx`:
 
 ```tsx title="src/main.tsx" check=group=connect-comvi-react-1
 import { createRoot } from "react-dom/client";
@@ -131,18 +136,28 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-`cdn(url)` fetches each locale from the CDN, so a wording change ships when a translator saves
-it, without a redeploy. The CDN URL comes from **Settings → Content Deploy** in the Comvi
-project; the walkthrough is [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). A
-server that renders per request passes one `createCatalogStore()` to every instance's loader
-(`cdn(url, { store })`), so requests share the fetched catalogs.
+`cdn(url)` fetches each locale's catalog from the CDN when the instance needs it, and `loading`
+is what the provider renders until the first catalog is in. The CDN URL comes from
+**Settings → Content Deploy** in the Comvi project; the walkthrough is
+[Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). A server that renders per request
+passes one `createCatalogStore()` to every instance's loader (`cdn(url, { store })`), so requests
+share the fetched catalogs.
 
-## Plugins and tooling
+Do not add `messages` for a catalog the loader should fetch. An inline catalog switches off
+loading for its pair of locale and namespace: with `messages: { en }` beside this loader, `en`
+is never fetched for the `default` namespace, while the other namespaces of `en` and every other
+locale still are. To bundle a catalog for when the CDN does not answer, pass
+`cdn(url, { fallback: { en: () => catalog } })`. It is a spare, not a base the CDN lays over:
+while the CDN answers, a key that only the spare has renders as a key
+([`messages` and `loader`](https://comvi.io/docs/i18n/limitations#messages-and-loader)).
+
+## Subpaths and tooling
 
 | Package                                      | What it does                                                                     | Docs                                                                      |
 | -------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| [`@comvi/core/cdn`](packages/core)           | Load translations from the Comvi CDN or API                                      | [Fetch loader](https://comvi.io/docs/i18n/plugins/fetch-loader)           |
-| [`@comvi/core/plugins`](packages/core)       | Detect the locale from query, cookie, storage, browser                           | [Locale detector](https://comvi.io/docs/i18n/plugins/locale-detector)     |
+| [`@comvi/core/cdn`](packages/core)           | Load catalogs from the Comvi CDN, with a bundled spare                           | [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi)              |
+| [`@comvi/core/plugins`](packages/core)       | Detect the locale from query, cookie, storage, browser, and remember a switch    | [Plugins API](https://comvi.io/docs/i18n/api/core-plugins)                |
+| [`@comvi/core/format`](packages/core)        | Format numbers, currency, dates, lists and relative time for the locale          | [Formatting](https://comvi.io/docs/i18n/formatting)                       |
 | [`@comvi/editor`](packages/editor)           | Edit translations inside the running app (loaded by the Comvi browser extension) | [In-context editor](https://comvi.io/docs/i18n/plugins/in-context-editor) |
 | [`@comvi/vite-plugin`](packages/vite-plugin) | Generate the `Catalogs` types from local JSON at dev/build                       | [Vite plugin](https://comvi.io/docs/i18n/plugins/vite-plugin)             |
 | [`@comvi/cli`](packages/cli)                 | Pull, push, check and generate types from the terminal                           | [Comvi CLI](https://comvi.io/docs/cli)                                    |

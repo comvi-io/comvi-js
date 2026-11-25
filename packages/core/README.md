@@ -1,4 +1,3 @@
-<!-- MIGRATION_PENDING (lot 10): this README still documents the 0.7 API (.use() composition, devtools({ instanceId }), exposeGlobal); the 0.8 API is in docs/design and the lot-1 changesets. -->
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="../../.github/assets/header-logo-dark.png">
@@ -8,7 +7,7 @@
 
 <h1 align="center">@comvi/core</h1>
 
-<p align="center">The framework-agnostic runtime behind Comvi i18n: the i18n instance, <code>t()</code>, and the capability pipe.</p>
+<p align="center">The framework-agnostic runtime behind Comvi i18n: the i18n instance, <code>t()</code> and ICU messages.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/core"><img src="https://img.shields.io/npm/v/@comvi/core?color=blue" alt="npm"></a>
@@ -19,139 +18,209 @@
 
 ---
 
-`@comvi/core` is the i18n instance every Comvi binding builds on. Use it directly for Web
-Components, static sites, server scripts, or anywhere a framework would be more than you need;
-with `@comvi/react`, `@comvi/vue`, `@comvi/next`, `@comvi/nuxt`, `@comvi/svelte` or `@comvi/solid`
-you already have it.
+`@comvi/core` is the i18n instance every Comvi binding builds on: it holds the catalogs and the
+current locale, and `t()` renders ICU messages from them. Use it on its own in a server script, a
+static site or Web Components; with a framework, install it beside the binding.
 
 ## Install
 
 ```bash
 npm install @comvi/core
-# Node 20 or newer. No peer dependencies.
+# Node 20 or newer. ESM only. No dependencies.
 ```
 
-`@comvi/core` and every binding in an app must be on one version. From 0.8 on, two copies of `@comvi/core` (two versions, or one version installed twice) throw an error that names both versions.
+`@comvi/core` and every binding in an app must be on one version: two copies of `@comvi/core`
+throw `two copies of @comvi/core` with both versions.
 
 ## Create the i18n instance
 
-In `src/i18n.ts`:
-
-```ts title="src/i18n.ts" check=group=vanilla-2
+```ts title="src/i18n.ts" check=group=core-1
 import { createI18n } from "@comvi/core";
 
 export const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
   messages: {
-    en: { greeting: "Hello, {name}!" },
+    en: {
+      greeting: "Hello, {name}!",
+      cart: "{count, plural, =0 {Your cart is empty} one {# item} other {# items}}",
+    },
     uk: { greeting: "Привіт, {name}!" },
   },
 });
 
-await i18n.init();
-
 i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
+i18n.t("cart", { count: 2 }); // "2 items"
 ```
 
-`init()` readies the i18n instance before the first `t()` and resolves to it. `t()` fills `{name}`
-from its second argument and always returns a string.
+`createI18n()` is synchronous: inline `messages` render on the next line, and there is no `init()`
+to await. `messages` holds the `default` namespace by locale, written flat (`"account.title"`) or
+nested (`{ account: { title } }`); both are the key `account.title`. A key with no message in the
+locale or its fallback locales renders the key, and `onError` receives `missing_key`. Without a
+`loader` the instance makes no request, so this file runs with no Comvi project and no account.
 
-## Params
+## Write messages
 
-Without generated catalogs, a param value of `t()` is one of: text (a `string`, `number`,
-`bigint`, `boolean`, `Date`, `null` or `undefined`, or a list of them), a tag handler that takes
-the tag's children as `RichParts`, or an object that is not a function. A
-`Record<string, string | number>` passes as is. A `Record<string, unknown>` does not: an
-`unknown` value may be a handler that expects a string, and the core calls a handler with an
-array. Type a dictionary you build at run time as `CoreUntypedParams`; with it, the result is
-typed `string | RichParts`, because the dictionary may hold a tag handler:
+ICU MessageFormat is always on. These are the forms `t()` reads, rendered in `en`:
 
-```ts title="src/params.ts" check=group=vanilla-2
-import type { CoreUntypedParams } from "@comvi/core";
+| Form                                   | Message                                                         | Params               | Renders            |
+| -------------------------------------- | --------------------------------------------------------------- | -------------------- | ------------------ |
+| `plural`, with `=N`, `offset:` and `#` | `{count, plural, =0 {No items} one {# item} other {# items}}`   | `{ count: 1234567 }` | `1,234,567 items`  |
+| `selectordinal`                        | `{n, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}` | `{ n: 22 }`          | `22nd`             |
+| `select`                               | `{g, select, female {She} male {He} other {They}} replied`      | `{ g: "female" }`    | `She replied`      |
+| Tag                                    | `Read the <link>terms</link>`                                   | a `link` handler     | `Read the [terms]` |
+| Quoting                                | `Use '{name}' as is`                                            | none                 | `Use {name} as is` |
+
+`#` is the one value a message formats for the locale. A plain `{x}` prints `String(value)`, so
+`{year}` with `2026` stays `2026`. `{x, number}`, `{x, date}` and `{x, time}` are not part of the
+syntax: such a message renders its key, and `onError` receives `syntax` with the hint "format it in
+code with useFormat()". `useFormat()` is the bindings' hook. With the core alone, the same
+formatters are functions of `@comvi/core/format` that take the instance first: format the value,
+then pass the string as a plain param.
+
+```ts title="src/total.ts" check=group=core-1
+import { formatCurrency, formatDate } from "@comvi/core/format";
 import { i18n } from "./i18n";
 
-const user = { name: "Alice", admin: true };
-const params: CoreUntypedParams = { name: user.name };
-if (user.admin) params.role = "admin";
+i18n.add("en", { total: "Total: {price}, due {due}", terms: "Read the <link>terms</link>" });
 
-i18n.t("greeting", params);
+i18n.t("total", {
+  price: formatCurrency(i18n, 1234.5, "USD"),
+  due: formatDate(i18n, new Date(2026, 0, 2), { dateStyle: "medium" }),
+}); // "Total: $1,234.50, due Jan 2, 2026"
+i18n.t("terms", { link: (parts) => `[${parts.join("")}]` }); // "Read the [terms]"
 ```
+
+The formatters are `formatNumber`, `formatCurrency`, `formatDate`, `formatDateRange`,
+`formatRelativeTime`, `formatList` and `displayName`; each follows the instance's locale. A tag
+handler receives the tag's content as a list of parts, and a tag with no handler renders its
+content as text.
 
 ## Switch the locale
 
-In `src/switch.ts`:
-
-```ts title="src/switch.ts" check=group=vanilla-2
+```ts title="src/switch.ts" check=group=core-1
 import { i18n } from "./i18n";
 
-await i18n.setLocale("uk");
-console.log(i18n.t("greeting", { name: "Аліса" })); // "Привіт, Аліса!"
+const stop = i18n.on(() => {
+  document.documentElement.lang = i18n.locale;
+  document.querySelector("h1")!.textContent = i18n.t("greeting", { name: "Alice" });
+});
+
+await i18n.setLocale("uk"); // the listener runs, and i18n.locale is "uk"
+stop();
 ```
 
-`await i18n.setLocale()` switches the locale; with a loader composed, it loads the active
-namespaces first. Assigning `i18n.locale` does the same without waiting.
+`on(fn)` calls `fn` on every change the instance publishes (a switch, a catalog loaded or added)
+and returns the function that unsubscribes; it takes no event name. `setLocale()` loads what the
+new locale needs, keeps the current locale on screen meanwhile, then switches. It rejects, and the
+locale stays, only when no namespace it waited for has a catalog for the new locale.
+
+## Load catalogs
+
+```ts title="src/i18n.ts" check=group=core-2
+import { createI18n } from "@comvi/core";
+
+export const i18n = createI18n({
+  locale: "en",
+  fallbackLocale: "en",
+  namespaces: ["default", "account"],
+  loader: async (locale, ns) => {
+    const module = await import(`./locales/${locale}/${ns}.json`);
+    return module.default;
+  },
+  onError: (error) => console.warn(error.code, error.locale, error.ns, error.key),
+});
+
+await i18n.ready;
+i18n.ns("account")("title");
+```
+
+The loader receives `(locale, ns, signal)` and returns the catalog itself. Return
+`module.default`: a JSON module returned whole is a catalog with one key, `default`, so every
+`t()` renders its key and the only report is `missing_key`. `i18n.ns("account")` is `t()` bound to
+that namespace.
+
+The first loads start inside `createI18n()`. `ready` resolves when the loads in flight have
+settled, the failed ones too, and it never rejects: after a failed load `t()` still renders keys,
+and `onError` has received `load_failed`. A binding's `isReady` answers the other question, whether
+a catalog is in place for the locale on screen. With the core alone, ask `i18n.has(key)`, or
+await `load()`, which rejects with the loader's error.
+
+```ts title="src/billing.ts" check=group=core-2
+import { i18n } from "./i18n";
+
+await i18n.load("billing"); // call it again to retry a failed load
+i18n.has("invoice.title", { ns: "billing" }); // true
+
+await i18n.setLocale("uk");
+await i18n.load("billing"); // load() does not follow a switch: ask again for the new locale
+```
+
+`setLocale()` reloads only the namespaces of the `namespaces` option, so await the switch first
+and `load()` second ([the limit](https://comvi.io/docs/i18n/limitations#vanilla-load-not-kept)).
+`t()` and `has()` only read: they never start a request.
 
 ## Load from Comvi
 
-The CDN loader is the `@comvi/core/cdn` subpath. Pass it as the instance's `loader`, in `src/i18n.ts`:
-
-```ts title="src/i18n.ts" check=group=vanilla-cdn
+```ts title="src/i18n.ts" check=group=core-3
 import { createI18n } from "@comvi/core";
 import { cdn } from "@comvi/core/cdn";
 
 export const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-  loader: cdn("https://cdn.comvi.io/<project-token>"),
+  loader: cdn("https://cdn.comvi.io/<project-token>", {
+    fallback: { en: () => import("./locales/en.json").then((module) => module.default) },
+  }),
 });
-
-await i18n.ready;
 ```
 
-The first fetch starts in `createI18n()`; `i18n.ready` settles when it has. On a server that
-creates an instance per request, pass one `createCatalogStore()` to the loader
-(`cdn(url, { store })`) so the requests share the fetched catalogs. The CDN URL comes from **Settings → Content Deploy** in the Comvi project; the
-walkthrough is [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi).
+`cdn(base)` fetches `<base>/<locale>.json` for the `default` namespace and
+`<base>/<ns>/<locale>.json` for the others. The URL comes from **Settings → Content Deploy** in
+the Comvi project; the walkthrough is [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi).
+`fallback` is a spare for when the CDN does not answer, keyed by `"<locale>"` or
+`"<locale>:<ns>"`. It is not a base the CDN lays over: while the CDN answers, a key that only the
+spare has renders as a key. A server that creates an instance per request passes one
+`createCatalogStore()` to every loader (`cdn(base, { store })`), so the requests share one fetch.
 
-## How it works
+Do not put `messages` beside `loader` for the same catalog. An inline catalog switches off loading
+for its pair of locale and namespace: with `messages: { en }`, the loader is never called for
+`en` and `default`, not at the start and not by `load()`, and the same holds after `add()` created
+the pair. The other namespaces of `en` and every other locale still load. The entry on the limits
+page is [`messages` and `loader`](https://comvi.io/docs/i18n/limitations#messages-and-loader).
 
-The root entry is the base instance: text and `{param}` interpolation, the messages cache, events
-and the `.use(installer)` pipe. Everything else is a subpath you import, and a
-capability you never import never enters your bundle.
+## Subpaths
 
-| You want                                      | You import                                             | You write                   |
-| --------------------------------------------- | ------------------------------------------------------ | --------------------------- |
-| ICU `plural`/`select`/`selectordinal`         | `icuCompiler` from `@comvi/core/icu`                   | `compiler: icuCompiler`     |
-| Async or remote loading                       | `loader` or `attachLoader` from `@comvi/core/loader`   | `.use(loader(map))`         |
-| Plugins, post-processors                      | `plugins` or `definePlugin` from `@comvi/core/plugins` | `.use(plugins())`           |
-| The Comvi browser extension to find the app   | `devtools` from `@comvi/core/devtools`                 | `.use(devtools())`          |
-| `<tag>` markup parsed by plain `t()`/`tRaw()` | `@comvi/core/tags`                                     | `import "@comvi/core/tags"` |
-| Rich text without `innerHTML`                 | `prepareTranslation` from `@comvi/core/rich-text`      | `prepareTranslation(…)`     |
+| Import                 | What it gives you                                                                |
+| ---------------------- | -------------------------------------------------------------------------------- |
+| `@comvi/core`          | `createI18n`, `negotiate` and the types                                          |
+| `@comvi/core/cdn`      | `cdn`, `createCatalogStore`, and `api` for a server that holds a project API key |
+| `@comvi/core/format`   | The seven formatters                                                             |
+| `@comvi/core/plugins`  | `detect` and `persist`, for the browser's locale                                 |
+| `@comvi/core/ssr`      | `handover(i18n)`: the catalogs and clock a server render hands the browser       |
+| `@comvi/core/devtools` | `devtools()`: lets the Comvi browser extension find the instance                 |
 
-Without a framework's reactivity, events are how you learn that state changed: `i18n.on()` takes
-`initialized`, `destroyed`, `localeChanged`, `defaultNamespaceChanged`, `messagesCleared`,
-`loadingStateChanged`, `namespaceLoaded`, `missingKey`, `loadError` and `configChanged`, and returns
-an unsubscribe function. `destroy()` tears the instance down; a destroyed instance cannot be
-re-initialized. On a server, build a fresh instance per request. Never assign a translation to
-`innerHTML`; use `textContent`, or render the content tree `prepareTranslation` returns into nodes yourself.
-
-A `<script src>` global build exists too, as `ComviCore.I18n`. It bundles the ICU compiler, the
-loader, plugins and tag parsing, and registers the instance for the Comvi browser extension on
-its own; `exposeGlobal: false` turns that registration off.
+Plugins go in the `plugins` option: `plugins: [detect({ supported: ["en", "uk"] }), persist()]`.
+`detect()` starts the instance in the first supported locale it finds in the `?lang=` query, the
+`comvi_locale` cookie, `localStorage` or the browser's languages; `persist()` writes every switch
+to that cookie. `destroy()` aborts the loads and drops the subscribers; a loaded catalog stays in
+the instance until then.
 
 ## Read next
 
-- [Vanilla guide](https://comvi.io/docs/i18n/vanilla): update the DOM from events, instance lifetime.
-- [Core API reference](https://comvi.io/docs/i18n/api/core): every instance member, the events and the capability subpaths.
-- [Loading translations](https://comvi.io/docs/i18n/loading-translations): `.use(loader(map))`, namespaces and caching.
+- [Limitations](https://comvi.io/docs/i18n/limitations): what the library does not do, starting with
+  [no `{x, number}` or `{x, date}`](https://comvi.io/docs/i18n/limitations#no-number-date-args),
+  [relative time that does not tick](https://comvi.io/docs/i18n/limitations#relative-not-live) and
+  [no unloading of catalogs](https://comvi.io/docs/i18n/limitations#no-unload).
+- [Vanilla guide](https://comvi.io/docs/i18n/vanilla): update the DOM from `on()`, instance lifetime.
+- [Core API reference](https://comvi.io/docs/i18n/api/core): every option and instance member.
 - [Type safety](https://comvi.io/docs/i18n/type-safety): generate the `Catalogs` declaration so `t()` checks keys and params.
+- [Upgrade to 0.8](https://comvi.io/docs/i18n/guides/upgrade-to-v08): each 0.7 form and what replaces it.
 
 ## Contributing
 
-Bug reports, docs fixes and pull requests are welcome.
-[CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md) explains the setup
-and what CI checks.
+Bug reports, docs fixes and pull requests are welcome; the setup and what CI checks are in
+[CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md).
 
 ## License
 

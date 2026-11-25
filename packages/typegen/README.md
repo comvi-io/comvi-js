@@ -17,12 +17,12 @@
 
 ## Who calls it
 
-| Wrapper                                                                   | Calls                                                            |
-| ------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `comvi typegen` (`@comvi/cli`)                                            | `generate()`, `--check` → `generate({ check: true })`, `watch()` |
-| `comvi pull` (`@comvi/cli`)                                               | `PlatformSource` + `serializeWireSchema` → `.comvi/schema.json`  |
-| `comviTypes()` (`@comvi/vite-plugin`)                                     | `vite build` → `generate()`; `vite dev` → `watch()`              |
-| `withComvi({ types })` (`@comvi/next`, lot 6) and the Nuxt module (lot 7) | the same two                                                     |
+| Wrapper                                                                  | Calls                                                            |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `comvi typegen` (`@comvi/cli`)                                           | `generate()`, `--check` → `generate({ check: true })`, `watch()` |
+| `comvi pull` (`@comvi/cli`)                                              | `PlatformSource` + `serializeWireSchema` → `.comvi/schema.json`  |
+| `comviTypes()` (`@comvi/vite-plugin`)                                    | `vite build` → `generate()`; `vite dev` → `watch()`              |
+| `withComvi({ types })` (`@comvi/next`) and `comvi.types` (`@comvi/nuxt`) | the same two                                                     |
 
 One emitter behind all of them, so the same catalogs give the same bytes whichever wrapper ran
 (`scripts/typegen-e2e` compares them).
@@ -86,7 +86,7 @@ run is reported through `onMessage` once per broken state, and the file stays as
   directory that cannot be watched stop the first for good and free the file the same way; a
   platform answer that arrives after `close()` is dropped, never written.
 
-## For the Next and Nuxt wrappers (lots 6 and 7)
+## For the Next and Nuxt wrappers
 
 - Development: `watch()` once per process; keep the `Watcher` on `globalThis` so a reloaded
   config reuses it instead of opening another, and `close()` it when the server stops.
@@ -108,6 +108,9 @@ namespaces }`), validated strictly and serialized canonically.
 `pnpm --filter @comvi/typegen test` pins the reader, the emitter and the Node API (counted work,
 no timing); `pnpm typegen:e2e` runs the built wrappers; `pnpm check:types-bench` and
 `pnpm check:types-ide` measure the emitted types in `tsc` and in `tsserver`.
+
+What the generated types do not check is on the public limits page:
+[Limitations](https://comvi.io/docs/i18n/limitations#namespace-typos-config).
 
 ## License
 

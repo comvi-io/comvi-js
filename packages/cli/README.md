@@ -160,6 +160,8 @@ Every command uses the same codes, so CI can act on the code alone.
 - [comvi pull](https://comvi.io/docs/cli/pull) and [comvi push](https://comvi.io/docs/cli/push): file layout, filters, force modes.
 - [comvi translate](https://comvi.io/docs/cli/translate): how a run works, credits, exit codes, the CI recipe.
 - [Type safety](https://comvi.io/docs/i18n/type-safety): how the generated file reaches `t()`.
+- [Limitations](https://comvi.io/docs/i18n/limitations): what the library does not do; the CLI has
+  [no key extractor and no migration command](https://comvi.io/docs/i18n/limitations#no-extractor).
 
 ## Contributing
 
