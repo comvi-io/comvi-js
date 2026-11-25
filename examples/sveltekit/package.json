@@ -8,13 +8,15 @@
     "build": "vite build",
     "start": "node build",
     "prepare": "svelte-kit sync || echo ''",
-    "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+    "typecheck": "comvi typegen --from src/locales --source-locale en && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
     "@comvi/core": "^0.7.1",
     "@comvi/svelte": "^0.7.1"
   },
   "devDependencies": {
+    "@comvi/cli": "^0.7.1",
+    "@comvi/vite-plugin": "^0.7.1",
     "@sveltejs/adapter-node": "^6.0.0",
     "@sveltejs/kit": "^3.0.0",
     "@sveltejs/vite-plugin-svelte": "^7.2.0",

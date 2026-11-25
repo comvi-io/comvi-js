@@ -16,6 +16,8 @@ JSON catalogs in `src/locales`.
 - **Fallback and missing keys**: English fills the gaps, and every miss reaches `onError`.
 - **Right-to-left**: Arabic sets `<html dir="rtl">`.
 - **Navigation**: `/`, `/features` and `/about`, with the locale kept across pages and Back.
+- **Typed keys**: `@comvi/vite-plugin` writes `src/types/i18n.d.ts` from the English catalogs, so `t()` rejects a key no catalog has and a call that leaves out a parameter its message uses; `npm run typecheck` checks every call.
+- **A failed load**: when a language or the `account` namespace cannot be loaded, the page keeps what it shows and offers a Try again button, which asks the loader again.
 
 ## Run it
 

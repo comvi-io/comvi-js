@@ -130,7 +130,7 @@ export function tagsCard(): HTMLElement {
   // The handler decides what `<link>` becomes; the translator decides where it goes.
   const readMore = toDom(
     i18n.t("docs.read_more", {
-      link: (chunks: unknown[]) =>
+      link: (chunks) =>
         h(
           "a",
           { href: "https://comvi.io/docs", target: "_blank", rel: "noreferrer" },
@@ -194,6 +194,7 @@ export function fallbackCard(): HTMLElement {
     h(
       "p",
       { class: "widget" },
+      // @ts-expect-error: no catalog has this key, so the generated types reject it
       h("code", { "data-testid": "missing-key" }, i18n.t("fallback.nowhere")),
     ),
   );
@@ -202,6 +203,7 @@ export function fallbackCard(): HTMLElement {
 export function missingCard(): HTMLElement {
   return card(
     "missing",
+    // @ts-expect-error: the generated types require `name`; this shows what renders without it
     h("p", { class: "widget", "data-testid": "missing-param" }, i18n.t("greeting.hello", {})),
   );
 }

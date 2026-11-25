@@ -18,7 +18,7 @@ import {
   selectCard,
   tagsCard,
 } from "./cards";
-import { footer, header, switcher } from "./header";
+import { footer, header, loadError, switcher } from "./header";
 
 /** The whole integration on one screen: a title, a switcher, one translated line. */
 export function startPage(): Node[] {
@@ -63,24 +63,33 @@ export function featuresPage(): Node[] {
 // never the previous language's rows.
 let account: string | null = null;
 let loading: string | null = null;
+/** The locale whose `account` load failed; `load()` rejects then, and asks again when called. */
+let failed: string | null = null;
 function loadAccount(): void {
   const locale = i18n.locale;
-  if (account === locale || loading === locale) return;
+  if (account === locale || loading === locale || failed === locale) return;
   loading = locale;
-  // A failed catalog is reported to `onError`; the page still renders, with the
-  // fallback language's rows (or the keys).
-  void i18n
-    .load("account")
-    .catch(() => {})
-    .then(() => {
-      if (loading !== locale) return;
-      loading = null;
-      account = locale;
-      update({});
-    });
+  const settle = (ok: boolean) => {
+    if (loading !== locale) return;
+    loading = null;
+    if (ok) account = locale;
+    else failed = locale;
+    update({});
+  };
+  i18n.load("account").then(
+    () => settle(true),
+    () => settle(false),
+  );
+}
+
+function retryAccount(): void {
+  failed = null;
+  loadAccount();
+  update({});
 }
 
 function accountRows(): HTMLElement[] {
+  if (failed === i18n.locale) return [loadError(retryAccount)];
   if (account !== i18n.locale) return [h("p", { class: "body" }, i18n.t("app.loading"))];
   // Without a framework there is no `useI18n("account")`: each call names its namespace.
   return [

@@ -8,6 +8,7 @@ export function MissingParamCard() {
   return (
     <Card title={t("demo.missing.title")} body={t("demo.missing.body")}>
       <p className="widget" data-testid="missing-param">
+        {/* @ts-expect-error: the generated types require `name`; this shows what renders without it */}
         {t("greeting.hello", {})}
       </p>
     </Card>

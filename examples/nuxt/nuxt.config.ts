@@ -30,5 +30,8 @@ export default defineNuxtConfig({
     fallbackLocale: "en",
     // The server and the browser format dates in one zone.
     timeZone: "UTC",
+    // Writes the declaration that makes `t()` check keys and parameters, from the
+    // English catalogs, before `nuxt dev`, `nuxt typecheck` and `nuxt build`.
+    types: { from: "./src/locales" },
   },
 });

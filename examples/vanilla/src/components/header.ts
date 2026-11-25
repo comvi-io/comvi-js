@@ -2,23 +2,44 @@ import { i18n, locales } from "../i18n";
 import { h } from "../dom";
 import { state, update } from "../state";
 
+// `setLocale` resolves once the new catalog has landed, so the page never shows
+// old text under the new locale; `switching` covers the wait. A failed switch
+// keeps the current language on screen, reports the error through onError and
+// rejects; calling setLocale() again asks the loader again.
+function switchTo(code: string): void {
+  update({ switching: true, failed: null });
+  i18n.setLocale(code).then(
+    () => update({ switching: false }),
+    () => update({ switching: false, failed: code }),
+  );
+}
+
 function localeButton(code: string): HTMLButtonElement {
   const button = h(
     "button",
     { "data-testid": `locale-${code}`, "aria-pressed": String(i18n.locale === code) },
     code,
   );
-  // `setLocale` resolves once the new catalog has landed, so the page never
-  // shows old text under the new locale; `switching` covers the wait.
-  button.onclick = () => {
-    update({ switching: true });
-    void i18n.setLocale(code).finally(() => update({ switching: false }));
-  };
+  button.onclick = () => switchTo(code);
   return button;
+}
+
+/** What a failed load shows: the problem, in the language on screen, and a way to ask again. */
+export function loadError(retry: () => void): HTMLElement {
+  const button = h("button", { type: "button", "data-testid": "load-retry" }, i18n.t("app.retry"));
+  button.onclick = retry;
+  return h(
+    "p",
+    { class: "note", role: "alert", "data-testid": "load-error" },
+    i18n.t("app.load_failed"),
+    " ",
+    button,
+  );
 }
 
 /** The language buttons, with the loading note while a catalog is on its way. */
 export function switcher(): HTMLElement {
+  const failed = state.failed;
   return h(
     "div",
     { class: "switcher-row" },
@@ -30,6 +51,7 @@ export function switcher(): HTMLElement {
     ),
     // Last in the row, so its text appears and goes without moving anything.
     ...(state.switching ? [h("span", { class: "loading" }, i18n.t("app.loading"))] : []),
+    ...(failed ? [loadError(() => switchTo(failed))] : []),
   );
 }
 
