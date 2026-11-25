@@ -1,8 +1,7 @@
 /**
- * The typed `t()` signature (design rev 3 R3-1/R3-2, rev 4 R4-4; measured in lot-0
- * spike S2 — `.omc/artifacts/reference-i18n-2026-10/lot0/S2/recommended-signature.ts`).
+ * The typed `t()` signature.
  *
- * Typegen (lot 3) augments `Catalogs` with one interface member per namespace:
+ * Typegen augments `Catalogs` with one interface member per namespace:
  *
  *   declare module "@comvi/core" { interface Catalogs { default: {
  *     "cart.items": { count: number };
@@ -27,11 +26,11 @@
 export interface Catalogs {}
 
 /**
- * What a tag handler receives as its children, registered by the binding that joins them
- * (lot 3): `@comvi/react` declares `interface TagChildren { react: ReactNode }`, so a
+ * What a tag handler receives as its children, registered by the binding that joins them:
+ * `@comvi/react` declares `interface TagChildren { react: ReactNode }`, so a
  * generated `{ link: Tag }` gives an inline `(chunks) => <a>{chunks}</a>` a `ReactNode`
  * argument with no annotation. With no binding registered it is `RichParts`, what the core's
- * own `t()` passes (lot 6a audit: `any` let `(children: string) => …` through). One program registers one binding; the type is
+ * own `t()` passes (not `any`, which would let `(children: string) => …` through). One program registers one binding; the type is
  * resolved once per program, never per call.
  */
 export interface TagChildren {}
@@ -49,6 +48,19 @@ export type RichParts = readonly unknown[];
 
 /** The declared namespaces. */
 export type NsOf = keyof Catalogs;
+
+/**
+ * The type of a namespace argument (`useI18n(ns)`, `getI18n({ ns })`) that infers `NS`: `NS`
+ * itself without generated catalogs (any name), else `NS` when it is a declared namespace and
+ * the declared names when it is not, so a typo errs on the argument, naming the allowed
+ * names. A plain `string` is no declared namespace. `NsArg<string>` is the type of a name that
+ * infers nothing (the declared names, or any string).
+ */
+export type NsArg<NS extends string> = [NsOf] extends [never]
+  ? NS
+  : NS extends NsOf
+    ? NS
+    : NsOf & string;
 
 declare const notAKey: unique symbol;
 /**
@@ -72,7 +84,7 @@ export type KeysOf = { [N in NsOf]: keyof Catalogs[N] };
 /**
  * Params of key K in namespace N. A union key gets the INTERSECTION of its members' params.
  *
- * Typo guard (R3-2): the key's constraint is `KeysOf[N] | NotAKey`. When the key argument
+ * Typo guard: the key's constraint is `KeysOf[N] | NotAKey`. When the key argument
  * is not a key, tsc infers K as the whole constraint, which then CONTAINS `NotAKey`: the
  * params go loose (only the key errs) instead of intersecting 5,000 param objects
  * (≈190 s of tsc at 5k keys). A real key never infers `NotAKey`, so a namespace with ONE
@@ -89,7 +101,7 @@ export type ParamsFor<N extends NsOf, K extends KeysOf[N] | NotAKey> = [NotAKey]
  * The params argument. Per-call options are written INLINE (no alias), so diagnostics show
  * `{ ns?: "shop" | undefined; locale?: string | undefined; markers?: boolean | undefined }`
  * and never an internal name. `markers: false` keeps an in-context editor session from
- * marking the call's output (R3-14 H9); `ns`, `locale` and `markers` are reserved names.
+ * marking the call's output; `ns`, `locale` and `markers` are reserved names.
  */
 export type Args<N, P> = [P] extends [never] // no params; tested FIRST: never extends NotAKey too
   ? [params?: { ns?: N; locale?: string; markers?: boolean }]
@@ -157,10 +169,10 @@ type ComponentProps<P, S, C> = [S] extends [2]
  * A binding's typed `<T i18nKey ns? locale? markers? components? {...params}>`, rendering
  * `Out`; `C` is the type of its `components` prop (`never`: none), `S` the optionality of
  * the tag params ({@link ComponentProps}). The key
- * carries the same typo guard as `t()` (R3-2): without `NotAKey` in K's constraint, a JSX
+ * carries the same typo guard as `t()`: without `NotAKey` in K's constraint, a JSX
  * element infers K as the whole key union while it types the attributes, and the props
  * intersect every key's params — minutes of tsc on a 5k catalog, for a typo AND for a valid
- * key (review of lot 3, BLOCK 1). Gated by `check:types-bench` and `check:types-ide` (JSX).
+ * key. Gated by `check:types-bench` and `check:types-ide` (JSX).
  */
 export type TComponentFor<Out, S = 0, C = never> = <
   K extends KeysOf[N] | NotAKey,
@@ -185,7 +197,7 @@ export type BoundTFor<NS extends NsOf, Out, S = 0, C = never> = <K extends KeysO
   >,
 ) => Out;
 
-/** A param value a plain `{x}` prints as text (`String(value)`, R3-17), or a list of them. */
+/** A param value a plain `{x}` prints as text (`String(value)`), or a list of them. */
 type Printed = string | number | bigint | boolean | Date | null | undefined;
 
 /** An object param that is no function (`call` is never): a call may return it as is. */
@@ -204,11 +216,11 @@ export type CoreUntypedParams = Record<
 /**
  * `t()` of a project with no generated catalogs: any key, any params. With params that
  * are all printed as text it returns a string; a function param may be a tag handler,
- * whose output comes back inside rich parts — so that call is typed `string | Rich`
- * (review A6). A plain `{x}` is always text, whatever its value (owner decision
- * 04.11.2026): a framework node there prints `String(value)`; markup comes from a tag.
+ * whose output comes back inside rich parts — so that call is typed `string | Rich`.
+ * A plain `{x}` is always text, whatever its value: a framework node there prints
+ * `String(value)`; markup comes from a tag.
  * `P` is the params type of that call: a binding passes its own, so an inline tag handler
- * gets its argument type (lot 4b). The core's own passes a handler its children's parts, as
+ * gets its argument type. The core's own passes a handler its children's parts, as
  * {@link Tag} does with no binding registered: an inline handler gets `RichParts`, one
  * typed for a string is refused.
  */

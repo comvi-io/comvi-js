@@ -3,11 +3,19 @@
  * `components` entry, then as text; params are props and reactive; the bound `<T>` keeps its
  * namespace; an empty tag gets no children, so a void element renders.
  */
+import { readFileSync } from "node:fs";
 import { createSignal, type JSX, type ParentProps } from "solid-js";
 import { render } from "@solidjs/testing-library";
 import { describe, expect, it, vi } from "vitest";
 import { I18nProvider, T, useI18n, type I18n } from "../src";
 import { make, manualLoader } from "./helpers";
+
+/** The contract row `a<br>b` (contracts/icu-grammar.json, B12; the tests run in the package). */
+const unclosedBr = (
+  JSON.parse(readFileSync(`${process.cwd()}/../../contracts/icu-grammar.json`, "utf8")) as {
+    cases: { message: string; render: string }[];
+  }
+).cases.find((c) => c.message === "a<br>b")!;
 
 const messages = { en: { m: "Read <b>the <i>new</i> terms</b> <x>now</x>." } };
 const html = (i18n: I18n, el: () => JSX.Element) =>
@@ -256,5 +264,22 @@ describe("the bound <T>", () => {
     };
     expect(html(i18n, () => <C />)).toBe("default");
     warn.mockRestore();
+  });
+});
+
+describe("a never-closed tag (B12)", () => {
+  it("a<br>b through <T> renders the text a<br>b, escaped, even with a `br` component", () => {
+    const { i18n } = make({ locale: "en", messages: { en: { m: unclosedBr.message } } });
+
+    const { container } = render(() => (
+      <I18nProvider i18n={i18n}>
+        <T i18nKey="m" components={{ br: "br" }} />
+      </I18nProvider>
+    ));
+
+    expect([container.textContent, container.innerHTML]).toEqual([
+      unclosedBr.render,
+      "a&lt;br&gt;b",
+    ]);
   });
 });

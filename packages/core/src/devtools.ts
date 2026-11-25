@@ -76,7 +76,7 @@ export interface HandleState {
   readonly ld: readonly string[];
   /**
    * The namespaces the instance needed — pinned by `namespaces`, held by a component or
-   * `load()`ed, never removed (lot 4c) — loaded, still loading, failed or empty alike.
+   * `load()`ed, never removed — loaded, still loading, failed or empty alike.
    */
   readonly ns: readonly string[];
 }

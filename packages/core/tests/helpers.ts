@@ -49,9 +49,10 @@ export const BAD = [
   ["{g, select, a:b {x} other {z}}", "invalid selector `a:b`"],
   ["{n, spellout}", "unknown argument type `spellout`"],
   ["{n, choice, 0#a|1#b}", "unknown argument type `choice`"],
-  ["<b>unclosed", "`<b>` is never closed"],
   ["<b>x</i>", "`</i>` closes no open tag"],
   ["x</b>", "`</b>` closes no open tag"],
   ["<b>{n, plural, other {x</b>}}", "closes no open tag"],
-  ["{n, plural, other {<b>x}}</b>", "`<b>` is never closed"],
+  ["{n, plural, other {<b>x}}</b>", "`</b>` closes no open tag"],
+  ["<b><i>x</b></i>", "`</i>` closes no open tag"],
+  ["<b>x</b/>", "`</b>` closes no open tag"],
 ] as const;

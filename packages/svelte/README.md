@@ -26,6 +26,8 @@ component, `useI18n()` in components, and `<T>` for translations that contain ma
 npm install @comvi/svelte @comvi/core # peer: svelte ^5.3.0; the app imports @comvi/core/cdn
 ```
 
+`@comvi/core` and every binding in an app must be on one version. From 0.8 on, two copies of `@comvi/core` (two versions, or one version installed twice) throw an error that names both versions.
+
 ## Setup
 
 ```ts title="src/i18n.ts"
@@ -65,8 +67,8 @@ export const i18n = createI18n({
 
 `t()` fills `{name}` from its second argument (`{ ns }`, `{ locale }` there apply to one call) and
 re-runs in a template or a `$derived` when the instance's state changes. It always returns a
-string: a tag handler's output joins into it, and rich text is `<T>`'s. `locale`, `dir`, `isReady`
-and `isLoading` are getters, as `page` of `$app/state`: read them through the object (`r.locale`);
+string, and rich text is `<T>`'s: with generated types a key whose message has tags is a type error
+in `t()`. `locale`, `dir`, `isReady` and `isLoading` are getters, as `page` of `$app/state`: read them through the object (`r.locale`);
 destructured in a `<script>`, one is read once. `setLocale()` switches once the new catalogs are in
 (the last of quick switches wins); it rejects for an invalid tag, or when no catalog of the locale
 or its parent (`de` for `de-AT`) loaded for any namespace it waited for.

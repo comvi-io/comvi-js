@@ -25,6 +25,7 @@ import {
   missing,
   run,
   skipSpace,
+  SYNTAX,
   token,
   type Part,
   type PartFn,
@@ -38,11 +39,15 @@ declare const __DEV__: boolean;
  * sign, digits with an optional fraction (`1.`, `.5`), optional exponent; after
  * `offset:`, ICU Pattern_White_Space (scanner.ts `isSpace`).
  */
-const EXACT = /^=[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
+const EXACT = /^=[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 const OFFSET =
   /offset:[\t-\r \x85\u200e\u200f\u2028\u2029]*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)/y;
 
-export const argument = (P: Scan, name: string, under: boolean): PartFn => {
+/**
+ * @param d How many sub-messages deep the argument is; its own are one deeper. Leaves the
+ *          argument's height (one more than its highest sub-message) in `SYNTAX.h`.
+ */
+export const argument = (P: Scan, name: string, under: boolean, d: number): PartFn => {
   const s = P.s;
   let c: string | undefined;
   const type = token(P);
@@ -76,6 +81,7 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
   }
 
   const branches: Record<string, readonly Part[]> = Object.create(null);
+  let top = 0;
   for (;;) {
     skipSpace(P);
     c = s[P.i];
@@ -98,7 +104,9 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
     // `#` is the count in a plural's own sub-messages only; a select passes `false`.
     // A repeated selector keeps its FIRST sub-message, as ICU4C does.
     // `under` only feeds a development warning: production passes `false`.
-    const sub = message(P, !select, __DEV__ && (under || !select), true);
+    // A repeated selector's sub-message never renders; its height counts all the same.
+    const sub = message(P, !select, __DEV__ && (under || !select), d + 1);
+    if (SYNTAX.h! > top) top = SYNTAX.h!;
     branches[key] ??= sub;
     if (s[P.i++] != "}") {
       if (__DEV__) fail(`a sub-message of \`{${name}, ${type}, …}\` is never closed`);
@@ -107,6 +115,9 @@ export const argument = (P: Scan, name: string, under: boolean): PartFn => {
   }
   P.i++;
   if (__DEV__ && P.o) P.o(3, name);
+  // Written after the observer, so nothing runs between this write and its read in
+  // `message()` (a scan the observer started would overwrite it).
+  SYNTAX.h = top + 1;
   const other = branches.other;
   if (!other) {
     if (__DEV__) fail(`\`{${name}, ${type}, …}\` needs an \`other\` branch`);

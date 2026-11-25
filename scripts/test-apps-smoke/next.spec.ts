@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { test as base, expect, type Page } from "@playwright/test";
+import { test as base, expect, type APIRequest, type Page } from "@playwright/test";
 
 /**
  * Lot 6a scenarios (owner brief 2026-11-06 §8) on a production build of `test-apps/next`
@@ -319,6 +319,7 @@ test("10: the client bundle carries no server code and no server secret", async 
     "COMVI_E2E_CATALOGS", // the server-only env name
     "x-comvi-locale", // createGetI18n's request read
     "node:http",
+    "getAlternates: unknown locale", // @comvi/next/routing's getAlternates, server-only by use
   ])
     expect(client.includes(secret), `${secret} in a client chunk`).toBe(false);
 });
@@ -344,4 +345,201 @@ test("10b: the server provider hands the browser data only: the payload and the 
     ])
       expect(flight.includes(name), `${name} in the RSC payload of ${path}`).toBe(false);
   }
+});
+
+const SITE = "https://example.com";
+/** The `<link>` tags of `html` as attribute maps, names lower-cased: React writes `hrefLang` and self-closes. */
+const linkTags = (html: string) =>
+  [...markup(html).matchAll(/<link\b([^>]*)>/gi)].map((tag) => {
+    const attrs: Record<string, string> = {};
+    for (const a of tag[1].matchAll(/([^\s=/"']+)\s*=\s*"([^"]*)"/g))
+      attrs[a[1].toLowerCase()] = a[2];
+    return attrs;
+  });
+const seoLinks = (html: string) => {
+  const tags = linkTags(html);
+  return {
+    canonical: tags.filter((t) => t.rel === "canonical").map((t) => t.href),
+    alternates: tags
+      .filter((t) => t.rel === "alternate" && "hreflang" in t)
+      .map((t) => [t.hreflang, t.href] as const),
+  };
+};
+/** What every page of the stand lists: one hreflang per locale and x-default, the default's URL. */
+const hreflangs = (href: string) => {
+  const of = (prefix: string) => `${SITE}${prefix}${href === "/" ? "" : href}`;
+  return [
+    ["en", of("")],
+    ...["de", "fr", "es", "uk", "ar"].map((l) => [l, of(`/${l}`)] as const),
+    ["x-default", of("")],
+  ].sort();
+};
+const expectSeo = (html: string, canonical: string, href: string) => {
+  const { canonical: found, alternates } = seoLinks(html);
+  expect(found, "exactly one canonical").toEqual([canonical]);
+  expect([...alternates].sort(), "one hreflang per locale and x-default, no more").toEqual(
+    hreflangs(href),
+  );
+};
+
+/**
+ * A GET in a request context of its own, so no cookie of an earlier response rides along (the
+ * middleware's locale cookie would redirect `/admin`); redirects are not followed.
+ */
+const isolatedGet =
+  (playwright: { request: APIRequest }, baseURL: string) =>
+  async (path: string, headers: Record<string, string> = {}) => {
+    const context = await playwright.request.newContext({ baseURL });
+    try {
+      const response = await context.get(path, { headers, maxRedirects: 0 });
+      return {
+        status: response.status(),
+        location: response.headers()["location"],
+        text: await response.text(),
+      };
+    } finally {
+      await context.dispose();
+    }
+  };
+
+/**
+ * `GET /uk/slow-meta` read as a stream, split at `</head>`. Its metadata waits on the `uk:seo`
+ * pair, held here. `release: "after-head"` lets it go only once `</head>` has arrived, so the
+ * shell provably went out while the metadata was pending (a client Next does not stream to
+ * never gets that far and the poll fails); `"when-asked"` lets it go as soon as it is asked for.
+ */
+const slowMetaHtml = async (
+  base: string,
+  headers: Record<string, string>,
+  release: "after-head" | "when-asked",
+) => {
+  await mock.mode({ hold: ["uk:seo"] });
+  let html = "";
+  // Started before the request: for a bot, Next sends no byte until the metadata resolved.
+  const released = (async () => {
+    await expect.poll(mock.held).toContain("uk:seo");
+    if (release === "after-head") await expect.poll(() => html.includes("</head>")).toBe(true);
+    await mock.release("uk:seo");
+  })();
+  const response = await fetch(`${base}/uk/slow-meta`, { headers });
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    html += decoder.decode(value, { stream: true });
+  }
+  await released;
+  await mock.mode({});
+  expect(html).toContain("</head>");
+  const at = html.indexOf("</head>");
+  return { head: html.slice(0, at), body: html.slice(at) };
+};
+
+/**
+ * Did the document survive? A marker on `window` (a full navigation replaces the window) and
+ * Playwright's count of main-frame `load` events (a full navigation fires another one).
+ */
+const watchDocument = async (page: Page) => {
+  let loads = 0;
+  page.on("load", () => (loads += 1));
+  await page.evaluate(() => ((window as unknown as { __b8: string }).__b8 = "same document"));
+  return async () => ({
+    marker: await page.evaluate(() => (window as unknown as { __b8?: string }).__b8 ?? null),
+    loads,
+  });
+};
+const SAME_DOCUMENT = { marker: "same document", loads: 0 };
+
+test("11: SEO: canonical, hreflang alternates and x-default on the server render; they follow a switch", async ({
+  page,
+  playwright,
+  baseURL,
+}) => {
+  const get = isolatedGet(playwright, baseURL!);
+  // 1–2: a dynamic page in a non-default locale.
+  expectSeo((await get("/uk/admin")).text, `${SITE}/uk/admin`, "/admin");
+  // 3: the default locale, no prefix.
+  expectSeo((await get("/admin")).text, `${SITE}/admin`, "/admin");
+  // 4: the static page; scenario 8 proves it is still in prerender-manifest.json.
+  expectSeo((await get("/uk")).text, `${SITE}/uk`, "/");
+  // 5: a bot without JavaScript gets every tag before </head>, not streamed into <body>.
+  const { text: bot } = await get("/uk/admin", { "user-agent": "facebookexternalhit/1.1" });
+  expect(bot).toContain("</head>");
+  expectSeo(bot.slice(0, bot.indexOf("</head>")), `${SITE}/uk/admin`, "/admin");
+  // 5, where it can fail: /slow-meta's metadata resolves only after the page shell. An ordinary
+  // client gets </head> first and the tags streamed into <body>; the bot gets them in <head>.
+  const ordinary = await slowMetaHtml(baseURL!, {}, "after-head");
+  expect(seoLinks(ordinary.head), "nothing in <head> for an ordinary client").toEqual({
+    canonical: [],
+    alternates: [],
+  });
+  expectSeo(ordinary.body, `${SITE}/uk/slow-meta`, "/slow-meta");
+  const slowBot = await slowMetaHtml(
+    baseURL!,
+    { "user-agent": "facebookexternalhit/1.1" },
+    "when-asked",
+  );
+  expectSeo(slowBot.head, `${SITE}/uk/slow-meta`, "/slow-meta");
+  expect(seoLinks(slowBot.body), "nothing streamed after </head> for the bot").toEqual({
+    canonical: [],
+    alternates: [],
+  });
+
+  // 6: a client switch replaces the tags, without a full reload in between.
+  await page.goto("/uk/admin");
+  await hydrated(page);
+  const documentState = await watchDocument(page);
+  const head = async () => seoLinks(await page.content());
+  await text(page, "switch-de").click();
+  await expect(page).toHaveURL(/\/de\/admin$/);
+  await expect.poll(async () => (await head()).canonical).toEqual([`${SITE}/de/admin`]);
+  expect(await documentState(), "no full reload on the switch to de").toEqual(SAME_DOCUMENT);
+  await text(page, "switch-en").click();
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/admin$/);
+  await expect.poll(async () => (await head()).canonical).toEqual([`${SITE}/admin`]);
+  expect(await documentState(), "no full reload on the switch to en").toEqual(SAME_DOCUMENT);
+  expect([...(await head()).alternates].sort()).toEqual(hreflangs("/admin"));
+  await expect(page.locator('link[rel="alternate"][hreflang]')).toHaveCount(7);
+  await expect(page.locator('link[rel="alternate"][hreflang="x-default"]')).toHaveAttribute(
+    "href",
+    `${SITE}/admin`,
+  );
+});
+
+test("11c: the default locale's unprefixed URL: the default locale without a preference, a redirect with one", async ({
+  playwright,
+  baseURL,
+}) => {
+  const get = isolatedGet(playwright, baseURL!);
+  const plain = await get("/admin");
+  expect(plain.status).toBe(200);
+  expect(plain.text).toMatch(/<html lang="en"/);
+  expect(seoLinks(plain.text).canonical).toEqual([`${SITE}/admin`]);
+
+  const preferring = await get("/admin", { cookie: "NEXT_LOCALE=uk" });
+  expect(preferring.status).toBe(307);
+  expect(preferring.location).toMatch(/^(https?:\/\/[^/]+)?\/uk\/admin$/);
+  const target = await get(preferring.location!, { cookie: "NEXT_LOCALE=uk" });
+  expect(target.status).toBe(200);
+  const languages = new Map(seoLinks(target.text).alternates);
+  expect(languages.get("en")).toBe(`${SITE}/admin`);
+  expect(languages.get("x-default")).toBe(`${SITE}/admin`);
+});
+
+test("11b: the no-reload check of scenario 11 fails on a full reload or a full navigation", async ({
+  page,
+}) => {
+  await page.goto("/uk/admin");
+  await hydrated(page);
+  const reload = await watchDocument(page);
+  await page.reload();
+  await hydrated(page);
+  await expect.poll(reload).toEqual({ marker: null, loads: 1 });
+
+  const assign = await watchDocument(page);
+  await page.evaluate(() => location.assign("/de/admin"));
+  await expect(page).toHaveURL(/\/de\/admin$/);
+  await hydrated(page);
+  await expect.poll(assign).toEqual({ marker: null, loads: 1 });
 });

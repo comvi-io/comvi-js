@@ -27,7 +27,7 @@ import { arg } from "./compile/scanner";
 import type { Rendered } from "./compile/cache";
 
 /**
- * The marking hook (design R3-14 H4): what an in-context editor wraps a rendered message
+ * The marking hook: what an in-context editor wraps a rendered message
  * with — `out` is what `t()` would return (the `missing` output for a key no catalog
  * has), `ns` the namespace it was looked up in. Set and cleared only through the
  * `/devtools` handle (`x.mark`); a call with `{ markers: false }` never reaches it.
@@ -35,7 +35,7 @@ import type { Rendered } from "./compile/cache";
 export type Mark = (out: Rendered, key: string, ns: string) => Rendered;
 
 export interface Slot {
-  /** Base catalog, kept by reference (R4-12). */
+  /** Base catalog, kept by reference. */
   readonly m: Catalog;
   /** Compiled record of `m`, shared by every instance holding `m`. */
   readonly c: CompiledRecord;
@@ -51,7 +51,7 @@ export type Store = Readonly<Record<string, Readonly<Record<string, Slot>>>>;
 export interface State {
   /** Moves on every published change. */
   readonly rev: number;
-  /** Moves only when the locale changes (derived-state handover, R4-15). */
+  /** Moves only when the locale changes (for derived state a binding hands over). */
   readonly lrev: number;
   /** The locale as the app spells it. */
   readonly locale: string;
@@ -70,7 +70,7 @@ export interface State {
   /** The canonical tag of `locale` (what Intl receives on the fast path). */
   readonly tg: string;
   /**
-   * The marking hook of an in-context editor session (R3-14 H4), set only by the
+   * The marking hook of an in-context editor session, set only by the
    * `/devtools` handle; a state that has one has no `pr`, so the fast path is skipped.
    */
   readonly mk?: Mark | null;
@@ -84,7 +84,7 @@ export const N = <T = unknown>(...from: (object | null | undefined)[]): Record<s
   Object.assign(Object.create(null), ...from);
 
 /**
- * A state. The only constructor of one: `pr` is always derived here (R4-1d), and a state
+ * A state. The only constructor of one: `pr` is always derived here, and a state
  * with a marking hook has none (every `t()` then takes the path that marks).
  */
 export const mk = (
@@ -111,17 +111,17 @@ export const mk = (
 
 /**
  * The slot that results from adding `msgs` to `slot`. An empty pair keeps `msgs` BY
- * REFERENCE as the base (R4-12); the catalog the slot already holds as its unpatched base
+ * REFERENCE as the base; the catalog the slot already holds as its unpatched base
  * gives back the slot itself (a Provider re-adding a stable prop costs nothing and
  * publishes nothing); otherwise `msgs` is merged into the patch layer, and a patch past
  * {@link FLAT} keys is flattened into a new base.
  *
- * With `u` (a load landing, R3-14 H8) `msgs` goes UNDER what the slot holds — messages
+ * With `u` (a load landing) `msgs` goes UNDER what the slot holds — messages
  * `add()`ed while the load was in flight stay on top — and the result is flattened at
  * once into a new base without a patch, so the fast path (`pr`) comes back: one copy of
  * the catalog, which landing it costs anyway.
  *
- * Compiled messages whose template did not change are kept (H3): a new patch takes the
+ * Compiled messages whose template did not change are kept: a new patch takes the
  * base's for the keys it re-adds, and a new base takes both the old base's and the old
  * patch's.
  */
@@ -141,7 +141,7 @@ export const layer = (slot: Slot | undefined, msgs: Catalog, u?: unknown): Slot 
 };
 
 /**
- * A slot that IS `msgs` (a server payload's slot, lot 6a: a key the server no longer has is
+ * A slot that IS `msgs` (a server payload's slot: a key the server no longer has is
  * gone): `slot` itself when it renders exactly these messages without a patch (its compiled
  * messages stay), else a new slot of `msgs` alone.
  */

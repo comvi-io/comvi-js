@@ -33,7 +33,10 @@ beforeAll(async () => {
       ],
     },
   });
-});
+  // The first server load compiles the fixtures and the core's sources: seconds on a cold
+  // machine. It is setup, so it runs here with its own limit, not inside the first test's.
+  await vite.ssrLoadModule("/tests/fixtures/server-entry.ts");
+}, 60_000);
 afterAll(() => vite.close());
 
 /** `AccountApp` rendered by the server build, its handover as JSON. */

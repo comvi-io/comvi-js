@@ -1,5 +1,5 @@
 /**
- * @comvi/svelte — the Svelte 5 binding of the 0.8 core (design §3.6): `setI18n()`, `useI18n()`,
+ * @comvi/svelte — the Svelte 5 binding of the 0.8 core: `setI18n()`, `useI18n()`,
  * `<T>` and `handover()` for a server render. `createI18n` is re-exported, so a Svelte app
  * imports one package; `@comvi/svelte/format` adds `useFormat()`.
  */

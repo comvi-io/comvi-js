@@ -38,6 +38,7 @@ import { find, mk, N, put, whole, type Mark, type State, type Store } from "./st
 import type { RichParts, TFor } from "./types";
 
 declare const __DEV__: boolean;
+declare const __VERSION__: string;
 
 /** Loads one catalog: flat keys → ICU messages. Rejects to report `load_failed`. */
 export type Loader = (
@@ -88,7 +89,7 @@ export interface I18nOptions {
   plugins?: readonly Plugin[];
   /**
    * IANA time zone of the Date formatters of `@comvi/core/format` (SSR bindings pass the
-   * server's). A plain `{x}` prints a Date as `String(date)`, without it (R3-17).
+   * server's). A plain `{x}` prints a Date as `String(date)`, without it.
    */
   timeZone?: string;
   /**
@@ -148,8 +149,9 @@ export interface I18n {
    * With no message for the key in the locale's chain it returns what `missing(key, locale,
    * ns)` returns (default: the key) — also while the key's namespace is still loading or has
    * no catalog of the chain, when no `missing_key` is reported (see `onError`). `t()` never
-   * returns a placeholder: a UI that should not show that text while loading checks
-   * `isLoading` (bindings) and renders its own.
+   * returns a placeholder: a UI that should not show that text renders its own, checking a
+   * binding's `isReady` first, then `isLoading`. `isReady === false && isLoading === false`
+   * means the text is not available, not necessarily that a load failed.
    */
   t: TFor<"default", RichParts>;
   /** `t()` bound to namespace `name`. */
@@ -214,7 +216,7 @@ export interface Core {
    * a setup) while nothing holds it — its hold comes at the commit or mount, which Suspense
    * may delay past the idle-read check. Until that hold, a read of `ns` is not reported as
    * idle. Not a hold: nothing loads for it, and a render that never commits keeps only this
-   * development marker (Codex re-check of lot 4c, F1).
+   * development marker.
    */
   p?(ns: string): void;
   /** The lookup chain of a locale. */
@@ -222,7 +224,7 @@ export interface Core {
   /** The options the instance was made with (`timeZone`, `now`, `formats` for `/format`). */
   o: I18nOptions;
   /**
-   * Hold counts by namespace (lot 4c); the active set is the keys above 0. Its keys are every
+   * Hold counts by namespace; the active set is the keys above 0. Its keys are every
    * namespace the instance ever needed (pinned, held or `load()`ed) — what `handover()` hands
    * over and the editor's `state().ns`, whatever the counts are now.
    */
@@ -230,7 +232,7 @@ export interface Core {
   /** Pairs whose load failed (the negative cache), by `locale + "\0" + ns`. */
   b: ReadonlyMap<string, unknown>;
   /**
-   * A consumer holds namespace `ns` (lot 4c): it joins the active set and what the displayed
+   * A consumer holds namespace `ns`: it joins the active set and what the displayed
    * locale's chain lacks of it loads, WITHOUT asking its failed loads again — a binding holding
    * on every mount must not turn one failure into a refetch per mount (`load()` is the explicit
    * retry). Counted before anything publishes. Returns the release (a second call of it does
@@ -246,7 +248,7 @@ export interface Core {
   /** `isReady` of namespace `ns` in `state` (see `usable` in createI18n). */
   r(state: State, ns: string): boolean;
   /**
-   * A slot a server payload hands over after creation (a binding's handover, lot 6a, one rule):
+   * A slot a server payload hands over after creation (a binding's handover):
    * it fully replaces the instance's slot, every time. A catalog BECOMES the slot (a key the
    * server no longer has is gone, `{}` is empty) and a failure of the pair is forgotten; `null`
    * (or none) means what `createI18n({ catalogs })` gives it — the pair joins the negative cache
@@ -278,7 +280,42 @@ export interface Core {
 export const CORE = new WeakMap<object, Core>();
 
 /**
- * The marking hook's setter, per instance (R3-14 H4): it sets (or, with `null`, clears) the
+ * The version of the core that created an instance, on the instance under a registry symbol:
+ * the one thing a second copy of the core can read from it (its `CORE` is not that copy's).
+ */
+export const VER: symbol = Symbol.for("comvi");
+
+/**
+ * The seam of `i18n` (its {@link Core}). Anything this copy of the core did not create throws,
+ * the production build too: a binding resolving one `@comvi/core` while the app created its
+ * instance with another (two versions, or one version installed twice) is the likeliest
+ * cause, so production says `two copies of @comvi/core: <the instance's version>, <this
+ * copy's>` — the first is `undefined` for an instance of a core older than 0.8, which carries
+ * no tag, and for anything that is no instance at all. The tag is read only on a miss.
+ * Development tells the cases apart: no tag; a tag of another version; a tag of this one,
+ * which also comes with a copy or a Proxy of the instance (its tag is an own property).
+ */
+export const core = (i18n: I18n): Core => {
+  const c = CORE.get(i18n);
+  if (!c) {
+    const v = (i18n as unknown as Record<symbol, string> | undefined)?.[VER];
+    if (__DEV__ && !v)
+      throw new TypeError(
+        "[@comvi/core] not an instance of createI18n(), or it was created by a copy of @comvi/core older than 0.8",
+      );
+    throw Error(
+      __DEV__
+        ? v == __VERSION__
+          ? `[@comvi/core] this instance was not created by this copy of @comvi/core, though both are @comvi/core@${v}: one version is installed twice (install it once), or the instance is a copy or a Proxy of the real one (pass the instance itself; in Vue, toRaw() it), or the development and production builds of one install meet.`
+          : `[@comvi/core] two copies of @comvi/core are loaded: the instance was created by @comvi/core@${v}, and a second copy, @comvi/core@${__VERSION__}, reads it. Put @comvi/core and every binding on one version and install it once.`
+        : `two copies of @comvi/core: ${v}, ${__VERSION__}`,
+    );
+  }
+  return c;
+};
+
+/**
+ * The marking hook's setter, per instance: it sets (or, with `null`, clears) the
  * hook of an in-context editor session and publishes a state carrying it. Keyed by the
  * instance, so an instance created during another one's plugin setup never takes its
  * setter. Only `devtools()` reads it, for the instance it is set up on — a plugin's `setup`
@@ -605,10 +642,10 @@ export const createI18n = (o: I18nOptions): I18n => {
       fl.set(
         k,
         (f = [
-          // Settles on abort even when the loader ignores its signal.
+          // Settles on abort even when the loader ignores its signal or sets its `onabort`.
           new Promise<CatalogInput>((u, v) => {
             y = u;
-            a.signal.onabort = x = v;
+            a.signal.addEventListener("abort", (x = v));
           })
             // Under what `add()` put in the pair meanwhile: a saved edit survives (H8).
             .then((m) => no() || drop(k, f!, ing(S.c, l, m, n, 1)))
@@ -797,6 +834,9 @@ export const createI18n = (o: I18nOptions): I18n => {
       );
     },
     on(f) {
+      // Development only: the 0.7 `on(event, fn)` passes a name where 0.8 takes the listener.
+      if (__DEV__ && typeof f != "function")
+        throw TypeError(`[@comvi/core] on() takes a listener function, got ${typeof f}`);
       subs.add(f);
       return () => void subs.delete(f);
     },
@@ -816,6 +856,12 @@ export const createI18n = (o: I18nOptions): I18n => {
         downs.reverse().forEach(safe);
       }
     },
+    // LAST, after every static member (B3 perf): V8 builds the members before the first
+    // computed key from the literal's boilerplate, one shape shared by every instance. Put
+    // first, a computed key makes V8 define every member at runtime, and the getters (fresh
+    // closures) give each instance a hidden class of its own: construction gets slower, and
+    // a call site that sees many instances (a server's one per request) goes megamorphic.
+    [VER]: __VERSION__,
   };
 
   const c: Core = {

@@ -17,8 +17,9 @@
 
 ---
 
-Nuxt 3.7+ and Nuxt 4 on Node 22.20+, or the newer Node your Nuxt requires. Verified: Nuxt 3.7.0,
-3.21.11, 4.0.0 and 4.6.0 on Node 22.22.3; Nuxt 3.21.11 and 4.6.2 on Node 24.22.1. Typed translations
+Nuxt 3.7+ and Nuxt 4 on Node 22.20+, or the newer Node your Nuxt requires. Nuxt 4.0.0 needs a
+`nitropack` override (see [Version notes](#version-notes)). Verified: Nuxt 3.7.0, 3.21.11, Nuxt 4.0.0
+with `nitropack` 2.12.9, and 4.6.0 on Node 22.22.3; Nuxt 3.21.11 and 4.6.2 on Node 24.22.1. Typed translations
 (`comvi.types`) need Nuxt 3.21.11+ or 4.6.0+. The limits outside the module are listed under
 [Version notes](#version-notes).
 
@@ -32,6 +33,8 @@ auto-imported; the module brings `@comvi/core` and `@comvi/vue` with it.
 ```bash
 npm install @comvi/nuxt
 ```
+
+`@comvi/core` and every binding in an app must be on one version. From 0.8 on, two copies of `@comvi/core` (two versions, or one version installed twice) throw an error that names both versions.
 
 ## Setup
 
@@ -210,8 +213,9 @@ presets and `nuxt generate` are unverified (neither supported nor excluded).
 
 - Nuxt 4.0.0 as installed pins nitropack 2.12.0, which answers every `/_nuxt/` asset with a 500
   (observed with nitropack 2.12.0 to 2.12.8). It is Nuxt's own defect: a plain Nuxt 4.0.0 app without
-  Comvi shows it. nitropack 2.12.9 or later fixes it (verified: 2.12.9, 2.13.0, 2.13.6), and so does
-  Nuxt 4.0.3, whose install resolves nitropack 2.13.6.
+  Comvi shows it. The supported configuration is Nuxt 4.0.0 with `nitropack` 2.12.9, set as an
+  override (`pnpm.overrides`, npm `overrides` or Yarn `resolutions`): `"nitropack": "2.12.9"`. Nuxt
+  4.0.3 and later need no override: their install resolves a fixed nitropack.
 - Older Nuxt versions print their own `[nuxt] error caught during app initialization` with
   `Page not found` when a 404 page hydrates (observed: Nuxt 3.7.0, 3.21.0 and 4.0.0, with or without
   the module; not in 3.21.11 or 4.6.x).

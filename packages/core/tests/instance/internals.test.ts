@@ -5,8 +5,10 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { CORE, MS, createI18n } from "../../src/instance";
-import { coming, state, translate, view } from "../../src/internal";
+import { clock, coming, core, handover, state, translate, view } from "../../src/internal";
 import { flush, make, manualLoader } from "./helpers";
+
+declare const __VERSION__: string;
 
 describe("the chain memo", () => {
   it("keeps 500 chains, then starts over (a per-call locale may be user input)", () => {
@@ -172,5 +174,70 @@ describe("coming(i18n, state, ns)", () => {
     await l.answer("en:shop");
     await p;
     expect(coming(i18n, state(i18n), "shop")).toBe(false);
+  });
+});
+
+describe("an instance of another copy of the core (B3)", () => {
+  // What another copy's createI18n() leaves on its instance: the registry symbol and that
+  // copy's version. This copy's CORE has never seen it.
+  const foreign = (version: string) =>
+    ({ [Symbol.for("comvi")]: version }) as unknown as ReturnType<typeof createI18n>;
+  const twoCopies = (made: string) =>
+    `[@comvi/core] two copies of @comvi/core are loaded: the instance was created by @comvi/core@${made}, and a second copy, @comvi/core@${__VERSION__}, reads it. Put @comvi/core and every binding on one version and install it once.`;
+  const sameVersion = `[@comvi/core] this instance was not created by this copy of @comvi/core, though both are @comvi/core@${__VERSION__}: one version is installed twice (install it once), or the instance is a copy or a Proxy of the real one (pass the instance itself; in Vue, toRaw() it), or the development and production builds of one install meet.`;
+  const untagged =
+    "[@comvi/core] not an instance of createI18n(), or it was created by a copy of @comvi/core older than 0.8";
+
+  it("core() of an instance at another version → an error naming both copies and versions", () => {
+    const i18n = foreign("0.0.0-other");
+
+    const read = () => core(i18n);
+
+    expect(read).toThrow(new Error(twoCopies("0.0.0-other")));
+  });
+
+  it("core() of an instance at the same version → names a second install, a copy or Proxy, and the two builds", () => {
+    const i18n = foreign(__VERSION__);
+
+    const read = () => core(i18n);
+
+    expect(read).toThrow(new Error(sameVersion));
+  });
+
+  it.each([
+    ["a spread", (i: ReturnType<typeof createI18n>) => ({ ...i })],
+    ["a Proxy", (i: ReturnType<typeof createI18n>) => new Proxy(i, {})],
+  ])("core() of %s of a real instance → the same-version text", (_, wrap) => {
+    const i18n = wrap(createI18n({ locale: "en" }));
+
+    const read = () => core(i18n);
+
+    expect(read).toThrow(new Error(sameVersion));
+  });
+
+  it("clock() (a binding's useFormat) of an instance at another version → the same error as core()", () => {
+    const i18n = foreign("0.0.0-other");
+
+    const read = () => clock(i18n);
+
+    expect(read).toThrow(new Error(twoCopies("0.0.0-other")));
+  });
+
+  it("handover() of an instance at another version → the same error as core()", () => {
+    const i18n = foreign("0.0.0-other");
+
+    const hand = () => handover(i18n);
+
+    expect(hand).toThrow(new Error(twoCopies("0.0.0-other")));
+  });
+
+  it.each([
+    // A 0.7.x core leaves no tag: its instance has the members and nothing else to read.
+    ["an untagged 0.7-style instance", { locale: "en", t: () => "", on: () => () => {} }],
+    ["a plain object", {}],
+  ])("core() of %s → not an instance, or one of a core older than 0.8", (_, value) => {
+    const read = () => core(value as unknown as ReturnType<typeof createI18n>);
+
+    expect(read).toThrow(new TypeError(untagged));
   });
 });

@@ -1,5 +1,5 @@
 /**
- * @comvi/react — the React binding of the 0.8 core (design §3.4): `<I18nProvider>`,
+ * @comvi/react — the React binding of the 0.8 core: `<I18nProvider>`,
  * `useI18n()`, `useLocale()`, `<T>`. `createI18n` is re-exported, so a React app imports
  * one package; `@comvi/react/format` adds `useFormat()`.
  */

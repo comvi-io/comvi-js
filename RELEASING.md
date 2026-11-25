@@ -52,7 +52,10 @@ that path today.
       outside of makes changesets bump the peer dependents by patch, no longer by major (cli 2
       escalated the whole fixed group to `1.0.0`). The ranges themselves are still this repo's
       policy: `pnpm release:version` runs `scripts/sync-peer-ranges.mjs` **before**
-      `changeset version` (`scripts/version-release.mjs`), which moves them to the new minor line.
+      `changeset version` (`scripts/version-release.mjs`), which pins them to the exact version
+      being cut, a patch release too (`@comvi/next`'s `@comvi/core` and `@comvi/react` peers).
+      The `pack` job refuses a packed tarball whose `@comvi/*` peer or dependency is not its own
+      version.
       Never run bare `pnpm changeset version` in place of `pnpm release:version`.
 
 ## 2. RC rehearsal (optional but recommended)

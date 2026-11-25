@@ -58,10 +58,21 @@ describe("check rule: unsupported-icu", () => {
     expect(report.locales.de.plural).toEqual([]);
   });
 
-  it("still compares the tags of a key with an unsupported argument", () => {
-    const report = check({ a: "<b>{p, number}</b>" }, { a: "{p, number}" });
+  it("still compares a target's tags with those of a source that has an unsupported argument", () => {
+    // The source's tag closes before its scan stops at `{p, number}` (a tag counts once it
+    // closes, B12); the target is read to the end.
+    const report = check({ a: "<b>x</b> {p, number}" }, { a: "x {p}" });
 
     expect(report.locales.de.tags).toEqual([{ key: "a", source: ["b"], target: [] }]);
+  });
+
+  it("does not compare the tags of a target with an unsupported argument: what follows it is unknown", () => {
+    const report = check({ a: "<b>{p}</b> x" }, { a: "<b>{p, number}</b> x" });
+
+    expect([report.locales.de.tags, report.locales.de.unsupportedIcu]).toEqual([
+      [],
+      [{ key: "a", argumentType: "number" }],
+    ]);
   });
 
   it("passes supported arguments", () => {

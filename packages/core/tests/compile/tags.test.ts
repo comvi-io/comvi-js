@@ -167,35 +167,49 @@ describe("a handler's second argument: the text of its tag (lot 4b)", () => {
   });
 });
 
-describe("an unclosed <br>: still a syntax report, with a development hint", () => {
+describe("a never-closed tag renders as its own text, with a development hint for <br> (B12)", () => {
   const HINT =
     "write `<br/>` instead. It renders nothing without a `br` handler or `components` entry";
   const report = (message: string) => {
     const errors: I18nError[] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const out = createI18n({
       locale: "en",
       messages: { en: { k: message } },
       onError: (e) => errors.push(e),
-    }).t("k");
-    return { out, errors };
+    }).t("k", { b: wrap("b"), n: 2 });
+    const warnings = warn.mock.calls.map(([m]) => m as string);
+    warn.mockRestore();
+    return { out, errors, warnings };
   };
 
-  it("a<br>b renders its key, reports syntax and names `<br/>`", () => {
-    const { out, errors } = report("a<br>b");
-    expect(out).toBe("k");
-    expect(errors).toHaveLength(1);
-    expect(errors[0]).toMatchObject({ code: "syntax", key: "k", locale: "en" });
-    expect(errors[0].message).toBe(`\`<br>\` is never closed; ${HINT}`);
+  it("a<br>b renders as written, reports nothing, and the warning names `<br/>`", () => {
+    const { out, errors, warnings } = report("a<br>b");
+    expect(out).toBe("a<br>b");
+    expect(errors).toEqual([]);
+    expect(warnings).toEqual([
+      `[@comvi/core] \`<br>\` in "k" is never closed and renders as text; ${HINT}`,
+    ]);
   });
 
-  it("inside another tag and inside a sub-message too", () => {
-    expect(report("<b>a<br>b</b>").errors[0].message).toBe(`\`</b>\` closes no open tag; ${HINT}`);
-    expect(report("{n, plural, other {a<br>b}}").errors[0].message).toContain(HINT);
+  it("inside a closed tag and inside a sub-message too", () => {
+    const BR = `[@comvi/core] \`<br>\` in "k" is never closed and renders as text; ${HINT}`;
+    const tag = report("<b>a<br>b</b>");
+    const sub = report("{n, plural, other {a<br>b}}");
+    expect([tag.out, tag.errors, tag.warnings]).toEqual([[{ name: "b", c: ["a<br>b"] }], [], [BR]]);
+    expect([sub.out, sub.errors, sub.warnings]).toEqual(["a<br>b", [], [BR]]);
   });
 
-  it("another unclosed tag has no hint: the scope is br", () => {
-    expect(report("a<b>b").errors[0].message).toBe("`<b>` is never closed");
-    expect(report("a<hr>b").errors[0].message).toBe("`<hr>` is never closed");
+  it("another never-closed tag has no hint: the hint is about br", () => {
+    const hr = report("a<hr>b");
+    expect(report("a<b>b").warnings).toEqual([
+      '[@comvi/core] `<b>` in "k" is never closed and renders as text',
+    ]);
+    expect([hr.out, hr.errors, hr.warnings]).toEqual([
+      "a<hr>b",
+      [],
+      ['[@comvi/core] `<hr>` in "k" is never closed and renders as text'],
+    ]);
   });
 
   it("what the hint says: `<br/>` is valid and renders nothing without a handler", () => {

@@ -13,7 +13,9 @@
  *   name used twice keeps its first kind, except that a choice kind replaces `string`;
  * - a select's options are its selectors other than `other`, in message order, merged
  *   across uses; `other` is true only when every use has it;
- * - `<tag>` and `<tag/>` are tags, first-seen order;
+ * - `<tag>…</tag>` and `<tag/>` are tags, ordered by the opening of each name's first
+ *   CLOSED occurrence; an opening tag never closed is text, not a tag (B12): it is listed
+ *   in `unclosed` instead, for `comvi check` to warn about;
  * - a repeated selector's sub-message never renders (core keeps the first): its params,
  *   tags and options are not recorded;
  * - a syntax error stops the scan; what was read before it is kept and `error` says why.
@@ -58,6 +60,12 @@ export interface ReadMessage {
   unsupported?: string;
   /** Things the schema settled that a translator should look at. */
   diagnostics: string[];
+  /**
+   * Each opening tag that is never closed, by name, once per occurrence, in message order:
+   * core renders it as text (B12), so it is no tag of the schema; likely a typo for a
+   * closed one (`<br>` for `<br/>`). Empty when the message does not compile.
+   */
+  unclosed: string[];
 }
 
 interface Choice {
@@ -85,7 +93,8 @@ const KINDS: Record<string, ParamKind | undefined> = Object.assign(Object.create
 
 export function readMessage(text: string): ReadMessage {
   const params = new Map<string, ReadParam>();
-  const tags: string[] = [];
+  /** Each closed tag that renders, with the offset of its opening tag. */
+  const closed: [at: number, name: string][] = [];
   const diagnostics: string[] = [];
   const stack: Choice[] = [];
   const choices: ReadChoice[] = [];
@@ -108,7 +117,7 @@ export function readMessage(text: string): ReadMessage {
     s: text,
     i: 0,
     k: undefined,
-    o: (event, name, type) => {
+    o: (event, name, type, at) => {
       refused = undefined;
       if (event === 0) add(name, "string");
       else if (event === 1) {
@@ -154,14 +163,14 @@ export function readMessage(text: string): ReadMessage {
           for (const o of options) if (!param.options.includes(o)) param.options.push(o);
           param.other = param.other === true && hasOther;
         }
-      } else if (!muted() && !tags.includes(name)) tags.push(name);
+      } else if (!muted()) closed.push([at!, name]);
     },
   };
 
   let error: string | undefined;
   let unsupported: string | undefined;
   try {
-    message(P, false, false, false);
+    message(P, false, false, 0);
   } catch (e) {
     if (e !== SYNTAX) throw e;
     error = SYNTAX.m ?? "syntax error";
@@ -169,7 +178,18 @@ export function readMessage(text: string): ReadMessage {
     unsupported =
       refused ?? (/^invalid selector /.test(error) ? stack[stack.length - 1]?.kind : undefined);
   }
-  const out: ReadMessage = { params: [...params.values()], tags, choices, diagnostics };
+  const tags: string[] = [];
+  for (const [, name] of closed.sort((a, b) => a[0] - b[0]))
+    if (!tags.includes(name)) tags.push(name);
+  const unclosed =
+    error === undefined ? (P.u ?? []).sort((a, b) => a[3]! - b[3]!).map(([name]) => name) : [];
+  const out: ReadMessage = {
+    params: [...params.values()],
+    tags,
+    choices,
+    diagnostics,
+    unclosed,
+  };
   if (error !== undefined) out.error = error;
   if (unsupported !== undefined) out.unsupported = unsupported;
   return out;

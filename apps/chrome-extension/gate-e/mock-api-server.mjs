@@ -82,6 +82,9 @@ const SITE_PAGES = {
   "/fw/svelte": { body: "fw", scripts: ["/built/svelte/main.js"] },
   // Marker layout measurements (fixtures/layout.js).
   "/layout": { body: "layout", scripts: ["/fixtures/layout.js"] },
+  // The real-platform system test (system-platform.spec.ts): the real `cdn()` loader reads the
+  // local platform's Content Deploy output (`?cdn=`), so the extension edits real platform data.
+  "/system": { body: "system", scripts: ["/fixtures/system.js"] },
   // The same cases marked by the editor's standalone build alone (layout-engines.spec.ts).
   "/layout-standalone": {
     body: "layout",
@@ -104,6 +107,12 @@ const BODIES = {
     "</section>",
     '<section id="region-B" class="region"><h1 id="B-title" data-k="home.title"></h1></section>',
     '<section id="region-C" class="region"><h1 id="C-title" data-k="home.title"></h1></section>',
+  ],
+  system: [
+    '<main id="system">',
+    '<h1 id="system-headline" data-k="system.headline"></h1>',
+    '<p id="system-published" data-k="system.published"></p>',
+    "</main>",
   ],
   layout: ['<main id="cases"></main>'],
   fw: ['<div id="app"></div>'],

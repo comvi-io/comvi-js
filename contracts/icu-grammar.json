@@ -1,0 +1,1938 @@
+{
+  "$comment": [
+    "The rich-text grammar contract shared by @comvi/core, @comvi/typegen (readMessage) and the platform's parser. js-sdk owns this file; the platform keeps a sha256-checked copy.",
+    "message and render are a string, or {nest: {times, wrap, inner, before?, after?}}: s = inner; for i from times - 1 down to 0, with [open, close] = wrap[i % wrap.length], s = open + s + close; the string is before + s + after.",
+    "render: the message rendered with `values` (or the record's own `values`) and, for every tag-like name in the message (`<` or `</` then a letter, then letters, digits, `_` or `-`), or only for the names in the record's `handlers`, a handler that returns `[name:` + its children joined + `]`. null when the message does not compile (it renders its key).",
+    "schema: what the generated types ask for. params as readMessage reports them; tags lists CLOSED tags only, ordered by the opening of each name's first closed occurrence. null when the message does not compile.",
+    "error: null, or `syntax` when the message does not compile. unclosed: the names of the never-closed opening tags, once per occurrence, in message order (each renders as its own text and gets one development warning); [] when the message does not compile.",
+    "depthLimit: the height of the compiled tree a message may have. Each ICU sub-message level (a repeated selector's too) and each closed tag, self-closing included, adds one; a never-closed tag is text and adds nothing."
+  ],
+  "version": 2,
+  "depthLimit": 200,
+  "values": {
+    "n": 1,
+    "name": "N"
+  },
+  "cases": [
+    {
+      "message": "a<br>b",
+      "render": "a<br>b",
+      "schema": {
+        "params": [],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": ["br"]
+    },
+    {
+      "message": "a<b>{name}",
+      "render": "a<b>N",
+      "schema": {
+        "params": [
+          {
+            "name": "name",
+            "kind": "string"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": ["b"]
+    },
+    {
+      "message": "a<b>x<i>y</i>",
+      "render": "a<b>x[i:y]",
+      "schema": {
+        "params": [],
+        "tags": ["i"]
+      },
+      "error": null,
+      "unclosed": ["b"]
+    },
+    {
+      "message": "<b>x<b>y</b>",
+      "render": "<b>x[b:y]",
+      "schema": {
+        "params": [],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": ["b"],
+      "note": "a closing tag closes the nearest open tag of its name"
+    },
+    {
+      "message": "{n, plural, one {<b>one} other {many}}",
+      "render": "<b>one",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": ["b"],
+      "note": "a tag never leaves the } of its sub-message"
+    },
+    {
+      "message": "{n, plural, other {<b># items}}",
+      "render": "<b>1 items",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": ["b"]
+    },
+    {
+      "message": "{n, plural, other {<b>x}}</b>",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "the <b> in the sub-message is text; the </b> outside closes nothing"
+    },
+    {
+      "message": "a<b>x</i>",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "a stray closing tag"
+    },
+    {
+      "message": "<b><i>x</b></i>",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "after </b> closes b, <i> is text, so </i> is stray"
+    },
+    {
+      "message": "<b>a<br>b</b>",
+      "render": "[b:a<br>b]",
+      "schema": {
+        "params": [],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": ["br"]
+    },
+    {
+      "message": "<b><i>x</b>",
+      "render": "[b:<i>x]",
+      "schema": {
+        "params": [],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": ["i"]
+    },
+    {
+      "message": "<b>{n, plural, other {x</b>}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "the search for an open tag never crosses a plural/select branch"
+    },
+    {
+      "message": "<a><b>x</b></a>",
+      "render": "[a:[b:x]]",
+      "schema": {
+        "params": [],
+        "tags": ["a", "b"]
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "tags in the schema: by the opening of the first closed occurrence"
+    },
+    {
+      "message": "<a>x<b>y</b><a>z</a>",
+      "render": "<a>x[b:y][a:z]",
+      "schema": {
+        "params": [],
+        "tags": ["b", "a"]
+      },
+      "error": null,
+      "unclosed": ["a"]
+    },
+    {
+      "message": "<a><b><a>x</a></b></a>",
+      "render": "[a:[b:[a:x]]]",
+      "schema": {
+        "params": [],
+        "tags": ["a", "b"]
+      },
+      "error": null,
+      "unclosed": []
+    },
+    {
+      "message": "<a><b>x</b><a>y</a></a>",
+      "render": "[a:[b:x][a:y]]",
+      "schema": {
+        "params": [],
+        "tags": ["a", "b"]
+      },
+      "error": null,
+      "unclosed": []
+    },
+    {
+      "message": "<link>terms",
+      "render": "<link>terms",
+      "schema": {
+        "params": [],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": ["link"]
+    },
+    {
+      "message": "<b>x<br>",
+      "render": "<b>x<br>",
+      "schema": {
+        "params": [],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": ["b", "br"]
+    },
+    {
+      "message": "<i>a<b>x</b><br>{n, plural, other {<b>}}",
+      "render": "<i>a[b:x]<br><b>",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": ["i", "br", "b"],
+      "note": "never-closed tags are listed in message order"
+    },
+    {
+      "message": "a<br/>b",
+      "render": "a[br:]b",
+      "schema": {
+        "params": [],
+        "tags": ["br"]
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "a self-closing tag is a closed tag"
+    },
+    {
+      "message": "<b>bold</b> and <i>it</i>",
+      "render": "[b:bold] and [i:it]",
+      "schema": {
+        "params": [],
+        "tags": ["b", "i"]
+      },
+      "error": null,
+      "unclosed": []
+    },
+    {
+      "message": "<name>{name}",
+      "render": "<name>N",
+      "schema": {
+        "params": [
+          {
+            "name": "name",
+            "kind": "string"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": ["name"],
+      "handlers": [],
+      "note": "no handlers: a never-closed tag's name is still a plain parameter"
+    },
+    {
+      "message": "x</b>",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "a stray closing tag"
+    },
+    {
+      "message": "<b>x</b/>",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "a closing tag cannot be self-closing"
+    },
+    {
+      "message": "{n, plural, other {x}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "broken ICU stays an error"
+    },
+    {
+      "message": "{n, plural, one {<b>x} other {y</b>}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "sibling branches are separate scopes"
+    },
+    {
+      "message": "'<b>'{name}",
+      "render": "<b>N",
+      "schema": {
+        "params": [
+          {
+            "name": "name",
+            "kind": "string"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "a quoted tag is text and not a tag"
+    },
+    {
+      "message": "<b>'</b>'x</b>",
+      "render": "[b:</b>x]",
+      "schema": {
+        "params": [],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": []
+    },
+    {
+      "message": "''<b>x",
+      "render": "'<b>x",
+      "schema": {
+        "params": [],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": ["b"],
+      "note": "'' is one apostrophe, so the tag is not quoted"
+    },
+    {
+      "message": "{n, plural, other {<b>#</b>}}",
+      "render": "[b:1]",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": []
+    },
+    {
+      "message": "{name, select, N {<b>x} other {y}}",
+      "render": "<b>x",
+      "schema": {
+        "params": [
+          {
+            "name": "name",
+            "kind": "select",
+            "options": ["N"],
+            "other": true
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": ["b"]
+    },
+    {
+      "message": "{n, selectordinal, one {<b>x} other {y}}",
+      "render": "<b>x",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "selectordinal"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": ["b"]
+    },
+    {
+      "message": "<b>{n, plural, other {<b>x}}</b>",
+      "render": "[b:<b>x]",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": ["b"],
+      "note": "a same-name tag inside a branch is its own scope"
+    },
+    {
+      "message": "{n, plural, one {a} one {<b>x</b><i>} other {b}}",
+      "render": "a",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": ["i"],
+      "note": "a repeated selector's sub-message never renders: no tags in the schema, still read"
+    },
+    {
+      "message": "<B>x</b>",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "tag names are case-sensitive"
+    },
+    {
+      "message": "<b>x<B>y</b>",
+      "render": "[b:x<B>y]",
+      "schema": {
+        "params": [],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": ["B"]
+    },
+    {
+      "message": "a<foo:bar>b",
+      "render": "a<foo:bar>b",
+      "schema": {
+        "params": [],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "not a tag token: text"
+    },
+    {
+      "message": "a<1>b",
+      "render": "a<1>b",
+      "schema": {
+        "params": [],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": []
+    },
+    {
+      "message": "a< b>b",
+      "render": "a< b>b",
+      "schema": {
+        "params": [],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": []
+    },
+    {
+      "message": "<a href=\"x\">l</a>",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "an opening tag with attributes is text, so </a> is stray"
+    },
+    {
+      "message": "<b>x</b >",
+      "render": "[b:x]",
+      "schema": {
+        "params": [],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "spaces before > are part of the token"
+    },
+    {
+      "message": "<b>x</b",
+      "render": "<b>x</b",
+      "schema": {
+        "params": [],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": ["b"],
+      "note": "an unterminated closing tag is text"
+    },
+    {
+      "message": "<x-y_1 \t>x</x-y_1>",
+      "render": "[x-y_1:x]",
+      "schema": {
+        "params": [],
+        "tags": ["x-y_1"]
+      },
+      "error": null,
+      "unclosed": []
+    },
+    {
+      "message": "<b >x",
+      "render": "<b >x",
+      "schema": {
+        "params": [],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": ["b"],
+      "note": "the token stays as written"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 199,
+          "wrap": [["<b>", "</b>"]],
+          "inner": "x"
+        }
+      },
+      "render": {
+        "nest": {
+          "times": 199,
+          "wrap": [["[b:", "]"]],
+          "inner": "x"
+        }
+      },
+      "schema": {
+        "params": [],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "199 nested closed tags"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 200,
+          "wrap": [["<b>", "</b>"]],
+          "inner": "x"
+        }
+      },
+      "render": {
+        "nest": {
+          "times": 200,
+          "wrap": [["[b:", "]"]],
+          "inner": "x"
+        }
+      },
+      "schema": {
+        "params": [],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "200 nested closed tags: the limit"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 201,
+          "wrap": [["<b>", "</b>"]],
+          "inner": "x"
+        }
+      },
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "201 nested closed tags: deeper than the limit"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 199,
+          "wrap": [["{n, plural, other {", "}}"]],
+          "inner": "x"
+        }
+      },
+      "render": "x",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "199 nested plurals"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 200,
+          "wrap": [["{n, plural, other {", "}}"]],
+          "inner": "x"
+        }
+      },
+      "render": "x",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "200 nested plurals: the limit"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 201,
+          "wrap": [["{n, plural, other {", "}}"]],
+          "inner": "x"
+        }
+      },
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "201 nested plurals: deeper than the limit"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 199,
+          "wrap": [
+            ["<b>", "</b>"],
+            ["{n, plural, other {", "}}"]
+          ],
+          "inner": "x"
+        }
+      },
+      "render": {
+        "nest": {
+          "times": 199,
+          "wrap": [
+            ["[b:", "]"],
+            ["", ""]
+          ],
+          "inner": "x"
+        }
+      },
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "199 levels, tags and plurals alternating"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 200,
+          "wrap": [
+            ["<b>", "</b>"],
+            ["{n, plural, other {", "}}"]
+          ],
+          "inner": "x"
+        }
+      },
+      "render": {
+        "nest": {
+          "times": 200,
+          "wrap": [
+            ["[b:", "]"],
+            ["", ""]
+          ],
+          "inner": "x"
+        }
+      },
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "200 levels, tags and plurals alternating: the limit"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 201,
+          "wrap": [
+            ["<b>", "</b>"],
+            ["{n, plural, other {", "}}"]
+          ],
+          "inner": "x"
+        }
+      },
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "201 levels, tags and plurals alternating: deeper than the limit"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 199,
+          "wrap": [["{n, plural, other {", "}}"]],
+          "inner": "<br/>"
+        }
+      },
+      "render": "[br:]",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": ["br"]
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "199 plurals around a self-closing tag: 200 levels"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 200,
+          "wrap": [["{n, plural, other {", "}}"]],
+          "inner": "<br/>"
+        }
+      },
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "200 plurals around a self-closing tag: 201 levels"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 199,
+          "wrap": [["<b>", "</b>"]],
+          "inner": "x",
+          "before": "{n, plural, one {a} one {",
+          "after": "} other {b}}"
+        }
+      },
+      "render": "a",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "199 tags in a repeated selector's sub-message: 200 levels"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 200,
+          "wrap": [["<b>", "</b>"]],
+          "inner": "x",
+          "before": "{n, plural, one {a} one {",
+          "after": "} other {b}}"
+        }
+      },
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "200 tags in a repeated selector's sub-message: 201 levels, counted though it never renders"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 201,
+          "wrap": [["<br>", ""]],
+          "inner": ""
+        }
+      },
+      "render": {
+        "nest": {
+          "times": 201,
+          "wrap": [["<br>", ""]],
+          "inner": ""
+        }
+      },
+      "schema": {
+        "params": [],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br",
+        "br"
+      ],
+      "note": "201 never-closed <br> in a row: text, not depth"
+    },
+    {
+      "message": "<b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b>x</b>",
+      "render": "<b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b>[b:x]",
+      "schema": {
+        "params": [],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": [
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b",
+        "b"
+      ],
+      "note": "200 never-closed <b> and one closed: text, not depth"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 200,
+          "wrap": [["<b><i>", "</b>"]],
+          "inner": "x"
+        }
+      },
+      "render": {
+        "nest": {
+          "times": 200,
+          "wrap": [["[b:<i>", "]"]],
+          "inner": "x"
+        }
+      },
+      "schema": {
+        "params": [],
+        "tags": ["b"]
+      },
+      "error": null,
+      "unclosed": [
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i",
+        "i"
+      ],
+      "note": "200 closed levels, each with a never-closed <i>: accepted"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 199,
+          "wrap": [["<u>", "</u>"]],
+          "inner": "x",
+          "before": "<b>",
+          "after": "<i>x</b>"
+        }
+      },
+      "render": {
+        "nest": {
+          "times": 199,
+          "wrap": [["[u:", "]"]],
+          "inner": "x",
+          "before": "[b:",
+          "after": "<i>x]"
+        }
+      },
+      "schema": {
+        "params": [],
+        "tags": ["b", "u"]
+      },
+      "error": null,
+      "unclosed": ["i"],
+      "note": "<b>, 199 nested <u>, a never-closed <i>, </b>: 200 levels"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 200,
+          "wrap": [["<u>", "</u>"]],
+          "inner": "x",
+          "before": "<b>",
+          "after": "<i>x</b>"
+        }
+      },
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "<b>, 200 nested <u>, a never-closed <i>, </b>: what a closing tag steps over counts, 201 levels"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 199,
+          "wrap": [["<u>", "</u>"]],
+          "inner": "x",
+          "before": "<b>",
+          "after": "<br/></b>"
+        }
+      },
+      "render": {
+        "nest": {
+          "times": 199,
+          "wrap": [["[u:", "]"]],
+          "inner": "x",
+          "before": "[b:",
+          "after": "[br:]]"
+        }
+      },
+      "schema": {
+        "params": [],
+        "tags": ["b", "u", "br"]
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "<b>, 199 nested <u>, <br/>, </b>: 200 levels"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 200,
+          "wrap": [["<u>", "</u>"]],
+          "inner": "x",
+          "before": "<b>",
+          "after": "<br/></b>"
+        }
+      },
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "<b>, 200 nested <u>, <br/>, </b>: the height before a closed tag is kept, 201 levels"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 198,
+          "wrap": [["<u>", "</u>"]],
+          "inner": "x",
+          "before": "<b>{n, plural, other {",
+          "after": "<br>}}</b>"
+        }
+      },
+      "render": {
+        "nest": {
+          "times": 198,
+          "wrap": [["[u:", "]"]],
+          "inner": "x",
+          "before": "[b:",
+          "after": "<br>]"
+        }
+      },
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": ["b", "u"]
+      },
+      "error": null,
+      "unclosed": ["br"],
+      "note": "<b>, a plural, 198 nested <u> and a never-closed <br>, </b>: 200 levels"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 199,
+          "wrap": [["<u>", "</u>"]],
+          "inner": "x",
+          "before": "<b>{n, plural, other {",
+          "after": "<br>}}</b>"
+        }
+      },
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "<b>, a plural, 199 nested <u> and a never-closed <br>, </b>: the height before a tag open at the end of a sub-message counts, 201 levels"
+    },
+    {
+      "message": {
+        "nest": {
+          "times": 200,
+          "wrap": [["<u>", "</u>"]],
+          "inner": "x",
+          "after": "<b>x</b>"
+        }
+      },
+      "render": {
+        "nest": {
+          "times": 200,
+          "wrap": [["[u:", "]"]],
+          "inner": "x",
+          "after": "[b:x]"
+        }
+      },
+      "schema": {
+        "params": [],
+        "tags": ["u", "b"]
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "200 nested <u>, then <b>x</b>: a tag's height starts at its opening, 200 levels"
+    },
+    {
+      "message": "{n, plural, =0 {hit} other {miss}}",
+      "values": {
+        "n": 0
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =0: an exact match"
+    },
+    {
+      "message": "{n, plural, =1 {hit} other {miss}}",
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =1: the plain spelling"
+    },
+    {
+      "message": "{n, plural, =12 {hit} other {miss}}",
+      "values": {
+        "n": 12
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =12: an exact match"
+    },
+    {
+      "message": "{n, plural, =007 {hit} other {miss}}",
+      "values": {
+        "n": 7
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =007: leading zeros name the same number"
+    },
+    {
+      "message": "{n, plural, =1. {hit} other {miss}}",
+      "values": {
+        "n": 1
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =1.: a dot with no fraction digits"
+    },
+    {
+      "message": "{n, plural, =.5 {hit} other {miss}}",
+      "values": {
+        "n": 0.5
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =.5: a fraction with no integer digits"
+    },
+    {
+      "message": "{n, plural, =1.50 {hit} other {miss}}",
+      "values": {
+        "n": 1.5
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =1.50: trailing fraction zeros name the same number"
+    },
+    {
+      "message": "{n, plural, =+1 {hit} other {miss}}",
+      "values": {
+        "n": 1
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =+1: a plus sign"
+    },
+    {
+      "message": "{n, plural, =-1 {hit} other {miss}}",
+      "values": {
+        "n": -1
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =-1: a minus sign"
+    },
+    {
+      "message": "{n, plural, =1e1 {hit} other {miss}}",
+      "values": {
+        "n": 10
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =1e1: an exponent"
+    },
+    {
+      "message": "{n, plural, =1.e1 {hit} other {miss}}",
+      "values": {
+        "n": 10
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =1.e1: a dot with no fraction digits, then an exponent"
+    },
+    {
+      "message": "{n, plural, =15E-1 {hit} other {miss}}",
+      "values": {
+        "n": 1.5
+      },
+      "render": "hit",
+      "schema": {
+        "params": [
+          {
+            "name": "n",
+            "kind": "plural"
+          }
+        ],
+        "tags": []
+      },
+      "error": null,
+      "unclosed": [],
+      "note": "selector =15E-1: a capital E and a signed exponent"
+    },
+    {
+      "message": "{n, plural, = {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector = is a syntax error: an empty number"
+    },
+    {
+      "message": "{n, plural, =a {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =a is a syntax error: a letter instead of a number"
+    },
+    {
+      "message": "{n, plural, =+-1 {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =+-1 is a syntax error: a doubled sign"
+    },
+    {
+      "message": "{n, plural, =1..0 {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1..0 is a syntax error: a doubled dot"
+    },
+    {
+      "message": "{n, plural, =1x {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1x is a syntax error: a trailing letter"
+    },
+    {
+      "message": "{n, plural, =. {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =. is a syntax error: a dot alone"
+    },
+    {
+      "message": "{n, plural, =e1 {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =e1 is a syntax error: an exponent with no number before it"
+    },
+    {
+      "message": "{n, plural, =1e {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1e is a syntax error: an exponent with no digits"
+    },
+    {
+      "message": "{n, plural, =1e+ {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1e+ is a syntax error: a signed exponent with no digits"
+    },
+    {
+      "message": "{n, plural, =1.5. {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1.5. is a syntax error: a second dot"
+    },
+    {
+      "message": "{n, plural, =1e1.5 {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1e1.5 is a syntax error: a fraction in the exponent"
+    },
+    {
+      "message": "{n, plural, =1 1 {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1 1 is a syntax error: two numbers"
+    },
+    {
+      "message": "{n, plural, =1111111111111111111111111111111111111111x {hit} other {miss}}",
+      "render": null,
+      "schema": null,
+      "error": "syntax",
+      "unclosed": [],
+      "note": "selector =1111111111111111111111111111111111111111x is a syntax error: 40 digits, then a trailing letter"
+    }
+  ]
+}

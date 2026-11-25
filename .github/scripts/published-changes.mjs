@@ -18,8 +18,8 @@
  * Tests (tests/, __tests__/, *.test.*, *.spec.*) never count.
  *
  * The release PR that `changeset version` opens consumes changesets instead of
- * adding one: it deletes them and moves every manifest's `version` (and, on a
- * minor, the `@comvi/*` ranges sync-peer-ranges.mjs moves). A diff whose every
+ * adding one: it deletes them and moves every manifest's `version` (and the
+ * exact `@comvi/*` peer versions sync-peer-ranges.mjs writes, on every release). A diff whose every
  * changeset entry is a deletion is read as that commit: there a manifest change
  * that touches only `version`, `devDependencies` and plain `@comvi/*` version
  * ranges does not count (`onlyReleaseVersionChanged`). Any other
@@ -80,7 +80,7 @@ const RELEASE_RANGE = /^[~^]?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 /**
  * True when two package.json texts differ only in what `changeset version`
  * writes: `version`, `devDependencies`, and a `@comvi/*` entry's plain version
- * range replaced by another (`^0.7.0` → `^0.8.0`). Adding or removing a
+ * range replaced by another (`0.7.1` → `0.8.0`, or `^0.7.0` → `^0.8.0`). Adding or removing a
  * `@comvi/*` entry, an alias, URL, tag or non-string value, any other field or
  * key order still counts. A missing or unparsable side, or one without
  * `version`, → false.

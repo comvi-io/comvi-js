@@ -5,6 +5,7 @@
  * Ported by meaning from 0.7 dist/destroy-races.dist and dist/missing-key-warning.dist.
  * Requires a fresh build (turbo runs `build` before `test`).
  */
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -38,6 +39,13 @@ describe("development diagnostics in the built files", () => {
       .filter((f) => fs.readFileSync(path.join(DIST, f), "utf8").includes("cause not printable"));
     expect(prod).toEqual([]);
   });
+
+  it("the on() listener check is in a development file and in no production one", () => {
+    const check = (f: string) =>
+      fs.readFileSync(path.join(DIST, f), "utf8").includes("takes a listener function");
+    expect(files.filter((f) => f.endsWith(".dev.js")).some(check)).toBe(true);
+    expect(files.filter((f) => !f.endsWith(".dev.js")).filter(check)).toEqual([]);
+  });
 });
 
 describe.each([
@@ -66,20 +74,110 @@ describe.each([
     expect(sub).not.toHaveBeenCalled();
   });
 
-  it("an unclosed <br> renders its key; only the development build explains it", async () => {
+  it("a loader that assigns signal.onabort and never answers: load(ns), a superseded switch, the newer switch and `ready` all resolve once aborted", async () => {
     const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
-    const messages: (string | undefined)[] = [];
-    const i18n = createI18n({
-      locale: "en",
-      messages: { en: { k: "a<br>b" } },
-      onError: (e) => messages.push(e.message),
-    });
-    expect(i18n.t("k")).toBe("k");
-    expect(messages).toEqual([
+    const loader = (_l: string, _n: string, s: AbortSignal) =>
+      new Promise<never>(() => {
+        s.onabort = () => {};
+      });
+    const outcome = async (p: Promise<unknown>) => {
+      let r: unknown = "pending";
+      p.then(
+        (v) => (r = ["resolved", v]),
+        (e) => (r = ["rejected", e]),
+      );
+      await new Promise((t) => setTimeout(t, 0));
+      return r;
+    };
+    const a = createI18n({ locale: "en", messages: { en: { m: "x" } }, loader, onError: () => {} });
+    const ns = a.load("extra");
+    a.destroy();
+    const b = createI18n({ locale: "en", messages: { en: { m: "x" } }, loader, onError: () => {} });
+    const de = b.setLocale("de");
+    const fr = b.setLocale("fr");
+    const superseded = await outcome(de);
+    b.destroy();
+    const c = createI18n({ locale: "en", loader, onError: () => {} });
+    const ready = c.ready;
+    c.destroy();
+    expect([await outcome(ns), superseded, await outcome(fr), await outcome(ready)]).toEqual(
+      Array(4).fill(["resolved", undefined]),
+    );
+  });
+
+  it("cdn() with a fetch that assigns signal.onabort and never answers: the timeout rejects the load, `ready` resolves and reports it, load(ns) again loads", async () => {
+    const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
+    const { cdn } = await load<typeof Cdn>(`comvi-core-cdn${suffix}.js`);
+    vi.useFakeTimers();
+    try {
+      const seen: string[] = [];
+      const f = ((u: string, i: RequestInit) => {
+        if (seen.includes(u))
+          return Promise.resolve({ ok: true, status: 200, json: async () => ({ hi: "Hi" }) });
+        seen.push(u);
+        return new Promise<never>(() => {
+          i.signal!.onabort = () => {};
+        });
+      }) as unknown as typeof fetch;
+      const flush = async () => {
+        for (let i = 0; i < 10; i++) await Promise.resolve();
+      };
+      /** Records how `p` settles from now on; `get()` reads it once queued microtasks ran. */
+      const track = (p: Promise<unknown>) => {
+        let r: unknown = "pending";
+        p.then(
+          (v) => (r = ["resolved", v]),
+          (e) => (r = ["rejected", (e as Error).message]),
+        );
+        return async () => (await flush(), r);
+      };
+      const msg = (u: string) => `[@comvi/core/cdn] timeout 50 ms: ${u}`;
+      const alone = track(
+        cdn("https://cdn.example", { fetch: f, timeout: 50 })(
+          "de",
+          "default",
+          new AbortController().signal,
+        ),
+      );
+      const errors: { code: string }[] = [];
+      const i18n = createI18n({
+        locale: "en",
+        loader: cdn("https://cdn.example", { fetch: f, timeout: 50 }),
+        onError: (e) => errors.push(e),
+      });
+      const ready = track(i18n.ready);
+      const extra = track(i18n.load("extra"));
+      await vi.advanceTimersByTimeAsync(50);
+      expect([await alone(), await ready(), await extra()]).toEqual([
+        ["rejected", msg("https://cdn.example/de.json")],
+        ["resolved", undefined],
+        ["rejected", msg("https://cdn.example/extra/en.json")],
+      ]);
+      expect(errors.map((e) => e.code)).toEqual(["load_failed", "load_failed"]);
+      expect(await track(i18n.load("extra"))()).toEqual(["resolved", undefined]);
+      expect(i18n.t("hi", { ns: "extra" })).toBe("Hi");
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a never-closed <br> renders as text and reports nothing; only the development build warns (B12)", async () => {
+    const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const onError = vi.fn();
+    const i18n = createI18n({ locale: "en", messages: { en: { k: "a<br>b" } }, onError });
+    expect(i18n.t("k")).toBe("a<br>b");
+    expect(onError).not.toHaveBeenCalled();
+    expect(warn.mock.calls).toEqual(
       label === "dev"
-        ? "`<br>` is never closed; write `<br/>` instead. It renders nothing without a `br` handler or `components` entry"
-        : undefined,
-    ]);
+        ? [
+            [
+              '[@comvi/core] `<br>` in "k" is never closed and renders as text; write `<br/>` instead. It renders nothing without a `br` handler or `components` entry',
+            ],
+          ]
+        : [],
+    );
   });
 
   it(`two namespaces failing in one locale: the default reporter ${label === "dev" ? "prints two lines, each with its namespace and cause" : "prints nothing"}`, async () => {
@@ -185,5 +283,35 @@ describe.each([
   it("inlines the package version into devtools", async () => {
     const { VERSION } = await load<typeof Devtools>(`comvi-core-devtools${suffix}.js`);
     expect(VERSION).toBe(pkg.version);
+  });
+});
+
+describe.each([
+  ["prod", ""],
+  ["dev", ".dev"],
+] as const)("%s dist: the instance's shape (B3 perf)", (_, suffix) => {
+  // V8's own view, in a child with --allow-natives-syntax (counted, not timed). Two instances
+  // share one hidden class: the version tag is the literal's LAST member. Put before the
+  // static members, a computed key makes V8 define every member at runtime and each instance
+  // gets a hidden class of its own (its getters are fresh closures): construction gets
+  // slower, and a call site over many instances goes megamorphic. This pins a V8
+  // implementation detail on purpose; a Node major upgrade may need a look at it.
+  it("two instances share one hidden class", () => {
+    const script = [
+      `const { createI18n } = await import(${JSON.stringify(pathToFileURL(path.join(DIST, `comvi-core${suffix}.js`)).href)});`,
+      'const make = () => createI18n({ locale: "en", messages: { en: { a: "A" } } });',
+      "console.log(String(%HaveSameMap(make(), make())));",
+    ].join("\n");
+
+    const run = spawnSync(
+      process.execPath,
+      ["--allow-natives-syntax", "--input-type=module", "-e", script],
+      { encoding: "utf8" },
+    );
+
+    // stderr is reported, not asserted empty: a debugger notice or a NODE_OPTIONS warning
+    // there says nothing about the shape.
+    expect(run.status, `child stderr:\n${run.stderr}`).toBe(0);
+    expect(run.stdout.trim(), `child stderr:\n${run.stderr}`).toBe("true");
   });
 });

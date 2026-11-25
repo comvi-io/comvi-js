@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { getI18n } from "@/i18n/server";
 import { I18nProvider } from "@comvi/next/server";
 import { WithLoader } from "@/i18n/client";
 import { routing } from "@/i18n/routing";
 import { Navigation } from "./Navigation";
+
+// The site address, once: every page's `alternates` paths resolve against it.
+export const metadata: Metadata = { metadataBase: new URL("https://example.com") };
 
 export default async function LocaleLayout({
   children,

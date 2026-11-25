@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { defineRouting, createGetPathname, hasLocale } from "../src/routing/defineRouting";
 import {
   getCanonicalPathname,
+  getSlugLocale,
   localizeHref,
   localizeUrlObject,
   stripLocalePrefix,
@@ -327,5 +328,283 @@ describe("defineRouting: the shared options schema", () => {
 
     expect(routing.localePrefix).toBe(DEFAULT_LOCALE_PREFIX);
     expect(routing.localeCookie).toBe("NEXT_LOCALE");
+  });
+});
+
+describe("getSlugLocale: the locale an unprefixed localized slug names", () => {
+  const SHARED = defineRouting({
+    locales: ["en", "de", "nl"],
+    defaultLocale: "en",
+    localePrefix: "never",
+    pathnames: { "/about": { de: "/info", nl: "/info" } },
+  });
+
+  it("a slug that belongs to one locale names it", () => {
+    expect(getSlugLocale("/ueber-uns", ROUTING_DE_ONLY)).toBe("de");
+    expect(getSlugLocale("/about-us", ROUTING_BOTH)).toBe("en");
+    expect(getSlugLocale("/ueber-uns", ROUTING_BOTH)).toBe("de");
+  });
+
+  it("a slug two locales share names none", () => {
+    expect(getSlugLocale("/info", SHARED)).toBeUndefined();
+  });
+
+  it("a slug equal to a page's key names none, whatever the entry order", () => {
+    expect(getSlugLocale("/about", ROUTING_SLUG_COLLISION)).toBeUndefined();
+    const keyLast = defineRouting({
+      ...ROUTING_SLUG_COLLISION,
+      pathnames: { "/team": { de: "/about" }, "/about": { de: "/ueber-uns" } },
+    });
+    expect(getSlugLocale("/about", keyLast)).toBeUndefined();
+    expect(getSlugLocale("/ueber-uns", ROUTING_SLUG_COLLISION)).toBe("de");
+  });
+
+  it("a key, a path without a slug and the root name none", () => {
+    expect(getSlugLocale("/about", ROUTING_DE_ONLY)).toBeUndefined();
+    expect(getSlugLocale("/contact", ROUTING_DE_ONLY)).toBeUndefined();
+    expect(getSlugLocale("/", ROUTING_DE_ONLY)).toBeUndefined();
+  });
+
+  it("ignores a trailing slash and doubled slashes, but not case or extra segments", () => {
+    expect(getSlugLocale("/ueber-uns/", ROUTING_DE_ONLY)).toBe("de");
+    expect(getSlugLocale("//ueber-uns", ROUTING_DE_ONLY)).toBe("de");
+    expect(getSlugLocale("/Ueber-Uns", ROUTING_DE_ONLY)).toBeUndefined();
+    expect(getSlugLocale("/ueber-uns/team", ROUTING_DE_ONLY)).toBeUndefined();
+  });
+
+  it("names no locale outside the configured locales", () => {
+    const stray = defineRouting({
+      locales: ["en", "de"],
+      defaultLocale: "en",
+      localePrefix: "never",
+      pathnames: { "/about": { fr: "/a-propos" } as Record<string, string> },
+    });
+    expect(getSlugLocale("/a-propos", stray)).toBeUndefined();
+  });
+});
+
+describe("getAlternates: canonical and hreflang for generateMetadata", () => {
+  // Imported from the public entry, so the export itself is under test.
+  const load = () => import("../src/routing");
+
+  const config = (localePrefix: "as-needed" | "always" | "never") =>
+    defineRouting({
+      locales: ["en", "uk", "de"],
+      defaultLocale: "en",
+      localePrefix,
+      pathnames: { "/about": { uk: "/pro-nas", de: "/ueber-uns" } },
+    });
+
+  describe("as-needed", () => {
+    const routing = config("as-needed");
+    const languages = { en: "/admin", uk: "/uk/admin", de: "/de/admin", "x-default": "/admin" };
+
+    it("a non-default locale: its prefixed path is canonical, x-default is the default's", async () => {
+      const { getAlternates } = await load();
+      expect(getAlternates(routing, { locale: "uk", href: "/admin" })).toStrictEqual({
+        canonical: "/uk/admin",
+        languages,
+      });
+    });
+
+    it("the default locale: the unprefixed path is canonical, the languages are the same", async () => {
+      const { getAlternates } = await load();
+      expect(getAlternates(routing, { locale: "en", href: "/admin" })).toStrictEqual({
+        canonical: "/admin",
+        languages,
+      });
+    });
+
+    it("the root: a non-default locale gets /{locale} with no trailing slash", async () => {
+      const { getAlternates } = await load();
+      const rootLanguages = { en: "/", uk: "/uk", de: "/de", "x-default": "/" };
+      expect(getAlternates(routing, { locale: "uk", href: "/" })).toStrictEqual({
+        canonical: "/uk",
+        languages: rootLanguages,
+      });
+      expect(getAlternates(routing, { locale: "en", href: "/" })).toStrictEqual({
+        canonical: "/",
+        languages: rootLanguages,
+      });
+    });
+
+    it("pathnames: every locale gets its own slug, the default keeps the canonical key", async () => {
+      const { getAlternates } = await load();
+      expect(getAlternates(routing, { locale: "de", href: "/about" })).toStrictEqual({
+        canonical: "/de/ueber-uns",
+        languages: { en: "/about", uk: "/uk/pro-nas", de: "/de/ueber-uns", "x-default": "/about" },
+      });
+    });
+  });
+
+  describe("always", () => {
+    const routing = config("always");
+    const languages = {
+      en: "/en/admin",
+      uk: "/uk/admin",
+      de: "/de/admin",
+      "x-default": "/en/admin",
+    };
+
+    it("a non-default locale", async () => {
+      const { getAlternates } = await load();
+      expect(getAlternates(routing, { locale: "uk", href: "/admin" })).toStrictEqual({
+        canonical: "/uk/admin",
+        languages,
+      });
+    });
+
+    it("the default locale is prefixed too, and so is x-default", async () => {
+      const { getAlternates } = await load();
+      expect(getAlternates(routing, { locale: "en", href: "/admin" })).toStrictEqual({
+        canonical: "/en/admin",
+        languages,
+      });
+    });
+
+    it("the root", async () => {
+      const { getAlternates } = await load();
+      const rootLanguages = { en: "/en", uk: "/uk", de: "/de", "x-default": "/en" };
+      expect(getAlternates(routing, { locale: "en", href: "/" })).toStrictEqual({
+        canonical: "/en",
+        languages: rootLanguages,
+      });
+      expect(getAlternates(routing, { locale: "de", href: "/" })).toStrictEqual({
+        canonical: "/de",
+        languages: rootLanguages,
+      });
+    });
+
+    it("pathnames", async () => {
+      const { getAlternates } = await load();
+      expect(getAlternates(routing, { locale: "uk", href: "/about" })).toStrictEqual({
+        canonical: "/uk/pro-nas",
+        languages: {
+          en: "/en/about",
+          uk: "/uk/pro-nas",
+          de: "/de/ueber-uns",
+          "x-default": "/en/about",
+        },
+      });
+    });
+  });
+
+  describe("never: a URL may serve several locales, so there is a canonical and no hreflang", () => {
+    const routing = config("never");
+
+    it("a nested path, default and non-default locale", async () => {
+      const { getAlternates } = await load();
+      expect(getAlternates(routing, { locale: "uk", href: "/admin" })).toStrictEqual({
+        canonical: "/admin",
+      });
+      expect(getAlternates(routing, { locale: "en", href: "/admin" })).toStrictEqual({
+        canonical: "/admin",
+      });
+    });
+
+    it("the root, default and non-default locale", async () => {
+      const { getAlternates } = await load();
+      expect(getAlternates(routing, { locale: "de", href: "/" })).toStrictEqual({ canonical: "/" });
+      expect(getAlternates(routing, { locale: "en", href: "/" })).toStrictEqual({ canonical: "/" });
+    });
+
+    it("pathnames still pick the locale's slug", async () => {
+      const { getAlternates } = await load();
+      expect(getAlternates(routing, { locale: "de", href: "/about" })).toStrictEqual({
+        canonical: "/ueber-uns",
+      });
+    });
+  });
+
+  it("returns, for every locale, exactly what getPathname returns", async () => {
+    const { getAlternates, createGetPathname } = await load();
+    for (const mode of ["as-needed", "always"] as const) {
+      const routing = config(mode);
+      const getPathname = createGetPathname(routing);
+      for (const href of ["/", "/admin", "/about", "/about/"]) {
+        const { canonical, languages } = getAlternates(routing, { locale: "uk", href });
+        expect(canonical).toBe(getPathname({ locale: "uk", href }));
+        for (const locale of routing.locales) {
+          expect(languages?.[locale]).toBe(getPathname({ locale, href }));
+        }
+        expect(languages?.["x-default"]).toBe(getPathname({ locale: "en", href }));
+      }
+    }
+  });
+
+  // `href` must be the `pathnames` key: no locale prefix, no query, no hash. Unlike `<Link>`,
+  // nothing here strips a prefix or maps a slug back; these pin what other input gives today.
+  describe("an href that is not a pathnames key is taken as it is", () => {
+    const routing = config("as-needed");
+
+    it("a query and hash are kept on every URL, and a query hides the pathnames key", async () => {
+      const { getAlternates } = await load();
+      expect(getAlternates(routing, { locale: "de", href: "/admin?tab=1#top" })).toStrictEqual({
+        canonical: "/de/admin?tab=1#top",
+        languages: {
+          en: "/admin?tab=1#top",
+          uk: "/uk/admin?tab=1#top",
+          de: "/de/admin?tab=1#top",
+          "x-default": "/admin?tab=1#top",
+        },
+      });
+      expect(getAlternates(routing, { locale: "de", href: "/about?tab=1" }).canonical).toBe(
+        "/de/about?tab=1",
+      );
+    });
+
+    it("a locale prefix is not stripped: it is prefixed again", async () => {
+      const { getAlternates } = await load();
+      expect(getAlternates(routing, { locale: "de", href: "/uk/admin" })).toStrictEqual({
+        canonical: "/de/uk/admin",
+        languages: {
+          en: "/uk/admin",
+          uk: "/uk/uk/admin",
+          de: "/de/uk/admin",
+          "x-default": "/uk/admin",
+        },
+      });
+    });
+
+    it("a localized slug is not mapped back to its key", async () => {
+      const { getAlternates } = await load();
+      expect(getAlternates(routing, { locale: "de", href: "/ueber-uns" })).toStrictEqual({
+        canonical: "/de/ueber-uns",
+        languages: {
+          en: "/ueber-uns",
+          uk: "/uk/ueber-uns",
+          de: "/de/ueber-uns",
+          "x-default": "/ueber-uns",
+        },
+      });
+    });
+  });
+
+  it("an unknown locale: warns like getPathname, does not throw, lists the configured locales", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { getAlternates, createGetPathname } = await load();
+    const routing = config("as-needed");
+
+    const alternates = getAlternates(routing, { locale: "fr", href: "/admin" });
+
+    expect(alternates).toStrictEqual({
+      canonical: createGetPathname(routing)({ locale: "fr", href: "/admin" }),
+      languages: { en: "/admin", uk: "/uk/admin", de: "/de/admin", "x-default": "/admin" },
+    });
+    expect(alternates.canonical).toBe("/fr/admin");
+    expect(warn).toHaveBeenCalledWith(
+      '[@comvi/next] getAlternates: unknown locale "fr". Expected one of: en, uk, de',
+    );
+    warn.mockRestore();
+  });
+
+  it("does not warn for a configured locale", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { getAlternates } = await load();
+
+    getAlternates(config("always"), { locale: "de", href: "/admin" });
+
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

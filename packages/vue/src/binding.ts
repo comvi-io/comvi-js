@@ -46,6 +46,7 @@ import {
   type BoundTFor,
   type I18n,
   type I18nOptions,
+  type NsArg,
   type NsOf,
   type TComponentFor,
   type TFor,
@@ -177,7 +178,7 @@ export const use = (): I18n => {
 
 /**
  * What a plain `{x}` prints as text (`String(value)`), or a list of them. A plain `{x}` is
- * always text (owner decision 04.11.2026): markup comes only from tags.
+ * always text: markup comes only from tags.
  */
 type Text = string | number | bigint | boolean | Date | null | undefined;
 
@@ -206,11 +207,11 @@ export interface TagSlotProps {
 }
 
 /**
- * What renders a tag through `components` (R3-24): an HTML tag name (`"strong"`), a Vue
+ * What renders a tag through `components`: an HTML tag name (`"strong"`), a Vue
  * component, or `{ component, props }` for one that needs props of its own (`{ component:
  * RouterLink, props: { to: "/terms" } }`); the tag's content is its default slot, so nested
  * tags render too. Typed `object` for a component, not Vue's `Component`: that union costs
- * vue-tsc ~10k instantiations per program for every `<T>` (types bench, lot 4b).
+ * vue-tsc ~10k instantiations per program for every `<T>` (measured by the types bench).
  */
 export type TagComponent = string | object;
 
@@ -259,7 +260,7 @@ export interface UseI18n<NS extends string = "default"> {
   t: [NsOf] extends [never]
     ? UntypedT<VNodeArrayChildren, UntypedParams>
     : TFor<NS, VNodeArrayChildren>;
-  /** `<T>` bound to this namespace; the same component for every caller (R3-5(b)). */
+  /** `<T>` bound to this namespace; the same component for every caller. */
   T: BoundT<NS>;
   /**
    * The locale on screen. Setting it switches (`setLocale`): the value stays the old one
@@ -363,7 +364,7 @@ export const render = (
  * `i18n.load(ns)` retries. Outside a component (a store, a router guard) it holds nothing:
  * call `i18n.load(ns)` there, or name the namespace in the `namespaces` option.
  */
-export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => {
+export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<NS> => {
   const i = use();
   const [s, locale, dir, Ts] = cell(i);
   const n = ns || "default";

@@ -5,6 +5,7 @@ import {
   CatalogCheck,
   type CatalogCheckReport,
   type CatalogCheckSummary,
+  type CatalogCheckUnclosedTagFinding,
 } from "../core/CatalogCheck";
 import { DEFAULT_FILE_TEMPLATE, DEFAULT_TRANSLATIONS_PATH, isValidFileTemplate } from "../defaults";
 import type { ComviConfig } from "../types";
@@ -142,6 +143,8 @@ async function runCheck(options: CheckCommandOptions): Promise<number> {
           {
             // 2: 0.8 reads messages with core's own scanner; `unbalancedTags` (a warning)
             // became `syntax` (an error: core renders the key of a message it refuses).
+            // `unclosedTag` (a warning, B12) was added to version 2: core renders a
+            // never-closed opening tag as text.
             version: 2,
             source: report.source,
             translationsPath,
@@ -217,6 +220,7 @@ const RULE_LABELS: Record<Rule, string> = {
   select: "select",
   tags: "tags",
   syntax: "syntax",
+  unclosedTag: "unclosed tag",
   unsupportedIcu: "unsupported ICU",
   identical: "identical",
 };
@@ -230,6 +234,9 @@ function counts(countOf: (rule: Rule) => number): string {
 
 const list = (values: string[]) => `{${values.join(", ")}}`;
 
+const unclosedLine = (locale: string, f: CatalogCheckUnclosedTagFinding) =>
+  `unclosed tag  ${locale}:${f.key}  ${f.tags.map((t) => `<${t}>`).join(", ")} never closed: rendered as text`;
+
 function formatText(
   report: CatalogCheckReport,
   translationsPath: string,
@@ -240,7 +247,11 @@ function formatText(
   const targets = Object.keys(report.locales);
   const width = Math.max(source.locale.length, ...targets.map((locale) => locale.length)) + 2;
   const sourceCounts = counts((rule) =>
-    rule === "emptySource" || rule === "plural" || rule === "syntax" || rule === "unsupportedIcu"
+    rule === "emptySource" ||
+    rule === "plural" ||
+    rule === "syntax" ||
+    rule === "unclosedTag" ||
+    rule === "unsupportedIcu"
       ? source[rule].length
       : 0,
   );
@@ -260,6 +271,7 @@ function formatText(
   for (const f of source.syntax) {
     details.push(`syntax  ${source.locale}:${f.key}  ${f.message}`);
   }
+  for (const f of source.unclosedTag) details.push(unclosedLine(source.locale, f));
   for (const f of source.unsupportedIcu) {
     details.push(`unsupported ICU  ${source.locale}:${f.key}  ${f.argumentType}`);
   }
@@ -293,6 +305,7 @@ function formatText(
     for (const f of entry.syntax) {
       details.push(`syntax  ${locale}:${f.key}  ${f.message}`);
     }
+    for (const f of entry.unclosedTag) details.push(unclosedLine(locale, f));
     for (const f of entry.unsupportedIcu) {
       details.push(`unsupported ICU  ${locale}:${f.key}  ${f.argumentType}`);
     }

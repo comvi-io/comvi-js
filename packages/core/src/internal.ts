@@ -20,7 +20,7 @@ import type { Env, Params } from "./compile/scanner";
  * counts from the browser's clock even when a server handed over its `serverNow`.
  */
 export { clock } from "./clock";
-import { CORE, type Core, type I18n } from "./instance";
+import { core, type I18n } from "./instance";
 import { dir } from "./locale";
 import type { CatalogInput } from "./flat";
 import { mk, N, whole, type Slot, type State, type Store } from "./state";
@@ -36,18 +36,12 @@ export { defaultOnError } from "./errors";
 export type { Chain, Core } from "./instance";
 export type { Mark, Slot, State, Store } from "./state";
 
-declare const __DEV__: boolean;
-
 /**
  * The seam of `i18n` (its {@link Core}): a binding calls it once per hook and reads the
- * members it needs, so no wrapper per member ships with it. Development checks that it is
- * an instance; production trusts the types.
+ * members it needs, so no wrapper per member ships with it. An instance of another copy of
+ * the core throws, naming both versions (instance.ts).
  */
-export const core = (i18n: I18n): Core => {
-  const c = CORE.get(i18n);
-  if (__DEV__ && !c) throw new TypeError("[@comvi/core] not an instance of createI18n()");
-  return c!;
-};
+export { core };
 
 /** The published state of `i18n`. */
 export const state = (i18n: I18n): State => core(i18n).s();
@@ -66,7 +60,7 @@ export const acquire = (i18n: I18n, ns: string): (() => void) => core(i18n).h(ns
  * as failed in this snapshot, so `isLoading` predicts no load for it) in place of its
  * slots, rendered in `locale` (default: the state's own; a binding's
  * locale handover renders the target before `setLocale()` lands at commit). A handed slot
- * IS its catalog (lot 6a, one rule): a key the catalog lacks is gone, `{}` is empty. Nothing
+ * IS its catalog: a key the catalog lacks is gone, `{}` is empty. Nothing
  * is published and `rev`/`lrev` do not move; untouched namespaces and locales keep their
  * slots (and compiled messages), and a slot that already holds exactly the catalog's messages,
  * in the same locale, gives back `state` itself (no copy per render).
@@ -138,14 +132,14 @@ export const translate = (
 ): Rendered => core(i18n).tr(state, key, params, ns, join);
 
 /**
- * `isLoading` of namespace `ns` of `i18n` in `state` (lot 4c): a load of it is in flight, or
+ * `isLoading` of namespace `ns` of `i18n` in `state`: a load of it is in flight, or
  * the instance has a loader and a pair of the chain of the state's locale is neither in
  * place nor failed (what a consumer's hold loads; its render comes first).
  */
 export const coming = (i18n: I18n, state: State, ns: string): boolean => !!core(i18n).w(state, ns);
 
 /**
- * `isReady` of namespace `ns` of `i18n` in `state` (lot 4c): a catalog of it from the chain
+ * `isReady` of namespace `ns` of `i18n` in `state`: a catalog of it from the chain
  * of the state's locale (that locale, its parents, the fallback locales) is in place — an
  * empty one too; a catalog of a locale outside the chain does not count.
  */
@@ -155,5 +149,5 @@ export const available = (i18n: I18n, state: State, ns: string): boolean => core
 export const loading = (state: State, ns?: string): boolean =>
   state.ld.some((k) => ns === undefined || k.endsWith("\0" + ns));
 
-/** What a server render hands the browser: public since lot 6a as `@comvi/core/ssr`. */
+/** What a server render hands the browser, public as `@comvi/core/ssr`. */
 export { handover, type Handover } from "./ssr";

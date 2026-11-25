@@ -314,3 +314,32 @@ test(
     assert.deepEqual(names, [...fixed].sort(), "the publishable set IS the fixed group");
   },
 );
+
+test("applyRcVersions: @comvi/next's exact peers (the repo's state between releases) become its exact rc version", (t) => {
+  const root = makeFixtureRepo(t, {
+    extraPackages: {
+      next: {
+        name: "@comvi/next",
+        version: "0.4.0",
+        peerDependencies: { "@comvi/core": "0.4.0", "@comvi/react": "0.4.0", next: "^16.4.3" },
+      },
+    },
+  });
+  writeJson(path.join(root, ".changeset/config.json"), {
+    fixed: [["@comvi/core", "@comvi/next", "@comvi/react"]],
+    ignore: ["@comvi/vite-config"],
+  });
+
+  const result = runInFixture(
+    root,
+    '  applyRcVersions({ root: process.cwd(), rc: "7", log: () => {} });',
+  );
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.equal(readManifest(root, "next").version, "0.5.0-rc.7");
+  assert.deepEqual(readManifest(root, "next").peerDependencies, {
+    "@comvi/core": "0.5.0-rc.7",
+    "@comvi/react": "0.5.0-rc.7",
+    next: "^16.4.3",
+  });
+});

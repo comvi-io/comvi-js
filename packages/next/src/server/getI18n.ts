@@ -1,7 +1,7 @@
 import { cache, createElement, Fragment } from "react";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { createI18n, type I18n, type I18nOptions } from "@comvi/core";
+import { createI18n, type I18n, type I18nOptions, type NsArg } from "@comvi/core";
 import { core } from "@comvi/core/internal";
 import type { UseI18n } from "@comvi/react";
 
@@ -44,9 +44,10 @@ export interface GetI18nOptions<NS extends string = "default"> {
   locale?: string;
   /**
    * The namespaces this render needs, loaded before the call resolves (with the `namespaces`
-   * option's). `t` is bound to the first one (default: `default`).
+   * option's). `t` is bound to the first one (default: `default`). With generated catalogs each
+   * name must be a declared namespace.
    */
-  ns?: NS | readonly [NS, ...string[]];
+  ns?: NsArg<NS> | readonly [NsArg<NS>, ...NsArg<string>[]];
 }
 
 /** What `getI18n()` gives a Server Component, Route Handler or Server Action. */

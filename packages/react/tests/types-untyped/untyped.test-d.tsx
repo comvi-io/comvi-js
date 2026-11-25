@@ -72,3 +72,10 @@ export function Component() {
 const Italic = ({ children }: { children?: ReactNode }) => <i>{children}</i>;
 
 export const app = <I18nProvider i18n={createI18n({ locale: "en" })}>{null}</I18nProvider>;
+
+/** Without catalogs any namespace name compiles, a `string` variable too (B21). */
+export function useAnyNamespace(name: string) {
+  const fromVariable: string = useI18n(name).t("k");
+  const fromLiteral: string = useI18n("not-declared-anywhere").t("k");
+  return fromVariable + fromLiteral;
+}

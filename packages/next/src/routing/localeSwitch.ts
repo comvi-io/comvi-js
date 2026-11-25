@@ -9,8 +9,8 @@ import { NEXT_LOCALE_COOKIE } from "./defineRouting";
  *
  * Under `localePrefix: "as-needed"` the default locale's URL carries no prefix,
  * and under `"never"` no URL does. The middleware resolves such a URL from the
- * locale cookie, which still holds the locale being switched AWAY from, and
- * redirects straight back. Two things make the switch win, and both are needed:
+ * locale cookie (a `never` slug of one locale too yields to it), which still
+ * holds the locale being switched AWAY from, and redirects straight back. Two things make the switch win, and both are needed:
  *
  * 1. The switch navigates to the locale-PREFIXED URL (`/en/about`), which the
  *    middleware reads as an explicit choice: it records the locale in the

@@ -7,7 +7,7 @@ import {
 import type { MiddlewareConfig, LocaleDetectionSource } from "./types";
 import { createGetPathname, NEXT_LOCALE_COOKIE } from "../routing/defineRouting";
 import type { RoutingConfig } from "../routing/types";
-import { getCanonicalPathname, stripLocalePrefix } from "../routing/utils";
+import { getCanonicalPathname, getSlugLocale, stripLocalePrefix } from "../routing/utils";
 
 // Passes the resolved locale to Server Components.
 const LOCALE_HEADER = "x-comvi-locale";
@@ -94,9 +94,14 @@ export function createMiddleware(config: MiddlewareConfig) {
     }
 
     const pathLocale = extractLocaleFromPath(pathname, locales);
+    // Under `never`, a localized slug that belongs to one locale names it. It
+    // ranks just before `accept-language` (last when that is not in `order`),
+    // so a saved choice in the cookie still wins over it.
+    const slugLocale =
+      localePrefix === "never" && !pathLocale ? getSlugLocale(pathname, routing) : undefined;
 
-    // Precedence: custom detector, then the URL path, then the configured
-    // sources in order, then `defaultLocale`.
+    // Precedence: custom detector, then a locale prefix in the path, then the
+    // configured sources in order with the slug in its place, then `defaultLocale`.
     let detectedLocale: string | undefined;
 
     if (customDetector) {
@@ -109,21 +114,25 @@ export function createMiddleware(config: MiddlewareConfig) {
 
     if (!detectedLocale) {
       for (const source of detectionOrder) {
-        const detected = detectFromSource(
-          request,
-          source,
-          locales,
-          defaultLocale,
-          cookie ? cookie.name : undefined,
-          headerName,
-          queryParam,
-          resolveHeader,
-        );
+        const detected =
+          source === "accept-language" && slugLocale
+            ? slugLocale
+            : detectFromSource(
+                request,
+                source,
+                locales,
+                defaultLocale,
+                cookie ? cookie.name : undefined,
+                headerName,
+                queryParam,
+                resolveHeader,
+              );
         if (detected) {
           detectedLocale = detected;
           break;
         }
       }
+      if (!detectedLocale) detectedLocale = slugLocale;
     }
 
     const locale =

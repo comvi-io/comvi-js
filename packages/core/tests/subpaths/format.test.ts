@@ -16,6 +16,8 @@ import {
 } from "../../src/format";
 import { createI18n, type I18n } from "../../src/instance";
 
+declare const __VERSION__: string;
+
 /** Intl prints NBSP / narrow NBSP / thin spaces; compare with plain spaces. */
 const sp = (s: string) => s.replace(/[\u00a0\u202f\u2009]/g, " ");
 
@@ -235,5 +237,19 @@ describe("an object that is not an instance (lot 4d)", () => {
     expect(() => formatNumber({} as I18n, 1)).toThrow(/not an instance of createI18n/);
     // Not a RangeError first: the instance is checked before the override.
     expect(() => formatNumber({} as I18n, 1, undefined, "!!")).toThrow(TypeError);
+  });
+});
+
+describe("an instance of another copy of the core (B3)", () => {
+  it("formatNumber() of an instance another version made → the two-copies error, not 'not an instance'", () => {
+    const i18n = { [Symbol.for("comvi")]: "0.0.0-other" } as unknown as I18n;
+
+    const call = () => formatNumber(i18n, 1);
+
+    expect(call).toThrow(
+      new Error(
+        `[@comvi/core] two copies of @comvi/core are loaded: the instance was created by @comvi/core@0.0.0-other, and a second copy, @comvi/core@${__VERSION__}, reads it. Put @comvi/core and every binding on one version and install it once.`,
+      ),
+    );
   });
 });

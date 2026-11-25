@@ -20,7 +20,18 @@ import {
   type Snippet,
   type SvelteComponent,
 } from "svelte";
-import type { I18n, KeysOf, NsOf, Tag, TComponentFor, TFor, UntypedT } from "@comvi/core";
+import type {
+  Args,
+  Catalogs,
+  I18n,
+  KeysOf,
+  NsArg,
+  NsOf,
+  ParamsFor,
+  Tag,
+  TComponentFor,
+  UntypedT,
+} from "@comvi/core";
 import { core, N } from "@comvi/core/internal";
 import { use } from "./context.svelte.js";
 import TComponentImpl from "./T.svelte";
@@ -28,7 +39,7 @@ import TComponentImpl from "./T.svelte";
 declare module "@comvi/core" {
   /**
    * What a tag handler of a generated catalog (`{ link: Tag }`) receives: the tag's children
-   * as ONE value. In `t()` always their text; in `<T>` their text when they are all text.
+   * as ONE value: their text when they are all text. `t()` takes no generated rich key.
    */
   interface TagChildren {
     svelte: Children;
@@ -40,7 +51,7 @@ export type Children = string | readonly unknown[];
 
 /**
  * What a plain `{x}` prints as text (`String(value)`), or a list of them. A plain `{x}` is
- * always text (owner decision 04.11.2026): markup comes only from tags.
+ * always text: markup comes only from tags.
  */
 type Text = string | number | bigint | boolean | Date | null | undefined;
 
@@ -56,7 +67,7 @@ export type UntypedParams<C = never> = Record<
 >;
 
 /**
- * What renders a tag through `components` (R3-24): an HTML tag name (`"strong"`), a Svelte
+ * What renders a tag through `components`: an HTML tag name (`"strong"`), a Svelte
  * component, or `{ component, props }` for one that needs props of its own (`{ component: "a",
  * props: { href: "/terms" } }`); the tag's content is its `children` snippet.
  */
@@ -82,7 +93,7 @@ type TParams = Record<string, Text | readonly Text[] | TagSnippet | TagMap>;
 
 /** The core's typed `<T>` signature: only its props are taken from it, never its call. */
 declare const _typed: TComponentFor<void, 1, TagMap>;
-/** The key guard of the core's signatures (R3-2): what a key that is not one infers. */
+/** The key guard of the core's signatures: what a key that is not one infers. */
 type NotAKey = Exclude<Parameters<typeof _typed>[0]["i18nKey"], PropertyKey>;
 type Key<N extends NsOf> = KeysOf[N] | NotAKey;
 /**
@@ -94,6 +105,27 @@ type PropsOf<K extends Key<N>, N extends NsOf> = { i18nKey: K; ns?: N } & {
 };
 /** A tag param of a generated key in `<T>`: a snippet of the tag's name, never a handler. */
 type OrSnippet<V> = Tag extends V ? Exclude<V, Tag> | TagSnippet : V;
+
+/**
+ * The keys of each namespace whose message has no tag (no `Tag` param, the core's `OutOf`
+ * test): the keys `t()` takes. A mapped type, as the core's `KeysOf`: resolved once per
+ * namespace and program, not per call.
+ */
+type TextKeysOf = {
+  [N in NsOf]: {
+    [K in KeysOf[N]]: Tag extends Catalogs[N][K][keyof Catalogs[N][K]] ? never : K;
+  }[KeysOf[N]];
+};
+
+/**
+ * The core's typed `t()` without its rich keys: a key whose message has tags is a type error,
+ * and its rich text is `<T>`'s. Same params, same typo guard, `{ ns }` switches the namespace;
+ * the result is always a string.
+ */
+type TextT<NS extends NsOf> = <K extends TextKeysOf[N] | NotAKey, N extends NsOf = NS>(
+  key: K,
+  ...args: Args<N, ParamsFor<N, K>>
+) => string;
 
 /**
  * `<T i18nKey ns? locale? markers? components? {...params}>`: typed by the generated catalogs
@@ -150,10 +182,11 @@ export type BoundT<NS extends string = "default"> = [NsOf] extends [never]
 export interface UseI18n<NS extends string = "default"> {
   /**
    * `t()` against the instance's state; a template or a `$derived` calling it re-runs on a
-   * new state. Always a string: a tag handler's output is joined into it. Rich text is `<T>`'s.
+   * new state. Always a string. Rich text is `<T>`'s: with generated catalogs a key whose
+   * message has tags is a type error here; without them a tag handler's output joins into it.
    */
-  t: [NsOf] extends [never] ? UntypedT<never, UntypedParams> : TFor<NS, never>;
-  /** `<T>` bound to this namespace; the same component for every caller (R3-5(b)). */
+  t: [NsOf] extends [never] ? UntypedT<never, UntypedParams> : NS extends NsOf ? TextT<NS> : never;
+  /** `<T>` bound to this namespace; the same component for every caller. */
   T: BoundT<NS>;
   /** The locale on screen. */
   locale: string;
@@ -194,7 +227,7 @@ const Ts = N<Component<any>>();
  * switch does not load it. A failed load of it is not asked again by a remount: `i18n.load(ns)`
  * retries.
  */
-export const useI18n = <NS extends string = "default">(ns?: NS): UseI18n<NS> => {
+export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<NS> => {
   const c = use();
   const i = c.i;
   const x = core(i);

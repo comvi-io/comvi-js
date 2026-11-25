@@ -775,6 +775,7 @@ reason on the caller's abort (the AbortError `fetch` gives), the no-store path a
 and disarming the timer when a caller aborts a transport that never settles (measured at +8 B and
 +5 B; both documented in `cdn.ts`), and a module-wide default store (`core-icu-cdn-store` above is what it
 costs: +165 B, over the 4,895 B ceiling — the owner's decision, see `docs/design/catalog-store.md`).
+Since 0.8 (B17) the `onabort` cut is gone: a `fetch` that set its signal's `onabort` replaced it and the load never timed out, so the timeout and the caller's abort now settle the load themselves (`core-icu-cdn` unchanged at 5,382 B).
 
 Design §3.2's target, `/cdn` ≤ 400 B over core, is still not met: +467 B (−6 B against the lot 2c
 table). Meeting it needs 67 B of cuts in the loader or a new target from the owner. Headroom:
@@ -1765,3 +1766,74 @@ server and `/i18n` rows are unchanged. Measured on `lot7/nuxt-typegen` @ `72dedd
 
 Measured once and not shipped: with the generator as a lazily imported chunk, `module.mjs` alone was
 3,889 B (still over 3,537).
+
+## 2026-11-22: B8, `getAlternates` in `@comvi/next/routing` (no row)
+
+`getAlternates(routing, { locale, href })` lives in its own file, `routing/alternates.ts`, and runs
+only in `generateMetadata`. No size fixture imports `@comvi/next/routing`, so no row can see it, and
+none was added. The four Next rows read the same before and after (`fw-next-server-default-loader`
+5,639, `fw-next-client-default` 6,521, `fw-next-plugin-node` 11,698, `fw-next-middleware-edge`
+2,045 B min+gz); that says only that the graphs they measure are unchanged, not that an app's
+client or middleware bundle stays free of the function. The gate for that is smoke scenario 10
+(`scripts/test-apps-smoke/next.spec.ts`): the string `getAlternates: unknown locale` must not
+appear in any chunk under `.next/static` of either Next stand, whose pages call `getAlternates`.
+
+Its own weight, measured with `measureFixture` (this script's esbuild settings, `next` external)
+on an entry that imports from `@comvi/next/routing` and re-exports, Node v24.22.1, two runs with
+the same figures:
+
+| entry                                        | min / min+gz |
+| -------------------------------------------- | ------------ |
+| `getAlternates` alone                        | 1,021 / 594  |
+| `createGetPathname` alone                    | 912 / 532    |
+| both                                         | 1,327 / 667  |
+| `getAlternates` added to `createGetPathname` | +415 / +135  |
+
+Most of the 594 B is `buildLocalizedPath` and the `pathnames` lookup, which `getPathname` and
+`<Link>` already carry; the function itself is the +135 B.
+
+## 2026-11-24: stage B of 0.8 — owner accepts the growth (P6)
+
+Owner decision of 2026-11-24 (P6 of the 0.8 finish plan), taken once for the whole of stage B and
+measured on the integrated tree, not per pull request. Ten ceilings move by the ×1.02 rule, two rows
+without a ceiling get a new budget by the ×1.05 rule, and three binding increment caps move by the
+×1.02 rule. No other limit is raised for headroom, and no further byte reduction is sought in these
+changes. Measured on the local integration of the stage-B rows (B1, B11, B17, B3, B12, B8, B18) at
+`c2e45dd8` against the stage base `79bbea72`, `node --version` v24.22.1.
+
+What the bytes are: B12 (a never-closed opening tag is text, a closing tag closes the nearest open
+tag of the same name, the depth limit of 200) is about +146 B in every graph with the ICU compiler;
+B3 (the error that names two copies of `@comvi/core` and both versions) is about +26 B in core and
+30–35 B more in each binding; B1 is +12 B; the two speed fixes are +1…+6 B together.
+
+| row                      | base (min+gz) | measured (min / min+gz) | ceiling (old → new)                   | budget (old → new)                 |
+| ------------------------ | ------------- | ----------------------- | ------------------------------------- | ---------------------------------- |
+| core-icu                 | 4,912         | 10,474 / 5,098          | 5,084 → 5,200 = ceil(5,098 × 1.02)    | 5,084 → 5,200                      |
+| core-icu-cdn             | 5,378         | 11,488 / 5,555          | 5,480 → 5,667 = ceil(5,555 × 1.02)    | 5,480 → 5,667                      |
+| core-icu-devtools        | 5,364         | 11,441 / 5,539          | 5,443 → 5,650 = ceil(5,539 × 1.02)    | 5,443 → 5,650                      |
+| react-icu-cdn            | 5,948         | 12,739 / 6,161          | 6,037 → 6,285 = ceil(6,161 × 1.02)    | 6,037 → 6,285                      |
+| vue-icu-cdn              | 6,115         | 13,049 / 6,328          | 6,191 → 6,455 = ceil(6,328 × 1.02)    | 6,191 → 6,455                      |
+| solid-icu-cdn            | 6,206         | 13,335 / 6,413          | 6,308 → 6,542 = ceil(6,413 × 1.02)    | 6,308 → 6,542                      |
+| svelte-icu-cdn           | 6,691         | 14,783 / 6,903          | 6,789 → 7,042 = ceil(6,903 × 1.02)    | 6,789 → 7,042                      |
+| fw-nuxt-client           | 10,534        | 24,229 / 10,735         | 10,701 → 10,950 = ceil(10,735 × 1.02) | 10,701 → 10,950                    |
+| fw-nuxt-server           | 10,974        | 25,158 / 11,176         | 11,022 → 11,400 = ceil(11,176 × 1.02) | 11,022 → 11,400                    |
+| fw-nuxt-module           | 14,545        | 38,348 / 14,772         | 14,682 → 15,068 = ceil(14,772 × 1.02) | 14,682 → 15,068                    |
+| fw-react-default         | 5,449         | 11,666 / 5,679          | none                                  | 5,665 → 5,963 = ceil(5,679 × 1.05) |
+| fw-svelte-full-composite | 8,785         | 19,752 / 8,982          | none                                  | 8,870 → 9,432 = ceil(8,982 × 1.05) |
+
+Increment caps over `core-icu-cdn` (5,555 B):
+
+| row           | measured increment | cap (old → new)              |
+| ------------- | ------------------ | ---------------------------- |
+| react-icu-cdn | +606               | 579 → 619 = ceil(606 × 1.02) |
+| vue-icu-cdn   | +773               | 747 → 789 = ceil(773 × 1.02) |
+| solid-icu-cdn | +858               | 847 → 876 = ceil(858 × 1.02) |
+
+The `svelte-icu-cdn` cap (1,356; measured +1,348) and the `core-icu-devtools` cap (463; measured
++441) hold and are unchanged. Every other row is inside its limit and keeps its baseline and budget.
+
+Accepted with the same decision: compiling a message with tags is slower (rich text about +6…+10 %,
+five flat tags about +11 %, measured as ranges on a loaded machine; plain and plural messages and
+rendering are unchanged). It is the cost of the one-pass tag stack of B12, paid once per message at
+its first compile. This is one narrow accepted trade, not a looser performance threshold: the
+standard performance A/B before the release stays.

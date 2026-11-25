@@ -4,6 +4,7 @@
  * slot stays failed, and a later payload of the same mount reaches the instance through
  * `<I18nHandover>`.
  */
+import { readFileSync } from "node:fs";
 import { useState, type ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
@@ -12,6 +13,13 @@ import { describe, expect, it, vi } from "vitest";
 import { T, useI18n } from "@comvi/react";
 import type { Handover } from "@comvi/core/ssr";
 import { I18nProvider } from "../src/client";
+
+/** The contract row `a<br>b` (contracts/icu-grammar.json, B12; the tests run in the package). */
+const unclosedBr = (
+  JSON.parse(readFileSync(`${process.cwd()}/../../contracts/icu-grammar.json`, "utf8")) as {
+    cases: { message: string; render: string }[];
+  }
+).cases.find((c) => c.message === "a<br>b")!;
 
 const payload = (locale: string, catalogs: Handover["catalogs"]): Handover => ({
   locale,
@@ -346,5 +354,20 @@ describe("the payload is the server snapshot: an explicit retry after a hydratio
     expect(el.innerHTML).toBe("<b>unavailable</b>");
     root.unmount();
     el.remove();
+  });
+});
+
+describe("a never-closed tag through @comvi/next/client (B12)", () => {
+  it("a<br>b through <T> renders the text a<br>b, escaped, even with a `br` component", () => {
+    const { container } = render(
+      <I18nProvider payload={payload("en", { default: { en: { m: unclosedBr.message } } })}>
+        <T i18nKey="m" components={{ br: "br" }} />
+      </I18nProvider>,
+    );
+
+    expect([container.textContent, container.innerHTML]).toEqual([
+      unclosedBr.render,
+      "a&lt;br&gt;b",
+    ]);
   });
 });

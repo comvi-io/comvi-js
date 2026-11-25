@@ -9,6 +9,6 @@ import { message, type Scan } from "../../src/compile/scanner";
 it("never calls the shape observer", () => {
   const o = vi.fn();
   const P: Scan = { s: "{a} {n, plural, one {<b>x</b>} other {#}}", i: 0, k: undefined, o };
-  message(P, false, false, false);
+  message(P, false, false, 0);
   expect(o).not.toHaveBeenCalled();
 });

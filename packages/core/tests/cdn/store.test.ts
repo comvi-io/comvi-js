@@ -350,6 +350,77 @@ describe("api(base, { key })", () => {
     );
   });
 
+  // The platform canonicalises a locale code (`pt-br` → `pt-BR`, BCP-47 case) and keys the
+  // body by its spelling. Every other answer here has its own text, so only the pt-BR
+  // catalog can satisfy the assertion: not another key of the body (`pt`, `en`), and in the
+  // instance below not the parent locale `pt` nor the fallback locale `en` (`api()` takes no
+  // bundled `fallback`).
+  const BR = { hi: "Olá do Brasil" };
+  const canon = { namespaces: { shop: { en: { hi: "Hello" }, pt: { hi: "Olá" }, "pt-BR": BR } } };
+
+  it("a locale the platform answers in another case (`pt-br` asked, `pt-BR` keyed) loads that catalog", async () => {
+    const { f, calls } = fake({ body: canon });
+    const load = api("https://api.example", { key: "k", fetch: f });
+    expect(await load("pt-br", "shop", sig())).toEqual(BR);
+    expect(calls[0].url).toBe("https://api.example/v1/translations?locales=pt-br&namespaces=shop");
+  });
+
+  it("the exact spelling wins; two keys that match only in case and none exactly are refused", async () => {
+    const { f } = fake(
+      { body: { namespaces: { x: { "pt-br": { a: "exact" }, "pt-BR": { a: "case" } } } } },
+      { body: { namespaces: { x: { "pt-BR": { a: "one" }, "PT-br": { a: "two" } } } } },
+    );
+    const load = api("https://api.example", { key: "k", fetch: f });
+    expect(await load("pt-br", "x", sig())).toEqual({ a: "exact" });
+    await expect(load("pt-br", "x", sig())).rejects.toThrow(
+      "[@comvi/core/cdn] pt-br/x is not in the response: https://api.example/v1/translations?locales=pt-br&namespaces=x",
+    );
+  });
+
+  it("the case-insensitive lookup reads only own keys: `constructor`/`toString` never answer Object.prototype", async () => {
+    const { f } = fake(
+      { body: { namespaces: { x: {} } } },
+      { body: { namespaces: { x: { en: { a: "A" } } } } },
+      { body: { namespaces: { x: { Constructor: { a: "own" } } } } },
+      { body: { namespaces: { x: { undefined: { a: "no key matched" } } } } },
+    );
+    const load = api("https://api.example", { key: "k", fetch: f });
+    await expect(load("constructor", "x", sig())).rejects.toThrow(
+      "constructor/x is not in the response",
+    );
+    await expect(load("toString", "x", sig())).rejects.toThrow("toString/x is not in the response");
+    expect(await load("constructor", "x", sig())).toEqual({ a: "own" });
+    await expect(load("de", "x", sig())).rejects.toThrow("de/x is not in the response");
+  });
+
+  it("with a store: a second load of `pt-br` is served from the store with the pt-BR catalog", async () => {
+    const { f, calls } = fake({ body: canon });
+    const load = api("https://api.example", { key: "k", fetch: f, store: createCatalogStore() });
+    expect(await load("pt-br", "shop", sig())).toEqual(BR);
+    expect(await load("pt-br", "shop", sig())).toEqual(BR);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("an instance on `pt-br` renders the pt-BR text the platform keyed `pt-BR`", async () => {
+    // Answers by the requested locale, keyed as the platform canonicalises it.
+    const texts: Record<string, [string, string]> = {
+      "pt-br": ["pt-BR", "Olá do Brasil"],
+      pt: ["pt", "Olá"],
+      en: ["en", "Hello"],
+    };
+    const f = vi.fn(async (u: string | URL | Request) => {
+      const [k, hi] = texts[new URL(String(u)).searchParams.get("locales")!];
+      return ok({ namespaces: { default: { [k]: { hi } } } });
+    }) as unknown as typeof fetch;
+    const { i18n } = make({
+      locale: "pt-br",
+      fallbackLocale: "en",
+      loader: api("https://api.example", { key: "k", fetch: f }),
+    });
+    await i18n.ready;
+    expect(i18n.t("hi")).toBe("Olá do Brasil");
+  });
+
   it("an instance loads through api()", async () => {
     const { f } = fake({ body: body("en", "default", EN) });
     const { i18n } = make({

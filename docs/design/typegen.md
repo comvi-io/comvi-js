@@ -46,7 +46,8 @@ loop in a dev server, one message for a broken catalog.
 - One editor cost grows with the catalog, by design: after an edit tsserver builds a new
   program, which creates the used namespaces' key literals once (about 26k types @50k keys in
   2 namespaces, ≈100 ms here). Per-call work stays flat; "flat" does not mean "free".
-- A message core refuses (`{x, number}`, a select without `other`, an unclosed tag) is reported by
+- A message core refuses (`{x, number}`, a select without `other`, a closing tag that closes
+  nothing) is reported by
   the generator and by `comvi check` as core reports it; params after the failure point are
   unknown, and the platform's extractor, which reads on, can differ there.
 - A nested group is flat keys (`packages/core/src/flat.ts`, lot 6a D1), as the runtime reads it; a
@@ -61,7 +62,8 @@ loop in a dev server, one message for a broken catalog.
   implementations to keep equal. Generating where the config is loaded is the same under both.
 - **A lock file beside the declaration:** it shows up in the app's tree and in `git status`.
 - **A second ICU reader kept in step by tests:** it has to change with every grammar change, and
-  0.8 changed several (`=1e3` exact selectors are valid; an unclosed tag is an error, not text).
+  0.8 changed several (`=1e3` exact selectors are valid; a never-closed opening tag is text, not
+  a tag, and the compiled tree is at most 200 levels high).
 
 ## Where it lives
 

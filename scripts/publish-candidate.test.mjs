@@ -13,6 +13,7 @@ import {
   checksums,
   compareVersions,
   coverageGaps,
+  exactComviVersions,
   isPublished,
   parseArgs,
   publishAll,
@@ -1226,4 +1227,122 @@ test("promotion: every release-* dist-tag naming the promoted version is removed
     next: "0.5.0",
   });
   assert.deepEqual(ws.distTags("react"), { latest: "0.4.1", next: "0.5.0" });
+});
+
+/** A packed `@comvi/next` at `version` whose two `@comvi/*` peers are `core` and `react`. */
+function packedNext(dir, version, { core = version, react = version } = {}) {
+  const file = `comvi-next-${version}.tgz`;
+  tarball(dir, file, {
+    name: "@comvi/next",
+    version,
+    peerDependencies: {
+      "@comvi/core": core,
+      "@comvi/react": react,
+      next: "^15.5.28 || ^16.4.3",
+      react: "^19.3.1",
+    },
+  });
+  return path.join(dir, file);
+}
+
+test.describe("exactComviVersions: every @comvi/* peer in a packed tarball equals its version", () => {
+  for (const version of ["0.8.0", "0.8.1", "0.8.0-rc.3"]) {
+    test(`a packed @comvi/next ${version} with both peers at ${version} passes`, (t) => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "publish-candidate-peers-"));
+      t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+      const next = packedNext(dir, version);
+
+      const check = () => exactComviVersions([{ file: path.basename(next), tarball: next }]);
+
+      assert.doesNotThrow(check);
+    });
+  }
+
+  for (const [label, version, peers, wrong] of [
+    ["a caret range (GA)", "0.8.0", { core: "^0.8.0" }, '@comvi/core "^0.8.0"'],
+    ["another rc (RC)", "0.8.0-rc.3", { react: "0.8.0-rc.2" }, '@comvi/react "0.8.0-rc.2"'],
+    ["the last release (patch)", "0.8.1", { core: "0.8.0", react: "0.8.0" }, '@comvi/core "0.8.0"'],
+  ]) {
+    test(`a packed @comvi/next ${version} with ${label} is refused, naming the peer and the version`, (t) => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "publish-candidate-peers-"));
+      t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+      const next = packedNext(dir, version, peers);
+
+      const check = () => exactComviVersions([{ file: path.basename(next), tarball: next }]);
+
+      assert.throws(check, (error) => {
+        assert.ok(error.message.includes(`comvi-next-${version}.tgz`), error.message);
+        assert.ok(error.message.includes(wrong), error.message);
+        assert.ok(error.message.includes(`must equal its version ${version}`), error.message);
+        return true;
+      });
+    });
+  }
+
+  test("a third-party peer and a package with no peers are not its business", (t) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "publish-candidate-peers-"));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    tarball(dir, "comvi-core-0.8.0.tgz", { name: "@comvi/core", version: "0.8.0" });
+    const next = packedNext(dir, "0.8.0");
+
+    const check = () =>
+      exactComviVersions([
+        { file: "comvi-core-0.8.0.tgz", tarball: path.join(dir, "comvi-core-0.8.0.tgz") },
+        { file: path.basename(next), tarball: next },
+      ]);
+
+    assert.doesNotThrow(check);
+  });
+});
+
+test("publish trust path: candidatesFromSums refuses a packed @comvi/next whose peers are not exact", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "publish-candidate-peers-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const next = packedNext(dir, "0.8.0", { core: "^0.8.0", react: "^0.8.0" });
+
+  const read = () => candidatesFromSums(dir, checksums([next]));
+
+  assert.throws(
+    read,
+    /comvi-next-0\.8\.0\.tgz: peer @comvi\/core "\^0\.8\.0" must equal its version 0\.8\.0/,
+  );
+});
+
+test.describe("exactComviVersions: @comvi/* dependencies and optional dependencies too", () => {
+  for (const [field, label] of [
+    ["dependencies", "dependency"],
+    ["optionalDependencies", "optional dependency"],
+  ]) {
+    test(`a packed binding whose ${field} carry a caret @comvi/core is refused`, (t) => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "publish-candidate-deps-"));
+      t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+      tarball(dir, "comvi-react-0.8.0.tgz", {
+        name: "@comvi/react",
+        version: "0.8.0",
+        [field]: { "@comvi/core": "^0.8.0", "left-pad": "^1.3.0" },
+      });
+      const file = path.join(dir, "comvi-react-0.8.0.tgz");
+
+      const check = () => exactComviVersions([{ file: "comvi-react-0.8.0.tgz", tarball: file }]);
+
+      assert.throws(check, {
+        message: `comvi-react-0.8.0.tgz: ${label} @comvi/core "^0.8.0" must equal its version 0.8.0`,
+      });
+    });
+  }
+
+  test("a packed binding whose @comvi/core dependency is its exact version passes", (t) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "publish-candidate-deps-"));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    tarball(dir, "comvi-react-0.8.0-rc.1.tgz", {
+      name: "@comvi/react",
+      version: "0.8.0-rc.1",
+      dependencies: { "@comvi/core": "0.8.0-rc.1", "left-pad": "^1.3.0" },
+    });
+    const file = path.join(dir, "comvi-react-0.8.0-rc.1.tgz");
+
+    const check = () => exactComviVersions([{ file: "comvi-react-0.8.0-rc.1.tgz", tarball: file }]);
+
+    assert.doesNotThrow(check);
+  });
 });

@@ -24,8 +24,10 @@ rendered to Client Components as data: same first paint, no catalog fetched. App
 
 ```bash
 npm install @comvi/next @comvi/react @comvi/core
-# Peers: next ^15.5.28 || ^16.4.3, react ^19.3.1
+# Peers: next ^15.5.29 || ^16.4.5, react ^19.3.1
 ```
+
+`@comvi/next` asks for `@comvi/react` and `@comvi/core` at exactly its own version: `@comvi/core` and every binding in an app must be on one version. From 0.8 on, two copies of `@comvi/core` (two versions, or one version installed twice) throw an error that names both versions.
 
 ## Setup
 
@@ -166,6 +168,61 @@ import { routing } from "./i18n/routing";
 
 export default createMiddleware(routing); // getI18n() without `locale` reads the locale it sets
 ```
+
+## SEO: canonical and hreflang
+
+First, the site address, once: `metadataBase` in `src/app/[locale]/layout.tsx`. It is required:
+`getAlternates()` returns paths, and without `metadataBase` Next.js leaves them relative, with no
+error or warning, while hreflang needs full URLs.
+
+```tsx check=group=next-1
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { metadataBase: new URL("https://example.com") };
+```
+
+Then each page names its path without the locale prefix, in `src/app/[locale]/admin/page.tsx`:
+
+```tsx title="src/app/[locale]/admin/page.tsx" check=group=next-1
+import type { Metadata } from "next";
+import { getAlternates } from "@comvi/next/routing";
+import { routing } from "@/i18n/routing";
+import { getI18n } from "@/i18n/server";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const { t } = await getI18n({ locale, ns: "admin" }); // an unknown locale: notFound()
+  return { title: t("dashboard"), alternates: getAlternates(routing, { locale, href: "/admin" }) };
+}
+```
+
+`getAlternates(routing, { locale, href })` returns `alternates`: the canonical URL in this locale,
+one hreflang per locale and `x-default` (the default locale's URL), each the path `getPathname`
+returns for that locale. `href` is the page's `pathnames` key (its canonical path): no locale
+prefix, no query, no hash. It reads no request API, so a static page stays static. A page that sets
+`alternates` replaces its layout's `alternates` entirely.
+
+With `localePrefix: "never"` it returns only `canonical`: no URL belongs to one locale for every
+visitor. Without `pathnames`, one URL serves each visitor's locale (cookie, `Accept-Language`). With
+them, a slug that belongs to one locale answers in that locale to a visitor without a locale cookie,
+whatever their `Accept-Language`; under the default detection order a visitor whose cookie selects
+another locale is redirected to that locale's URL, and the `pathnames` key redirects a visitor whose
+locale has its own slug to that slug. A slug two
+locales share, or one equal to another page's key, names no locale: it is resolved from the cookie
+and `Accept-Language` like any other URL. With
+`as-needed`, the default locale's unprefixed URL redirects a visitor whose cookie or
+`Accept-Language` selects another locale, and answers in the default locale to a client that sends
+neither.
+
+If `generateMetadata` resolves after the page shell, Next.js streams canonical and hreflang into
+`<body>` for ordinary user agents and keeps them in `<head>` only for the bots of
+[`htmlLimitedBots`](https://nextjs.org/docs/app/api-reference/config/next-config-js/htmlLimitedBots).
+The example awaits the same `getI18n({ locale, ns })` the page renders with, so its metadata is
+ready with the page and stays in `<head>`.
 
 ## Contributing
 

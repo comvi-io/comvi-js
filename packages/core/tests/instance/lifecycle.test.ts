@@ -304,6 +304,59 @@ describe("destroy()", () => {
     expect(i18n.t("a")).toBe("A");
   });
 
+  // A loader that never answers: aborting its load must settle the waiting promises however
+  // the loader treats the signal, its own `signal.onabort` included.
+  describe.each([
+    ["ignores the signal", () => new Promise<never>(() => {})],
+    [
+      "listens with addEventListener",
+      (_l: string, _n: string, s: AbortSignal) =>
+        new Promise<never>(() => s.addEventListener("abort", () => {})),
+    ],
+    [
+      "assigns signal.onabort",
+      (_l: string, _n: string, s: AbortSignal) =>
+        new Promise<never>(() => {
+          s.onabort = () => {};
+        }),
+    ],
+  ])("a loader that %s and never answers", (_name, loader) => {
+    /** What `p` has settled with once every queued task ran; `pending` if nothing. */
+    const outcome = async (p: Promise<unknown>) => {
+      let r: unknown = "pending";
+      p.then(
+        (v) => (r = ["resolved", v]),
+        (e) => (r = ["rejected", e]),
+      );
+      await new Promise((t) => setTimeout(t, 0));
+      return r;
+    };
+
+    it("load(ns), then destroy(): the load resolves", async () => {
+      const { i18n } = make({ locale: "en", messages: { en: { m: "x" } }, loader });
+      const p = i18n.load("extra");
+      i18n.destroy();
+      expect(await outcome(p)).toEqual(["resolved", undefined]);
+    });
+
+    it("a switch superseded by another resolves; the newer one resolves on destroy()", async () => {
+      const { i18n } = make({ locale: "en", messages: { en: { m: "x" } }, loader });
+      const de = i18n.setLocale("de");
+      const fr = i18n.setLocale("fr");
+      expect(await outcome(de)).toEqual(["resolved", undefined]);
+      i18n.destroy();
+      expect(await outcome(fr)).toEqual(["resolved", undefined]);
+      expect(i18n.locale).toBe("en");
+    });
+
+    it("`ready` with the first load in flight resolves on destroy()", async () => {
+      const { i18n } = make({ locale: "en", loader });
+      const p = i18n.ready;
+      i18n.destroy();
+      expect(await outcome(p)).toEqual(["resolved", undefined]);
+    });
+  });
+
   it("runs every teardown even when one throws, and rethrows it outside the loop", async () => {
     vi.useFakeTimers();
     try {
@@ -355,5 +408,26 @@ describe("subscribers", () => {
     off();
     i18n.add("en", { b: "B" });
     expect(sub).toHaveBeenCalledTimes(1);
+  });
+
+  it("on() with anything but a function throws a TypeError in development, the 0.7 `on(event, fn)` included", () => {
+    vi.useFakeTimers();
+    try {
+      const { i18n } = make({ locale: "en" });
+      expect(() => i18n.on("localeChanged" as never)).toThrow(TypeError);
+      expect(() => (i18n.on as (...a: unknown[]) => unknown)("localeChanged", vi.fn())).toThrow(
+        "[@comvi/core] on() takes a listener function, got string",
+      );
+      expect(() => i18n.on(undefined as never)).toThrow(TypeError);
+      // Nothing was kept as a subscriber: the next publish reaches the one real listener
+      // and leaves no error to rethrow.
+      const listener = vi.fn();
+      i18n.on(listener);
+      i18n.add("en", { a: "A" });
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(() => vi.runAllTimers()).not.toThrow();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

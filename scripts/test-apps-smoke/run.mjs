@@ -13,6 +13,12 @@
  *   test-apps/next16   Next 16, proxy.ts
  *   test-apps/nuxt     Nuxt 3
  *   test-apps/nuxt4    Nuxt 4 (test-apps/nuxt is the same app on Nuxt 3)
+ *   nuxt-floor         test-apps/nuxt on exactly Nuxt 3.7.0, Node 22, outside the workspace
+ *   nuxt4-floor        test-apps/nuxt4 on exactly Nuxt 4.0.0 with nitropack 2.12.9, Node 22
+ *
+ * The two floor stands are the floors of `@comvi/nuxt`'s peer range; `buildFloors` installs them
+ * from packed tarballs, and the preflight fails one whose Node major, Nuxt or Nitro override is
+ * not the exact one it names.
  *
  * Fails closed: a missing build, a server that does not come up, a status,
  * redirect, `<html lang>` or text that differs from the expectation, or an
@@ -32,9 +38,19 @@
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { activeShards, testAppNeeds } from "../../tooling/migration-pending.mjs";
+import { workspacePackages } from "../docs-snippets/link-sdk.mjs";
+import { scopeRegistryLine, startCandidateRegistry } from "../examples-e2e/candidate-registry.mjs";
+import {
+  PINNED_PNPM,
+  assertLocalResolutions,
+  copyTree,
+  isolatedCache,
+  tempInstallEnv,
+} from "../examples-verify.mjs";
 import { startCatalogMock } from "./catalog-mock.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -138,10 +154,50 @@ const APPS = {
     checks: nuxtChecks(),
   },
   nuxt4: { kind: "nuxt", framework: "nuxt", major: 4, checks: nuxtChecks() },
+  // The floors of `@comvi/nuxt`'s peer range `^3.7.0 || ^4.0.0`: the same apps as `nuxt` and
+  // `nuxt4`, on exactly the lowest versions, on Node 22, installed OUTSIDE the pnpm workspace
+  // from packed tarballs of the workspace packages (`FLOORS_ROOT`, see `buildFloors`). Neither
+  // sets `comvi.types`, which needs Nuxt 3.21.11 / 4.6.0. `nuxt4-floor` is "Nuxt 4.0.0 with a
+  // pinned Nitro override": Nuxt 4.0.0 as installed resolves nitropack 2.12.0, which answers
+  // every `/_nuxt/` asset with a 500 (packages/nuxt/README.md, Version notes).
+  "nuxt-floor": {
+    kind: "nuxt",
+    framework: "nuxt",
+    major: 3,
+    node: 22,
+    sameSrcAs: "nuxt",
+    floor: { from: "nuxt", pins: { nuxt: "3.7.0", "@nuxt/schema": "3.7.0" }, overrides: {} },
+    checks: nuxtChecks(),
+  },
+  "nuxt4-floor": {
+    kind: "nuxt",
+    framework: "nuxt",
+    major: 4,
+    node: 22,
+    sameSrcAs: "nuxt4",
+    floor: { from: "nuxt4", pins: { nuxt: "4.0.0" }, overrides: { nitropack: "2.12.9" } },
+    checks: nuxtChecks(),
+  },
 };
 
+/** Where the floor stands are installed: outside the repo, so nothing resolves from its node_modules. */
+const FLOORS_ROOT = path.join(os.tmpdir(), "comvi-test-apps-floors");
+
+/**
+ * A floor stand's `.npmrc`: pnpm's own peer defaults (auto-installed, not strict), as an app
+ * created on those versions today gets them. The old Nuxt versions' own dependency trees have
+ * unmet peers on today's registry (Nuxt 4.0.0: `@nuxt/cli` wants a newer `@nuxt/schema`, the
+ * wasm bindings of oxc want `@emnapi/*`), which `EXAMPLE_NPMRC`'s strict peers would refuse.
+ */
+const FLOOR_NPMRC = ["ignore-workspace=true", "node-linker=hoisted", ""].join("\n");
+
+/** The directory an app is built and served from. */
+const appDir = (name) =>
+  APPS[name].floor ? path.join(FLOORS_ROOT, name) : path.join(ROOT, "test-apps", name);
+
 function parseArgs(argv) {
-  const args = { only: Object.keys(APPS), build: true };
+  // The floor stands run only when named: they need Node 22 (their own CI job).
+  const args = { only: Object.keys(APPS).filter((name) => !APPS[name].floor), build: true };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--no-build") args.build = false;
@@ -372,18 +428,32 @@ export function evaluate(check, response) {
   return problems;
 }
 
-function preflight(name, app, dir) {
+export function preflight(name, app, dir, nodeVersion = process.versions.node) {
   const problems = [];
+  const where = app.floor ? `the ${name} stand` : `test-apps/${name}`;
+  // A floor stand proves the range on the Node it names, not on whichever Node ran this.
+  if (app.node !== undefined && Number(nodeVersion.split(".")[0]) !== app.node)
+    problems.push(`${where} runs on Node ${app.node}, this is Node ${nodeVersion}`);
   const manifest = path.join(dir, "node_modules", app.framework, "package.json");
-  if (!fs.existsSync(manifest))
-    problems.push(`${app.framework} is not installed in test-apps/${name}`);
+  if (!fs.existsSync(manifest)) problems.push(`${app.framework} is not installed in ${where}`);
   else {
     const version = JSON.parse(fs.readFileSync(manifest, "utf8")).version;
     if (Number(version.split(".")[0]) !== app.major) {
-      problems.push(
-        `test-apps/${name} has ${app.framework}@${version}; it exists to prove ${app.major}.x`,
-      );
+      problems.push(`${where} has ${app.framework}@${version}; it exists to prove ${app.major}.x`);
     }
+    // A stand that pins an exact version exists to prove exactly that one (the floor of the
+    // peer range): a caret-resolved newer patch must not pass for it.
+    const pinned = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"))
+      .dependencies?.[app.framework];
+    if (/^\d+\.\d+\.\d+$/.test(pinned ?? "") && pinned !== version) {
+      problems.push(`${where} pins ${app.framework}@${pinned} but ${version} is installed`);
+    }
+  }
+  // An override is part of the configuration a floor stand proves: the one installed must be it.
+  for (const [dep, wanted] of Object.entries(app.floor?.overrides ?? {})) {
+    const installed = installedVersion(dir, dep);
+    if (installed !== wanted)
+      problems.push(`${where} overrides ${dep}@${wanted} but ${installed ?? "none"} is installed`);
   }
   const output = app.kind === "next" ? ".next/BUILD_ID" : ".output/server/index.mjs";
   if (!fs.existsSync(path.join(dir, output)))
@@ -396,6 +466,115 @@ function preflight(name, app, dir) {
     for (const sub of app.kind === "next" ? ["src"] : ["app", "server"])
       problems.push(...srcDrift(path.join(ROOT, "test-apps", app.sameSrcAs), dir, sub));
   return problems;
+}
+
+/** The version of `dep` installed at the top of `dir`'s node_modules, or `undefined`. */
+function installedVersion(dir, dep) {
+  const manifest = path.join(dir, "node_modules", dep, "package.json");
+  return fs.existsSync(manifest)
+    ? JSON.parse(fs.readFileSync(manifest, "utf8")).version
+    : undefined;
+}
+
+/**
+ * What a run reports it ran on: the framework, and for a Nuxt app nitropack, `@nuxt/kit`
+ * (the module's own when it has a nested one) and vue, where the app's node_modules has them.
+ */
+function installedLine(name) {
+  const app = APPS[name];
+  const dir = appDir(name);
+  const parts = [`${app.framework} ${installedVersion(dir, app.framework)}`];
+  if (app.kind === "nuxt") {
+    const kit =
+      installedVersion(dir, "@comvi/nuxt/node_modules/@nuxt/kit") ??
+      installedVersion(dir, "@nuxt/kit");
+    for (const [label, version] of [
+      ["nitropack", installedVersion(dir, "nitropack")],
+      ["@nuxt/kit (of @comvi/nuxt)", kit],
+      ["vue", installedVersion(dir, "vue")],
+    ])
+      if (version) parts.push(`${label} ${version}`);
+  }
+  return `installed ${parts.join(", ")}; node ${process.version}`;
+}
+
+/**
+ * The floor stands (`APPS[name].floor`), from what the turbo build left in `packages/*`: pack
+ * `@comvi/nuxt` and the workspace packages it depends on, serve them from a candidate registry
+ * (the whole `@comvi` scope, so nothing of it comes from npmjs.org), copy the source app and
+ * the shared locales under `FLOORS_ROOT`, write a manifest with the exact pins and overrides,
+ * install with `--ignore-workspace`, check every `@comvi` resolution is a packed tarball, and
+ * `nuxi build`.
+ */
+async function buildFloors(names) {
+  const all = workspacePackages(ROOT);
+  const closure = [];
+  const add = (pkgName) => {
+    if (closure.some((p) => p.name === pkgName)) return;
+    const pkg = all.find((p) => p.name === pkgName);
+    if (!pkg) throw new Error(`${pkgName} is not a publishable workspace package`);
+    closure.push(pkg);
+    const manifest = JSON.parse(fs.readFileSync(path.join(pkg.dir, "package.json"), "utf8"));
+    for (const [dep, spec] of Object.entries(manifest.dependencies ?? {}))
+      if (spec.startsWith("workspace:")) add(dep);
+  };
+  add("@comvi/nuxt");
+  const tarballs = path.join(FLOORS_ROOT, "tarballs");
+  fs.rmSync(tarballs, { recursive: true, force: true });
+  fs.mkdirSync(tarballs, { recursive: true });
+  for (const pkg of closure) {
+    const packed = await run("pnpm", ["pack", "--pack-destination", tarballs], { cwd: pkg.dir });
+    if (packed.status !== 0) throw new Error(`pnpm pack of ${pkg.name} failed:\n${packed.stderr}`);
+    pkg.tarball = path.join(tarballs, `${pkg.name.slice(1).replace("/", "-")}-${pkg.version}.tgz`);
+    if (!fs.existsSync(pkg.tarball)) throw new Error(`pnpm pack left no ${pkg.tarball}`);
+  }
+  const registry = await startCandidateRegistry(closure.map((p) => p.tarball));
+  try {
+    fs.rmSync(path.join(FLOORS_ROOT, "locales"), { recursive: true, force: true });
+    copyTree(LOCALES, path.join(FLOORS_ROOT, "locales"));
+    const nuxtVersion = closure.find((p) => p.name === "@comvi/nuxt").version;
+    for (const name of names) {
+      const { floor } = APPS[name];
+      const dir = appDir(name);
+      fs.rmSync(dir, { recursive: true, force: true });
+      copyTree(path.join(ROOT, "test-apps", floor.from), dir);
+      const source = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
+      const pin = (deps) =>
+        Object.fromEntries(Object.entries(deps ?? {}).map(([d, v]) => [d, floor.pins[d] ?? v]));
+      const manifest = {
+        name: `comvi-${name}`,
+        private: true,
+        type: "module",
+        packageManager: PINNED_PNPM,
+        scripts: source.scripts,
+        dependencies: { ...pin(source.dependencies), "@comvi/nuxt": nuxtVersion },
+        devDependencies: pin(source.devDependencies),
+        pnpm: { overrides: floor.overrides },
+      };
+      fs.writeFileSync(path.join(dir, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+      fs.writeFileSync(
+        path.join(dir, ".npmrc"),
+        FLOOR_NPMRC + isolatedCache(dir) + scopeRegistryLine(registry.url),
+      );
+      const env = tempInstallEnv(process.env, { CI: "1", ...NUXT_ENV });
+      console.log(`test-apps-smoke: installing the ${name} stand in ${dir}`);
+      const install = await run("pnpm", ["install", "--no-frozen-lockfile", "--ignore-workspace"], {
+        cwd: dir,
+        env,
+        stdio: "inherit",
+      });
+      if (install.status !== 0) throw new Error(`install of the ${name} stand failed`);
+      assertLocalResolutions(
+        fs.readFileSync(path.join(dir, "pnpm-lock.yaml"), "utf8"),
+        ["@comvi/nuxt"],
+        { installDir: dir, packages: closure },
+      );
+      const build = await run("pnpm", ["run", "build"], { cwd: dir, env, stdio: "inherit" });
+      if (build.status !== 0) throw new Error(`nuxi build of the ${name} stand failed`);
+    }
+  } finally {
+    await registry.close();
+  }
 }
 
 /** Files of `a/<sub>` and `b/<sub>` that differ, but for the middleware/proxy file convention. */
@@ -478,7 +657,7 @@ async function startReady(app, dir) {
 
 async function smoke(name) {
   const app = APPS[name];
-  const dir = path.join(ROOT, "test-apps", name);
+  const dir = appDir(name);
   const results = [];
   const pre = preflight(name, app, dir);
   if (pre.length > 0) return [{ name: "preflight", problems: pre }];
@@ -540,7 +719,12 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   // MIGRATION_PENDING: each app runs once everything it needs is active, independently of
   // the other apps (tooling/migration-pending.mjs).
-  args.only = activeShards(args.only, testAppNeeds, "test-apps-smoke");
+  // A floor stand needs what the app it copies needs.
+  args.only = activeShards(
+    args.only,
+    (name) => testAppNeeds(APPS[name].floor?.from ?? name),
+    "test-apps-smoke",
+  );
   if (args.only.length === 0) {
     console.log("test-apps-smoke: every requested app is MIGRATION_PENDING — nothing to run");
     return;
@@ -553,9 +737,14 @@ async function main() {
   }
   if (args.build) {
     // The Next apps are built below, with the mock's address; turbo builds what they need.
+    // A floor stand is built outside the workspace from the packed `@comvi/nuxt`.
     const filters = args.only.flatMap((name) => [
       "--filter",
-      APPS[name].kind === "next" ? `@test-apps/${name}^...` : `@test-apps/${name}`,
+      APPS[name].floor
+        ? "@comvi/nuxt..."
+        : APPS[name].kind === "next"
+          ? `@test-apps/${name}^...`
+          : `@test-apps/${name}`,
     ]);
     console.log(
       `test-apps-smoke: building ${args.only.join(", ")} (and the workspace packages they depend on)`,
@@ -567,6 +756,15 @@ async function main() {
     if (build.status !== 0) {
       console.error(`test-apps-smoke: build failed (exit ${build.status})`);
       process.exit(1);
+    }
+    const floors = args.only.filter((n) => APPS[n].floor);
+    if (floors.length > 0) {
+      try {
+        await buildFloors(floors);
+      } catch (error) {
+        console.error(`test-apps-smoke: ${error.message}`);
+        process.exit(1);
+      }
     }
     for (const name of args.only.filter((n) => APPS[n].kind === "next")) {
       const dir = path.join(ROOT, "test-apps", name);
@@ -586,7 +784,7 @@ async function main() {
   let failed = 0;
   for (const name of args.only) {
     const results = await smoke(name);
-    console.log(`\n${name} (${APPS[name].framework} ${APPS[name].major})`);
+    console.log(`\n${name} (${APPS[name].framework} ${APPS[name].major}; ${installedLine(name)})`);
     for (const result of results) {
       const ok = result.problems.length === 0;
       if (!ok) failed += 1;
