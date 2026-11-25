@@ -85,6 +85,9 @@ catalog that has it. The editor sends no usage context to the platform.
 - [In-context editor](https://comvi.io/docs/i18n/plugins/in-context-editor): the extension and
   the editor.
 - [Devtools API](https://comvi.io/docs/i18n/api/core-devtools): `devtools()` and its handle.
+- [Limitations](https://comvi.io/docs/i18n/limitations): the editor's limits in one place, among them
+  [Server Component text](https://comvi.io/docs/i18n/limitations#editor-server-components),
+  [damaged markers](https://comvi.io/docs/i18n/limitations#editor-damaged-marker) and [WebKit](https://comvi.io/docs/i18n/limitations#editor-webkit).
 
 ## Contributing
 

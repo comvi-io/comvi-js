@@ -15,14 +15,8 @@ render(
       <Router root={App}>
         <Route path="/" component={Start} />
         <Route path="/features" component={Features} />
-        {/* The page's own namespace starts loading with the route; while the page
-            shows, its useI18n("account") holds it, so a language switch loads it too.
-            A failed load is reported through onError: the page shows the fallback text. */}
-        <Route
-          path="/about"
-          component={Account}
-          preload={() => void i18n.load("account").catch(() => {})}
-        />
+        {/* The page loads its own namespace (pages/Account.tsx). */}
+        <Route path="/about" component={Account} />
       </Router>
     </I18nProvider>
   ),

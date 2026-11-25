@@ -2,6 +2,8 @@
   "app.title": "مثال Comvi الحي",
   "app.language": "اللغة",
   "app.loading": "جارٍ التحميل…",
+  "app.load_failed": "تعذّر تحميل الترجمات.",
+  "app.retry": "أعد المحاولة",
   "greeting.hello": "مرحبًا يا {name}! سعداء برؤيتك مجددًا.",
   "cart.items": "{count, plural, =0 {سلتك فارغة} one {منتج واحد في سلتك} two {منتجان في سلتك} few {# منتجات في سلتك} many {# منتجًا في سلتك} other {# منتج في سلتك}}",
   "docs.read_more": "اقرأ <link>توثيق Comvi</link> للمزيد.",

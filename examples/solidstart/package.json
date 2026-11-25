@@ -7,7 +7,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "start": "node .output/server/index.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "comvi typegen --from src/locales --source-locale en && tsc --noEmit"
   },
   "dependencies": {
     "@comvi/core": "^0.7.1",
@@ -18,6 +18,8 @@
     "solid-js": "^1.9.14"
   },
   "devDependencies": {
+    "@comvi/cli": "^0.7.1",
+    "@comvi/vite-plugin": "^0.7.1",
     "@types/node": "^24.0.0",
     "typescript": "~6.0.2",
     "vite": "^8.0.3"

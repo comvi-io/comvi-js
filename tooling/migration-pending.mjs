@@ -49,13 +49,8 @@ export const MIGRATION_PENDING = {};
  * and each entry leaves with the lot that rewrites the page: S3 (core README); the design
  * records left with S5. The pages already on the 0.8 API pass the 0.8 rules and are not listed.
  */
-const CORE_07_DOCS =
-  "documents the 0.7 core API (`.use()` composition, `i18n.init()`, the removed subpaths); the 0.8 API landed in lot 1b, the page is rewritten in stage D";
-const core07 = (...rules) => ({ reason: CORE_07_DOCS, rules });
-export const MIGRATION_PENDING_DOCS = {
-  // The README's banner says it: the 0.7 API (`await i18n.init()`), rewritten in lot S3.
-  "packages/core/README.md": core07("banned/instance-init", "typecheck/error"),
-};
+// Empty since stage D of 0.8: every document is on the 0.8 API, so no rule is advisory anywhere.
+export const MIGRATION_PENDING_DOCS = {};
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 

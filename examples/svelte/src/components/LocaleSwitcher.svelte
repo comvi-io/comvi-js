@@ -1,22 +1,34 @@
 <script lang="ts">
   import { useI18n } from '@comvi/svelte';
   import { locales } from '../i18n';
+  import LoadError from './LoadError.svelte';
 
   // `locale` stays the current language until the new one's catalogs are in, so the
-  // buttons never flicker. A failed switch is reported through onError and keeps it.
+  // buttons never flicker.
   const r = useI18n();
   const t = r.t;
+
+  // The locale whose switch failed, if any: its catalog could not be loaded.
+  let failed = $state<string | null>(null);
+
+  // A failed switch keeps the current language on screen, reports the error through
+  // onError and rejects; calling setLocale() again asks the loader again.
+  function switchTo(code: string) {
+    failed = null;
+    r.setLocale(code).catch(() => (failed = code));
+  }
 </script>
 
 <div class="switcher">
   <span class="eyebrow" id="language-label">{t('app.language')}</span>
   <div class="segmented" role="group" aria-labelledby="language-label">
     {#each locales as code (code)}
-      <button data-testid="locale-{code}" aria-pressed={r.locale === code} onclick={() => r.setLocale(code).catch(() => {})}
+      <button data-testid="locale-{code}" aria-pressed={r.locale === code} onclick={() => switchTo(code)}
         >{code.toUpperCase()}</button
       >
     {/each}
   </div>
   {#if r.isLoading}<span class="status">{t('app.loading')}</span>{/if}
 </div>
+{#if failed}{@const code = failed}<LoadError onretry={() => switchTo(code)} />{/if}
 <p class="note">{t('demo.rtl.body')}</p>

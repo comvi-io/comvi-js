@@ -2,6 +2,8 @@
   "app.title": "Comvi Live-Beispiel",
   "app.language": "Sprache",
   "app.loading": "Wird geladen…",
+  "app.load_failed": "Die Übersetzungen konnten nicht geladen werden.",
+  "app.retry": "Erneut versuchen",
   "greeting.hello": "Hallo, {name}! Schön, dich wiederzusehen.",
   "cart.items": "{count, plural, =0 {Ihr Warenkorb ist leer} one {# Artikel im Warenkorb} other {# Artikel im Warenkorb}}",
   "docs.read_more": "Lies die <link>Comvi-Dokumentation</link>, um weiterzukommen.",

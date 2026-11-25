@@ -1,8 +1,19 @@
+import { useState } from "react";
 import { useI18n } from "@comvi/react";
 import { locales } from "../i18n";
+import { LoadError } from "./LoadError";
 
 export function LocaleSwitcher() {
   const { t, locale, setLocale, isLoading } = useI18n();
+  // The locale whose switch failed, if any: its catalog could not be loaded.
+  const [failed, setFailed] = useState<string | null>(null);
+
+  // A failed switch keeps the current language on screen, reports the error through
+  // onError and rejects; calling setLocale() again asks the loader again.
+  const switchTo = (code: string) => {
+    setFailed(null);
+    setLocale(code).catch(() => setFailed(code));
+  };
 
   return (
     <>
@@ -16,9 +27,7 @@ export function LocaleSwitcher() {
               key={code}
               data-testid={`locale-${code}`}
               aria-pressed={locale === code}
-              // A failed switch keeps the locale on screen and is reported through
-              // onError; the promise rejects too, so the click handler catches it.
-              onClick={() => setLocale(code).catch(() => {})}
+              onClick={() => switchTo(code)}
             >
               {code}
             </button>
@@ -26,6 +35,7 @@ export function LocaleSwitcher() {
         </div>
         {isLoading && <span className="status">{t("app.loading")}</span>}
       </div>
+      {failed && <LoadError onRetry={() => switchTo(failed)} />}
       <p className="note">{t("demo.rtl.body")}</p>
     </>
   );

@@ -6,6 +6,13 @@ import FeaturesPage from "./pages/FeaturesPage.vue";
 import StartPage from "./pages/StartPage.vue";
 import { i18n } from "./i18n";
 
+declare module "vue-router" {
+  interface RouteMeta {
+    /** Set by the `/about` route when its `account` namespace failed to load. */
+    accountFailed?: boolean;
+  }
+}
+
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -19,8 +26,13 @@ const router = createRouter({
       // holds the namespace, so a language switch loads it too; once the page
       // closes it stays cached and a switch skips it (the route loads it again).
       // A failed load rejects (and is reported through onError): the page still
-      // opens, with the fallback language's text.
-      beforeEnter: () => i18n.load("account").catch(() => {}),
+      // opens, and offers to load it again.
+      beforeEnter: async (to) => {
+        to.meta.accountFailed = await i18n.load("account").then(
+          () => false,
+          () => true,
+        );
+      },
     },
   ],
 });

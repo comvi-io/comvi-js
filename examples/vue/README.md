@@ -17,6 +17,8 @@ language switcher. `/features` walks through every feature:
 - Fallback to English for a missing key, and a visible key when it is missing everywhere
 - Right-to-left layout for Arabic through `<html dir>`
 - A second route with Vue Router, keeping the chosen language
+- Typed keys: `@comvi/vite-plugin` writes `src/types/i18n.d.ts` from the English catalogs, so `t()` rejects a key no catalog has and a call that leaves out a parameter its message uses; `npm run typecheck` checks every call
+- A failed load: when a language or the `account` namespace cannot be loaded, the page keeps what it shows and offers a Try again button, which asks the loader again
 
 ## Run it
 

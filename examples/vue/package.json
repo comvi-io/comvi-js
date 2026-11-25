@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "vue-tsc --noEmit",
+    "typecheck": "comvi typegen --from src/locales --source-locale en && vue-tsc --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -16,6 +16,8 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@comvi/cli": "^0.7.1",
+    "@comvi/vite-plugin": "^0.7.1",
     "@vitejs/plugin-vue": "^6.0.5",
     "typescript": "~6.0.2",
     "vite": "^8.0.3",
