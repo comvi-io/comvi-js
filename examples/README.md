@@ -129,13 +129,13 @@ The file is generated, so it is not committed. `npm run typecheck` writes the sa
 
 ### A failed load
 
-`setLocale()` rejects when the new locale's catalog cannot be loaded and keeps the current locale
-on screen; `load("account")` rejects when the namespace cannot be loaded for the locale on
-screen. Both report the error through `onError` first. The examples catch the rejection, show
-`app.load_failed` with an `app.retry` button, and call the same function again on a click. With
-the CDN variable set, the retry fetches the catalog again. A bundled catalog is a dynamic
-`import()`, and Chromium keeps a failed `import()` failed until the page reloads, so there the
-retry fails again until then.
+`setLocale()` rejects when the new locale's catalog cannot be loaded and keeps the current locale on
+screen; `load("account")` rejects when the namespace's catalog of the locale on screen fails and no
+catalog of its parents (`de` for `de-AT`) is usable. Both report the error through `onError` first.
+The examples catch the rejection, show `app.load_failed` with an `app.retry` button, and call the
+same function again on a click. With the CDN variable set, the retry fetches the catalog again. A
+bundled catalog is a dynamic `import()`, and Chromium keeps a failed `import()` failed until the
+page reloads, so there the retry fails again until then.
 
 ## Run locally
 
@@ -147,9 +147,11 @@ npm install
 npm run dev
 ```
 
-The examples depend on the published names (`"@comvi/react": "^0.7.1"`), never on `workspace:*`,
-so a StackBlitz link works once the version it asks for is published. During a release candidate,
-point the manifests at the `next` tag:
+The examples depend on the published names, never on `workspace:*`, at the range of the latest
+release (`"@comvi/react": "^0.7.1"`). The release commit moves the manifests and this page to the
+new version, so a StackBlitz link works once that version is published. Before that commit, the
+examples of a development branch can use API that range does not have: run them against a release
+candidate by pointing the manifests at the `next` tag:
 
 ```sh
 pnpm examples:use-tag next      # "@comvi/react": "next"

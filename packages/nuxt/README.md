@@ -209,16 +209,15 @@ they were. Calling `setLocale()` again calls the loader again.
 
 A namespace whose load failed renders its "not available" branch, and mounting the component again
 does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
-that failed, and it rejects with the loader's error when the catalog of the locale on screen fails
-again. On a client navigation the component shows its loading branch until the namespace is in. To
-keep the previous page on screen instead, wait for the load in the page's setup, as the `await` line
-does:
+that failed, and it rejects with the loader's error only when the locale's own catalog fails again
+and no catalog of its parents (`de` for `de-AT`) is usable; a `fallbackLocale`'s does not count. On
+a client navigation the component shows its loading branch until the namespace is in. To keep the
+previous page on screen instead, wait for the load in the page's setup, as the `await` line does:
 
 ```vue title="app/pages/account.vue" check=group=nuxt-app
 <script setup lang="ts">
 const { t, locale, setLocale, isReady, isLoading, i18n } = useI18n("account");
-// load() rejects when the catalog fails again: `isReady` stays false, `onError` has the report.
-const retry = () => i18n.load("account").catch(() => {});
+const retry = () => i18n.load("account").catch(() => {}); // `onError` has the report
 if (isLoading.value) await retry();
 const failed = ref(false);
 const toggle = () =>
@@ -239,11 +238,12 @@ const toggle = () =>
 ## Routing
 
 `localePrefix` decides the URLs: `as-needed` (the default) gives `/about` and `/de/about`, `always`
-`/en/about` and `/de/about`, `never` `/about` for every locale. A URL that names no locale reads it
-from the query, the `i18n_locale` cookie and `Accept-Language`, and the module records the locale in
-the cookie. `useLocalePath()`, `useSwitchLocalePath()`, `useLocaleRoute()` and `<NuxtLinkLocale>`
-build the links, and `useLocaleHead()` adds canonical, hreflang and `og:locale`
-([Nuxt guide](https://comvi.io/docs/i18n/nuxt)).
+`/en/about` and `/de/about`, `never` `/about` for every locale. Under `as-needed` `/about` is the
+default locale's URL, cookie or not; `/` and any URL under `never` read the `i18n_locale` cookie,
+then `Accept-Language`, and the module records the locale in the cookie. A query parameter named in
+`localeDetection.queryParam` wins on any unprefixed URL. `useLocalePath()`, `useSwitchLocalePath()`,
+`useLocaleRoute()` and `<NuxtLinkLocale>` build the links, and `useLocaleHead()` adds canonical,
+hreflang and `og:locale` ([Nuxt guide](https://comvi.io/docs/i18n/nuxt)).
 
 ## Limits
 

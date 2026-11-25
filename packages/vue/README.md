@@ -114,7 +114,8 @@ component is mounted: it loads for the locale on screen and for every locale a s
 is `true` while one is on the way. Check `isReady` first: a switch loads the new catalogs beside the
 text on screen. Both `false` means the text is not available and nothing is loading. `i18n.ready` is
 something else: a promise that resolves when the loads in flight have settled, the failed ones too.
-After a failed first load, `ready` has resolved and `isReady` is `false`.
+After a failed first load, `ready` has resolved, and `isReady` is `false` only when no usable
+catalog exists in the locale's lookup chain (the locale, its parents, the `fallbackLocale`).
 
 ## Load from Comvi
 
@@ -137,8 +138,8 @@ catalog the CDN should serve. For a bundled catalog that is used when the CDN do
 `onError` receives every problem as an object with a `code` (`load_failed`, `missing_key` and
 others) and the `locale`, `ns` and `key` it concerns. Without it, a development build prints
 problems to the console and a production build prints nothing. `onError` reports and changes nothing
-else: after a failed first load `i18n.ready` still resolves and `t()` renders the key: what the user
-sees is your `isReady` branch.
+else: after a failed first load `i18n.ready` still resolves and `t()` renders the lookup chain's
+text or the key: what the user sees is your `isReady` branch.
 
 ```ts title="src/i18n.ts" check=group=vue-cdn
 import { createI18n } from "@comvi/vue";
@@ -167,8 +168,8 @@ the text on screen stay as they were. Calling `setLocale()` again calls the load
 
 A namespace whose load failed renders its "not available" branch, and mounting the component again
 does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
-that failed, and it rejects with the loader's error when the catalog of the locale on screen fails
-again.
+that failed, and it rejects with the loader's error only when the locale's own catalog fails again
+and no catalog of its parents (`de` for `de-AT`) is usable; a `fallbackLocale`'s does not count.
 
 ```vue title="src/Account.vue" check=group=vue-app
 <script setup lang="ts">
@@ -181,8 +182,7 @@ const toggle = () =>
     () => (failed.value = false),
     () => (failed.value = true),
   );
-// load() rejects when the catalog fails again: `isReady` stays false, `onError` has the report.
-const retry = () => i18n.load("account").catch(() => {});
+const retry = () => i18n.load("account").catch(() => {}); // `onError` has the report
 </script>
 
 <template>
