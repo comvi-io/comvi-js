@@ -3,13 +3,22 @@
 The release captain (repo owner) runs this checklist. It covers the parts of a cut that live in this
 repository; the gates themselves are documented in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-The publishable set is 12 packages, and all 12 are in the `fixed` group of `.changeset/config.json`:
-one release train, one version, one tag. `packages/locale-routing` and `packages/typegen` are
-WORKSPACE-PRIVATE (`"private": true`, and in the config's `ignore` list): they are the single copy of
-code that is inlined into `@comvi/next`, `@comvi/cli` and `@comvi/vite-plugin` at build time and
-vendored into `@comvi/nuxt`'s runtime, and they publish nothing. Every gate that enumerates packages
-derives the set from the `private` flag or from that config — `tooling/typed-packages.mjs` is the one
-hand-written list, and it holds the same 12.
+The publishable set is 10 packages, and all 10 are in the `fixed` group of `.changeset/config.json`:
+one release train, one version, one tag. They are `@comvi/cli`, `@comvi/core`, `@comvi/editor`,
+`@comvi/next`, `@comvi/nuxt`, `@comvi/react`, `@comvi/solid`, `@comvi/svelte`, `@comvi/vite-plugin`
+and `@comvi/vue`. `packages/locale-routing` and `packages/typegen` are WORKSPACE-PRIVATE
+(`"private": true`, and in the config's `ignore` list) and publish nothing: they are the single
+copy of code that other packages carry. `@comvi/typegen` is inlined into `@comvi/cli`,
+`@comvi/vite-plugin`, `@comvi/next` and `@comvi/nuxt` at build time; `@comvi/locale-routing` is
+inlined into `@comvi/next` and vendored into `@comvi/nuxt`'s runtime. Every gate that enumerates
+packages derives the set from the `private` flag or from that config, except
+`tooling/typed-packages.mjs`, the one hand-written list: it holds the 9 published packages that
+ship type declarations, every one of the 10 except `@comvi/editor`, whose only export is a classic
+script.
+
+The browser extension (`apps/chrome-extension`, `@comvi/chrome-extension`) is private as well and
+in the config's `ignore` list. Its version is set by hand in `manifest.json` and `package.json`,
+and no workflow of this repository builds or publishes it: section 4 is the procedure.
 
 The release tooling still supports an independently versioned package (one published outside the
 `fixed` group keeps its own version in the tag body, `manifest.json` and the archive). Nothing uses
@@ -17,36 +26,30 @@ that path today.
 
 ## 1. Before the cut
 
-- [ ] `pnpm test:release` locally (it is not a single CI job; its constituents are split across the
-      `quality`, `tests` and `build` jobs). It ends with `pnpm check:snippets:types`, which compiles
-      every README fence against the `dist` the same run just built — so it fails on a snippet that
-      the published packages would not compile, which is the last moment that is cheap to fix.
-- [ ] `pnpm size`, `pnpm bundler-matrix` (add `--from-registry next` to measure the published RC
-      instead of the local `dist`), and `node scripts/perf.mjs --compare-ref <last release ref>`.
+- [ ] `pnpm test:release` locally. It is not a single CI job: its constituents are split across the
+      `Quality and security`, `Package tests`, `Build, package contracts, size and bundler matrix`
+      and `Examples e2e (…)` jobs of `ci.yml`. It includes `pnpm check:snippets:types`, which
+      compiles every README fence against the `dist` the same run just built, so it fails on a
+      snippet that the published packages would not compile, which is the last moment that is
+      cheap to fix.
+- [ ] `pnpm size`, `pnpm bundler-matrix` and `node scripts/perf.mjs --compare-ref <last release ref>`.
 - [ ] On npmjs.com, every one of the 10 published packages' trusted publisher (this repository,
       `release.yml`) has **Allow npm dist-tag** enabled. It is off by default, and without it the
       promotion step cannot move `latest` or `next`: the run then ends with everything on npm
       under the staging tag only and exits 1. The workflow installs npm 11.21.0, the first npm 11
       whose OIDC token covers `npm dist-tag`. **Verify both facts against
       [docs.npmjs.com/trusted-publishers](https://docs.npmjs.com/trusted-publishers) before GA**:
-      they were read there on 2026-10-04 and nothing in CI exercises them. Then run the RC rehearsal
-      (section 2) first. It uses the same staging-and-promotion code with `next`, so a green RC
+      they were read there on 2026-10-04 and nothing in CI exercises them. A release candidate
+      (section 2) uses the same staging-and-promotion code with `next`, so a published candidate
       proves the OIDC dist-tag path before GA depends on it.
-- [ ] **`@comvi/editor` is a new npm name (0.8, lot 8).** It replaces
-      `@comvi/plugin-in-context-editor` and has never been published, so npm has no trusted
-      publisher for it yet. Before the first publish of 0.8 (the RC rehearsal included), the owner
-      creates the package on npmjs.com and adds this repository's `release.yml` as its trusted
-      publisher, with **Allow npm dist-tag** on. Without it the train stops at `@comvi/editor`.
-      The old name is no longer in the workspace or the `fixed` group and must never receive a
-      0.8 version.
-- [ ] **OPEN, decided by the owner before 0.8 (lot 8): the order of the Chrome Web Store and
-      npm releases, and how current users move.** The protocol-2 extension drives only a 0.8
-      site, and a 0.7 extension finds no editor on one. Which goes out first, and what an
-      installed 0.7 extension or a 0.7 site sees meanwhile, is not decided; this checklist
-      states no order until it is. The extension is not published from this repository's
-      workflows. Whatever the order: the extension zip is built from the versioned commit,
-      after that `@comvi/editor` version is on npm — the zip bakes the workspace editor
-      version and asks the CDN for exactly it.
+- [ ] **`@comvi/editor` is a new npm name in 0.8.** It replaces `@comvi/plugin-in-context-editor`
+      and has never been published, so npm has no trusted publisher for it yet. Before the first
+      publish of 0.8 (the first release candidate included), the owner creates the package on
+      npmjs.com and adds this repository's `release.yml` as its trusted publisher, with **Allow
+      npm dist-tag** on. Without it the train stops at `@comvi/editor`. If npm requires a first
+      publish by hand to create the name, decide its version and dist-tag beforehand: it cannot be
+      a version the train will publish. The old name is no longer in the workspace or the `fixed`
+      group and must never receive a 0.8 version.
 - [ ] Read the pending changesets. `pnpm exec changeset status --verbose` shows the version the cut
       will produce. With `@changesets/cli` 3, a plugin peer range that the next version falls
       outside of makes changesets bump the peer dependents by patch, no longer by major (cli 2
@@ -58,10 +61,33 @@ that path today.
       version.
       Never run bare `pnpm changeset version` in place of `pnpm release:version`.
 
-## 2. RC rehearsal (optional but recommended)
+## 2. Release candidates (`rc.N`)
 
-Dispatch `Release` with the `rc` input set to the rc number. Three jobs run, and none holds more than
-it needs:
+A release is preceded by release candidates `<version>-rc.0`, `-rc.1`, … published under the npm
+dist-tag `next`. The cycle:
+
+1. **Cut a candidate.** Dispatch `Release` with the `rc` input set to N, from a ref whose head
+   commit has a green CI run: `gh run list --commit <sha> --workflow CI` shows `success`. Apart from the
+   browser suite below, the candidate's jobs run no tests.
+2. **Check it.** The workflow runs `examples:e2e` on the candidate's tarballs itself. By hand,
+   against what npm now serves under `next`:
+   - `pnpm bundler-matrix --from-registry next`;
+   - `node scripts/examples-use-tag.mjs next`, then `pnpm examples:verify` (put the ranges back
+     with `node scripts/examples-use-tag.mjs ^<version>` before committing anything);
+   - `pnpm docs:quickstart --content <site docs directory> --from-registry next` and
+     `pnpm check:strict-consumer --from-registry next`;
+   - an extension built against the candidate: section 4, its build and check steps. Whether a
+     candidate's build goes to the store is part of the decision at the end of section 4.
+3. **The next candidate.** A fix found on `rc.N` lands as its own PR; the gates the change
+   touches run on it, and then `Release` is dispatched with the NEXT number, N+1, from the new
+   commit. The checks of step 2 that the change can affect run again on `rc.N+1`. Never dispatch
+   a number that was already used (see below).
+4. **GA.** The last `rc.N` has passed every check of step 2, and
+   `git diff <commit of the last rc.N>..<GA candidate> -- packages apps/chrome-extension` holds
+   only what the release commit writes: versions and peer ranges in `package.json`, and
+   `CHANGELOG.md`. Then section 3.
+
+The candidate is cut by three jobs, and none holds more than it needs:
 
 1. `rc-pack` (read-only) rewrites versions in its own working tree only (`scripts/rc-version.mjs`),
    builds after the rewrite so the inlined runtime version matches what npm receives, asserts that
@@ -76,19 +102,17 @@ it needs:
    not listed is refused), reads each tarball's name and version from its own `package.json`, and
    publishes those files with `npm publish <tgz>`. It uses the same two phases as GA: the files are
    published under the candidate's staging dist-tag, and `next` moves only once npm has the whole
-   set. The difference is that npm keeps every version it accepted, so after a partial RC some
-   versions exist under the staging tag only. That is tolerable for a rehearsal: use "Re-run failed
-   jobs" on `rc-publish` to finish it, or dispatch the next rc number. Do not dispatch the same rc
-   number again: the new dispatch packs a new candidate with a new staging tag, and `rc-publish`
-   refuses it, promoting nothing, because the versions already on npm hold the first candidate's
-   bytes, not the new one's. The RC candidate artifact is kept for 30 days, the same as GA's, so
-   "Re-run failed jobs" can download it for as long as GitHub allows the re-run.
-
-Dispatch it from a green ref: apart from that browser suite the jobs run no tests.
+   set. The difference is that npm keeps every version it accepted, so after a partial candidate
+   some versions exist under the staging tag only. Use "Re-run failed jobs" on `rc-publish` to
+   finish it, or dispatch the next rc number. Do not dispatch the same rc number again: the new
+   dispatch packs a new candidate with a new staging tag, and `rc-publish` refuses it, promoting
+   nothing, because the versions already on npm hold the first candidate's bytes, not the new
+   one's. The RC candidate artifact is kept for 30 days, the same as GA's, so "Re-run failed jobs"
+   can download it for as long as GitHub allows the re-run.
 
 A dispatch that leaves `rc` empty is the GA path, and it is refused on every ref except `main`: the
 `ga-guard` job fails with the ref it was given, and `version`, `pack`, `verify` and `publish` are
-skipped. So a rehearsal dispatched from a release branch with the input forgotten publishes nothing.
+skipped. So a candidate dispatched from a release branch with the input forgotten publishes nothing.
 
 ## 3. The cut
 
@@ -100,8 +124,13 @@ skipped. So a rehearsal dispatched from a release branch with the input forgotte
       leaves them alone). Re-run `pnpm examples:verify` after the version bump: that is when the
       peer ranges and the examples' ranges meet.
 - [ ] Read the generated CHANGELOGs before merging the release PR.
+- [ ] The release PR needs a green `CI` run on its own commit before it is merged. The PR is
+      opened with `GITHUB_TOKEN`, and GitHub starts no workflow for events that token causes, so
+      `CI` does not run on it by itself: close the PR and reopen it. The local equivalent is
+      `pnpm test:release`, plus `pnpm size`, `pnpm bundler-matrix`, `pnpm test-apps:smoke` and the
+      extension's `pnpm --filter @comvi/chrome-extension test:pr`, which `test:release` does not run.
 - [ ] Merging the release PR publishes through the `pack`, `verify` and `publish` jobs: the same
-      three-job chain as the RC, with `--tag latest` and git tags pushed for each published
+      three-job chain as a release candidate, with `--tag latest` and git tags pushed for each published
       package. A red `examples:e2e` on the candidate stops the publish before anything reaches npm;
       its diagnostics are the `release-ga-examples-e2e` artifact.
 - [ ] **The candidate is one transaction.** Every tarball is published under a staging dist-tag
@@ -177,11 +206,98 @@ skipped. So a rehearsal dispatched from a release branch with the input forgotte
       the release commit with the tags fetched, run it with `PUBLISHED_PACKAGES=<the full set>` and
       `COMVI_RELEASE_TARBALLS_DIR=<the downloaded candidate>`.
 
-## 4. After GA
+## 4. The browser extension
 
-- [ ] **Retire the `next` dist-tag.** The RC rehearsal publishes under `--tag next` and nothing moves
-      it afterwards, so `npm i @comvi/core@next` keeps resolving to the RC after GA ships. For every
-      package the rehearsal published, either remove the tag or point it at the GA version:
+The extension works with exactly one editor version. The `@comvi/editor` version of the workspace
+it is built from is baked into the build (`apps/chrome-extension/vite.config.ts`), and on **Enable
+editor** the site's core loads
+`https://cdn.jsdelivr.net/npm/@comvi/editor@<that version>/dist/standalone.iife.js`. An editor fix
+reaches users only with an extension release. jsDelivr caches an exact version permanently, and its
+purge does not affect exact-version links, so the release workflow asks jsDelivr for nothing
+(`scripts/release-workflow.test.mjs` holds that, and that the extension never asks for an alias).
+
+The extension drives only a site whose core exposes the protocol-2 handle (`x.p === 2`); the entry
+the 0.7.1 core puts on the page has no handle. Building, checking and releasing it are three
+separate steps, and the check needs the editor version on npm.
+
+### Build
+
+- [ ] Build from a versioned tree. For GA: the merge of the release PR, whose
+      `packages/editor/package.json` holds the version being released. For a candidate: a clean
+      checkout of the candidate's commit, then `node scripts/rc-version.mjs --rc <N>` (working tree
+      only, never committed), since the committed tree holds the previous release's version.
+- [ ] One build serves one platform: `VITE_COMVI_API_BASE_URL` is baked into the code and into
+      `host_permissions`, and every build fails without it. For production, in
+      `apps/chrome-extension`: `VITE_COMVI_API_BASE_URL=https://api.comvi.io pnpm zip`. It builds,
+      runs the artifact test for that origin and writes `comvi-extension.zip`. For another
+      platform (staging): `VITE_COMVI_API_BASE_URL=<origin> pnpm build`, and use `dist/`
+      unpacked; the `zip` script checks the production origin only.
+
+### Check
+
+- [ ] The artifact test, for the build's origin:
+      `COMVI_EXPECT_API_ORIGIN=<origin> pnpm --filter @comvi/chrome-extension exec vitest run src/__tests__/artifacts.test.ts`.
+      It fails if the baked editor version is not the workspace one, if `host_permissions` is not
+      exactly that origin, or if `dist/` holds an editor bundle or anything that could load a
+      remote script. `pnpm zip` has run it for production.
+- [ ] jsDelivr serves the published editor, byte for byte. Possible only once that version is on
+      npm. The two lines must be equal:
+
+  ```sh
+  curl -fsS https://cdn.jsdelivr.net/npm/@comvi/editor@<version>/dist/standalone.iife.js | shasum -a 256
+  npm pack @comvi/editor@<version> && tar -xOzf comvi-editor-<version>.tgz package/dist/standalone.iife.js | shasum -a 256
+  ```
+
+- [ ] In Chrome: load the build unpacked (`chrome://extensions`, Developer mode; for the zip, its
+      unzipped contents), open a site on the same core version that uses the build's platform,
+      press **Enable editor**, and check that the editor starts and a saved translation reaches
+      the platform.
+- [ ] Record `shasum -a 256 comvi-extension.zip` of the zip that passed.
+
+### Release
+
+- [ ] Before the upload, `shasum -a 256` of the file being uploaded equals the recorded one.
+- [ ] Upload it in the Chrome Web Store dashboard. Each upload needs a larger `version` in
+      `manifest.json` than the store's current one, and that version is one to four
+      dot-separated integers: a candidate's `0.8.0-rc.N` is not one.
+- [ ] The store publishes after its review: at once, or, with **Defer publish**, when the owner
+      publishes it, within 30 days of the review.
+- [ ] Install the extension from the store and run the editor scenario on a 0.8 site against
+      the production platform.
+
+### Store and npm: the order
+
+Whatever the order, the store's extension and the sites move together. Once the store publishes
+this extension, sites on 0.5 to 0.7 lose in-context editing, since the extension does not drive
+them; until it does, the store's previous extension does not load the editor on 0.8 sites.
+
+**OPEN: the order of the Chrome Web Store and npm, and how current users are told, is the owner's
+decision, not made yet.** This checklist states no order until it is. The options:
+
+- **a.** npm publish, then the check, the upload, and the store's publication. The zip is checked
+  before it is uploaded. Between npm and the store's publication the editor does not work on 0.8
+  sites, and if the store rejects the build, 0.8.0 is `latest` without a working editor.
+- **b.** Upload before npm with **Defer publish**, and publish in the store after the npm and
+  jsDelivr checks. The review is over before GA. The uploaded zip cannot be checked in a browser
+  before the upload, because its editor version is not on npm yet.
+- **c.** A build with the 0.8.0 editor in the store before npm is not possible: the file it asks
+  for does not exist yet.
+- **d.** Before GA, upload a production build of the last `rc.N`, whose editor is on npm and
+  jsDelivr and stays there. The zip is checked end to end before the upload, and the review is
+  over before GA. Sites on 0.5 to 0.7 lose editing earlier, before GA; a new `rc.N` after the
+  upload means a new upload; and the store keeps a build with a candidate editor until the next
+  extension release, because the build with the 0.8.0 editor needs a larger manifest version than
+  the one uploaded.
+
+Also to decide: where current users are told (the popup, the release notes, the store
+description).
+
+## 5. After GA
+
+- [ ] **Retire the `next` dist-tag.** Release candidates publish under `--tag next` and nothing
+      moves it afterwards, so `npm i @comvi/core@next` keeps resolving to the last candidate after
+      GA ships. For every package a candidate published, either remove the tag or point it at the
+      GA version:
 
   ```sh
   # inspect first
@@ -192,16 +308,17 @@ skipped. So a rehearsal dispatched from a release branch with the input forgotte
 
       The 10 published names are `cli`, `core`, `editor`, `next`, `nuxt`, `react`, `solid`,
       `svelte`, `vite-plugin`, `vue`.
-      `@comvi/plugin-fetch-loader` and `@comvi/plugin-locale-detector` left the monorepo in
-      0.8 (lot 2c; `@comvi/core/cdn` and `@comvi/core/plugins` replace them): the 0.8.0 release
-      deprecates them on npm (R3-11) with the owner's confirmation —
+
+- [ ] **Deprecate the names that left in 0.8**, with the owner's confirmation.
+      `@comvi/plugin-fetch-loader` and `@comvi/plugin-locale-detector` left the monorepo
+      (`@comvi/core/cdn` and `@comvi/core/plugins` replace them):
       `npm deprecate @comvi/plugin-fetch-loader "Moved into @comvi/core/cdn since 0.8.0"`, and
       `@comvi/plugin-locale-detector` → `@comvi/core/plugins` the same way.
-      `@comvi/plugin-in-context-editor` left in 0.8 too (lot 8: renamed, standalone only); the
-      owner deprecates it once `@comvi/editor` 0.8.0 is on npm —
+      `@comvi/plugin-in-context-editor` was renamed (standalone only); deprecate it once
+      `@comvi/editor` 0.8.0 is on npm:
       `npm deprecate @comvi/plugin-in-context-editor "Renamed to @comvi/editor since 0.8.0; loaded by the Comvi browser extension"`.
 
-- [ ] Re-snapshot the test manifest, and keep the post-release observation window.
+- [ ] Keep the post-release observation window.
 
 ## Known release-tooling gaps (recorded, not fixed)
 
