@@ -13,6 +13,7 @@ import {
   cleanTarballs,
   installManifest,
   registryResolutions,
+  SHAPE_PROBE,
   tarballFor,
   workspacePackages,
 } from "./link-sdk.mjs";
@@ -42,7 +43,7 @@ function lockfile({ core = "file:../packages/core/comvi-core-0.5.0.tgz" } = {}) 
 }
 
 /** Write a lockfile into `dir` and run the full assertion over a good install. */
-function installedCore(dir, { version = "0.5.0", lock = lockfile(), loader = true } = {}) {
+function installedCore(dir, { version = "0.5.0", lock = lockfile(), cdn = true } = {}) {
   const pkg = path.join(dir, "node_modules", "@comvi", "core");
   fs.mkdirSync(path.join(pkg, "dist"), { recursive: true });
   fs.writeFileSync(
@@ -51,12 +52,12 @@ function installedCore(dir, { version = "0.5.0", lock = lockfile(), loader = tru
       name: "@comvi/core",
       version,
       type: "module",
-      exports: { "./loader": { default: "./dist/loader.js" } },
+      exports: { "./cdn": { default: "./dist/cdn.js" } },
     }),
   );
   fs.writeFileSync(
-    path.join(pkg, "dist", "loader.js"),
-    loader ? "export function loader() {}\n" : "export const nothing = 1;\n",
+    path.join(pkg, "dist", "cdn.js"),
+    cdn ? "export function cdn() {}\n" : "export const nothing = 1;\n",
   );
   fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "probe" }));
   fs.writeFileSync(path.join(dir, "pnpm-lock.yaml"), lock);
@@ -160,7 +161,7 @@ test("an install whose resolutions are all file: passes provenance", () => {
 
   return assertInstall(dir, [{ name: "@comvi/core", version: "0.5.0", dir: "" }]).then((proof) => {
     assert.equal(proof.version, "0.5.0");
-    assert.ok(proof.symbols.includes("loader"));
+    assert.ok(proof.symbols.includes("cdn"));
   });
 });
 
@@ -191,14 +192,14 @@ test("a stale tarball whose version differs from the workspace fails", () => {
   );
 });
 
-test("`loader` is resolved THROUGH the exports map, so a lost subpath fails", () => {
-  // Importing `dist/loader.js` by path would succeed here and prove nothing:
+test("`cdn` is resolved THROUGH the exports map, so a lost subpath fails", () => {
+  // Importing `dist/cdn.js` by path would succeed here and prove nothing:
   // the file exists, and the `exports` map — the thing a reader's bundler reads
   // — is what this has to exercise.
   const dir = installedCore(scratch());
   const manifest = path.join(dir, "node_modules", "@comvi", "core", "package.json");
   const parsed = JSON.parse(fs.readFileSync(manifest, "utf8"));
-  delete parsed.exports["./loader"];
+  delete parsed.exports["./cdn"];
   fs.writeFileSync(manifest, JSON.stringify(parsed));
 
   return assert.rejects(
@@ -207,12 +208,27 @@ test("`loader` is resolved THROUGH the exports map, so a lost subpath fails", ()
   );
 });
 
-test("an install with the version and the exports map but a 0.4 build fails", () => {
-  const dir = installedCore(scratch(), { loader: false });
+test("an install with the version and the exports map but not the 0.8 build fails", () => {
+  const dir = installedCore(scratch(), { cdn: false });
 
   return assert.rejects(
     () => assertInstall(dir, [{ name: "@comvi/core", version: "0.5.0", dir: "" }]),
-    /`loader` does not resolve from @comvi\/core\/loader/,
+    /`cdn` does not resolve from @comvi\/core\/cdn/,
+  );
+});
+
+test("the probe is the 0.8 `@comvi/core/cdn`; pointed at the removed `/loader` it fails", () => {
+  // The 0.7 probe, kept as the negative: a 0.8 install has no `/loader`.
+  assert.deepEqual(SHAPE_PROBE, { specifier: "@comvi/core/cdn", name: "cdn" });
+  const dir = installedCore(scratch());
+
+  return assert.rejects(
+    () =>
+      assertInstall(dir, [{ name: "@comvi/core", version: "0.5.0", dir: "" }], {
+        specifier: "@comvi/core/loader",
+        name: "loader",
+      }),
+    /`@comvi\/core\/loader` does not resolve from the install/,
   );
 });
 

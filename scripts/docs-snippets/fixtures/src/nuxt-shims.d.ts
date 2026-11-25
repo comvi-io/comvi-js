@@ -10,7 +10,7 @@
  *
  * Same class as `import.meta.env`: a global the reader's toolchain provides and
  * the docs project otherwise lacks. Not the same class as an augmented
- * `TranslationKeys` — nothing here changes how another fence typechecks, and it
+ * `Catalogs` — nothing here changes how another fence typechecks, and it
  * is a root ONLY of projects that import `@comvi/nuxt` or carry a
  * `nuxt.config.ts`, so a React page cannot silently gain Nuxt globals.
  *

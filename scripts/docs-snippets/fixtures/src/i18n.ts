@@ -1,15 +1,13 @@
 /**
- * The composed host a page's fences import when they write `from './i18n'`.
+ * The instance a page's fences import when they write `from './i18n'`.
  *
- * Fully composed on purpose — loader, plugins and the ICU compiler — because a
- * fence that imports it goes on to call `i18n.loadMessages(…)` or
- * `i18n.registerPlugin(…)`, and a base host would fail those with a capability
- * error that says nothing about the snippet under test.
+ * The 0.8 shape a page sets up: `createI18n` with inline messages for the
+ * source locale and the CDN loader for the rest. A fence that imports it goes
+ * on to call `i18n.setLocale(…)`, `i18n.load(ns)` or `t()`, which every 0.8
+ * instance has — there is nothing to compose.
  */
 import { createI18n } from "@comvi/core";
-import { icuCompiler } from "@comvi/core/icu";
-import { loader } from "@comvi/core/loader";
-import { plugins } from "@comvi/core/plugins";
+import { cdn } from "@comvi/core/cdn";
 
 export const locales = ["en", "de", "uk", "fr"] as const;
 export const defaultLocale = "en";
@@ -18,16 +16,8 @@ export const i18n = createI18n({
   locale: defaultLocale,
   fallbackLocale: defaultLocale,
   messages: { en: {} },
-  compiler: icuCompiler,
-})
-  .use(
-    loader({
-      de: () => import("./locales/de.json"),
-      uk: () => import("./locales/uk.json"),
-      fr: () => import("./locales/fr.json"),
-    }),
-  )
-  .use(plugins());
+  loader: cdn("https://cdn.comvi.io/your-distribution-id"),
+});
 
 export type AppI18n = typeof i18n;
 
@@ -35,7 +25,7 @@ export type AppI18n = typeof i18n;
 export const routing = { locales, defaultLocale } as const;
 
 export async function loadMessages(locale: string): Promise<AppI18n> {
-  await i18n.reloadMessages(locale);
+  await i18n.setLocale(locale);
   return i18n;
 }
 

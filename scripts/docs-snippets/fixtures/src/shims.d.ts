@@ -34,7 +34,7 @@ declare module "client-only";
  * The compiler options exclude every automatic types package except
  * `@types/node`, so `import.meta.env.DEV` has no declaration anywhere and every
  * fence reading it failed with TS2339. This is the vite/client shape, and it is
- * safe in a way an augmented `TranslationKeys` is not: nothing here can change
+ * safe in a way an augmented `Catalogs` is not: nothing here can change
  * how another fence typechecks.
  *
  * `process` is NOT declared here. It was, and it had to go: `types: ["node"]`

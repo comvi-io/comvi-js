@@ -26,8 +26,8 @@ function write(file, body) {
 }
 
 /**
- * A miniature of both surfaces at once: a package README that composes its
- * capability properly, a content page that does not, and one competitor fence so
+ * A miniature of both surfaces at once: a package README on the 0.8 API, a
+ * content page still on the 0.7 one, and one competitor fence so
  * the skip budget has something to count.
  */
 function makeFixtureRoot(t) {
@@ -40,7 +40,7 @@ function makeFixtureRoot(t) {
       "# @comvi/react",
       "",
       "```tsx",
-      "const i18n = createI18n({ locale: 'en' }).use(loader());",
+      "const i18n = createI18n({ locale: 'en', loader: cdn(url) });",
       "```",
       "",
     ].join("\n"),
@@ -48,7 +48,7 @@ function makeFixtureRoot(t) {
   write(path.join(root, "packages/cli/README.md"), "# @comvi/cli\n\nNo code here.\n");
   write(
     path.join(root, "README.md"),
-    "# comvi\n\n```ts\nconst i18n = createI18n({ locale: 'en' }).use(loader());\n```\n",
+    "# comvi\n\n```ts\nconst i18n = createI18n({ locale: 'en', loader: cdn(url) });\n```\n",
   );
 
   write(
@@ -280,7 +280,7 @@ test("collectInstalledReadmes where nothing is installed → empty, not an error
   assert.deepEqual(collectInstalledReadmes(root), []);
 });
 
-test("the readmes runner over composed READMEs → no findings", (t) => {
+test("the readmes runner over 0.8 READMEs → no findings", (t) => {
   const root = makeFixtureRoot(t);
 
   const result = runGate({ readmes: true, content: null, sdkVersion: "0.5.0", root });
@@ -333,7 +333,7 @@ test("formatReport on a failing run → file:line:col, the rule, and the skip bu
 
   assert.match(report, /content\/react\.mdx:6:1 {2}banned\/register-loader-on-instance/);
   assert.match(report, /foreign-import: 1/);
-  assert.match(report, /docs-snippets: FAIL — 4 findings in 2 documents\./);
+  assert.match(report, /docs-snippets: FAIL — 2 findings in 2 documents\./);
 });
 
 test("formatReport → the divergence baseline, page by page", (t) => {
@@ -345,10 +345,9 @@ test("formatReport → the divergence baseline, page by page", (t) => {
 
   assert.match(report, /pages mentioning registerLoader at all: 2/);
   assert.match(report, /of those, pages with a banned registerLoader call: 2/);
-  assert.match(
-    report,
-    /framework pages missing \.use\(installer\): 2\n {4}content\/react\.mdx\n {4}node_modules\/@comvi\/core\/README\.md/,
-  );
+  assert.match(report, /content\/react\.mdx — 1 call site\(s\), 1 mention\(s\) \[banned\]/);
+  // The 0.7 "framework pages missing .use(installer)" list is gone with its rule.
+  assert.doesNotMatch(report, /missing \.use\(installer\)/);
 });
 
 test("the CLI on the js-sdk npm surface → runs the whole corpus, and the tool itself is clean", () => {
@@ -422,7 +421,7 @@ test("the CLI with --json → machine output, and still exit 1 on findings", (t)
   });
 
   assert.equal(result.status, 1);
-  assert.equal(JSON.parse(result.stdout).findings.length, 4);
+  assert.equal(JSON.parse(result.stdout).findings.length, 2);
 });
 
 test("the recorded parity marker → matches the module in this repo", () => {

@@ -9,9 +9,9 @@
  * in 0.5.0 and compiles under nothing. So this file lints SYMBOLS: what must not
  * appear, what must appear, and what the page claims in English.
  *
- * Every BANNED and REQUIRED rule below is derived from `MIGRATION.md` and cites
- * the section it comes from, in the rule and in the message a reader sees. No
- * rule states an API fact that MIGRATION.md does not. That document was retired
+ * Every rule below cites where its API fact comes from, in the rule and in the
+ * message a reader sees: the 0.5 rules a section of `MIGRATION.md`, the 0.8
+ * rules the changeset that removed the form. That document was retired
  * from the tree once the site dropped its upgrade guide (0.4 had no external
  * users); the sections the citations name are at
  * https://github.com/comvi-io/comvi-js/blob/dbc91b5f88415e1905cb49885c644f4bee1dd90d/MIGRATION.md
@@ -27,29 +27,23 @@
  * live README fence kept importing it from there, and every rule above had
  * nothing to say.
  *
- * Scope rule that matters: a capability is acquired PER CHAIN, not per page.
- * MIGRATION.md §3 makes the chain the unit — `createI18n(…)` plus the `.use`
- * calls chained onto it — and the same unit is used here. A page-wide scope
- * would clear `ssr.mdx`'s `defineComviSetup` snippet because an unrelated
- * `createNextI18n(` sits 180 lines above it.
+ * The 0.8 instance (stage D, 25.11.2026). `createI18n(options)` returns twelve
+ * members — `locale`, `dir`, `ready`, `t`, `ns`, `setLocale`, `load`, `add`,
+ * `has`, `on`, `rev`, `destroy` — and everything 0.7 composed onto it is a
+ * constructor option now: `loader: cdn(url)` from `@comvi/core/cdn`,
+ * `plugins: [detect({ supported }), devtools()]`, ICU always on (there is no compiler to
+ * name). So the 0.7 REQUIRED rules (`.use(installer)` on every framework page,
+ * `compiler: icuCompiler` beside every ICU catalog) are gone, and what they
+ * required is BANNED: `.use(` on the instance, `icuCompiler`, `i18n.init()`,
+ * and the subpaths and packages 0.8 removed (`.changeset/core-08-*.md`,
+ * `next-08-binding.md`, `nuxt-08-binding.md`; the built `exports` maps). No
+ * capability is acquired any more, so no rule is scoped to a chain: every
+ * banned rule is a fact about the fence it fires in.
  *
- * The chain is: the fence itself; every fence carrying the same explicit
- * `check=group=<id>`; and, for a bare `title=`, only fences with that title in
- * the SAME `<TabItem>` body. A bare title alone is not a chain — `quick-start.mdx`
- * writes `src/i18n.ts` eight times, once per framework tab, and pooling them let
- * the React tab's `.use(loader())` vouch for the Vue tab's `registerLoader`.
- * `title=` is a virtual file name (docs-0.5 plan §6.2); a virtual file name is
- * only unique inside one virtual project, and the tab is that project.
- *
- * Acquisition evidence is read from code with comments and string literals
- * stripped, because `// Wrong: you must write .use(loader()) first` is a
- * sentence about the fix, not the fix.
- *
- * One verb (decision E, 11.09.2026): `.use(installer)` composes, and `.with` is
- * gone from the API entirely. So `.use(` is what the REQUIRED rule asks for and
- * `.with(` is BANNED outright — with the care that Vue's `app.use(i18n)` and
- * Nuxt's `nuxtApp.use` are a different `use` on a different object and are not
- * ours to count (see `hasUseComposition`).
+ * `.use(` is judged BY RECEIVER, because the word is not ours: Vue's
+ * `app.use(i18n)` installs the Vue plugin `@comvi/vue` returns and stays the
+ * documented 0.8 form, and `i18next.use(…)` is a competitor's verb quoted on a
+ * comparison page (see `isInstanceCall`).
  */
 
 import path from "node:path";
@@ -75,9 +69,6 @@ const CODE_LANGS = new Set([
 /** Fence languages that carry a single-file-component `<script>` block. */
 const SFC_LANGS = new Set(["vue", "svelte"]);
 
-/** Fence languages that can hold a translation catalog. */
-const CATALOG_LANGS = new Set(["json", "jsonc", "json5", "yaml"]);
-
 /**
  * Import specifiers that belong to another i18n library. Migration guides quote
  * competitor code on purpose, and linting it for comvi symbols is noise, so such
@@ -94,88 +85,10 @@ const FOREIGN_SPECIFIERS = [
   "@lingui/",
 ];
 
-/** Tokens proving the chain already has the loader capability. */
-const LOADER_TOKENS = [
-  // `\s*` after the verb everywhere, as in PLUGIN_TOKENS and USE_COMPOSITION
-  // below: a chain broken across lines writes `.use(\n  loader(…)` and a
-  // formatter may put a space in, and an anchoring that only accepted `.use(`
-  // graded the same evidence differently from rule to rule.
-  /\.use\s*\(\s*loader\s*\(/,
-  /\.use\s*\(\s*attachLoader\b/,
-  /\battachLoader\s*\(/,
-  /\.use\s*\(\s*fetchLoader\s*\(/,
-  /\.use\s*\(\s*cdnLoader\s*\(/,
-  // MIGRATION.md §5: `createNextI18n` composes the loader with both
-  // `registerLoader` overloads inside the package; its host type
-  // `NextComposedI18n` and the SSR `NextServerLoaderHost` carry it too. The
-  // COMPILER is not on that list any more — the factory lost its `icuCompiler`
-  // default in wave 6 — and this token vouches for the loader only. ICU
-  // evidence is `ICU_TOKENS`, which has never counted this name.
-  /\bcreateNextI18n\s*\(/,
-  /\bNextComposedI18n\b/,
-  /\bNextServerLoaderHost\b/,
-  // MIGRATION.md §6: a nuxt hook annotated with the host its factory returns
-  // (`NuxtI18nSetup<I18n & I18nLoaderApi>`) fails at type-check rather than at
-  // request time, so the annotation IS the proof the host composed the loader.
-  //
-  // Positional, not bare: the proof is the host type being an INTERSECTION that
-  // includes the loader API, and every real use writes it that way (nuxt README
-  // 203/213, next README 384/429). A bare name also appears where it proves the
-  // opposite — `import type { I18nLoaderApi }` and
-  // `Omit<I18nLoaderApi, "registerLoader">` name the API in order to talk about
-  // a host that does NOT have it, and would have vouched for the very
-  // `registerLoader` call the rule exists to catch.
-  /&\s*I18nLoaderApi\b/,
-  /[&:<]\s*NuxtServerLoaderInstance\b/,
-];
-
 /**
- * Tokens proving the chain already has the plugin capability.
- *
- * `definePlugin(fn)` is in the list because that is what it IS: the installer
- * helper from `@comvi/core/plugins` composes the capability and then queues
- * `fn` (brief E §3), so a chain that writes `.use(definePlugin(fn))` has the
- * plugin API on its host exactly as `.use(plugins())` does. The two names are
- * deliberately unalike — `plugins()` takes the capability, `definePlugin(fn)`
- * takes a plugin — and the rule has to know both.
- *
- * `inContextEditor` is deliberately NOT here, and it is the one first-party
- * installer that is not. Its type is `<T extends I18n<any>>(i18n: T) => T` in
- * both entries — it widens NOTHING — and the production entry is a no-op, so a
- * chain that composes it has exactly the host it started with and still has no
- * `registerPlugin`. Counting it cleared the very finding this rule exists for.
- */
-const PLUGIN_TOKENS = [
-  /\.use\s*\(\s*plugins\s*\(/,
-  /\.use\s*\(\s*definePlugin\s*\(/,
-  /\.use\s*\(\s*attachPlugins\b/,
-  /\battachPlugins\s*\(/,
-  /\.use\s*\(\s*(?:fetchLoader|cdnLoader|localeDetector)\s*\(/,
-  /\bcreateNextI18n\s*\(/,
-];
-
-/**
- * Tokens proving the page picked a compiler explicitly (MIGRATION.md §0.1).
- *
- * `.use(icu(` was evidence while the installer existed. It is not evidence any
- * more — the installer is gone, so a page that still writes it has named NO
- * compiler the reader can use, and counting it would green exactly the page
- * `banned/icu-installer` below exists to catch.
- */
-const ICU_TOKENS = [/\bicuCompiler\b/, /@comvi\/core\/icu/];
-
-/** The removed installer's imported name, `icuCompiler` deliberately excluded. */
-const ICU_INSTALLER_IMPORT = /^\s*(?:type\s+)?(icu)(?![\w$])/;
-
-/** An ICU argument in a catalog string: `{count, plural, …}` (MIGRATION.md §0). */
-const ICU_SYNTAX = /\{\s*\w+\s*,\s*(?:plural|selectordinal|select)\s*,/;
-
-/**
- * Pages that must show capability composition. A framework page or the
- * platform-connection page that never composes is documenting the 0.4 host
- * (MIGRATION.md §3, "`.use(installer)` — composing a capability").
- * `quick-start` is inline-only by design since the 2026-09 rewrite; the
- * `.use(cdnLoader())` step lives on `connect-comvi`.
+ * Framework pages: the guides a reader sets an app up from. The class is
+ * reported in the stats; since 0.8 no rule depends on it (the 0.7 one that did,
+ * `required/use-composition`, demanded the `.use(installer)` 0.8 removed).
  */
 const FRAMEWORK_BASENAMES = new Set([
   "connect-comvi",
@@ -188,7 +101,7 @@ const FRAMEWORK_BASENAMES = new Set([
   "vanilla",
 ]);
 
-/** README basenames (the package directory) held to the same requirement. */
+/** README basenames (the package directory) classified the same way. */
 const FRAMEWORK_PACKAGES = new Set([
   "core",
   "react",
@@ -252,49 +165,44 @@ export function classify(file) {
   return classes;
 }
 
-/** Does any token match this text? */
-function hasAny(patterns, text) {
-  return patterns.some((pattern) => pattern.test(text));
-}
-
 /**
- * Receivers whose `.use(` is somebody else's verb. Vue's `app.use(i18n)` and
- * Nuxt's `nuxtApp.use` install a Vue plugin; they are not the comvi host's
- * composition and must never vouch for a page that never composes (brief E,
- * hard rule 4). Excluding the receiver is what lets `required/use-composition`
- * keep asking a Vue page for a real chain.
+ * Receivers whose `.use(` / `.init(` is somebody else's verb, and always was.
+ * Vue's app (`app`, `nuxtApp.vueApp`) installs the Vue plugin `@comvi/vue`'s
+ * `createI18n` returns — `app.use(i18n)` is the documented 0.8 form — and
+ * Express-shaped `server` / `router` install middleware, and `i18next.use(…)` /
+ * `i18next.init(…)` are a competitor's own calls quoted on a comparison page.
+ * None of them is the comvi instance.
  */
-const FOREIGN_USE_RECEIVERS = new Set(["app", "nuxtApp", "vueApp", "vue"]);
-
-/**
- * Receivers whose `.use(` takes a RAW plugin on purpose and always did: Vue's
- * app and Nuxt's `nuxtApp.vueApp` install Vue plugins, Express-shaped `server` /
- * `router` install middleware, and `i18next.use(HttpBackend)` is a competitor's
- * own verb quoted in a comparison. None of them is the comvi host, so
- * `banned/raw-plugin-in-use-slot` must not fire on them: the finding would be
- * unclearable on a page that is correct, which is how a pinned baseline moves.
- */
-const FOREIGN_PLUGIN_RECEIVERS = new Set([
+const FOREIGN_RECEIVERS = new Set([
   "app",
   "vueApp",
   "nuxtApp",
+  "vue",
   "server",
   "router",
   "i18next",
+  "createApp",
+  "createSSRApp",
 ]);
 
 /**
- * Every installer the 0.5.0 surface publishes, by name. This list — not "any
- * lowercase call" — is what counts as composition evidence.
- *
- * The looser test was the bug: `createApp(App).use(createPinia()).use(i18n)`
- * satisfied `required/use-composition` on a page that composes nothing comvi at
- * all, because `createPinia()` is a lowercase call. A capability the reader can
- * copy has a NAME, and there are twelve of them.
- *
- * `flattenCatalog` is not here on purpose: it is a hand-flattening helper for
- * catalog DATA, never an installer and never an argument to `.use(`, so listing
- * it would only widen the pattern back towards "any lowercase call".
+ * The names the docs give the instance. A receiver spelled this way is the
+ * instance whether or not the fence shows where it came from — site fences
+ * routinely start at `i18n.…` with the construction three fences above.
+ */
+const INSTANCE_NAMES = new Set(["i18n", "$i18n", "core"]);
+
+/**
+ * Factories whose result is the instance: the 0.8 `createI18n` of every
+ * package, and the 0.7 factories a page may still chain `.use(` onto
+ * (`createNextI18n`, `createCore`, gone in 0.8 — `next-08-binding.md`).
+ */
+const INSTANCE_FACTORIES = new Set(["createI18n", "createNextI18n", "createCore"]);
+
+/**
+ * The 0.7 installers and raw plugin factories, by name. One of them in the
+ * `.use(` slot is 0.7 composition whatever the receiver is called — `host`,
+ * `instance`, a chain that starts off-fence — unless the receiver is foreign.
  */
 const INSTALLER_NAMES = [
   "loader",
@@ -308,71 +216,153 @@ const INSTALLER_NAMES = [
   "cdnLoader",
   "localeDetector",
   "inContextEditor",
+  "icu",
+  "nextPlugin",
+  "nextPluginLazy",
+  "cdnLoaderPlugin",
+  "fetchLoaderPlugin",
+  "localeDetectorPlugin",
+  "inContextEditorPlugin",
 ];
 
-/**
- * `.use(` in the comvi composition sense.
- *
- * The argument must be an INSTALLER BY NAME: a call to one of
- * `INSTALLER_NAMES`, or a bare `attachLoader` / `attachPlugins` /
- * `attachDevtools` reference. `app.use(i18n)` fails on both halves — foreign
- * receiver, and an argument that is neither a named installer nor a call —
- * which is the whole reason the two verbs can share a name safely.
- *
- * The receiver is NOT captured here. A capture group in front of `\.use` is
- * optional by necessity — a chained `.use` has no identifier in front of it —
- * and an optional group that is undefined on every chained call is a denylist
- * that never runs. It is read separately, by `receiverTail`, which walks
- * backwards from the dot and so works on `nuxtApp.vueApp.use(` too.
- */
-const USE_COMPOSITION = new RegExp(
-  String.raw`\.use\s*\(\s*(?:(?:${INSTALLER_NAMES.join("|")})\s*\(|attach(?:Loader|Plugins|Devtools)\b)`,
-  "g",
+const INSTALLER_ARGUMENT = new RegExp(
+  String.raw`^\s*(?:(?:${INSTALLER_NAMES.join("|")})\s*\(|attach(?:Loader|Plugins|Devtools)\b)`,
 );
 
+/** `.use(` and `.init(`, optional chaining included; the receiver is read separately. */
+const USE_CALL = /\??\.\s*use\s*\(/g;
+const INIT_CALL = /\??\.\s*init\s*\(/g;
+
 /**
- * The last identifier of the receiver immediately in front of a `.` at
- * `dotIndex`, or `""` when the receiver ends in a call or an index.
+ * Index of the bracket that opens the group closing at `close`, or -1.
  *
- * `nuxtApp.vueApp.use(` gives `vueApp`, `i18n?.use(` gives `i18n`, and
- * `createApp(App).use(` gives `""`. The LAST segment is what the denylists
- * name, which is what makes "a receiver chain ending in `.vueApp`" a lookup
- * rather than a second pattern.
+ * Counts brackets only: a `)` inside a string literal of the options object
+ * would shift it, which no fence of either corpus writes, and the cost of the
+ * miss is one unread receiver rather than a wrong finding.
  */
-function receiverTail(text, dotIndex) {
+function openingBracket(text, close) {
+  let depth = 0;
+  for (let index = close; index >= 0; index -= 1) {
+    const char = text[index];
+    if (char === ")" || char === "]" || char === "}") depth += 1;
+    else if (char === "(" || char === "[" || char === "{") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
+/**
+ * The receiver in front of the `.` at `dotIndex`: its LAST segment (`tail`,
+ * `""` when the receiver ends in a call or an index) and the identifier the
+ * whole member/call chain starts from (`root`).
+ *
+ * `nuxtApp.$i18n.use(` → tail `$i18n`, root `nuxtApp`;
+ * `createI18n({…}).use(` → tail `""`, root `createI18n`;
+ * `createApp(App).use(router).use(` → tail `""`, root `createApp`.
+ */
+export function receiverOf(text, dotIndex) {
   let index = dotIndex - 1;
+  let tail = null;
+  let root = "";
   const skipSpace = () => {
     while (index >= 0 && /\s/.test(text[index])) index -= 1;
   };
-  skipSpace();
-  if (index >= 0 && text[index] === "?") {
-    index -= 1;
+  for (;;) {
     skipSpace();
+    if (index >= 0 && text[index] === "?") {
+      index -= 1;
+      skipSpace();
+    }
+    let called = false;
+    while (index >= 0 && (text[index] === ")" || text[index] === "]")) {
+      called = true;
+      const open = openingBracket(text, index);
+      if (open === -1) return { tail: tail ?? "", root };
+      index = open - 1;
+      skipSpace();
+    }
+    const end = index + 1;
+    while (index >= 0 && /[\w$]/.test(text[index])) index -= 1;
+    const name = text.slice(index + 1, end);
+    if (tail === null) tail = called ? "" : name;
+    if (name === "") return { tail, root };
+    root = name;
+    skipSpace();
+    if (index >= 0 && text[index] === ".") {
+      index -= 1;
+      continue;
+    }
+    return { tail, root };
   }
-  const end = index + 1;
-  while (index >= 0 && /[\w$]/.test(text[index])) index -= 1;
-  return text.slice(index + 1, end);
 }
 
-/** Does this code compose a capability with `.use(installer)`? */
-export function hasUseComposition(text) {
-  for (const match of text.matchAll(USE_COMPOSITION)) {
-    if (!FOREIGN_USE_RECEIVERS.has(receiverTail(text, match.index))) return true;
-  }
-  return false;
+/** Bindings the fence assigns from an instance factory: `const i18n = createI18n(…)`. */
+function instanceBindings(text) {
+  const names = new Set();
+  const factories = [...INSTANCE_FACTORIES].join("|");
+  const pattern = new RegExp(
+    String.raw`\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?(?:${factories})\s*\(`,
+    "g",
+  );
+  for (const match of text.matchAll(pattern)) names.add(match[1]);
+  return names;
 }
 
 /**
- * A receiver in front of a capability call, in the shapes a doc actually
- * writes. An IDENTIFIER CHAIN (`i18n`, `i18n.core`, `i18n?.core`) is the
- * common one, and the two others are the ones an identifier-only pattern made
- * invisible: a call result (`createI18n({…}).registerPlugin(fn)`,
- * `getI18n().registerPlugin(fn)`) and an element read
- * (`hosts[0].registerPlugin(fn)`). All three carry the same fact — a receiver
- * is present — and a BARE call is still exempt, because
- * `const { registerPlugin } = useI18nPlugins()` names a capability the page
- * already acquired.
+ * Is the member call whose `.` sits at `dotIndex` made on the comvi instance?
+ *
+ * The receiver's own name decides first, then the chain's root: `nuxtApp.$i18n`
+ * is the instance though its root is Nuxt's app, `nuxtApp.vueApp` is Vue's app
+ * though nothing in it is foreign but the tail. A receiver that names neither
+ * is the instance only when the argument proves it (`argument` set and an
+ * installer by name) — `host.use(loader())` is 0.7 composition, `x.use(y)` is
+ * nobody's business.
  */
+function isInstanceCall(text, dotIndex, bindings, argument = null) {
+  const { tail, root } = receiverOf(text, dotIndex);
+  if (INSTANCE_NAMES.has(tail) || bindings.has(tail)) return true;
+  if (FOREIGN_RECEIVERS.has(tail) || FOREIGN_RECEIVERS.has(root)) return false;
+  if (INSTANCE_NAMES.has(root) || bindings.has(root) || INSTANCE_FACTORIES.has(root)) return true;
+  return argument !== null && INSTALLER_ARGUMENT.test(argument);
+}
+
+/** Every `.use(` / `.init(` call the fence makes on the instance. */
+function instanceCalls(text, pattern, { withArgument }) {
+  const bindings = instanceBindings(text);
+  const matches = [];
+  for (const match of text.matchAll(pattern)) {
+    const dot = match.index + match[0].indexOf(".");
+    const argument = withArgument ? text.slice(match.index + match[0].length) : null;
+    if (isInstanceCall(text, dot, bindings, argument)) {
+      matches.push({ index: match.index, text: match[0].replace(/^\?/, "") });
+    }
+  }
+  return matches;
+}
+
+/**
+ * The entry points 0.8 removed, as text — so the rule needs no `packages/`
+ * tree and fires in the www copy too, where `banned/unresolved-comvi-import`
+ * is inert. Core lost `/icu`, `/loader`, `/rich-text`, `/tags` and
+ * `/editor-bridge` (`core-08-compile-foundation.md`); the three plugin
+ * packages are gone; `@comvi/next` lost its root and `/config`
+ * (`next-08-binding.md`), `@comvi/nuxt` its `/setup` (`nuxt-08-binding.md`).
+ * The bare `@comvi/next` only counts quoted, so `@comvi/next/server` and a
+ * sentence naming the package are left alone. In this repo the same import is
+ * also `banned/unresolved-comvi-import` (the surface knows the subpath is
+ * missing); this rule is the half that needs no surface and says what replaced it.
+ */
+const REMOVED_ENTRY_SOURCE =
+  String.raw`@comvi\/(?:core\/(?:loader|icu|rich-text|tags|editor-bridge)|plugin-(?:fetch-loader|locale-detector|in-context-editor)|next\/config|nuxt\/setup)(?![\w-])` +
+  String.raw`|(["'])@comvi\/next\1`;
+const REMOVED_ENTRY = new RegExp(REMOVED_ENTRY_SOURCE, "g");
+
+/** The removed `icu` installer's imported name, `icuCompiler` deliberately excluded. */
+const ICU_INSTALLER_IMPORT = /^\s*(?:type\s+)?(icu)(?![\w$])/;
+
+/** A receiver in front of a capability call (see the registerLoader rule). */
 const CAPABILITY_RECEIVER = String.raw`(?:[A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*|\)|\])`;
 
 /** `<receiver>.<member>(` for a capability member, optional chaining included. */
@@ -384,99 +374,6 @@ const REGISTER_LOADER_CALL = capabilityCallPattern("registerLoader");
 const REGISTER_PLUGIN_CALL = capabilityCallPattern("registerPlugin");
 
 /**
- * The four first-party raw-plugin factories, BY NAME.
- *
- * Wave 6 renamed them from `FetchLoader` / `CdnLoader` / `LocaleDetector` /
- * `InContextEditorPlugin` — names that differed from their installers by letter
- * case alone — to the `*Plugin` suffix. That is better for a reader and worse
- * for this rule: the capital letter WAS the detector, so after the rename
- * `.use(fetchLoaderPlugin())` reads as a bare lowercase call and the pattern
- * below would have waved through the exact mistake the rule exists for.
- *
- * Listed by name rather than matched as a `*Plugin` suffix, and deliberately:
- * `nextPlugin(f, { runtime })` and `nextPluginLazy(…)` END in `Plugin` and are
- * the CORRECT argument to `.use` on a `createNextI18n` result, so a suffix rule
- * would report the next README's own recommended chain. A closed list cannot
- * grow a false positive; it can only go stale, and a fifth first-party plugin
- * package is a repo change with a test beside it.
- */
-const RAW_PLUGIN_FACTORY_NAMES = [
-  "cdnLoaderPlugin",
-  "fetchLoaderPlugin",
-  "localeDetectorPlugin",
-  "inContextEditorPlugin",
-];
-
-/**
- * A raw plugin in the `.use(` slot, in every shape the text can PROVE.
- *
- * Five of them, and the fifth needs no naming convention at all: an inline
- * function or arrow cannot be an installer, because an installer widens the
- * host and returns it, so a literal function in the slot is a raw plugin by
- * construction. Three more are an app's OWN convention — an Uppercase callee —
- * reached directly, through `new`, or through a namespace (`pkg.MyPlugin()`).
- * The last is {@link RAW_PLUGIN_FACTORY_NAMES}, the first-party factories,
- * which no longer announce themselves with a capital.
- *
- * Any other bare lowercase call stays unmatched on purpose: it is
- * indistinguishable from an installer in the text, and the host's runtime
- * identity guard is what catches it.
- */
-const RAW_PLUGIN_IN_USE_SLOT = new RegExp(
-  String.raw`\.use\s*\(\s*(?:` +
-    String.raw`new\s+(?:[A-Za-z_$][\w$]*\s*\.\s*)*[A-Z][\w$]*\s*[(,)]` +
-    String.raw`|(?:[A-Za-z_$][\w$]*\s*\.\s*)*(?:${RAW_PLUGIN_FACTORY_NAMES.join("|")})\s*[(,)]` +
-    String.raw`|(?:[A-Za-z_$][\w$]*\s*\.\s*)+[A-Z][\w$]*\s*\(` +
-    String.raw`|[A-Z][\w$]*\s*[(,)]` +
-    String.raw`|(?:async\s*)?(?:\(|function\b)` +
-    String.raw`)`,
-  "g",
-);
-
-/** Bindings the fence assigns from `createNextI18n(…)`. */
-function nextHostBindings(text) {
-  const names = new Set();
-  for (const match of text.matchAll(
-    /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?createNextI18n\s*\(/g,
-  )) {
-    names.add(match[1]);
-  }
-  return names;
-}
-
-/**
- * The text of the STATEMENT a match sits in, back to the last `;` or blank
- * line.
- *
- * Not back to the last `{`: a chain's own options object
- * (`createNextI18n({ locale: "en" }).use(…)`) closes a brace between the root
- * and the call, so a brace boundary would cut the root off. The limit of the
- * heuristic, stated rather than hidden: a statement with no terminating `;` and
- * a blank line inside it reads as two.
- */
-function statementAt(text, index) {
-  const semicolon = text.lastIndexOf(";", index);
-  const blank = text.lastIndexOf("\n\n", index);
-  return text.slice(Math.max(semicolon + 1, blank + 1, 0), index);
-}
-
-/**
- * Is this `.use(` the `createNextI18n` compat surface?
- *
- * `createNextI18n` keeps every 0.4 capability (MIGRATION.md §5) and its
- * composed host keeps the raw plugin queue, so `result.use(RawPlugin())` on it
- * is a deliberate surviving shape rather than an `E_USE_NOT_INSTALLER` waiting
- * to happen. The factory's `compiler` default is gone, but that is a
- * constructor option and never affected this exemption. Proven two ways: the receiver is a binding the fence assigned from
- * `createNextI18n(…)`, or the statement the call sits in is a chain rooted
- * there.
- */
-function isNextCompatUse(text, index, receiver, nextHosts) {
-  if (receiver !== "" && nextHosts.has(receiver)) return true;
-  return /\bcreateNextI18n\s*\(/.test(statementAt(text, index));
-}
-
-/**
  * The lines of a fence that are real code. In a `diff` fence a `-` line is the
  * BEFORE state — `packages/vue/README.md` shows `-i18n.registerLoader(myLoader);`
  * directly above its replacement — so linting it would flag the very example
@@ -485,123 +382,6 @@ function isNextCompatUse(text, index, receiver, nextHosts) {
 function codeLines(fence) {
   if (fence.lang !== "diff") return fence.lines;
   return fence.lines.filter((line) => !line.text.startsWith("-"));
-}
-
-/**
- * The group key a fence shares with the fences it composes with.
- *
- * `check=group=<id>` is explicit and pools document-wide — that is what it is
- * for. A bare `title=` pools only within one `<TabItem>` body, because the same
- * virtual file name in two tabs is two different apps.
- */
-function groupKey(fence, index) {
-  if (fence.check.group) return `group:${fence.check.group}`;
-  if (fence.title) return `title:${fence.container ?? 0}:${fence.title}`;
-  return `fence:${index}`;
-}
-
-/**
- * Code with line comments, block comments and HTML comments removed, and — when
- * `strings` is set — string literals emptied too.
- *
- * Acquisition evidence has to be evidence. A page that writes
- * `// don't forget .use(loader())` above a bare `registerLoader` is describing
- * the bug, and reading the comment as the fix silences the one rule that would
- * have caught it. Strings go the same way for the chain check, where a token
- * quoted in a message is not a call. They are KEPT for the REQUIRED probes,
- * because there the evidence is often a specifier — `@comvi/core/icu` only ever
- * appears inside quotes. Template literals keep their `${…}` substitutions
- * either way: those are real code.
- */
-function stripNonCode(code, { strings }) {
-  let out = "";
-  let index = 0;
-  while (index < code.length) {
-    const two = code.slice(index, index + 2);
-    if (two === "//") {
-      const end = code.indexOf("\n", index);
-      index = end === -1 ? code.length : end;
-      continue;
-    }
-    if (two === "/*") {
-      const end = code.indexOf("*/", index + 2);
-      index = end === -1 ? code.length : end + 2;
-      continue;
-    }
-    if (code.startsWith("<!--", index)) {
-      const end = code.indexOf("-->", index + 4);
-      index = end === -1 ? code.length : end + 3;
-      continue;
-    }
-    const char = code[index];
-    if (char === '"' || char === "'" || char === "`") {
-      // A quoted run is CONSUMED in both modes, and only the disposal differs.
-      // Without this, `strings: false` walked into the literal character by
-      // character and the `//` in
-      // `createI18n({ baseUrl: "https://cdn.comvi.io/x" }).use(loader())`
-      // read as a line comment, swallowing the `.use(loader())` behind it and
-      // reporting a page that composes correctly as one that never composes.
-      const start = index;
-      index += 1;
-      let depth = 0;
-      let kept = "";
-      let closed = false;
-      while (index < code.length) {
-        const inner = code[index];
-        // `'` and `"` do not span lines in JavaScript, so a run that reaches a
-        // newline unclosed was never a string: `<p>don't</p>` is prose, and
-        // consuming from it to the next apostrophe in the file would delete
-        // real code between them.
-        if (inner === "\n" && char !== "`") break;
-        if (inner === "\\") {
-          index += 2;
-          continue;
-        }
-        if (char === "`" && code.startsWith("${", index)) {
-          depth += 1;
-          kept += "${";
-          index += 2;
-          continue;
-        }
-        if (char === "`" && depth > 0 && inner === "}") {
-          depth -= 1;
-          kept += "}";
-          index += 1;
-          continue;
-        }
-        if (depth === 0 && inner === char) {
-          index += 1;
-          closed = true;
-          break;
-        }
-        if (depth > 0) kept += inner;
-        index += 1;
-      }
-      if (!closed) {
-        index = start + 1;
-        out += char;
-        continue;
-      }
-      // Template substitutions are code in both modes; the quoted text itself
-      // is evidence only when strings are kept (`@comvi/core/icu` lives in
-      // quotes and nowhere else).
-      out += strings ? kept : code.slice(start, index);
-      continue;
-    }
-    out += char;
-    index += 1;
-  }
-  return out;
-}
-
-/** Comments and string literals removed — the form the chain check reads. */
-export function stripCommentsAndStrings(code) {
-  return stripNonCode(code, { strings: true });
-}
-
-/** Comments removed, strings kept — the form the REQUIRED probes read. */
-export function stripComments(code) {
-  return stripNonCode(code, { strings: false });
 }
 
 /** Why a fence is skipped, or `null` when it is linted. */
@@ -655,7 +435,7 @@ const IMPORT_BINDING = /^(\s*)(type\s+)?([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$]
  *
  * `at` is the clause's offset in the fence, and every binding carries its own
  * offset, so a finding lands on the NAME rather than on the line — the same
- * precision `banned/icu-installer` reports its import half with.
+ * precision `banned/icu-compiler` reports its `icu` import half with.
  */
 function parseImportClause(clause, at) {
   const names = [];
@@ -775,9 +555,8 @@ function nameAlternatives(hits, wantValue) {
 }
 
 /**
- * Banned code patterns. `scope` is `"chain"` when an acquisition token in the
- * same chain clears the finding, and `"always"` when the symbol is simply gone
- * from 0.5.0 and nothing can clear it.
+ * Banned code patterns. Each is a fact about the fence it fires in: 0.8 has no
+ * capability a chain could acquire, so nothing elsewhere on the page clears one.
  *
  * `find(text, context)` — the second argument carries the run's package surface
  * and is read by exactly one rule; every other rule reasons from the text alone
@@ -793,14 +572,6 @@ const BANNED_RULES = [
     migration:
       "packages/<pkg>/package.json `exports` and the source each entry is built from " +
       "(resolved statically — see scripts/docs-snippets/surface.mjs)",
-    // "always", like `banned/slim-entry` and `banned/icu-installer`, and for
-    // the same reason those two are: the two chain-scoped rules exist because a
-    // capability is ACQUIRED, so evidence elsewhere in the chain can make the
-    // call legal. An export is not acquired. `@comvi/core/loader` either
-    // publishes `flattenCatalog` or it does not, and nothing another fence in
-    // the group composes can change that — a chain scope here would only give
-    // the finding a way to be silenced by unrelated code.
-    scope: "always",
     find(text, context) {
       const surface = context?.surface;
       // Inert without the workspace sources. The www copy of this module has no
@@ -890,195 +661,47 @@ const BANNED_RULES = [
       "from, so a README fence cannot name API the package does not publish.",
   },
   {
-    id: "banned/register-loader-on-instance",
-    migration: "MIGRATION.md §0 (loader row) and §3 `.use(installer)`",
-    scope: "chain",
-    capability: "loader",
+    id: "banned/use-on-instance",
+    migration:
+      ".changeset/core-08-instance.md (the twelve members) and core-08-cdn-store.md (`cdn`, `api`)",
     find(text) {
-      const matches = [];
-      // `.core` is where the call MOVED (MIGRATION.md §2, §6), not proof the
-      // host can serve it: `createI18n` from `@comvi/vue` wraps a BASE core
-      // (packages/vue/src/createI18n.ts), so `i18n.core.registerLoader(fn)` on
-      // an uncomposed wrapper throws exactly like the 0.4 call it replaced.
-      // The receiver is therefore not exempt — only the chain can clear it.
-      //
-      // Any receiver SHAPE counts, not just an identifier chain:
-      // `createI18n({…}).registerLoader(fn)` and `hosts[0].registerLoader(fn)`
-      // throw exactly as `i18n.registerLoader(fn)` does, and an
-      // identifier-only pattern could not see either. Only a BARE call stays
-      // exempt — see the registerPlugin rule below for why.
-      for (const match of text.matchAll(REGISTER_LOADER_CALL)) {
-        matches.push({ index: match.index, text: match[0] });
-      }
-      return matches;
+      // Every 0.7 `.use(…)` — an installer, a raw plugin, `icu()` — is the
+      // same finding, because 0.8 has one answer for all of them: the
+      // instance has no `use` member, and what it composed is an option.
+      return instanceCalls(text, USE_CALL, { withArgument: true });
     },
     message:
-      "registerLoader() is not on the 0.5.0 base host. Compose the capability in the same chain — " +
-      ".use(loader(map)) or .use(attachLoader), or compose the loader on the base host a " +
-      "VueI18n wraps — `createI18n` from @comvi/core, then createI18nFromCore. There is no " +
-      "`createCore` on @comvi/vue: the name was an alias and it is gone.",
+      "the 0.8 instance has no .use(): pass what it composed as createI18n options — " +
+      "`loader: cdn(url)` (or `api(base, { key })`) from @comvi/core/cdn, " +
+      "`plugins: [detect({ supported }), devtools()]` from @comvi/core/plugins and /devtools. " +
+      "Vue's `app.use(i18n)` is a different verb and stays.",
   },
   {
-    id: "banned/register-plugin-without-plugins",
-    migration: "MIGRATION.md §0 (raw-plugin row) and §4",
-    scope: "chain",
-    capability: "plugins",
+    id: "banned/instance-init",
+    migration: ".changeset/core-08-instance.md (synchronous construction, no `init()`)",
     find(text) {
-      const matches = [];
-      // `registerPlugin` is the 0.5 name of the raw plugin queue — the method
-      // 0.4 called `use(plugin, options)`, renamed to sit beside registerLoader
-      // / registerLocaleDetector (brief E §2). Like registerLoader it is a
-      // CAPABILITY member, so `i18n.core.registerPlugin(…)` on an uncomposed
-      // wrapper throws: the receiver is not an exemption, only the chain is.
-      //
-      // A RECEIVER is required, as in the registerLoader rule: inside a
-      // component fence `const { registerPlugin } = useI18nPlugins()` is the
-      // correct 0.5 shape, and the bare call it leads to names a capability
-      // already acquired.
-      //
-      // "A receiver" is not "an identifier", though, and reading it that way
-      // made four shapes invisible: `createI18n({…}).registerPlugin(fn)`,
-      // `getI18n().registerPlugin(fn)`, `i18n?.registerPlugin(fn)` and
-      // `hosts[0].registerPlugin(fn)` all throw on an uncomposed host, and none
-      // of them puts a plain identifier in front of the dot.
-      for (const match of text.matchAll(REGISTER_PLUGIN_CALL)) {
-        matches.push({ index: match.index, text: match[0] });
-      }
-      return matches;
+      return instanceCalls(text, INIT_CALL, { withArgument: false });
     },
     message:
-      "registerPlugin() needs the plugin capability, absent from the 0.5.0 base host. " +
-      "Compose .use(plugins()) in the same chain, or register the plugin through .use(definePlugin(fn)).",
+      "0.8 constructs synchronously and has no init(): await `i18n.ready` for the first " +
+      "load, or `i18n.load(ns)` / `i18n.setLocale(locale)` for a later one.",
   },
   {
-    id: "banned/slim-entry",
-    migration: "MIGRATION.md §3 (Renames: `@comvi/<pkg>/slim` and `createSlimI18n`)",
-    scope: "always",
+    id: "banned/icu-compiler",
+    migration: ".changeset/core-08-compile-foundation.md (one grammar, ICU MessageFormat)",
     find(text) {
       const matches = [];
-      for (const match of text.matchAll(
-        /@comvi\/[a-z-]+(?:\/[a-z-]+)*\/slim\b|\bcreateSlimI18n\b/g,
-      )) {
+      // `compiler: icuCompiler`, its import and any other mention of the name:
+      // 0.8 compiles ICU MessageFormat always, and has no `compiler` option.
+      for (const match of text.matchAll(/\bicuCompiler\b/g)) {
         matches.push({ index: match.index, text: match[0] });
       }
-      return matches;
-    },
-    message:
-      "the slim entry is gone in 0.5.0 — each package publishes ONE entry. " +
-      "Use `@comvi/<pkg>` and `createI18n`.",
-  },
-  {
-    id: "banned/raw-plugin-in-use-slot",
-    migration: "MIGRATION.md §4 and §7 (`E_USE_NOT_INSTALLER`)",
-    scope: "always",
-    find(text) {
-      const matches = [];
-      // The premise of this rule INVERTED at decision E. While there were two
-      // verbs, an installer in the `.use()` slot was the mistake. Now `.use()`
-      // is the only verb and an installer is exactly what belongs in it; the
-      // mistake is the other argument — a RAW plugin, which every package
-      // spells as a `*Plugin` factory (`fetchLoaderPlugin()`,
-      // `localeDetectorPlugin()`, `inContextEditorPlugin()`) and an app spells
-      // as its own function.
-      //
-      // The host's guard is an IDENTITY check: an installer widens the host in
-      // place and hands the SAME object back, so `.use` throws
-      // `E_USE_NOT_INSTALLER` unless the return value is the host it was
-      // given. That is what catches a raw plugin whatever it returns —
-      // nothing, a cleanup function, or (an async plugin) a Promise, which a
-      // shape check would have waved through as an object.
-      //
-      // The four first-party factory NAMES are the detectable half, along
-      // with an Uppercase callee (an app's own convention) and an INLINE
-      // function: an installer returns the host it was given, so a literal
-      // function or arrow in the slot cannot be one, and `definePlugin` is
-      // what wraps it. Any OTHER bare lowercase call is indistinguishable from
-      // an installer in the text, and the runtime guard is what catches it;
-      // this rule does not guess. `icu` is still deliberately absent — it is not a
-      // plugin in the wrong slot, it is a name that no longer exists, and
-      // `banned/icu-installer` below reports it with the message that says
-      // replace rather than rewrap.
-      //
-      // The RECEIVER is an exemption here, unlike the two capability rules
-      // above, and it has to be: `app.use(Vuetify)`, `nuxtApp.vueApp.use(Antd)`
-      // and `i18next.use(HttpBackend)` are somebody else's verb taking
-      // somebody else's plugin (brief E, hard rule 4). Those pages are correct,
-      // nothing in a comvi chain could ever clear the finding, and an
-      // unclearable finding on a correct page is how a pinned baseline moves.
-      const nextHosts = nextHostBindings(text);
-      for (const match of text.matchAll(RAW_PLUGIN_IN_USE_SLOT)) {
-        const receiver = receiverTail(text, match.index);
-        if (FOREIGN_PLUGIN_RECEIVERS.has(receiver)) continue;
-        if (isNextCompatUse(text, match.index, receiver, nextHosts)) continue;
-        matches.push({ index: match.index, text: match[0] });
-      }
-      return matches;
-    },
-    message:
-      "a raw plugin is not an installer: .use() expects one, so this throws E_USE_NOT_INSTALLER. " +
-      "Use the package's installer — the name without the Plugin suffix (localeDetector(), not " +
-      "localeDetectorPlugin()) — or wrap " +
-      "your own plugin as .use(definePlugin(fn)).",
-  },
-  {
-    id: "banned/with-composition",
-    migration: "MIGRATION.md §3 (`.use(installer)` — composing a capability)",
-    scope: "always",
-    find(text) {
-      const matches = [];
-      // No provenance check, and none is wanted: a foreign-import fence is
-      // already skipped by RULE (`skipCategory`), so a `.with(` reaching this
-      // rule sits in a comvi fence, where `.with` named exactly one thing —
-      // the composition verb that decision E retired. Leaving it to the
-      // type-checker is not an option either: most site fences never import
-      // the host they compose, so nothing would ever fail on them.
-      //
-      // `.with(icu(` is left to `banned/icu-installer`: one call site, one
-      // finding, and there the fix is to replace the call with a constructor
-      // option rather than to rename the verb around it.
-      //
-      // The ARGUMENT is tested, though, because `with` is not a comvi-only
-      // word: `date.with({ month: 2 })` is Temporal and `locales.with(0, "en")`
-      // is Array.prototype.with, both flagged with nothing but `check=skip` to
-      // escape with. A composition step hands `with` a CALL — the installer —
-      // or a bare `attach*` reference; a plain object, a number or a string
-      // argument is somebody else's `with` and is none of our business.
-      for (const match of text.matchAll(
-        /\.with\s*\((?!\s*icu\s*\()\s*(?:[A-Za-z_$][\w$]*\s*\(|attach(?:Loader|Plugins|Devtools)\b)/g,
-      )) {
-        matches.push({ index: match.index, text: match[0] });
-      }
-      return matches;
-    },
-    message: "the composition verb is `.use(...)`: `.with` is gone in 0.5.0, with no alias.",
-  },
-  {
-    id: "banned/icu-installer",
-    migration: "MIGRATION.md §0 (ICU row)",
-    scope: "always",
-    find(text) {
-      const matches = [];
-      // BOTH spellings: the name is gone either way. `.use(icu())` is what a
-      // reader writes after decision E, `.with(icu())` what a 0.4 page still
-      // says, and both get THIS message — not `banned/with-composition`, whose
-      // fix would rename the verb around a call that has to go.
-      //
-      // The asymmetry with the import half below is deliberate: this half has no
-      // `@comvi/*` provenance check, because a fence can call `icu()` without
-      // importing anything (the site's fences routinely omit the imports), and a
-      // bare `icu()` in the installer position of a comvi chain is not plausibly
-      // a reader's own helper. The import half can and does demand provenance.
-      for (const match of text.matchAll(/\.(?:with|use)\s*\(\s*icu\s*\(/g)) {
-        matches.push({ index: match.index, text: match[0] });
-      }
-      // The import is the other half, and the half that survives an alias:
-      // `import { icu as installIcu }` writes `installIcu()` at the call site,
-      // which no call-shape regex can tell from a local helper. The IMPORTED
-      // name is the fact. Specifiers are read one at a time so only the imported
-      // name is inspected — `icuCompiler as icu` renames a live export and is
-      // not this finding.
-      // The optional `+` is a diff fence's ADDED line: `codeLines` already
-      // dropped the `-` side, and an added import is code the reader copies.
+      // The removed `icu` installer, by its IMPORTED name — the half that
+      // survives an alias: `import { icu as installIcu }` writes
+      // `installIcu()` at the call site. Its call `.use(icu())` is
+      // `banned/use-on-instance`. Specifiers are read one at a time so only
+      // the imported name is inspected. The optional `+` is a diff fence's
+      // ADDED line: `codeLines` already dropped the `-` side.
       const importRe =
         /(?:^|[\n;])[^\S\n]*\+?[^\S\n]*(?:import|export)\s+(?:type\s+)?\{([^}]*)\}\s*from\s*(["'])(@comvi\/[^"']*)\2/g;
       for (const match of text.matchAll(importRe)) {
@@ -1099,15 +722,109 @@ const BANNED_RULES = [
       return matches;
     },
     message:
-      "the icu() installer was removed: ICU is a compiler setting, not a capability, so no " +
-      "`.use(...)` composes it. Pass `compiler: icuCompiler` in the constructor options — " +
-      "it works for inline, loader, CDN and API catalogs alike.",
+      "0.8 compiles ICU MessageFormat (plural, select, selectordinal, `#`) with no option: " +
+      "there is no `compiler` option, no `icuCompiler` and no `icu()` installer. Delete it.",
+  },
+  {
+    id: "banned/removed-entry",
+    migration:
+      ".changeset/core-08-compile-foundation.md (removed subpaths), next-08-binding.md, " +
+      "nuxt-08-binding.md; the packages' `exports` maps",
+    find(text) {
+      const matches = [];
+      for (const match of text.matchAll(REMOVED_ENTRY)) {
+        matches.push({ index: match.index, text: match[0].replace(/["']/g, "") });
+      }
+      return matches;
+    },
+    message:
+      "this entry point is gone in 0.8. @comvi/core publishes `.`, /cdn, /plugins, /format, " +
+      "/devtools and /ssr (ICU and rich text are built in, the fetch loader is `cdn` from " +
+      "/cdn, the detector `detect` from /plugins, the editor `devtools()`); @comvi/next " +
+      "publishes /server, /client and its routing entries but no root; @comvi/nuxt has no /setup.",
+  },
+  {
+    id: "banned/register-loader-on-instance",
+    migration: ".changeset/core-08-instance.md (the `loader` option)",
+    find(text) {
+      // Any receiver SHAPE counts, not just an identifier chain:
+      // `createI18n({…}).registerLoader(fn)` and `hosts[0].registerLoader(fn)`
+      // are the same mistake as `i18n.registerLoader(fn)`. Only a BARE call is
+      // exempt — it is a reader's own function of that name.
+      const matches = [];
+      for (const match of text.matchAll(REGISTER_LOADER_CALL)) {
+        matches.push({ index: match.index, text: match[0] });
+      }
+      return matches;
+    },
+    message:
+      "registerLoader() is not on the 0.8 instance: pass `loader` to createI18n — " +
+      "`loader: cdn(url)` from @comvi/core/cdn, or your own `(locale, ns, signal) => catalog`.",
+  },
+  {
+    id: "banned/register-plugin-without-plugins",
+    migration: ".changeset/core-08-instance.md (the `plugins` option)",
+    find(text) {
+      // A RECEIVER is required, as in the registerLoader rule, and in any shape:
+      // `createI18n({…}).registerPlugin(fn)`, `getI18n().registerPlugin(fn)`,
+      // `i18n?.registerPlugin(fn)`, `hosts[0].registerPlugin(fn)`.
+      const matches = [];
+      for (const match of text.matchAll(REGISTER_PLUGIN_CALL)) {
+        matches.push({ index: match.index, text: match[0] });
+      }
+      return matches;
+    },
+    message:
+      "registerPlugin() is not on the 0.8 instance: list plugins in the constructor, " +
+      "`plugins: [detect({ supported }), devtools(), myPlugin]`.",
+  },
+  {
+    id: "banned/slim-entry",
+    migration: "MIGRATION.md §3 (Renames: `@comvi/<pkg>/slim` and `createSlimI18n`)",
+    find(text) {
+      const matches = [];
+      for (const match of text.matchAll(
+        /@comvi\/[a-z-]+(?:\/[a-z-]+)*\/slim\b|\bcreateSlimI18n\b/g,
+      )) {
+        matches.push({ index: match.index, text: match[0] });
+      }
+      return matches;
+    },
+    message:
+      "the slim entry is gone in 0.5.0 — each package publishes ONE entry. " +
+      "Use `@comvi/<pkg>` and `createI18n`.",
+  },
+  {
+    id: "banned/with-composition",
+    migration: "MIGRATION.md §3 and .changeset/core-08-instance.md",
+    find(text) {
+      const matches = [];
+      // No provenance check, and none is wanted: a foreign-import fence is
+      // already skipped by RULE (`skipCategory`), so a `.with(` reaching this
+      // rule sits in a comvi fence, where `.with` named exactly one thing —
+      // the composition verb that decision E retired, and that 0.8 has no
+      // replacement for either.
+      //
+      // The ARGUMENT is tested, though, because `with` is not a comvi-only
+      // word: `date.with({ month: 2 })` is Temporal and `locales.with(0, "en")`
+      // is Array.prototype.with. A composition step hands `with` a CALL — the
+      // installer — or a bare `attach*` reference; a plain object, a number or
+      // a string argument is somebody else's `with` and is none of our business.
+      for (const match of text.matchAll(
+        /\.with\s*\(\s*(?:[A-Za-z_$][\w$]*\s*\(|attach(?:Loader|Plugins|Devtools)\b)/g,
+      )) {
+        matches.push({ index: match.index, text: match[0] });
+      }
+      return matches;
+    },
+    message:
+      "`.with(...)` composition is gone (0.5.0) and 0.8 has no composition verb at all: pass " +
+      "`loader` and `plugins` to createI18n.",
   },
   {
     id: "banned/removed-svelte-api",
     migration:
       "MIGRATION.md §3 (`@comvi/svelte`: allowedTags removed, createLanguageStore removed)",
-    scope: "always",
     find(text) {
       const matches = [];
       for (const match of text.matchAll(/\ballowedTags\b|\bcreateLanguageStore\b/g)) {
@@ -1121,22 +838,22 @@ const BANNED_RULES = [
   },
   {
     id: "banned/devtools-options-on-constructor",
-    migration: "MIGRATION.md §3 (Renames: `exposeGlobal` / `instanceId`) and §0.3",
-    scope: "always",
+    migration: ".changeset/core-08-editor-seams.md (`devtools()`, no options)",
     find(text) {
-      if (!/\bcreateI18n\s*\(|\bnew I18n\s*\(|\bcreateCore\s*\(/.test(text)) return [];
-      if (/\bdevtools\s*\(/.test(text)) return [];
+      if (!/\bcreateI18n\s*\(|\bdevtools\s*\(/.test(text)) return [];
       const matches = [];
       // Lookbehind rather than a consumed leading character: consuming it put
       // the reported column one to the left of the symbol.
-      for (const match of text.matchAll(/(?<![\w.$])(exposeGlobal|instanceId)\s*:/g)) {
+      for (const match of text.matchAll(
+        /(?<![\w.$])(exposeGlobal|instanceId|editorVersion)\s*:/g,
+      )) {
         matches.push({ index: match.index, text: match[1] });
       }
       return matches;
     },
     message:
-      "discovery is opt-in in 0.5.0: exposeGlobal / instanceId moved off the constructor " +
-      "into .use(devtools({ … })).",
+      "removed in 0.8: discovery is `plugins: [devtools()]` and devtools() takes no options — " +
+      "exposeGlobal, instanceId and editorVersion are gone, the extension picks the editor version.",
   },
 ];
 
@@ -1149,46 +866,45 @@ const BANNED_RULES = [
 const PROSE_RULES = [
   {
     id: "prose/register-loader-is-core-method",
-    migration: "MIGRATION.md §0 (loader row) and §3",
+    migration: "MIGRATION.md §0 (loader row) and §3; .changeset/core-08-instance.md",
     pattern: /registerLoader[^\n]{0,60}\bis (?:a|an) (?:method|member)\b/i,
     message:
-      "false since 0.5.0: registerLoader is not a member of the base host — it arrives with " +
-      ".use(loader()) / attachLoader.",
+      "false in 0.8: registerLoader is not a member of the instance — the loader is the " +
+      "`loader` option of createI18n.",
   },
   {
     id: "prose/capability-member-on-core",
-    migration: "MIGRATION.md §1 and §2",
+    migration: "MIGRATION.md §1 and §2; .changeset/core-08-instance.md",
     pattern:
       /(?:reloadMessages|addActiveNamespace|onMissingKey|onLoadError)[^\n]{0,80}\bis (?:a|an) (?:method|member)\b/i,
     message:
-      "false since 0.5.0: the loader and plugin members are not on the base host — they come " +
-      "from useI18nLoader() / useI18nPlugins().",
+      "false in 0.8: the instance has twelve members and none of these — `load(ns)` loads " +
+      "and retries, the `onError` and `missing` options report.",
   },
   {
     id: "prose/capability-member-from-use-i18n",
-    migration: "MIGRATION.md §1 and §2 (the migration table)",
+    migration: "MIGRATION.md §1 and §2 (the migration table); .changeset/core-08-instance.md",
     pattern:
       /\b(?:reloadMessages|addActiveNamespaces?|onMissingKey|onLoadError)\b[^\n]{0,80}\bfrom\s+`?useI18n\(\)/i,
     message:
-      "useI18n() no longer returns loader or plugin members in 0.5.0 — use useI18nLoader() " +
-      "or useI18nPlugins().",
+      "false in 0.8: no useI18n() returns loader or plugin members — `load(ns)` is on the " +
+      "instance, and the `onError` and `missing` options report.",
   },
   {
     id: "prose/use-i18n-returns-capability",
-    migration: "MIGRATION.md §1 and §2 (the migration table)",
+    migration: "MIGRATION.md §1 and §2 (the migration table); .changeset/core-08-instance.md",
     pattern:
       /useI18n\(\)[^\n]{0,120}\b(?:returns?|provides?|includes?|exposes?)\b[^\n]{0,120}\b(?:reloadMessages|addActiveNamespaces?|onMissingKey|onLoadError)\b/i,
     message:
-      "useI18n() no longer returns loader or plugin members in 0.5.0 — use useI18nLoader() " +
-      "or useI18nPlugins().",
+      "false in 0.8: no useI18n() returns loader or plugin members — `load(ns)` is on the " +
+      "instance, and the `onError` and `missing` options report.",
   },
   {
     id: "prose/clear-messages-deactivates",
-    migration: "MIGRATION.md §7 (clearMessages clears content, never intent)",
+    migration:
+      "MIGRATION.md §7 (clearMessages clears content, never intent); .changeset/core-08-instance.md",
     pattern: /clearMessages[^\n]{0,100}\b(?:deactivates|stops serving|removes the namespace)\b/i,
-    message:
-      "since 0.5.0 clearMessages() clears CONTENT only — deactivation moved to " +
-      "removeActiveNamespace(ns) on the loader capability.",
+    message: "false in 0.8: the instance has no clearMessages(); `add()` patches a catalog.",
   },
 ];
 
@@ -1366,27 +1082,7 @@ export function lintDocument({ file, source, sdkVersion, surface, sizeBaselines 
     });
   }
 
-  // Chain scope: every fence sharing a group key pools its acquisition tokens,
-  // read from code with comments and string literals stripped.
-  const chainText = new Map();
-  fences.forEach((fence, index) => {
-    if (!CODE_LANGS.has(fence.lang)) return;
-    // A skipped fence contributes no evidence, only noise: a
-    // `check=skip:historical` 0.3 example or a quoted competitor block sharing a
-    // `title=` with its linted sibling would otherwise hand that sibling a
-    // `.use(loader())` nobody in 0.5 wrote. Same exclusion the ICU probe makes
-    // below, for the same reason.
-    if (skipCategory(fence) !== null) return;
-    const key = groupKey(fence, index);
-    const code = stripCommentsAndStrings(
-      codeLines(fence)
-        .map((line) => line.text)
-        .join("\n"),
-    );
-    chainText.set(key, (chainText.get(key) ?? "") + "\n" + code);
-  });
-
-  fences.forEach((fence, index) => {
+  fences.forEach((fence) => {
     const category = skipCategory(fence);
     if (category !== null) {
       skips[category] = (skips[category] ?? 0) + 1;
@@ -1429,13 +1125,8 @@ export function lintDocument({ file, source, sdkVersion, surface, sizeBaselines 
 
     const lines = codeLines(fence);
     const text = lines.map((line) => line.text).join("\n");
-    const chain = chainText.get(groupKey(fence, index)) ?? stripCommentsAndStrings(text);
 
     for (const rule of BANNED_RULES) {
-      if (rule.scope === "chain") {
-        const tokens = rule.capability === "loader" ? LOADER_TOKENS : PLUGIN_TOKENS;
-        if (hasAny(tokens, chain)) continue;
-      }
       for (const match of rule.find(text, { surface })) {
         const at = locate(lines, match.index);
         findings.push({
@@ -1486,83 +1177,9 @@ export function lintDocument({ file, source, sdkVersion, surface, sizeBaselines 
   }
 
   // REQUIRED — what the page must say, which no type-checker can ever notice.
-  // Read from the LINTED FENCES, never from `source`: a `.use(` in a prose
-  // sentence, a comparison table or a `check=skip` competitor block is not code
-  // the reader can run, and one migrated tab must not green a page of 0.4 tabs.
-  // Catalogs are usually JSON, so the ICU probe reads every fence that can hold
-  // a message, not just the ones written in TypeScript.
-  const catalogFences = fences.filter(
-    (fence) =>
-      (CODE_LANGS.has(fence.lang) || CATALOG_LANGS.has(fence.lang)) && skipCategory(fence) === null,
-  );
-  const lintedCode = fences
-    .filter((fence) => CODE_LANGS.has(fence.lang) && skipCategory(fence) === null)
-    .map((fence) =>
-      stripComments(
-        codeLines(fence)
-          .map((line) => line.text)
-          .join("\n"),
-      ),
-    )
-    .join("\n");
-
-  // The ICU requirement asks whether the PAGE warns its reader that the default
-  // compiler will not render the argument it just showed — a page-level claim
-  // with one answer per host, so a prose sentence is evidence and `.use(` is
-  // not the point. Two things must never count: a `check=skip` fence, because a
-  // competitor block quoting `icuCompiler` would vouch for the whole page; and
-  // the frontmatter, where `description: "… icuCompiler …"` is metadata about
-  // the page rather than a warning inside it.
-  //
-  // The limit of the rule, stated so nobody mistakes it for more: this is a
-  // PRESENCE probe, not a semantic one. A page that writes "we do NOT use
-  // `icuCompiler` here" satisfies it. That is deliberate — the alternative is
-  // parsing English — and the rule's job is to catch the page that never raises
-  // the compiler question at all, which is the shape the 0.4 corpus actually has.
-  const skippedLines = new Set();
-  for (const fence of fences) {
-    if (skipCategory(fence) === null) continue;
-    for (let line = fence.line; line <= fence.endLine; line += 1) skippedLines.add(line);
-  }
-  const frontmatterLines = source.match(/^---\r?\n[\s\S]*?\r?\n---/)?.[0].split("\n").length ?? 0;
-  const icuEvidence = source
-    .split("\n")
-    .filter((_, index) => index >= frontmatterLines && !skippedLines.has(index + 1))
-    .join("\n");
-
-  if (classes.has("framework") && !hasUseComposition(lintedCode)) {
-    findings.push({
-      file,
-      line: 1,
-      col: 1,
-      rule: "required/use-composition",
-      message:
-        "a framework page or quick-start whose code never writes `.use(installer)` documents the " +
-        "0.4 batteries-included host. Show how the page's capability is composed, in a fence " +
-        "(Vue's own `app.use(i18n)` is a different verb and does not count).",
-      migration: "MIGRATION.md §3 `.use(installer)` — composing a capability",
-    });
-  }
-
-  const icuHit = catalogFences
-    .flatMap((fence) => codeLines(fence))
-    .find((line) => ICU_SYNTAX.test(line.text));
-  if (icuHit && !hasAny(ICU_TOKENS, icuEvidence)) {
-    const hit = icuHit;
-    findings.push({
-      file,
-      line: hit?.srcLine ?? 1,
-      col: hit?.srcCol ?? 1,
-      rule: "required/icu-compiler",
-      message:
-        "this page shows an ICU argument, and the 0.5.0 default compiler does not render it: " +
-        "dev throws at ingestion, production renders the braces literally. Name " +
-        "`compiler: icuCompiler` from @comvi/core/icu — the one enable form, for every catalog " +
-        "source.",
-      migration: "MIGRATION.md §0 (ICU row) and §0.1 (the compiler is a constructor option)",
-    });
-  }
-
+  // Since 0.8 only the API pages' version stamp is left: the two 0.7
+  // requirements (`.use(installer)` on a framework page, `compiler: icuCompiler`
+  // beside an ICU catalog) asked for API that 0.8 removed, and are banned above.
   if (classes.has("api")) {
     const stamp = readVersionStamp(source, frontmatter);
     if (!stamp) {
@@ -1601,9 +1218,6 @@ export function lintDocument({ file, source, sdkVersion, surface, sizeBaselines 
       // `registerLoader` in a sentence and a table without ever calling it, and
       // whoever rewrites those pages still has to read them.
       registerLoaderMentions: [...source.matchAll(/\bregisterLoader\b/g)].length,
-      // Same definition the requirement uses: `.use(` in a table or a sentence
-      // is not code a reader can run, and `app.use(i18n)` is not composition.
-      hasUse: hasUseComposition(lintedCode),
     },
   };
 }
@@ -1624,10 +1238,9 @@ function readVersionStamp(source, frontmatter) {
 }
 
 /**
- * Every `x.registerLoader(` call site in a document, exempt or not. The gate
- * reports this beside the findings because the D3–D5 rewrite budget is measured
- * in call sites, not in errors: a call the chain scope clears still has to be
- * read by whoever rewrites the page.
+ * Every `x.registerLoader(` call site in a document. The gate reports this
+ * beside the findings because a rewrite budget is measured in call sites, not
+ * in errors.
  */
 function countRegisterLoaderCalls(fences) {
   let count = 0;

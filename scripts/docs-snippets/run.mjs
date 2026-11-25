@@ -308,25 +308,19 @@ export function formatReport({ files, findings, stats, typeStats = [], sfcStats 
     for (const [rule, count] of [...byRule].sort()) lines.push(`    ${rule}: ${count}`);
   }
 
-  // The divergence baseline D3–D5 is measured against: which pages still call
-  // registerLoader on an instance, and which owe a `.use(` they never write.
-  // Call sites and mentions are counted separately on purpose — a page that only
-  // NAMES registerLoader in a sentence is not a lint failure, but it is still a
-  // page the rewrite has to touch.
+  // Which pages still call or name registerLoader. Call sites and mentions are
+  // counted separately on purpose — a page that only NAMES registerLoader in a
+  // sentence is not a lint failure, but it is still a page the rewrite has to
+  // touch. Every call site is a finding since 0.8 (no chain can clear one).
   const flagged = new Set(
     findings.filter((f) => f.rule === "banned/register-loader-on-instance").map((f) => f.file),
   );
   const callers = stats.filter((stat) => stat.registerLoaderCalls > 0);
   const mentions = stats.filter((stat) => stat.registerLoaderMentions > 0);
-  const missingUse = stats.filter((stat) => stat.classes.includes("framework") && !stat.hasUse);
   if (mentions.length > 0) {
     lines.push(`  pages mentioning registerLoader at all: ${mentions.length}`);
     for (const stat of mentions) {
-      const mark = flagged.has(stat.file)
-        ? "banned"
-        : stat.registerLoaderCalls > 0
-          ? "call site, chain-exempt"
-          : "prose only";
+      const mark = flagged.has(stat.file) ? "banned" : "prose only";
       lines.push(
         `    ${stat.file} — ${stat.registerLoaderCalls} call site(s), ${stat.registerLoaderMentions} mention(s) [${mark}]`,
       );
@@ -334,10 +328,6 @@ export function formatReport({ files, findings, stats, typeStats = [], sfcStats 
     lines.push(
       `  of those, pages with a banned registerLoader call: ${flagged.size} (call sites on ${callers.length} pages)`,
     );
-  }
-  if (missingUse.length > 0) {
-    lines.push(`  framework pages missing .use(installer): ${missingUse.length}`);
-    for (const stat of missingUse) lines.push(`    ${stat.file}`);
   }
 
   if (typeStats.length > 0 || sfcStats.length > 0) {

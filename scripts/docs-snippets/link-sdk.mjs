@@ -37,11 +37,12 @@
  *   - **Identity.** `node_modules/@comvi/core/package.json` must still carry
  *     the workspace's version, which catches a stale tarball from an earlier
  *     version left in a package directory.
- *   - **Shape.** `loader` must resolve THROUGH THE SPECIFIER
- *     `@comvi/core/loader`, never through a `dist/` path, because resolving the
+ *   - **Shape.** `cdn` must resolve THROUGH THE SPECIFIER `@comvi/core/cdn`
+ *     (`SHAPE_PROBE`), never through a `dist/` path, because resolving the
  *     specifier is what exercises the published `exports` map — the thing a
- *     reader's bundler uses and the thing this gate exists to check. `loader`
- *     is 0.5-only besides: in 0.4 the capability was a method on the host.
+ *     reader's bundler uses and the thing this gate exists to check. `/cdn` is
+ *     0.8-only besides: 0.7 published the fetch loader as `/loader` and a
+ *     plugin package, and the 0.8 core removed both.
  */
 
 import fs from "node:fs";
@@ -268,7 +269,10 @@ export function registryResolutions(lockfile) {
   return comviResolutions(lockfile).filter((entry) => !/^(file:|link:)/.test(entry.reference));
 }
 
-export async function assertInstall(dir, packages) {
+/** The 0.8 entry point and export `assertInstall` proves the installed core by. */
+export const SHAPE_PROBE = { specifier: "@comvi/core/cdn", name: "cdn" };
+
+export async function assertInstall(dir, packages, probe = SHAPE_PROBE) {
   const core = packages.find((pkg) => pkg.name === "@comvi/core");
   if (!core) throw new Error("@comvi/core is not among the workspace packages");
 
@@ -316,21 +320,21 @@ export async function assertInstall(dir, packages) {
 
   let entry;
   try {
-    entry = createRequire(path.join(dir, "package.json")).resolve("@comvi/core/loader");
+    entry = createRequire(path.join(dir, "package.json")).resolve(probe.specifier);
   } catch (error) {
     throw new Error(
-      "`@comvi/core/loader` does not resolve from the install — the published `exports` map " +
+      `\`${probe.specifier}\` does not resolve from the install — the published \`exports\` map ` +
         `lost the subpath: ${error.message}`,
     );
   }
-  const loaderModule = await import(pathToFileURL(entry).href);
-  if (typeof loaderModule.loader !== "function") {
+  const probed = await import(pathToFileURL(entry).href);
+  if (typeof probed[probe.name] !== "function") {
     throw new Error(
-      "`loader` does not resolve from @comvi/core/loader in the installed package — " +
-        "this is a 0.4 build, where the capability was a method on the host.",
+      `\`${probe.name}\` does not resolve from ${probe.specifier} in the installed package — ` +
+        "this is not the 0.8 build the docs are checked against.",
     );
   }
-  return { version, entry, symbols: Object.keys(loaderModule).sort() };
+  return { version, entry, symbols: Object.keys(probed).sort() };
 }
 
 /**
@@ -433,8 +437,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     });
     console.error(
       `link-sdk: ${result.packages.length} packages, every @comvi resolution is a local tarball, ` +
-        `@comvi/core@${result.proof.version} verified, \`loader\` resolves through ` +
-        `@comvi/core/loader (${result.proof.entry}).`,
+        `@comvi/core@${result.proof.version} verified, \`${SHAPE_PROBE.name}\` resolves through ` +
+        `${SHAPE_PROBE.specifier} (${result.proof.entry}).`,
     );
     console.error("link-sdk: pass this to the gate as --sdk-root:");
     console.log(result.dir);
