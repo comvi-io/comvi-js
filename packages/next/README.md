@@ -17,8 +17,9 @@
 
 ---
 
-`@comvi/next` translates Server Components with an i18n instance per request and hands what they
-rendered to Client Components as data: same first paint, no catalog fetched. App Router only.
+`@comvi/next` is the Next.js App Router binding of Comvi i18n: a server helper with an i18n instance
+per request, a provider that hands the server's catalogs to Client Components, and locale routing.
+Define the routing, create `getI18n()`, and wrap the layout in `<I18nProvider>`.
 
 ## Install
 
@@ -27,7 +28,9 @@ npm install @comvi/next @comvi/react @comvi/core
 # Peers: next ^15.5.29 || ^16.4.5, react ^19.3.1
 ```
 
-`@comvi/next` asks for `@comvi/react` and `@comvi/core` at exactly its own version: `@comvi/core` and every binding in an app must be on one version. From 0.8 on, two copies of `@comvi/core` (two versions, or one version installed twice) throw an error that names both versions.
+`@comvi/next` asks for `@comvi/react` and `@comvi/core` at exactly its own version: `@comvi/core`
+and every binding in an app must be on one version, and two copies of `@comvi/core` (two versions,
+or one version installed twice) throw an error that names both versions.
 
 ## Setup
 
@@ -39,7 +42,7 @@ import { defineRouting } from "@comvi/next/routing";
 export const routing = defineRouting({ locales: ["en", "uk"], defaultLocale: "en" });
 ```
 
-The one place for the settings, in `src/i18n/server.ts` (server only: the entry imports `server-only`):
+The one place for the settings, in `src/i18n/server.ts` (server only; `timeZone` is required):
 
 ```ts title="src/i18n/server.ts" check=group=next-1
 import { createGetI18n } from "@comvi/next/server";
@@ -51,6 +54,10 @@ export const getI18n = createGetI18n({
   timeZone: "UTC",
   loader: async (locale, ns) =>
     (await import(`../locales/${ns === "default" ? locale : `${ns}/${locale}`}.json`)).default,
+  onError(error) {
+    if (error.code === "load_failed")
+      console.error(`No catalog for ${error.locale}/${error.ns}`, error.cause);
+  },
 });
 ```
 
@@ -79,90 +86,128 @@ export default async function Layout(props: {
 }
 ```
 
-`getI18n({ locale })` checks the locale against `locales` (else `notFound()`), reads no request API
-(a static page stays static) and returns this request's instance, its catalogs loaded once per
-request. The server `<I18nProvider>` hands the browser data only: `handover(i18n)` (catalogs, a
-failed one as `null`, locale, time zone, clock) and the instance's `fallbackLocale` and `formats`.
-Translation params go to each `t()` call; server data a Client Component needs reaches it as an
-ordinary prop. Tag handlers go with the translation (params) or through `components` (below).
-The loader, callbacks and other options stay on the server.
-
-## Typed keys
-
-Pass `types` to write the declaration that makes `t()` check keys and parameters from your JSON
-catalogs:
-
-```ts title="next.config.ts"
-import { withComvi } from "@comvi/next/plugin";
-
-export default withComvi({ types: { from: "./src/locales", sourceLocale: "en" } })({});
-```
-
-`next dev` writes `src/types/i18n.d.ts` and rewrites it on every catalog change; `next build`
-writes it once, before Next type-checks. With `types: { check: true }`, `next build` writes nothing
-and fails when the committed file is stale. The file is the same, byte for byte, as
-`comvi typegen --from`; the options are those of
-[`@comvi/vite-plugin`](https://www.npmjs.com/package/@comvi/vite-plugin) (`out`, `fileTemplate`,
-`augment`); every param a message uses is required in `t()`. With `types`, `withComvi(...)` returns the function form of the config,
-which is how Next passes the phase. It generates once per `next build` process: run each build as
-its own command, as a shell or CI does; a second build started inside the same Node process reuses
-the first one's result.
+`getI18n({ locale })` answers `notFound()` for a locale outside `locales`, reads no request API and
+returns this request's i18n instance with its catalogs loaded. The server `<I18nProvider>` hands the
+browser data only: the catalogs, the locale, the time zone and the `fallbackLocale` and `formats`
+settings. The loader and `onError` stay on the server.
 
 ## Use in components
 
-A Server Component asks for the namespaces it needs (`t` reads the first; without `ns`, `default`);
-a page that needs more than its layout hands its own payload over, in `src/app/[locale]/account/page.tsx`:
+A Server Component calls `const { t } = await getI18n({ locale, ns: "account" })` for the namespaces
+it needs; a tag handler goes to `t()` as a param,
+`t("terms", { link: (text) => <a href="/terms">{text}</a> })`. A page that needs more namespaces
+than its layout wraps its content in its own `<I18nProvider i18n={i18n}>`. A Client Component reads
+through `@comvi/react` (`useI18n(ns)`, `<T>`, `useLocale()`, `useFormat()` from
+`@comvi/react/format`), and the browser loads nothing: it reads the catalogs the server handed over
+([Server and Client Components](https://comvi.io/docs/i18n/guides/next-server-client)).
 
-```tsx title="src/app/[locale]/account/page.tsx" check=group=next-1
-import { I18nProvider } from "@comvi/next/server";
-import { getI18n } from "@/i18n/server";
-import { Profile } from "./Profile";
-
-export default async function Account({ params }: { params: Promise<{ locale: string }> }) {
-  const { locale } = await params;
-  const { t, i18n } = await getI18n({ locale, ns: "account" });
-  return (
-    <I18nProvider i18n={i18n}>
-      <h1>{t("title")}</h1>
-      <p>{t("terms", { link: (text) => <a href="/terms">{text}</a> })}</p>
-      <Profile />
-    </I18nProvider>
-  );
-}
-```
-
-A Client Component reads through `@comvi/react` (`useI18n(ns)`, `<T>`, `useLocale()`,
-`useFormat()` from `@comvi/react/format`), in `src/app/[locale]/account/Profile.tsx`:
-
-```tsx title="src/app/[locale]/account/Profile.tsx" check=group=next-1
+```tsx title="src/app/[locale]/account/Title.tsx" check=group=next-1
 "use client";
-import { T, useI18n } from "@comvi/react";
+import { useRouter } from "next/navigation";
+import { useI18n } from "@comvi/react";
 
-export function Profile() {
-  const { t } = useI18n("account");
-  return (
-    <>
-      <p>{t("greeting", { name: "Ada" })}</p>
-      <T ns="account" i18nKey="terms" components={{ link: "strong" }} />
-    </>
-  );
+export function Title() {
+  const { t, isReady } = useI18n("account");
+  const router = useRouter();
+  if (!isReady) return <button onClick={() => router.refresh()}>Not available. Retry</button>;
+  return <h2>{t("title")}</h2>;
 }
 ```
 
-The browser loads nothing; a catalog the server failed to load renders its fallback on both sides,
-and `router.refresh()` renders the route again. For a browser `loader`, pass `client={Mine}`: a
-`"use client"` component that renders `<I18nProvider>` of `@comvi/next/client` with
-`{ ...props.options, loader }`; it loads only what no payload brought, `i18n.load(ns)` retries.
-A later payload of the same provider (`router.refresh()`) means what the first one meant, a failed
-catalog included: the server's fallback renders, client state is kept, nothing remounts.
+## Report errors with `onError`
 
-## Locale routing
+`onError` receives every problem as an object with a `code` (`load_failed`, `missing_key` and
+others) and the `locale`, `ns` and `key` it concerns. Without it, a development build prints
+problems to the console and a production build prints nothing. `onError` reports and changes nothing
+else: when a catalog fails, `getI18n()` still resolves and `t()` renders the `fallbackLocale`'s text
+or, with no catalog at all, the key. The `onError` of `src/i18n/server.ts` runs on the server; a
+browser `onError` or `loader` goes into your own `"use client"` provider, passed as
+`<I18nProvider client={…}>`
+([Server and Client Components](https://comvi.io/docs/i18n/guides/next-server-client)).
 
-The URL is the locale: switch by navigating (`<Link locale="uk">`, `useLocalizedRouter()` from
-`@comvi/next/navigation`), not with `setLocale()`. The middleware (`proxy.ts` and
-`@comvi/next/proxy` on Next.js 16) redirects to the locale prefix and remembers it in a cookie:
+## Retry with `router.refresh()` or `load()`
 
-```ts title="src/middleware.ts"
+The browser receives a catalog that failed on the server as failed and does not ask for it:
+`useI18n(ns).isReady` is `false` when no catalog of `ns` came with the payload, and `Title` renders
+its retry button. `router.refresh()` renders the route again in a new request, which calls the
+loader again. `i18n.load(ns)` retries in the browser only when you gave the browser a `loader`.
+Server code reads no `i18n.ready`: `getI18n()` waits for the catalogs it needs.
+
+## Typed keys
+
+Typed keys come from JSON catalogs: `src/locales/<locale>.json` is the `default` namespace,
+`src/locales/<namespace>/<locale>.json` the others. In `next.config.ts`, pass `types` to
+`withComvi()`:
+`export default withComvi({ types: { from: "./src/locales", sourceLocale: "en" } })({})`. `next dev`
+writes `src/types/i18n.d.ts` and rewrites it when a catalog changes; `next build` writes it once,
+before Next type-checks. For `{ "greeting": "Hello, {name}!" }` in `src/locales/en.json` the file
+reads, after a header comment:
+
+<!-- prettier-ignore -->
+```ts title="src/types/i18n.d.ts" check=group=next-typed
+import '@comvi/core';
+
+declare module '@comvi/core' {
+  interface Catalogs {
+    "default": {
+      "greeting": { "name": string | number };
+    };
+  }
+}
+
+export {};
+```
+
+From then on, a key that is not in the catalog is a type error, in `t` of `getI18n()` and of
+`useI18n()`:
+
+```tsx title="src/app/[locale]/Greeting.tsx" check=group=next-typed check=expect-error=TS2345
+"use client";
+import { useI18n } from "@comvi/react";
+
+export function Greeting() {
+  const { t } = useI18n();
+  return <h1>{t("greting", { name: "Alice" })}</h1>; // "greting" is not a key
+}
+```
+
+A param the message uses is required too. A misspelt namespace is an error in `getI18n({ ns })`,
+`useI18n(ns)` and `t(key, { ns })`, and still compiles in `load()`, `add()`, `has()` and the
+`namespaces` option ([limit](https://comvi.io/docs/i18n/limitations#namespace-typos-config)).
+
+## Load from Comvi
+
+`cdn()` from `@comvi/core/cdn` is a `loader` that reads the catalogs your Comvi project published to
+its CDN.
+
+### `messages` beside `loader`
+
+An inline catalog (`messages`, `catalogs` or `add()`) switches off loading for its own pair of
+locale and namespace, and for nothing else: the loader is never asked for that pair, while other
+namespaces of that locale and the same namespace in other locales still load. So do not inline a
+catalog the CDN should serve. For a bundled catalog that is used when the CDN does not answer, pass
+`fallback`: it is a spare, not a base that the CDN's catalog is laid over
+([limit](https://comvi.io/docs/i18n/limitations#messages-and-loader)).
+
+```ts check=group=next-1
+// In src/i18n/server.ts, the CDN loader in place of the import() one:
+import { cdn } from "@comvi/core/cdn";
+
+export const loader = cdn("https://cdn.comvi.io/<project-token>", {
+  // keys: "<locale>", or "<locale>:<namespace>"
+  fallback: { en: () => import("@/locales/en.json").then((m) => m.default) },
+});
+```
+
+## Locale routing: navigate, not `setLocale()`
+
+The URL is the locale. Switch by navigating (`<Link locale="uk">` or `useLocalizedRouter()` from
+`@comvi/next/navigation`), not with `setLocale()`, so no switch rejects: a catalog that fails for
+the new page is a failed load on the server. The middleware redirects to the locale prefix and
+remembers the locale in a cookie (on Next.js 16 the file is `proxy.ts` and the import is
+`@comvi/next/proxy`):
+
+```ts title="src/middleware.ts" check=group=next-1
 import { createMiddleware } from "@comvi/next/middleware";
 import { routing } from "./i18n/routing";
 
@@ -173,7 +218,7 @@ export default createMiddleware(routing); // getI18n() without `locale` reads th
 
 First, the site address, once: `metadataBase` in `src/app/[locale]/layout.tsx`. It is required:
 `getAlternates()` returns paths, and without `metadataBase` Next.js leaves them relative, with no
-error or warning, while hreflang needs full URLs.
+error or warning ([limit](https://comvi.io/docs/i18n/limitations#next-metadatabase)).
 
 ```tsx check=group=next-1
 import type { Metadata } from "next";
@@ -187,48 +232,33 @@ Then each page names its path without the locale prefix, in `src/app/[locale]/ad
 import type { Metadata } from "next";
 import { getAlternates } from "@comvi/next/routing";
 import { routing } from "@/i18n/routing";
-import { getI18n } from "@/i18n/server";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}): Promise<Metadata> {
+type Props = { params: Promise<{ locale: string }> };
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;
-  const { t } = await getI18n({ locale, ns: "admin" }); // an unknown locale: notFound()
-  return { title: t("dashboard"), alternates: getAlternates(routing, { locale, href: "/admin" }) };
+  return { alternates: getAlternates(routing, { locale, href: "/admin" }) };
 }
 ```
 
-`getAlternates(routing, { locale, href })` returns `alternates`: the canonical URL in this locale,
-one hreflang per locale and `x-default` (the default locale's URL), each the path `getPathname`
-returns for that locale. `href` is the page's `pathnames` key (its canonical path): no locale
-prefix, no query, no hash. It reads no request API, so a static page stays static. A page that sets
-`alternates` replaces its layout's `alternates` entirely.
+`getAlternates()` returns the canonical path in this locale, one hreflang per locale and `x-default`
+(the default locale's path); with `localePrefix: "never"`, only `canonical`. With
+`localePrefix: "as-needed"`, the default locale's unprefixed URL answers in the default locale to a
+client that sends no locale cookie and no `Accept-Language`
+([limit](https://comvi.io/docs/i18n/limitations#next-as-needed-default);
+[Locale routing](https://comvi.io/docs/i18n/guides/next-routing)).
 
-With `localePrefix: "never"` it returns only `canonical`: no URL belongs to one locale for every
-visitor. Without `pathnames`, one URL serves each visitor's locale (cookie, `Accept-Language`). With
-them, a slug that belongs to one locale answers in that locale to a visitor without a locale cookie,
-whatever their `Accept-Language`; under the default detection order a visitor whose cookie selects
-another locale is redirected to that locale's URL, and the `pathnames` key redirects a visitor whose
-locale has its own slug to that slug. A slug two
-locales share, or one equal to another page's key, names no locale: it is resolved from the cookie
-and `Accept-Language` like any other URL. With
-`as-needed`, the default locale's unprefixed URL redirects a visitor whose cookie or
-`Accept-Language` selects another locale, and answers in the default locale to a client that sends
-neither.
+## Limits
 
-If `generateMetadata` resolves after the page shell, Next.js streams canonical and hreflang into
-`<body>` for ordinary user agents and keeps them in `<head>` only for the bots of
-[`htmlLimitedBots`](https://nextjs.org/docs/app/api-reference/config/next-config-js/htmlLimitedBots).
-The example awaits the same `getI18n({ locale, ns })` the page renders with, so its metadata is
-ready with the page and stays in `<head>`.
+[Limits](https://comvi.io/docs/i18n/limitations) lists what Comvi i18n does not do. Among its
+entries:
 
-## Contributing
+- [`{count, number}` and `{when, date}` are not message syntax](https://comvi.io/docs/i18n/limitations#no-number-date-args): format the value with `useFormat()` from `@comvi/react/format` and pass the result as a plain param.
+- [Text that only a Server Component renders is not editable on the page with the Comvi editor](https://comvi.io/docs/i18n/limitations#editor-server-components).
+- [A handed-over catalog replaces the browser's catalog of the same locale and namespace whole](https://comvi.io/docs/i18n/limitations#handover-replaces-slot), and [a payload carries every catalog the server instance holds](https://comvi.io/docs/i18n/limitations#handover-size).
+- [After a switch, a namespace inside a hidden `<Activity>` loads when the subtree is shown](https://comvi.io/docs/i18n/limitations#react-activity).
 
-Bug reports, docs fixes and pull requests are welcome.
-[CONTRIBUTING.md](https://github.com/comvi-io/comvi-js/blob/main/CONTRIBUTING.md) explains the setup
-and what CI checks.
+Read next: the [Next.js guide](https://comvi.io/docs/i18n/next) and
+[`@comvi/react`](https://www.npmjs.com/package/@comvi/react) for `useI18n()` and `<T>`.
 
 ## License
 

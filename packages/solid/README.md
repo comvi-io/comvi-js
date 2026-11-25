@@ -17,165 +17,207 @@
 
 ---
 
-`@comvi/solid` binds the Comvi i18n instance to Solid: `<I18nProvider>` once, `useI18n()` in
-components, and `<T>` for translations that contain markup.
+`@comvi/solid` is the SolidJS binding of Comvi i18n: a provider, `useI18n()` and the `<T>`
+component. Create the i18n instance, pass it to `<I18nProvider>`, and read translations in any
+component below it.
 
 ## Install
 
 ```bash
-npm install @comvi/solid @comvi/core # peer: solid-js ^1.8.0; the app imports @comvi/core/cdn
+npm install @comvi/solid @comvi/core # peer: solid-js ^1.8.0
 ```
 
-`@comvi/core` and every binding in an app must be on one version. From 0.8 on, two copies of `@comvi/core` (two versions, or one version installed twice) throw an error that names both versions.
+`@comvi/core` and every binding in an app must be on one version: two copies of `@comvi/core` (two
+versions, or one version installed twice) throw an error that names both versions.
 
 ## Setup
 
-```tsx check=group=solid-app title="src/index.tsx"
+```tsx title="src/index.tsx" check=group=solid-app
 import { render } from "solid-js/web";
-import { createI18n, I18nProvider } from "@comvi/solid";
-import { App } from "./App";
+import { createI18n, I18nProvider, useI18n } from "@comvi/solid";
 
 const i18n = createI18n({
   locale: "en",
   messages: { en: { greeting: "Hello, {name}!" }, uk: { greeting: "Привіт, {name}!" } },
 });
 
-const Root = () => <I18nProvider i18n={i18n}>{<App />}</I18nProvider>;
+function App() {
+  const { t, locale, setLocale } = useI18n();
+  const toggle = () => setLocale(locale() === "en" ? "uk" : "en");
+  return <button onClick={toggle}>{t("greeting", { name: "Alice" })}</button>;
+}
+
+const Root = () => (
+  <I18nProvider i18n={i18n}>
+    <App />
+  </I18nProvider>
+);
 render(Root, document.getElementById("app")!);
 ```
 
-## Use in components
+`t()` fills `{name}` from its second argument. `locale`, `dir`, `isReady` and `isLoading` are
+accessors: call them (`locale()`). Both catalogs are inline, so the switch loads nothing; with a
+`loader`, `setLocale()` can reject: see [A rejected `setLocale()`](#a-rejected-setlocale).
 
-```tsx check=group=solid-app title="src/App.tsx"
-import { createSignal } from "solid-js";
+## Typed keys
+
+Typed keys come from JSON catalogs: `src/locales/<locale>.json` is the `default` namespace,
+`src/locales/<namespace>/<locale>.json` the others. Install `@comvi/vite-plugin` as a dev dependency
+and add `comviTypes({ from: "./src/locales", sourceLocale: "en" })` to the `plugins` of
+`vite.config.ts`. `vite dev` and `vite build` then write `src/types/i18n.d.ts`; keep it inside the
+`include` of your `tsconfig.json`. For `{ "greeting": "Hello, {name}!" }` in `src/locales/en.json`
+the file reads, after a header comment:
+
+<!-- prettier-ignore -->
+```ts title="src/types/i18n.d.ts" check=group=solid-typed
+import '@comvi/core';
+
+declare module '@comvi/core' {
+  interface Catalogs {
+    "default": {
+      "greeting": { "name": string | number };
+    };
+  }
+}
+
+export {};
+```
+
+From then on, a key that is not in the catalog is a type error:
+
+```tsx title="src/Greeting.tsx" check=group=solid-typed check=expect-error=TS2345
 import { useI18n } from "@comvi/solid";
 
-export function App() {
-  const { t, locale, setLocale } = useI18n();
-  const [failed, setFailed] = createSignal(false);
-  // A switch that cannot load (a network error) rejects and keeps the old locale on screen.
-  const toggle = () =>
-    setLocale(locale() == "en" ? "uk" : "en").then(
-      () => setFailed(false),
-      () => setFailed(true),
-    );
-  return (
-    <>
-      <button onClick={toggle}>{t("greeting", { name: "Alice" })}</button>
-      {failed() && <p role="alert">Could not switch the language. Try again.</p>}
-    </>
-  );
+export function Greeting() {
+  const { t } = useI18n();
+  return <h1>{t("greting", { name: "Alice" })}</h1>; // "greting" is not a key
 }
 ```
 
-`t()` fills `{name}` from its second argument (`{ ns }`, `{ locale }` there apply to one call) and
-re-runs in JSX, a memo or an effect on a new state. `locale`, `dir`, `isReady` and `isLoading` are
-accessors; `locale` and `dir` re-run their readers on a change of their value only. `setLocale()`
-keeps the old locale until the new catalogs are in (the last of quick switches wins), and rejects
-for an invalid tag, or when no catalog of the locale or its parent (`de` for `de-AT`) loaded for any
-namespace it waited for.
+A param the message uses is required too. A misspelt namespace is an error in `useI18n(ns)` and
+`t(key, { ns })`, and still compiles in `load()`, `add()`, `has()` and the `namespaces` option
+([limit](https://comvi.io/docs/i18n/limitations#namespace-typos-config)). Without Vite, see
+[Type safety](https://comvi.io/docs/i18n/type-safety).
 
-```tsx check=group=solid-app title="src/Account.tsx"
-import { useI18n } from "@comvi/solid";
+## Namespaces: `isReady`, `isLoading` and `ready`
 
-export function Account() {
-  const { t, isReady, isLoading } = useI18n("account");
-  return <h2>{isReady() ? t("title") : isLoading() ? "…" : "Not available"}</h2>;
-}
-```
-
-`useI18n("account")` binds `t` and `T` and holds the namespace from mount to cleanup: it loads for
-the locale on screen and every switch; with no component holding it, it stays cached and a switch
-skips it. `isReady`: a catalog of the locale on screen, its parent or a `fallbackLocale` is in;
-`isLoading`: one is on the way. A failed load is `false`/`false` only with no usable catalog; a
-remount does not retry, `i18n.load("account")` does. `t()` and `<T>` only read (development warns
-about a namespace nothing loads). `useFormat()` from `@comvi/solid/format` formats numbers,
-currency, dates, lists and relative time in the locale on screen, re-running on a switch.
-
-`useI18n()` with no namespace reads `default` (what its `t` reads) and every namespace of the
-`namespaces` option: `isReady` once each has a usable catalog (a catalog, not every key),
-`isLoading` while one of them loads, so an app root can branch on it. It is no longer
-`useI18n("default")`, which reads `default` alone. Check `isReady` first: a switch loads beside the
-text on screen. `false`/`false` means the text is unavailable and nothing is loading — a failed
-load or no loader, not necessarily an error.
+`useI18n("account")` binds `t` to the `account` namespace and holds the namespace while the
+component is mounted: it loads for the locale on screen and for every locale a switch goes to.
+`isReady` is `true` when a catalog of the namespace is usable for the locale on screen; `isLoading`
+is `true` while one is on the way. Check `isReady` first: a switch loads the new catalogs beside the
+text on screen. Both `false` means the text is not available and nothing is loading. `i18n.ready` is
+something else: a promise that resolves when the loads in flight have settled, the failed ones too.
+After a failed first load, `ready` has resolved and `isReady` is `false`.
 
 ## Load from Comvi
 
-```tsx title="src/index.tsx"
+`cdn()` from `@comvi/core/cdn` is a `loader` that reads the catalogs your Comvi project published to
+its CDN. Pass `loading` to `<I18nProvider>` to paint a placeholder until the first catalogs are in
+(`<I18nProvider i18n={i18n} loading={<Spinner />}>`).
+
+### `messages` beside `loader`
+
+An inline catalog (`messages`, `catalogs` or `add()`) switches off loading for its own pair of
+locale and namespace, and for nothing else: the loader is never asked for that pair, while other
+namespaces of that locale and the same namespace in other locales still load. So do not inline a
+catalog the CDN should serve. For a bundled catalog that is used when the CDN does not answer, pass
+`fallback`: it is a spare, not a base that the CDN's catalog is laid over
+([limit](https://comvi.io/docs/i18n/limitations#messages-and-loader)).
+
+### Report errors with `onError`
+
+`onError` receives every problem as an object with a `code` (`load_failed`, `missing_key` and
+others) and the `locale`, `ns` and `key` it concerns. Without it, a development build prints
+problems to the console and a production build prints nothing. `onError` reports and changes nothing
+else: after a failed first load `i18n.ready` still resolves, the `loading` gate opens and `t()`
+renders the key: what the user sees is your `isReady` branch.
+
+```ts title="src/i18n.ts" check=group=solid-app
 import { createI18n } from "@comvi/solid";
 import { cdn } from "@comvi/core/cdn";
 
 export const i18n = createI18n({
   locale: "en",
-  loader: cdn("https://cdn.comvi.io/<project-token>"),
+  loader: cdn("https://cdn.comvi.io/<project-token>", {
+    // keys: "<locale>", or "<locale>:<namespace>"
+    fallback: { en: () => import("./locales/en.json").then((m) => m.default) },
+  }),
+  onError(error) {
+    if (error.code === "load_failed")
+      console.error(`No catalog for ${error.locale}/${error.ns}`, error.cause);
+  },
 });
-// <I18nProvider i18n={i18n} loading={<p>Loading…</p>}>: `loading` replaces the children for the
-// instance's first paint only, while no catalog is usable for the locale.
+```
+
+## A rejected `setLocale()`
+
+With a `loader`, `setLocale()` loads the new locale's catalogs before it switches. When none of them
+loads, the promise rejects with the loader's error, `onError` gets `load_failed`, and the locale and
+the text on screen stay as they were. Calling `setLocale()` again calls the loader again.
+
+## Retry with `load()`
+
+A namespace whose load failed renders its "not available" branch, and mounting the component again
+does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
+that failed, and it rejects with the loader's error when the catalog of the locale on screen fails
+again.
+
+```tsx title="src/Account.tsx" check=group=solid-app
+import { createSignal, Show } from "solid-js";
+import { useI18n } from "@comvi/solid";
+
+export function Account() {
+  const { t, locale, setLocale, isReady, isLoading, i18n } = useI18n("account");
+  const [failed, setFailed] = createSignal(false);
+  const toggle = () =>
+    setLocale(locale() === "en" ? "uk" : "en").then(
+      () => setFailed(false),
+      () => setFailed(true),
+    );
+  // load() rejects when the catalog fails again: `isReady` stays false, `onError` has the report.
+  const retry = () => i18n.load("account").catch(() => {});
+  const gone = <button onClick={retry}>Not available. Retry</button>;
+  return (
+    <Show when={isReady() || isLoading()} fallback={gone}>
+      {isReady() ? <h2>{t("title")}</h2> : <p class="spinner" />}
+      <button onClick={toggle}>{failed() ? "Could not switch. Try again" : locale()}</button>
+    </Show>
+  );
+}
 ```
 
 ## Markup in a translation
 
-```tsx
-import type { ParentProps } from "solid-js";
-import { T } from "@comvi/solid";
-const TermsLink = (p: ParentProps) => <a href="/terms">{p.children}</a>;
-// "terms": "Read the <link>terms</link>,<br/><b>in <i>full</i></b>."
-export const Terms = () => (
-  <T i18nKey="terms" components={{ link: TermsLink, b: "strong", i: "em", br: "br" }} />
-);
-```
-
-A tag renders through a handler prop of its name (`link={(c) => <a href="/terms">{c}</a>}`), else its
-`components` entry (a tag name, a component, or `{ component: "a", props: { href: "/terms" } }`; the
-content is its `children`, and an empty tag passes none, so `<br/>` renders a real `<br>`), else as
-text. Every other prop but `i18nKey`, `ns`, `locale` and `markers` is a param, `class` too; a param
-is always text, so a JSX element there is unsupported (it hydrates with a mismatch) and markup goes in a tag around it
-(`"Hello, <strong>{name}</strong>!"` with `components={{ strong: "strong" }}`). `<T>`
-re-renders on a change of its props, the locale or its namespace's catalogs, not on another
-namespace's load.
+`<T>` renders a message that has tags. For `"terms": "Read the <link>terms</link> <b>in full</b>."`,
+write `<T i18nKey="terms" link={(c) => <a href="/terms">{c}</a>} components={{ b: "strong" }} />`. A
+tag renders through a prop of its name (a function that gets the tag's content), else through its
+`components` entry (a tag name, a component, or `{ component, props }`), else as its inner text.
+Every prop but `i18nKey`, `components`, `ns`, `locale` and `markers` is a param, and a param is
+always text: a JSX element there prints as text and hydrates with a mismatch
+([limit](https://comvi.io/docs/i18n/limitations#params-are-text)). `t()` takes the same handlers .
 
 ## Server rendering
 
-An instance per request, under a `<Suspense>` boundary: `useI18n(ns)` holds its namespace for the
-request and the boundary waits through `createResource` until the catalog is in, in
-`renderToStringAsync` and in a stream (the response holds until then). `renderToString` is
-synchronous: load first (`await i18n.load(ns)`) or get the fallback. Match a locale from a route,
-cookie or header against your supported locales first: `createI18n()` throws a `RangeError` for one
-that is not a tag.
+Create an i18n instance per request with the options the browser uses (`timeZone` is required) and
+render under a `<Suspense>` boundary with `renderToStringAsync` or a stream: `useI18n(ns)` holds its
+namespace for the request, and the boundary waits until its catalog is in. `renderToString` is
+synchronous, so load first (`await i18n.ready`, `await i18n.load(ns)`). Embed `handover(i18n)` (an
+export of `@comvi/solid`) in the page as JSON. In the browser,
+`createI18n({ ...options, ...payload })` starts from the server's state: hydration matches, and the
+loader is asked for nothing the server sent. A SolidStart app is in
+[`examples/solidstart`](https://github.com/comvi-io/comvi-js/tree/main/examples/solidstart)
+([Server-side rendering](https://comvi.io/docs/i18n/ssr)).
 
-```tsx check=group=solid-app title="src/entry-server.tsx"
-import { Suspense } from "solid-js";
-import { renderToStringAsync } from "solid-js/web";
-import { cdn } from "@comvi/core/cdn";
-import { createI18n, handover, I18nProvider } from "@comvi/solid";
-import { App } from "./App";
+## Limits
 
-// The instance options, here in the server file; the browser's entry creates its instance
-// with the same values (timeZone is required).
-const options = {
-  fallbackLocale: "en",
-  timeZone: "UTC",
-  loader: cdn("https://cdn.comvi.io/<project-token>"),
-};
+[Limits](https://comvi.io/docs/i18n/limitations) lists what Comvi i18n does not do. Among its
+entries:
 
-export async function render(locale: string) {
-  const i18n = createI18n({ ...options, locale });
-  const Page = () => <I18nProvider i18n={i18n}>{<App />}</I18nProvider>;
-  const html = await renderToStringAsync(() => <Suspense>{<Page />}</Suspense>);
-  const payload = JSON.stringify(handover(i18n)).replace(/</g, "\\u003c");
-  return { html, payload }; // the page embeds it: <script>window.__I18N__ = ${payload}</script>
-}
-```
+- [`{count, number}` and `{when, date}` are not message syntax](https://comvi.io/docs/i18n/limitations#no-number-date-args): format the value with `useFormat()` from `@comvi/solid/format` and pass the result as a plain param.
+- [A server payload carries every catalog the server instance holds, inline catalogs included](https://comvi.io/docs/i18n/limitations#handover-size).
 
-In the browser, `createI18n({ ...options, ...window.__I18N__ })`, with the same option values as the server, starts from the server's state: the
-same `isReady`/`isLoading`, no mismatch, nothing fetched that the server rendered. In SolidStart,
-keep the instance on `getRequestEvent().locals` and write the payload with `useAssets`
-([example](https://github.com/comvi-io/comvi-js/tree/main/examples/solidstart)).
-
-## Read next
-
-- [Solid guide](https://comvi.io/docs/i18n/solid): markup inside a translation, first paint, SSR.
-- [Loading translations](https://comvi.io/docs/i18n/loading-translations): loaders, namespaces, fallbacks.
+Read next: the [Solid guide](https://comvi.io/docs/i18n/solid) and
+[Loading translations](https://comvi.io/docs/i18n/loading-translations).
 
 ## License
 
