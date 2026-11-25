@@ -15,6 +15,8 @@ A SolidStart app that renders translated HTML on the server with [`@comvi/solid`
 - **Client navigation**: a link to `/uk` calls `setLocale("uk")` in the layout's effect, and `<html lang dir>` follows. Arabic turns the page right-to-left.
 - **ICU plurals, `<T>` markup and fallback**: the counter, the documentation link, and an English sentence where Ukrainian has no translation.
 - **404** for an unknown first or second segment: `/xx`, `/xx/about`, `/en-US`, `/uk/xx`. `/about`, `/en` and `/en/about` are English.
+- **Typed keys**: `@comvi/vite-plugin` writes `src/types/i18n.d.ts` from the English catalogs, so `t()` rejects a key no catalog has and a call that leaves out a parameter its message uses.
+- **A failed load**: a client navigation whose catalog cannot be loaded keeps the page in its language and offers a Try again button, which asks the loader again.
 
 ## Run it
 
@@ -23,7 +25,7 @@ npm install
 npm run dev
 ```
 
-`npm run build` writes the production server, `npm start` runs it (`node .output/server/index.mjs`), and `npm run typecheck` runs `tsc`.
+`npm run build` writes the production server, `npm start` runs it (`node .output/server/index.mjs`), and `npm run typecheck` writes the types with `comvi typegen` and runs `tsc`.
 
 ## Where to look
 

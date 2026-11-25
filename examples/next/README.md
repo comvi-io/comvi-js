@@ -18,6 +18,7 @@ the middleware sends `/` to the visitor's language, and the switcher navigates b
 - **Fallback:** a key missing in Ukrainian shows the English text; a key missing everywhere shows its name.
 - **Missing-key report:** every miss in the browser reaches the client options' `onError`.
 - **Right-to-left:** Arabic renders `<html dir="rtl">`.
+- **Typed keys:** `withComvi({ types })` in `next.config.ts` writes `src/types/i18n.d.ts` from the English catalogs before `next build` type-checks, so `t()` rejects a key no catalog has and a call that leaves out a parameter its message uses; `npm run typecheck` checks every call.
 
 ## Run it
 

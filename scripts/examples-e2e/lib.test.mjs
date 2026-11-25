@@ -527,6 +527,7 @@ const allSteps = (entry) => Object.fromEntries(STEPS.map((step) => [step, entry]
 test("STEPS: a column per scenario, k2/k3 beside k, g2 beside g", () => {
   assert.deepEqual(STEPS.slice(STEPS.indexOf("j"), STEPS.indexOf("l") + 1), [
     "j",
+    "j2",
     "k",
     "k2",
     "k3",
@@ -541,6 +542,7 @@ test("STEPS: a column per scenario, k2/k3 beside k, g2 beside g", () => {
     // The `account` namespace, after every step that predates it.
     "w",
     "w2",
+    "w3",
     "x",
     "y",
     "z",
@@ -720,9 +722,11 @@ test("allowedSkips: SSR-only steps for vite, CDN steps without --cdn, s with --c
     "t2",
     "y",
   ]);
-  assert.deepEqual([...allowedSkips({ kind: "next", cdn: true })], ["s"]);
+  // next's browser loads no catalog; a nuxt switch is a navigation (steps j2, w3).
+  assert.deepEqual([...allowedSkips({ kind: "next", cdn: true })].sort(), ["j2", "s", "w3"]);
   assert.deepEqual([...allowedSkips({ kind: "nuxt", cdn: false })].sort(), [
     "g2",
+    "j2",
     "k",
     "k2",
     "k3",

@@ -13,7 +13,10 @@ export function FallbackCard() {
       </p>
       {/* No catalog has this key, so it renders as itself. */}
       <p className="widget">
-        <code data-testid="missing-key">{t("fallback.nowhere")}</code>
+        <code data-testid="missing-key">
+          {/* @ts-expect-error: no catalog has this key, so the generated types reject it */}
+          {t("fallback.nowhere")}
+        </code>
       </p>
     </Card>
   );

@@ -59,11 +59,12 @@ export const routes: RouteObject[] = [
         // holds the namespace, so a language switch loads it too; once the page
         // closes it stays cached and a switch skips it (the route loads it again).
         // A failed load rejects (and is reported through onError): the page still
-        // opens, with the fallback language's text.
-        loader: async () => {
-          await i18n.load("account").catch(() => {});
-          return null;
-        },
+        // opens, and offers to load it again.
+        loader: () =>
+          i18n.load("account").then(
+            () => ({ accountFailed: false }),
+            () => ({ accountFailed: true }),
+          ),
         Component: About,
       },
     ],

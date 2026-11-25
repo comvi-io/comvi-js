@@ -1,10 +1,22 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import { useI18n } from "@comvi/vue";
 import { locales } from "../i18n";
+import LoadError from "./LoadError.vue";
 
-// `locale` is writable: setting it switches. It keeps showing the current
-// language until the new one's catalogs are in, so the buttons never flicker.
-const { t, locale, isLoading } = useI18n();
+// `locale` keeps showing the current language until the new one's catalogs are
+// in, so the buttons never flicker.
+const { t, locale, setLocale, isLoading } = useI18n();
+
+// The locale whose switch failed, if any: its catalog could not be loaded.
+const failed = ref<string | null>(null);
+
+// A failed switch keeps the current language on screen, reports the error through
+// onError and rejects; calling setLocale() again asks the loader again.
+function switchTo(code: string) {
+  failed.value = null;
+  setLocale(code).catch(() => (failed.value = code));
+}
 </script>
 
 <template>
@@ -16,12 +28,13 @@ const { t, locale, isLoading } = useI18n();
         :key="code"
         :data-testid="`locale-${code}`"
         :aria-pressed="locale === code"
-        @click="locale = code"
+        @click="switchTo(code)"
       >
         {{ code }}
       </button>
     </div>
     <span v-if="isLoading" class="status">{{ t("app.loading") }}</span>
   </div>
+  <LoadError v-if="failed" @retry="switchTo(failed)" />
   <p class="note">{{ t("demo.rtl.body") }}</p>
 </template>

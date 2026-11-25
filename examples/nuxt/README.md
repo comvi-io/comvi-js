@@ -11,6 +11,8 @@ A small Nuxt 4 app that translates every string with [`@comvi/nuxt`](https://com
 - **Dates, numbers and currency** formatted for the active locale.
 - **Lazy loading**: each catalog is fetched the first time its locale is used, and the `account` namespace only on the About page.
 - **Fallback**: a key missing in Ukrainian shows the English text; a missing parameter stays visible.
+- **Typed keys**: `comvi.types` in `nuxt.config.ts` writes the declaration from the English catalogs before `nuxt dev`, `nuxt typecheck` and `nuxt build`, so `t()` rejects a key no catalog has and a call that leaves out a parameter its message uses.
+- **A failed load**: when the `account` namespace cannot be loaded on a client navigation, the About page offers a Try again button, which asks the loader again.
 
 ## Run it
 
