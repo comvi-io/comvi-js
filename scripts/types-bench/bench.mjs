@@ -3,7 +3,8 @@
 //   node scripts/types-bench/bench.mjs [--rounds 3]   gate run (pnpm check:types-bench)
 //   node scripts/types-bench/bench.mjs --red <variant> the same gates over a planted
 //                                                     regression (r3-1 | per-call |
-//                                                     jsx-guard | vue-guard); exits
+//                                                     jsx-guard | vue-guard |
+//                                                     binding-per-call); exits
 //                                                     0 only if ITS gate fails
 //
 // Probes (2 namespaces, 300 calls a third with `ns`, every fifth with `locale`) are
@@ -14,6 +15,10 @@
 // BLOCKING gates are COUNTS of checker work — they do not depend on the runner (owner
 // rule: no wall-clock blocking gates):
 //   per-call instantiations   app300 − app2 @ 20k ≤ 50K (R4-5)
+//   the same with a binding   bound20k − boundBase20k ≤ 50K (R4-5's per-call budget): the
+//                             programs above register no `TagChildren`, so they never reach
+//                             the mapped branch of `ParamsOut` (the instance's handlers
+//                             under a binding); these two are app300 / app2 plus a binding
 //   per-call union inputs     app300 − app2 @ 20k ≤ 50K (count-work.cjs: what R3-1's
 //                             `keyof Catalogs[N]` rebuilds on every call)
 //   counted scaling           per-call union inputs @20k / @5k ≤ 1.5× (R4-5's scaling
@@ -46,6 +51,7 @@ const rounds = Number(args[args.indexOf("--rounds") + 1]) || 3;
 
 const GATES = {
   perCallInst: 50_000,
+  boundPerCallInst: 50_000,
   perCallUnion: 50_000,
   unionScaling: 1.5,
   typoInst: 50_000,
@@ -117,6 +123,17 @@ const REDS = {
       ],
     ],
   },
+  // A per-call walk over a namespace's key union inside the mapped branch of `ParamsOut`
+  // only: the programs with no binding never reach it (`inst` stays green); the bound ones do.
+  "binding-per-call": {
+    gates: ["boundInst"],
+    edits: [
+      [
+        "          : { [K in keyof P]: HandlerOut<P[K]> }",
+        '          : [Exclude<KeysOf["default" & NsOf], P>] extends [never]\n            ? never\n            : { [K in keyof P]: HandlerOut<P[K]> }',
+      ],
+    ],
+  },
   "per-call": {
     gates: ["inst"],
     edits: [
@@ -156,6 +173,18 @@ const probes = {
     .dir,
   base20k: generateProbe(path.join(tmp, "base20k"), { keys: 20000, kind: "app2", typesSource }).dir,
   base5k: generateProbe(path.join(tmp, "base5k"), { keys: 5000, kind: "app2", typesSource }).dir,
+  bound20k: generateProbe(path.join(tmp, "bound20k"), {
+    keys: 20000,
+    kind: "app300",
+    typesSource,
+    binding: true,
+  }).dir,
+  boundBase20k: generateProbe(path.join(tmp, "boundBase20k"), {
+    keys: 20000,
+    kind: "app2",
+    typesSource,
+    binding: true,
+  }).dir,
   jsx20k: generateProbe(path.join(tmp, "jsx20k"), { keys: 20000, kind: "jsx", typesSource }).dir,
   jsxTypo20k: generateProbe(path.join(tmp, "jsxTypo20k"), {
     keys: 20000,
@@ -265,6 +294,13 @@ const results = [
   ["inst", "instantiations, 298 more calls @20k", perCall, GATES.perCallInst, ""],
   ["union", "union inputs, 298 more calls @20k", perCallUnion20k, GATES.perCallUnion, ""],
   [
+    "boundInst",
+    "instantiations, 298 more calls @20k, binding registered",
+    m.bound20k.capped || m.boundBase20k.capped ? Infinity : m.bound20k.inst - m.boundBase20k.inst,
+    GATES.boundPerCallInst,
+    "",
+  ],
+  [
     "unionScaling",
     "counted scaling 5k → 20k (per-call union inputs)",
     perCallUnion20k / perCallUnion5k,
@@ -354,12 +390,14 @@ const unexpected =
   m.file20k.errors +
   m.base20k.errors +
   m.base5k.errors +
+  m.bound20k.errors +
+  m.boundBase20k.errors +
   (m.typo20k.errors === 2 ? 0 : 1);
 if (unexpected) {
   failed++;
   failedIds.push("errors");
   console.log(
-    `x probes report unexpected errors (app5k ${m.app5k.errors}, app20k ${m.app20k.errors}, file20k ${m.file20k.errors}, typo20k ${m.typo20k.errors} ≠ 2)`,
+    `x probes report unexpected errors (app5k ${m.app5k.errors}, app20k ${m.app20k.errors}, file20k ${m.file20k.errors}, bound20k ${m.bound20k.errors}, boundBase20k ${m.boundBase20k.errors}, typo20k ${m.typo20k.errors} ≠ 2)`,
   );
 }
 // The JSX probes: valid elements compile, each of the five error elements (three key

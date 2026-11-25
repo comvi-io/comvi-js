@@ -22,6 +22,8 @@ i18n.t("rich_text.link_text", {
 
 // @ts-expect-error the instance passes an array, not a string
 i18n.t("rich_text.link_text", { link: (c: string) => c });
+// @ts-expect-error the `t` of `i18n.ns(name)` passes an array too, not a string
+i18n.ns("default")("rich_text.link_text", { link: (c: string) => c });
 
 export function HandlerTypes() {
   const { t } = useI18n();

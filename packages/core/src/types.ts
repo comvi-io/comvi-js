@@ -137,13 +137,16 @@ type ParamsOut<P, Rich> = [keyof TagChildren] extends [never]
         ? P
         : [P] extends [NotAKey]
           ? P
-          : {
-              [K in keyof P]: Tag extends P[K]
-                ? Exclude<P[K], Tag> | ((chunks: RichParts) => unknown)
-                : P[K];
-            }
+          : { [K in keyof P]: HandlerOut<P[K]> }
       : P
     : P;
+
+/**
+ * One member of a param's type, per union member: exactly `Tag` (assignable both ways) becomes
+ * a handler of `RichParts`; anything else keeps its type, so a `(s: string) => unknown` param,
+ * which a binding's `Tag` is also assignable to, keeps its string argument.
+ */
+type HandlerOut<V> = V extends Tag ? (Tag extends V ? (chunks: RichParts) => unknown : V) : V;
 
 /**
  * `t()` for namespace NS. Per call, `{ ns }` switches the namespace (and the key set),
