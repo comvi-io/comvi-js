@@ -107,15 +107,21 @@ export const CASES = [
 ];
 
 /**
- * Deltas against 0.7 that the owner accepted: when one of these cases is flagged, the
- * report marks it accepted (with who decided, when and why) so it is not re-reported as a
- * new regression. Against a 0.8 reference the same delta would be new: read the mark
- * as "known vs 0.7", never as a waiver for a regression between two 0.8 builds.
+ * Deltas against 0.7 that the owner accepted: when one of these cases is flagged and the
+ * reference (A) is a 0.7 build, the report marks it accepted (with who decided, when and
+ * why) so it is not re-reported as a new regression. Against a 0.8 reference nothing is
+ * accepted: the same case is flagged as new, so a slowdown between two 0.8 builds shows.
  */
 const FORMATTERS_0_7 =
   "owner 28.10.2026: @comvi/core/format is ~25-40 ns per call slower than 0.7 " +
   "(locale chain + shared Intl cache key per call); accepted, no extra caching";
+const CONSTRUCTOR_0_7 =
+  "owner 25.11.2026: createI18n() over a 200-key catalog is ~3.9 µs slower than v0.7.1 " +
+  "(+71-73 % at the 0.8 freeze point 1c73fe09): the core passes over the keys of every " +
+  "catalog it accepts once to check its shape (0.87 ms per 10,000 keys), compiling stays " +
+  "lazy; accepted for 0.8";
 export const ACCEPTED_VS_07 = {
+  "constructor (200-key catalog)": CONSTRUCTOR_0_7,
   formatNumber: FORMATTERS_0_7,
   "formatNumber, fallbackLocale": FORMATTERS_0_7,
   formatDate: FORMATTERS_0_7,
@@ -136,6 +142,11 @@ const ENTRIES_07 = ["comvi-core-icu.js", "comvi-core-rich-text.js"];
 const ENTRIES_08 = ["comvi-core-format.js"];
 
 const has = (distRoot, file) => fs.existsSync(path.join(path.resolve(distRoot), file));
+
+/** The accepted delta of `name` against a reference of generation `referenceGeneration`. */
+export function acceptedReason(name, referenceGeneration) {
+  return referenceGeneration === "0.7" ? ACCEPTED_VS_07[name] : undefined;
+}
 
 /** Which core generation `distRoot` is: "0.7", "0.8", or undefined. */
 export function generation(distRoot) {
@@ -272,8 +283,9 @@ export async function buildExtendedCases(distRoot) {
   };
   const shared = keys10k((i) => (i % 2 ? `Hi {name} #${i}` : `Static ${i}`));
   // Never reused across warm-up and runs: 5 × (warm-up + iters) distinct identities. The
-  // constructor never walks a catalog's keys (compiling is lazy), so a distinct object
-  // over the 10K catalog as its prototype measures the same first-sight cost as a copy.
+  // constructor compiles nothing (compiling is lazy), but it passes over a catalog's keys
+  // once to check its shape (`flat`), and that pass reads inherited keys too. So a distinct
+  // object over the 10K catalog as its prototype measures the same first-sight cost as a copy.
   const FRESH = 2_000;
   const fresh = Array.from({ length: 6 * (WARMUP_CALLS + FRESH) }, () => Object.create(shared));
   const plural = (n) => {
@@ -725,7 +737,7 @@ export function renderSingle(results) {
   return lines.join("\n");
 }
 
-export function renderCompare(results, thresholdPct) {
+export function renderCompare(results, thresholdPct, referenceGeneration) {
   const width = Math.max(...results.map((result) => result.name.length));
   const lines = [
     `| ${"case".padEnd(width)} | A median µs/op | B median µs/op | Δ% (median) | A min | B min | Δ% (min) |`,
@@ -736,7 +748,7 @@ export function renderCompare(results, thresholdPct) {
     const flagged = result.deltaPct > thresholdPct;
     const mark = !flagged
       ? ""
-      : ACCEPTED_VS_07[result.name]
+      : acceptedReason(result.name, referenceGeneration)
         ? "  <-- accepted vs 0.7"
         : "  <-- flagged";
     lines.push(
@@ -748,14 +760,21 @@ export function renderCompare(results, thresholdPct) {
   return lines.join("\n");
 }
 
-/** Flagged cases that are not an accepted delta vs 0.7 ({@link ACCEPTED_VS_07}). */
-export function regressions(results, thresholdPct) {
-  return results.filter((result) => result.deltaPct > thresholdPct && !ACCEPTED_VS_07[result.name]);
+/**
+ * Flagged cases that are not an accepted delta ({@link ACCEPTED_VS_07}); with a reference
+ * that is not a 0.7 build, every flagged case.
+ */
+export function regressions(results, thresholdPct, referenceGeneration) {
+  return results.filter(
+    (result) => result.deltaPct > thresholdPct && !acceptedReason(result.name, referenceGeneration),
+  );
 }
 
-/** Flagged cases that are an accepted delta vs 0.7. */
-export function accepted(results, thresholdPct) {
-  return results.filter((result) => result.deltaPct > thresholdPct && ACCEPTED_VS_07[result.name]);
+/** Flagged cases that are an accepted delta vs 0.7; none unless the reference is a 0.7 build. */
+export function accepted(results, thresholdPct, referenceGeneration) {
+  return results.filter(
+    (result) => result.deltaPct > thresholdPct && acceptedReason(result.name, referenceGeneration),
+  );
 }
 
 function readRepetitions(argv) {
@@ -780,15 +799,16 @@ function runCompare(distRootA, distRootB, argv) {
   const thresholdPct = readThreshold(argv);
   const repetitions = readRepetitions(argv);
   const results = compareDists(distRootA, distRootB, repetitions);
+  const referenceGeneration = generation(distRootA);
   console.log(
     `node ${process.version}, load1 ${os.loadavg()[0].toFixed(1)} on ${os.cpus().length} cpus`,
   );
-  console.log(`A (reference) = ${path.resolve(distRootA)}`);
+  console.log(`A (reference) = ${path.resolve(distRootA)} (core ${referenceGeneration})`);
   console.log(`B (candidate) = ${path.resolve(distRootB)}`);
   console.log(
     `interleaved, median of ${repetitions} per side, flag above ${thresholdPct}% on the median Δ (informational)\n`,
   );
-  console.log(renderCompare(results, thresholdPct));
+  console.log(renderCompare(results, thresholdPct, referenceGeneration));
   console.log(
     `\n${JSON.stringify(
       Object.fromEntries(
@@ -796,7 +816,8 @@ function runCompare(distRootA, distRootB, argv) {
       ),
     )}`,
   );
-  const flagged = regressions(results, thresholdPct);
+  const flagged = regressions(results, thresholdPct, referenceGeneration);
+  const known = accepted(results, thresholdPct, referenceGeneration);
   console.log(
     flagged.length > 0
       ? `\nFlagged (informational, not a gate): ${flagged
@@ -804,12 +825,13 @@ function runCompare(distRootA, distRootB, argv) {
           .join(
             ", ",
           )} (median Δ above ${thresholdPct}%). Re-run on a quiet machine before reading them.`
-      : `\nNo case's median moved more than ${thresholdPct}%.`,
+      : known.length > 0
+        ? `\nNo case outside the accepted list moved more than ${thresholdPct}% on the median.`
+        : `\nNo case's median moved more than ${thresholdPct}%.`,
   );
-  const known = accepted(results, thresholdPct);
   if (known.length > 0)
     console.log(
-      `Accepted vs 0.7 (not new; new if A is a 0.8 build): ${known
+      `Accepted vs 0.7 (A is a 0.7 build; against a 0.8 build these would be flagged): ${known
         .map((result) => `${result.name} +${result.deltaPct.toFixed(2)}%`)
         .join(
           ", ",
