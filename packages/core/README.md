@@ -57,9 +57,10 @@ i18n.t("cart", { count: 2 }); // "2 items"
 `createI18n()` is synchronous: inline `messages` render on the next line, and there is no `init()`
 to await. `messages` holds the `default` namespace by locale, written flat (`"account.title"`) or
 nested (`{ account: { title } }`); both are the key `account.title`. A key with no message in the
-locale or its fallback locales renders the key, and `onError` receives `missing_key`, unless the
-key's namespace has no catalog or its catalog is still loading. Without a `loader` the instance
-makes no request, so this file runs with no Comvi project and no account.
+locale or its fallback locales renders the key. `onError` receives `missing_key` for it once a
+catalog of its namespace is in place and, with a `loader`, no catalog the read looks in is still
+loading or was never requested ([Errors](https://comvi.io/docs/i18n/errors)). Without a `loader`
+the instance makes no request, so this file runs with no Comvi project and no account.
 
 ## Write messages
 
@@ -112,10 +113,11 @@ await i18n.setLocale("uk"); // the listener runs, and i18n.locale is "uk"
 stop();
 ```
 
-`on(fn)` calls `fn` on every change the instance publishes (a switch, a catalog loaded or added)
-and returns the function that unsubscribes; it takes no event name. `setLocale()` loads what the
-new locale needs, keeps the current locale on screen meanwhile, then switches. It rejects, and the
-locale stays, only when no namespace it waited for has a catalog for the new locale.
+`on(fn)` calls `fn` on every change the instance publishes (a switch, a catalog added, a load that
+starts or settles, a failed one too) and returns the function that unsubscribes; it takes no event
+name. `setLocale()` loads what the new locale needs, keeps the current locale on screen meanwhile,
+then switches. It rejects, and the locale stays, only when no namespace it waited for has a catalog
+of the new locale or of its parents (`de` for `de-AT`).
 
 ## Load catalogs
 
@@ -142,9 +144,9 @@ a JSON module returned whole is a catalog with one key, `default`, so every `t()
 and the only report is `missing_key`. `i18n.ns("account")` is `t()` bound to that namespace.
 
 The first loads start inside `createI18n()`. `ready` resolves when the loads in flight have settled,
-the failed ones too, and never rejects: after a failed load `t()` still renders keys, and `onError`
-has received `load_failed`. A binding's `isReady` answers another question: whether a catalog is
-usable for the locale on screen. With the core alone, ask `i18n.has(key)` or await `load(ns)`: it
+failed or not, and never rejects: when a locale's own load failed, `t()` renders fallback text or
+the key and `onError` has received `load_failed`. A binding's `isReady` tells whether the locale on
+screen has a usable catalog. With the core alone, ask `i18n.has(key)` or await `load(ns)`: it
 rejects only when the locale's own catalog failed and no parent's (`de` for `de-AT`) is usable.
 
 ```ts title="src/billing.ts" check=group=core-2

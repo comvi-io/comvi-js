@@ -201,9 +201,9 @@ export default defineI18nOptions((event) => {
 Switch with a link (`useSwitchLocalePath()`, `<NuxtLinkLocale locale>`): a switch whose catalogs all
 fail keeps the locale on screen and its URL, and `onError` gets `load_failed`. `setLocale()` changes
 the i18n instance only (the text and the cookie, not the URL), and the next navigation applies the
-URL's locale: use it as the switch with `localePrefix: "never"`. When none of the new locale's
-catalogs loads, it rejects with the loader's error and the locale and the text on screen stay as
-they were. Calling `setLocale()` again calls the loader again.
+URL's locale: use it as the switch with `localePrefix: "never"`. When no catalog of the new locale
+or its parents (`de` for `de-AT`) loads, it rejects with the loader's error and the locale and the
+text on screen stay as they were. Calling `setLocale()` again calls the loader again.
 
 ## Retry with `load()`
 
