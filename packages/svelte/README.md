@@ -17,20 +17,22 @@
 
 ---
 
-`@comvi/svelte` binds the Comvi i18n instance to Svelte 5 with runes: `setI18n(i18n)` in the root
-component, `useI18n()` in components, and `<T>` for translations that contain markup.
+`@comvi/svelte` is the Svelte 5 binding of Comvi i18n: `setI18n()`, `useI18n()` and the `<T>`
+component, built on runes. Create the i18n instance, pass it to `setI18n()` in the root component,
+and read translations in any component below it.
 
 ## Install
 
 ```bash
-npm install @comvi/svelte @comvi/core # peer: svelte ^5.3.0; the app imports @comvi/core/cdn
+npm install @comvi/svelte @comvi/core # peer: svelte ^5.3.0
 ```
 
-`@comvi/core` and every binding in an app must be on one version. From 0.8 on, two copies of `@comvi/core` (two versions, or one version installed twice) throw an error that names both versions.
+`@comvi/core` and every binding in an app must be on one version: two copies of `@comvi/core` (two
+versions, or one version installed twice) throw an error that names both versions.
 
 ## Setup
 
-```ts title="src/i18n.ts"
+```ts title="src/i18n.ts" check=group=svelte-app
 import { createI18n } from "@comvi/svelte";
 
 export const i18n = createI18n({
@@ -39,7 +41,7 @@ export const i18n = createI18n({
 });
 ```
 
-```svelte title="src/App.svelte"
+```svelte title="src/App.svelte" check=group=svelte-app
 <script lang="ts">
   import { setI18n, useI18n } from "@comvi/svelte";
   import { i18n } from "./i18n";
@@ -47,145 +49,198 @@ export const i18n = createI18n({
   setI18n(i18n);
   const r = useI18n();
   const t = r.t;
-  let failed = $state(false);
-  // A switch that cannot load (a network error) rejects and keeps the old locale on screen:
-  // say so, and show that locale in the control again.
-  const switchTo = (select: HTMLSelectElement) =>
-    r.setLocale(select.value).then(
-      () => (failed = false),
-      () => ((failed = true), (select.value = r.locale)),
-    );
 </script>
 
-<h1>{t("greeting", { name: "Alice" })}</h1>
-<select value={r.locale} onchange={(e) => switchTo(e.currentTarget)}>
-  <option value="en">English</option>
-  <option value="uk">Українська</option>
-</select>
-{#if failed}<p role="alert">Could not switch the language. Try again.</p>{/if}
+<button onclick={() => r.setLocale(r.locale === "en" ? "uk" : "en")}>
+  {t("greeting", { name: "Alice" })}
+</button>
 ```
 
-`t()` fills `{name}` from its second argument (`{ ns }`, `{ locale }` there apply to one call) and
-re-runs in a template or a `$derived` when the instance's state changes. It always returns a
-string, and rich text is `<T>`'s: with generated types a key whose message has tags is a type error
-in `t()`. `locale`, `dir`, `isReady` and `isLoading` are getters, as `page` of `$app/state`: read them through the object (`r.locale`);
-destructured in a `<script>`, one is read once. `setLocale()` switches once the new catalogs are in
-(the last of quick switches wins); it rejects for an invalid tag, or when no catalog of the locale
-or its parent (`de` for `de-AT`) loaded for any namespace it waited for.
+`t()` fills `{name}` from its second argument. `locale`, `dir`, `isReady` and `isLoading` are
+getters: read them through the object (`r.locale`), because a destructured one is read once. Both
+catalogs are inline, so the switch loads nothing; with a `loader`, `setLocale()` can reject: see
+[A rejected `setLocale()`](#a-rejected-setlocale).
 
-```svelte title="src/Account.svelte"
+## Typed keys
+
+Typed keys come from JSON catalogs: `src/locales/<locale>.json` is the `default` namespace,
+`src/locales/<namespace>/<locale>.json` the others. Install `@comvi/vite-plugin` as a dev dependency
+and add `comviTypes({ from: "./src/locales", sourceLocale: "en" })` to the `plugins` of
+`vite.config.ts`. `vite dev` and `vite build` then write `src/types/i18n.d.ts`; keep it inside the
+`include` of your `tsconfig.json`. For `{ "greeting": "Hello, {name}!" }` in `src/locales/en.json`
+the file reads, after a header comment:
+
+<!-- prettier-ignore -->
+```ts title="src/types/i18n.d.ts" check=group=svelte-typed
+import '@comvi/core';
+
+declare module '@comvi/core' {
+  interface Catalogs {
+    "default": {
+      "greeting": { "name": string | number };
+    };
+  }
+}
+
+export {};
+```
+
+From then on, a key that is not in the catalog is a type error that `svelte-check` reports:
+
+```svelte title="src/Greeting.svelte" check=group=svelte-typed check=expect-error
+<script lang="ts">
+  import { useI18n } from "@comvi/svelte";
+  const t = useI18n().t;
+</script>
+
+<!-- "greting" is not a key -->
+<h1>{t("greting", { name: "Alice" })}</h1>
+```
+
+A param the message uses is required too. A misspelt namespace is an error in `useI18n(ns)` and
+`t(key, { ns })`, and still compiles in `load()`, `add()`, `has()` and the `namespaces` option
+([limit](https://comvi.io/docs/i18n/limitations#namespace-typos-config)). Without Vite, see
+[Type safety](https://comvi.io/docs/i18n/type-safety).
+
+## Namespaces: `isReady`, `isLoading` and `ready`
+
+`useI18n("account")` binds `t` to the `account` namespace and holds the namespace while the
+component is mounted: it loads for the locale on screen and for every locale a switch goes to.
+`isReady` is `true` when a catalog of the namespace is usable for the locale on screen; `isLoading`
+is `true` while one is on the way. Check `isReady` first: a switch loads the new catalogs beside the
+text on screen. Both `false` means the text is not available and nothing is loading. `i18n.ready` is
+something else: a promise that resolves when the loads in flight have settled, the failed ones too.
+After a failed first load, `ready` has resolved and `isReady` is `false`.
+
+### Retry with `load()`
+
+A namespace whose load failed renders its "not available" branch, and mounting the component again
+does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
+that failed, and it rejects with the loader's error when the catalog of the locale on screen fails
+again.
+
+```svelte title="src/Account.svelte" check=group=svelte-app
 <script lang="ts">
   import { useI18n } from "@comvi/svelte";
   const account = useI18n("account");
+  // A rejection needs no handling here: `isReady` stays false and `onError` has the report.
+  const retry = () => account.i18n.load("account").catch(() => {});
 </script>
 
 {#if account.isReady}<h2>{account.t("title")}</h2>
 {:else if account.isLoading}<p class="spinner"></p>
-{:else}<p>Not available</p>{/if}
+{:else}<button onclick={retry}>Not available. Retry</button>{/if}
 ```
-
-`useI18n("account")` binds `t` and `T` and holds the namespace from mount to destroy: it loads for
-the locale on screen and every switch; with no component holding it, it stays cached and a switch
-skips it. `isReady`: a catalog of the locale on screen, its parent or a `fallbackLocale` is in;
-`isLoading`: one is on the way. A failed load is `false`/`false` only with no usable catalog; a
-remount does not retry, `i18n.load("account")` does. `t()` and `<T>` only read (development warns
-about a namespace nothing loads). Nothing gates the first paint: `await i18n.ready` before
-`mount()`, or read `isReady`.
-
-`useI18n()` with no namespace reads `default` (what its `t` reads) and every namespace of the
-`namespaces` option: `isReady` once each has a usable catalog (a catalog, not every key),
-`isLoading` while one of them loads, so an app root can branch on it. It is no longer
-`useI18n("default")`, which reads `default` alone. Check `isReady` first: a switch loads beside the
-text on screen. `false`/`false` means the text is unavailable and nothing is loading — a failed
-load or no loader, not necessarily an error.
-
-`useFormat()` from `@comvi/svelte/format` formats numbers, currency, dates, ranges, lists, display
-names and relative time in the locale on screen; what calls one re-runs on a switch.
 
 ## Load from Comvi
 
-`src/i18n.ts` gets the loader, and `main.ts` waits for that same instance, the one `App.svelte`
-passes to `setI18n()`:
+`cdn()` from `@comvi/core/cdn` is a `loader` that reads the catalogs your Comvi project published to
+its CDN. Nothing gates the first paint: mount the app after `i18n.ready` resolves, or branch on
+`isReady` in the root component.
 
-```ts title="src/i18n.ts"
+### `messages` beside `loader`
+
+An inline catalog (`messages`, `catalogs` or `add()`) switches off loading for its own pair of
+locale and namespace, and for nothing else: the loader is never asked for that pair, while other
+namespaces of that locale and the same namespace in other locales still load. So do not inline a
+catalog the CDN should serve. For a bundled catalog that is used when the CDN does not answer, pass
+`fallback`: it is a spare, not a base that the CDN's catalog is laid over
+([limit](https://comvi.io/docs/i18n/limitations#messages-and-loader)).
+
+### Report errors with `onError`
+
+`onError` receives every problem as an object with a `code` (`load_failed`, `missing_key` and
+others) and the `locale`, `ns` and `key` it concerns. Without it, a development build prints
+problems to the console and a production build prints nothing. `onError` reports and changes nothing
+else: after a failed first load `i18n.ready` still resolves and `t()` renders the key, so what the
+user sees is up to your `isReady` branch and your `catch` of `setLocale()`.
+
+```ts title="src/i18n.ts" check=group=svelte-cdn
 import { createI18n } from "@comvi/svelte";
 import { cdn } from "@comvi/core/cdn";
+import en from "./locales/en.json";
+
 export const i18n = createI18n({
   locale: "en",
-  loader: cdn("https://cdn.comvi.io/<project-token>"),
+  loader: cdn("https://cdn.comvi.io/<project-token>", {
+    fallback: { en: () => en }, // keys: "<locale>", or "<locale>:<namespace>"
+  }),
+  onError(error) {
+    if (error.code === "load_failed")
+      console.error(`No catalog for ${error.locale}/${error.ns}`, error.cause);
+  },
 });
 ```
 
-```ts title="src/main.ts"
+```ts title="src/main.ts" check=group=svelte-cdn
 import { mount } from "svelte";
 import App from "./App.svelte";
 import { i18n } from "./i18n";
+
 i18n.ready.then(() => mount(App, { target: document.body }));
+```
+
+## A rejected `setLocale()`
+
+With a `loader`, `setLocale()` loads the new locale's catalogs before it switches. When none of them
+loads, the promise rejects with the loader's error, `onError` gets `load_failed`, and the locale and
+the text on screen stay as they were. Calling `setLocale()` again calls the loader again.
+
+```svelte title="src/LocaleSwitcher.svelte" check=group=svelte-app
+<script lang="ts">
+  import { useI18n } from "@comvi/svelte";
+  const r = useI18n();
+  let failed = $state(false);
+  const toggle = () =>
+    r.setLocale(r.locale === "en" ? "uk" : "en").then(
+      () => (failed = false),
+      () => (failed = true),
+    );
+</script>
+
+<button onclick={toggle}>{failed ? "Could not switch. Try again" : r.locale}</button>
 ```
 
 ## Markup in a translation
 
-```svelte
+```svelte check=group=svelte-app
 <script lang="ts">
   import { T } from "@comvi/svelte";
-  import Note from "./Note.svelte"; // <em>{@render children?.()}</em>
 </script>
 
-<!-- "terms": "Read the <link>terms</link>,<br/><b>in <i>full</i></b>." -->
-<T i18nKey="terms" components={{ b: "strong", i: Note, br: "br" }}>
+<!-- "terms": "Read the <link>terms</link> <b>in full</b>." -->
+<T i18nKey="terms" components={{ b: "strong" }}>
   {#snippet link(children: string)}<a href="/terms">{children}</a>{/snippet}
 </T>
 ```
 
-A tag renders through its `components` entry (a tag name, a component, or `{ component: "a", props: { href: "/terms" } }`; the content is its
-`children` snippet, nested tags included; an empty tag passes none, so `br: "br"` is a real `<br>`),
-else a snippet of its name (`children` is the tag's text: nested markup is flattened, and
-development warns; a snippet can also be passed as a prop, `link={terms}`), else as text. `<T>`
-takes no handler: a function prop is a snippet. Every other prop but `i18nKey`, `ns`, `locale` and `markers` is a
-param, always printed as text: markup goes in a tag around it (`"Hello, <strong>{name}</strong>!"`
-with `components={{ strong: "strong" }}`). `useI18n("shop").T` is `<T>` bound to that namespace.
+A tag renders through its `components` entry (a tag name, a component, or `{ component, props }`),
+else through a snippet of its name (`children` is the tag's text), else as its inner text. Every
+prop but `i18nKey`, `components`, `ns`, `locale` and `markers` is a param, and a param is always
+text ([limit](https://comvi.io/docs/i18n/limitations#params-are-text)). `t()` returns a string: with
+typed keys, a key whose message has tags is a type error in `t()`, and `<T>` renders it.
 
 ## Server rendering
 
-An instance per request. `render()` of `svelte/server` is synchronous, so a route loads what it
-shows first: `await i18n.ready`, `await i18n.load(ns)`; a namespace held with no catalog renders its
-loading branch. Match a locale from a route, cookie or header against your supported locales first:
-`createI18n()` throws a `RangeError` for one that is not a tag.
+Create an i18n instance per request with the options the browser uses (`timeZone` is required).
+`render()` of `svelte/server` is synchronous, so load what the page shows first: `await i18n.ready`,
+then `await i18n.load(ns)` for each namespace. Return `handover(i18n)` (an export of
+`@comvi/svelte`) to the page as data. In the browser,
+`setI18n(createI18n({ ...options, ...payload }))` starts from the server's state: hydration matches,
+and the loader is asked for nothing the server sent. A SvelteKit app is in
+[`examples/sveltekit`](https://github.com/comvi-io/comvi-js/tree/main/examples/sveltekit)
+([Server-side rendering](https://comvi.io/docs/i18n/ssr)).
 
-```ts title="src/lib/i18n.ts"
-import { cdn } from "@comvi/core/cdn";
+## Limits
 
-export const locales = ["en", "uk"];
-// What the server and the browser share; timeZone is required.
-export const options = {
-  fallbackLocale: "en",
-  timeZone: "UTC",
-  loader: cdn("https://cdn.comvi.io/<project-token>"),
-};
-```
+[Limits](https://comvi.io/docs/i18n/limitations) lists what Comvi i18n does not do. Among its
+entries:
 
-```ts title="src/routes/+layout.server.ts"
-import { createI18n, handover } from "@comvi/svelte";
-import { locales, options } from "$lib/i18n";
-import type { LayoutServerLoad } from "./$types";
+- [`{count, number}` and `{when, date}` are not message syntax](https://comvi.io/docs/i18n/limitations#no-number-date-args): format the value with `useFormat()` from `@comvi/svelte/format` and pass the result as a plain param.
+- [A server payload carries every catalog the server instance holds, inline catalogs included](https://comvi.io/docs/i18n/limitations#handover-size).
 
-export const load: LayoutServerLoad = async ({ params }) => {
-  const locale = params.locale && locales.includes(params.locale) ? params.locale : "en";
-  const i18n = createI18n({ ...options, locale });
-  await i18n.ready;
-  return handover(i18n);
-};
-```
-
-In `+layout.svelte`, `setI18n(createI18n({ ...options, ...data }))` starts from the server's state:
-the same `isReady`/`isLoading`, no mismatch, nothing fetched that the server rendered. A later
-payload goes through `i18n.add(locale, catalog, ns)` and `setLocale()`: see
-[`examples/sveltekit`](https://github.com/comvi-io/comvi-js/tree/main/examples/sveltekit).
-
-## Read next
-
-- [Svelte guide](https://comvi.io/docs/i18n/svelte): markup inside a translation, first paint, SSR.
-- [Loading translations](https://comvi.io/docs/i18n/loading-translations): loaders, namespaces, fallbacks.
+Read next: the [Svelte guide](https://comvi.io/docs/i18n/svelte) and
+[Loading translations](https://comvi.io/docs/i18n/loading-translations).
 
 ## License
 
