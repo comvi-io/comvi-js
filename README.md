@@ -138,8 +138,8 @@ createRoot(document.getElementById("root")!).render(
 ```
 
 `cdn(url)` fetches each locale's catalog from the CDN when the instance needs it, and `loading` is
-what the provider renders until the initial loads settle, the failed ones too. The CDN URL comes
-from **Settings → Content Deploy** in the Comvi project; the walkthrough is
+what the provider renders until a catalog is usable or the initial loads have all failed. The CDN
+URL comes from **Settings → Content Deploy** in the Comvi project; the walkthrough is
 [Connect to Comvi](https://comvi.io/docs/i18n/connect-comvi). A server that renders per request
 passes one `createCatalogStore()` to every instance's loader (`cdn(url, { store })`), so requests
 share the fetched catalogs.

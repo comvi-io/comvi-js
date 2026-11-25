@@ -115,9 +115,9 @@ catalog exists in the locale's lookup chain (the locale, its parents, the `fallb
 ## Load from Comvi
 
 `cdn()` from `@comvi/core/cdn` is a `loader` that reads the catalogs your Comvi project published to
-its CDN. Pass `loading` to `<I18nProvider>` to paint a placeholder until the initial loads settle,
-the failed ones too (`<I18nProvider i18n={i18n} loading={<Spinner />}>`), or `suspense` to suspend
-to the nearest `<Suspense>` instead.
+its CDN. Pass `loading` to `<I18nProvider>` to paint a placeholder until a catalog is usable or the
+initial loads have all failed (`<I18nProvider i18n={i18n} loading={<Spinner />}>`), or `suspense`
+to suspend to the nearest `<Suspense>` instead.
 
 ### `messages` beside `loader`
 
