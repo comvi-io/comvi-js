@@ -74,7 +74,7 @@ type AuditEntry = {
 };
 type StoredValue = { locale: string; value: string; status: string };
 type DeployLog = {
-  lastDeployResult: { status?: string; timestamp?: string } | null;
+  lastDeployResult: { status?: string; timestamp?: string; duration?: number } | null;
   purges: Array<{ at: number; files: string[] }>;
   puts: Array<{ at: number; key: string }>;
   gets: Array<{ at: number; key: string; status: number; servedKey?: string }>;
@@ -106,35 +106,36 @@ const cdnFile = async (path: string) => {
 };
 
 /**
- * Wait, on this test's clock, for a Content Deploy newer than `before` (the platform debounces
- * one after a write: 5 s, at most 60 s). No manual deploy is triggered.
- */
-async function waitForDeploy(before: DeployLog, timeoutMs = 90_000) {
-  const deadline = clock() + timeoutMs;
-  let after = before;
-  while (clock() < deadline) {
-    after = await deployLog();
-    const stamp = after.lastDeployResult?.timestamp;
-    if (stamp && stamp !== before.lastDeployResult?.timestamp) return { after, deployed: true };
-    await new Promise((resolveWait) => setTimeout(resolveWait, 1_000));
-  }
-  return { after, deployed: false };
-}
-
-/**
  * Wait for a Content Deploy that started after `writeAt` (epoch ms), so its files were built
- * from the database as the writes left it. `timestamp` is when a deploy finished, `duration`
- * how long it ran. No manual deploy is triggered.
+ * from the database as the writes left it, and check that it published `files`. No manual
+ * deploy is triggered (the platform debounces one after a write: 5 s, at most 60 s).
+ *
+ * `lastDeployResult.timestamp` is when a deploy finished and `duration` how long it ran; the
+ * platform writes both for a failed deploy too, so a failed one throws. Upload times (`puts[].at`)
+ * are the runner's `Date.now()`. Both clocks are compared with this process's `Date.now()`,
+ * which holds because the runner, the API and this test run on one host.
  */
-async function waitForDeployAfter(writeAt: number, timeoutMs = 90_000) {
+async function waitForDeployAfter(writeAt: number, files: string[], timeoutMs = 90_000) {
   const deadline = clock() + timeoutMs;
   while (clock() < deadline) {
-    const result = (await deployLog()).lastDeployResult as {
-      timestamp?: string;
-      duration?: number;
-    } | null;
+    const log = await deployLog();
+    const result = log.lastDeployResult;
     const finished = result?.timestamp ? Date.parse(result.timestamp) : Number.NaN;
-    if (finished - (result?.duration ?? 0) > writeAt) return result;
+    if (finished - (result?.duration ?? 0) > writeAt) {
+      if (result?.status === "failed") {
+        throw new Error(`Content Deploy after the write failed: ${JSON.stringify(result)}`);
+      }
+      const uploaded = new Set(log.puts.filter(({ at }) => at > writeAt).map(({ key }) => key));
+      const missing = files.filter(
+        (file) => ![...uploaded].some((key) => key.endsWith(`/${file}`)),
+      );
+      if (missing.length > 0) {
+        throw new Error(
+          `Content Deploy after the write did not upload ${missing.join(", ")}: ${JSON.stringify(result)}`,
+        );
+      }
+      return log;
+    }
     await new Promise((resolveWait) => setTimeout(resolveWait, 1_000));
   }
   throw new Error(`no Content Deploy started after ${new Date(writeAt).toISOString()}`);
@@ -406,8 +407,12 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
         ),
         visible: await visibleText(page, "#system-headline"),
       };
-      await waitForDeployAfter(lastWriteAt);
-      const after = await deployLog();
+      // The deploy the COM-175 criteria below read: it follows both writes above.
+      const after = await waitForDeployAfter(lastWriteAt, [
+        "common/en.json",
+        "common/es.json",
+        "common/pt-BR.json",
+      ]);
       const deployedAt = clock();
       const servedEn = await cdnFile("common/en.json");
       const servedEs = await cdnFile("common/es.json");
@@ -425,6 +430,9 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
         });
         if (i < 9) await page.waitForTimeout(5_000);
       }
+      // `deployObservedSinceSaveMs`, `firstSnapshot` and the `*SinceSave` lists start at the
+      // editor's save; the deploy waited for follows the later every-locale save, so the lists
+      // may span two deploys.
       observations.contentDeploy = {
         deployBeforeSave: before.lastDeployResult,
         deployAfterSave: after.lastDeployResult,
@@ -489,7 +497,7 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
       lastWriteAt = Date.now();
       const en = (await storedKey("common", "system.headline")).find((v) => v.locale === "en");
       expect(en).toEqual({ locale: "en", value: edited, status: "translated" });
-      await waitForDeployAfter(lastWriteAt);
+      await waitForDeployAfter(lastWriteAt, ["common/en.json", "common/es.json"]);
       expect((await cdnFile("common/en.json")).body?.["system.headline"] ?? null).toBe(edited);
       expect(await visitorSees(plainBrowser, "en")).toBe(edited);
       // es was not approved: it still publishes its demoted, unchanged text.
@@ -509,6 +517,7 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
       await typeInto(page, localeNames.en!, again);
       const toast = await save(page);
       const againAt = clock();
+      const againWriteAt = Date.now();
       const shown = await expect
         .poll(() => visibleText(page, "#system-headline"), { timeout: 5_000 })
         .toBe(again)
@@ -517,11 +526,11 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
           () => false,
         );
       await closeDialog(page);
-      const { after, deployed } = await waitForDeploy(before);
+      const after = await waitForDeployAfter(againWriteAt, ["common/en.json"]);
       const deployedAt = clock();
       const snapshots: Array<Record<string, unknown>> = [];
       // Every 5 s until the visitor's cached catalog is 35 s old.
-      while (deployed) {
+      for (;;) {
         snapshots.push({
           tSinceSaveMs: clock() - againAt,
           tSinceDeployMs: clock() - deployedAt,
@@ -536,7 +545,7 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
         edited: again,
         toast,
         shownAfterSave: shown,
-        deployed,
+        deployed: true,
         deployObservedSinceSaveMs: deployedAt - againAt,
         purgesSinceSave: after.purges.slice(before.purges.length),
         servedEnHeadline: (await cdnFile("common/en.json")).body?.["system.headline"] ?? null,
@@ -544,7 +553,6 @@ test("0.8: the editor edits real platform data on a cdn() page through the MV3 b
         snapshots,
       };
       // With no status filter the draft itself is published: the COM-175 fallback is not used.
-      expect(deployed, "a deploy followed the save").toBe(true);
       const stored = await storedKey("common", "system.headline");
       expect(stored.find((v) => v.locale === "en")).toEqual({
         locale: "en",
