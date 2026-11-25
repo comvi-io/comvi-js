@@ -85,7 +85,8 @@ declare module '@comvi/core' {
 export {};
 ```
 
-From then on, a key that is not in the catalog is a type error that `vue-tsc` reports:
+From then on, a key that is not in the catalog, here `greting`, is a type error that `vue-tsc`
+reports:
 
 ```vue title="src/Greeting.vue" check=group=vue-typed check=expect-error
 <script setup lang="ts">
@@ -94,7 +95,6 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <!-- "greting" is not a key -->
   <h1>{{ t("greting", { name: "Alice" }) }}</h1>
 </template>
 ```
@@ -114,33 +114,12 @@ text on screen. Both `false` means the text is not available and nothing is load
 something else: a promise that resolves when the loads in flight have settled, the failed ones too.
 After a failed first load, `ready` has resolved and `isReady` is `false`.
 
-### Retry with `load()`
-
-A namespace whose load failed renders its "not available" branch, and mounting the component again
-does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
-that failed, and it rejects with the loader's error when the catalog of the locale on screen fails
-again.
-
-```vue title="src/Account.vue" check=group=vue-app
-<script setup lang="ts">
-import { useI18n } from "@comvi/vue";
-const { t, isReady, isLoading, i18n } = useI18n("account");
-// A rejection needs no handling here: `isReady` stays false and `onError` has the report.
-const retry = () => i18n.load("account").catch(() => {});
-</script>
-
-<template>
-  <h2 v-if="isReady">{{ t("title") }}</h2>
-  <p v-else-if="isLoading" class="spinner" />
-  <button v-else @click="retry">Not available. Retry</button>
-</template>
-```
-
 ## Load from Comvi
 
 `cdn()` from `@comvi/core/cdn` is a `loader` that reads the catalogs your Comvi project published to
-its CDN. Nothing gates the first paint: mount the app after `i18n.ready` resolves, or branch on
-`isReady` in the root component.
+its CDN. Nothing gates the first paint: mount the app after `i18n.ready` resolves
+(`i18n.ready.then(() => createApp(App).use(i18n).mount("#app"))`), or branch on `isReady` in the
+root component.
 
 ### `messages` beside `loader`
 
@@ -156,16 +135,14 @@ catalog the CDN should serve. For a bundled catalog that is used when the CDN do
 `onError` receives every problem as an object with a `code` (`load_failed`, `missing_key` and
 others) and the `locale`, `ns` and `key` it concerns. Without it, a development build prints
 problems to the console and a production build prints nothing. `onError` reports and changes nothing
-else: after a failed first load `i18n.ready` still resolves and `t()` renders the key, so what the
-user sees is up to your `isReady` branch and your `catch` of `setLocale()`.
+else: after a failed first load `i18n.ready` still resolves and `t()` renders the key: what the user
+sees is your `isReady` branch.
 
-```ts title="src/main.ts" check=group=vue-cdn
-import { createApp } from "vue";
+```ts title="src/i18n.ts" check=group=vue-cdn
 import { createI18n } from "@comvi/vue";
 import { cdn } from "@comvi/core/cdn";
-import App from "./App.vue";
 
-const i18n = createI18n({
+export const i18n = createI18n({
   locale: "en",
   loader: cdn("https://cdn.comvi.io/<project-token>", {
     // keys: "<locale>", or "<locale>:<namespace>"
@@ -176,59 +153,54 @@ const i18n = createI18n({
       console.error(`No catalog for ${error.locale}/${error.ns}`, error.cause);
   },
 });
-
-i18n.ready.then(() => createApp(App).use(i18n).mount("#app"));
 ```
 
 ## A rejected `setLocale()`
 
 With a `loader`, `setLocale()` loads the new locale's catalogs before it switches. When none of them
 loads, the promise rejects with the loader's error, `onError` gets `load_failed`, and the locale and
-the text on screen stay as they were. Calling `setLocale()` again calls the loader again. `locale`
-is a writable ref: assigning to it (a `v-model`) switches the same way, and after a failed switch it
-holds the old locale and nothing rejects.
+the text on screen stay as they were. Calling `setLocale()` again calls the loader again.
 
-```vue title="src/LocaleSwitcher.vue" check=group=vue-app
+## Retry with `load()`
+
+A namespace whose load failed renders its "not available" branch, and mounting the component again
+does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
+that failed, and it rejects with the loader's error when the catalog of the locale on screen fails
+again.
+
+```vue title="src/Account.vue" check=group=vue-app
 <script setup lang="ts">
 import { ref } from "vue";
 import { useI18n } from "@comvi/vue";
-const { locale, setLocale } = useI18n();
+const { t, locale, setLocale, isReady, isLoading, i18n } = useI18n("account");
 const failed = ref(false);
-const switchTo = (code: string) =>
-  setLocale(code).then(
+const toggle = () =>
+  setLocale(locale.value === "en" ? "uk" : "en").then(
     () => (failed.value = false),
     () => (failed.value = true),
   );
+// load() rejects when the catalog fails again: `isReady` stays false, `onError` has the report.
+const retry = () => i18n.load("account").catch(() => {});
 </script>
 
 <template>
-  <button @click="switchTo(locale === 'en' ? 'uk' : 'en')">{{ locale }}</button>
-  <p v-if="failed" role="alert">Could not switch the language. Try again.</p>
+  <h2 v-if="isReady">{{ t("title") }}</h2>
+  <p v-else-if="isLoading" class="spinner" />
+  <button v-else @click="retry">Not available. Retry</button>
+  <button @click="toggle">{{ failed ? "Could not switch. Try again" : locale }}</button>
 </template>
 ```
 
 ## Markup in a translation
 
-```vue check=group=vue-app
-<script setup lang="ts">
-import { T } from "@comvi/vue";
-</script>
-
-<template>
-  <!-- "terms": "Read the <link>terms</link> <b>in full</b>." -->
-  <T i18n-key="terms" :components="{ b: 'strong' }">
-    <template #link="{ children }">
-      <a href="/terms">{{ children }}</a>
-    </template>
-  </T>
-</template>
-```
-
-A tag renders through an attribute of its name (a function that gets the tag's content), else
-through its `components` entry (a tag name, a component, or `{ component, props }`), else through a
-slot of its name (`children` is the tag's text), else as its inner text. Every attribute but
-`i18n-key`, `components`, `ns`, `locale` and `markers` is a param, and a param is always text, a
-VNode too ([limit](https://comvi.io/docs/i18n/limitations#params-are-text)).
+`<T>` renders a message that has tags. For `"terms": "Read the <link>terms</link> <b>in full</b>."`,
+write `<T i18n-key="terms" :components="{ b: 'strong' }">` with a slot for the link inside it,
+`<template #link="{ children }"><a href="/terms">{{ children }}</a></template>`. A tag renders
+through an attribute of its name (a function that gets the tag's content), else through its
+`components` entry (a tag name, a component, or `{ component, props }`), else through a slot of its
+name (`children` is the tag's text), else as its inner text. Every attribute but `i18n-key`,
+`components`, `ns`, `locale` and `markers` is a param, and a param is always text, a VNode too
+([limit](https://comvi.io/docs/i18n/limitations#params-are-text)).
 
 ## Server rendering
 

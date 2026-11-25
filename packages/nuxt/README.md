@@ -67,17 +67,13 @@ const switchLocalePath = useSwitchLocalePath();
 
 <template>
   <h1>{{ t("home.title", { name: "Alice" }) }}</h1>
-  <T i18n-key="home.terms">
-    <template #link="{ children }">
-      <NuxtLinkLocale to="/terms">{{ children }}</NuxtLinkLocale>
-    </template>
-  </T>
   <NuxtLink :to="switchLocalePath(locale === 'en' ? 'uk' : 'en')">Switch</NuxtLink>
 </template>
 ```
 
-`<T>` renders a message with markup: a tag renders through its `components` entry, else through a
-slot of its name, else as its inner text, and a param is always text
+`<T i18n-key="terms" :components="{ b: 'strong' }">` renders a message with markup: a tag renders
+through its `components` entry, else through a slot of its name (`<template #link="{ children }">`),
+else as its inner text, and a param is always text
 ([limit](https://comvi.io/docs/i18n/limitations#params-are-text)). Switching the language is a
 navigation: the URL, the text, the cookie and `<html lang dir>` move together, and the old text
 stays until the new catalogs are in. In a Nitro route, `const { t } = await useTranslation(event)`
@@ -87,20 +83,8 @@ translates with the same options.
 
 `comvi.types` needs Nuxt 3.21.11+ or 4.6.0+: on an older Nuxt the module stops with an error that
 names your version ([limit](https://comvi.io/docs/i18n/limitations#nuxt-types-version)). It is not
-tested on Windows. It types the keys and params from JSON catalogs, the ones the loader imports:
-
-```ts title="nuxt.config.ts" check=group=nuxt-types
-export default defineNuxtConfig({
-  modules: ["@comvi/nuxt"],
-  comvi: {
-    locales: ["en", "uk"],
-    defaultLocale: "en",
-    timeZone: "UTC",
-    types: { from: "./locales" }, // relative to the project root
-  },
-});
-```
-
+tested on Windows. It types the keys and params from JSON catalogs, the ones the loader imports: add
+`types: { from: "./locales" }` (relative to the project root) to `comvi` in `nuxt.config.ts`.
 `nuxt prepare`, `nuxt typecheck` and `nuxt build` write `.nuxt/types/comvi.d.ts` from the
 `defaultLocale` catalogs, and `nuxt dev` rewrites it when a catalog changes; there is nothing to
 commit. For `{ "greeting": "Hello, {name}!" }` in `locales/default/en.json` the file reads, after a
@@ -146,29 +130,6 @@ switch goes to. `isReady` is `true` when a catalog of the namespace is usable fo
 screen; `isLoading` is `true` while one is on the way. Check `isReady` first. Both `false` means the
 text is not available and nothing is loading. `i18n.ready` is something else: a promise that
 resolves when the loads in flight have settled, the failed ones too.
-
-### Retry with `load()`
-
-A namespace whose load failed renders its "not available" branch, and mounting the component again
-does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
-that failed, and it rejects with the loader's error when the catalog of the locale on screen fails
-again. On a client navigation the component shows its loading branch until the namespace is in. To
-keep the previous page on screen instead, wait for the load in the page's setup, as the `await` line
-does:
-
-```vue title="app/pages/account.vue" check=group=nuxt-app
-<script setup lang="ts">
-const { t, isReady, isLoading, i18n } = useI18n("account");
-// A rejection needs no handling here: `isReady` stays false and `onError` has the report.
-if (isLoading.value) await i18n.load("account").catch(() => {});
-</script>
-
-<template>
-  <h1 v-if="isReady">{{ t("title") }}</h1>
-  <p v-else-if="isLoading">…</p>
-  <button v-else @click="i18n.load('account').catch(() => {})">Not available. Retry</button>
-</template>
-```
 
 ## Load from Comvi
 
@@ -221,8 +182,7 @@ reserved: a request that carries it to a server-rendered page URL gets a 404
 import { defineI18nOptions } from "@comvi/nuxt/i18n";
 
 export default defineI18nOptions((event) => {
-  // On a server, the request's own fetch forwards the user's cookies; in the browser `event`
-  // is undefined.
+  // On a server, the request's own fetch forwards the user's cookies.
   const fetch = event?.$fetch ?? $fetch;
   return {
     loader: (locale, ns, signal) =>
@@ -244,35 +204,45 @@ URL's locale: use it as the switch with `localePrefix: "never"`. When none of th
 catalogs loads, it rejects with the loader's error and the locale and the text on screen stay as
 they were. Calling `setLocale()` again calls the loader again.
 
-```vue title="app/components/LocaleSwitcher.vue" check=group=nuxt-app
+## Retry with `load()`
+
+A namespace whose load failed renders its "not available" branch, and mounting the component again
+does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
+that failed, and it rejects with the loader's error when the catalog of the locale on screen fails
+again. On a client navigation the component shows its loading branch until the namespace is in. To
+keep the previous page on screen instead, wait for the load in the page's setup, as the `await` line
+does:
+
+```vue title="app/pages/account.vue" check=group=nuxt-app
 <script setup lang="ts">
-const { locale, setLocale } = useI18n();
+const { t, locale, setLocale, isReady, isLoading, i18n } = useI18n("account");
+// load() rejects when the catalog fails again: `isReady` stays false, `onError` has the report.
+const retry = () => i18n.load("account").catch(() => {});
+if (isLoading.value) await retry();
 const failed = ref(false);
-const switchTo = (code: string) =>
-  setLocale(code).then(
+const toggle = () =>
+  setLocale(locale.value === "en" ? "uk" : "en").then(
     () => (failed.value = false),
     () => (failed.value = true),
   );
 </script>
 
 <template>
-  <button @click="switchTo(locale === 'en' ? 'uk' : 'en')">{{ locale }}</button>
-  <p v-if="failed" role="alert">Could not switch the language. Try again.</p>
+  <h1 v-if="isReady">{{ t("title") }}</h1>
+  <p v-else-if="isLoading">…</p>
+  <button v-else @click="retry">Not available. Retry</button>
+  <button @click="toggle">{{ failed ? "Could not switch. Try again" : locale }}</button>
 </template>
 ```
 
 ## Routing
 
-| `localePrefix` | Default locale | Other locale                                                  |
-| -------------- | -------------- | ------------------------------------------------------------- |
-| `as-needed`    | `/about`       | `/de/about`                                                   |
-| `always`       | `/en/about`    | `/de/about`                                                   |
-| `never`        | `/about`       | `/about`, locale from the cookie or `Accept-Language` instead |
-
-A URL that names no locale reads it from the query, the `i18n_locale` cookie and `Accept-Language`,
-and the module records the locale in the cookie. `useLocalePath()`, `useSwitchLocalePath()`,
-`useLocaleRoute()` and `<NuxtLinkLocale>` build the links, and `useLocaleHead()` adds canonical,
-hreflang and `og:locale` ([Nuxt guide](https://comvi.io/docs/i18n/nuxt)).
+`localePrefix` decides the URLs: `as-needed` (the default) gives `/about` and `/de/about`, `always`
+`/en/about` and `/de/about`, `never` `/about` for every locale. A URL that names no locale reads it
+from the query, the `i18n_locale` cookie and `Accept-Language`, and the module records the locale in
+the cookie. `useLocalePath()`, `useSwitchLocalePath()`, `useLocaleRoute()` and `<NuxtLinkLocale>`
+build the links, and `useLocaleHead()` adds canonical, hreflang and `og:locale`
+([Nuxt guide](https://comvi.io/docs/i18n/nuxt)).
 
 ## Limits
 

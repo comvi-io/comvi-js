@@ -85,7 +85,8 @@ declare module '@comvi/core' {
 export {};
 ```
 
-From then on, a key that is not in the catalog is a type error that `svelte-check` reports:
+From then on, a key that is not in the catalog, here `greting`, is a type error that `svelte-check`
+reports:
 
 ```svelte title="src/Greeting.svelte" check=group=svelte-typed check=expect-error
 <script lang="ts">
@@ -93,7 +94,6 @@ From then on, a key that is not in the catalog is a type error that `svelte-chec
   const t = useI18n().t;
 </script>
 
-<!-- "greting" is not a key -->
 <h1>{t("greting", { name: "Alice" })}</h1>
 ```
 
@@ -112,31 +112,12 @@ text on screen. Both `false` means the text is not available and nothing is load
 something else: a promise that resolves when the loads in flight have settled, the failed ones too.
 After a failed first load, `ready` has resolved and `isReady` is `false`.
 
-### Retry with `load()`
-
-A namespace whose load failed renders its "not available" branch, and mounting the component again
-does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
-that failed, and it rejects with the loader's error when the catalog of the locale on screen fails
-again.
-
-```svelte title="src/Account.svelte" check=group=svelte-app
-<script lang="ts">
-  import { useI18n } from "@comvi/svelte";
-  const account = useI18n("account");
-  // A rejection needs no handling here: `isReady` stays false and `onError` has the report.
-  const retry = () => account.i18n.load("account").catch(() => {});
-</script>
-
-{#if account.isReady}<h2>{account.t("title")}</h2>
-{:else if account.isLoading}<p class="spinner"></p>
-{:else}<button onclick={retry}>Not available. Retry</button>{/if}
-```
-
 ## Load from Comvi
 
 `cdn()` from `@comvi/core/cdn` is a `loader` that reads the catalogs your Comvi project published to
-its CDN. Nothing gates the first paint: mount the app after `i18n.ready` resolves, or branch on
-`isReady` in the root component.
+its CDN. Nothing gates the first paint: mount the app after `i18n.ready` resolves
+(`i18n.ready.then(() => mount(App, { target: document.body }))`), or branch on `isReady` in the root
+component.
 
 ### `messages` beside `loader`
 
@@ -152,8 +133,8 @@ catalog the CDN should serve. For a bundled catalog that is used when the CDN do
 `onError` receives every problem as an object with a `code` (`load_failed`, `missing_key` and
 others) and the `locale`, `ns` and `key` it concerns. Without it, a development build prints
 problems to the console and a production build prints nothing. `onError` reports and changes nothing
-else: after a failed first load `i18n.ready` still resolves and `t()` renders the key, so what the
-user sees is up to your `isReady` branch and your `catch` of `setLocale()`.
+else: after a failed first load `i18n.ready` still resolves and `t()` renders the key: what the user
+sees is your `isReady` branch.
 
 ```ts title="src/i18n.ts" check=group=svelte-cdn
 import { createI18n } from "@comvi/svelte";
@@ -172,53 +153,49 @@ export const i18n = createI18n({
 });
 ```
 
-```ts title="src/main.ts" check=group=svelte-cdn
-import { mount } from "svelte";
-import App from "./App.svelte";
-import { i18n } from "./i18n";
-
-i18n.ready.then(() => mount(App, { target: document.body }));
-```
-
 ## A rejected `setLocale()`
 
 With a `loader`, `setLocale()` loads the new locale's catalogs before it switches. When none of them
 loads, the promise rejects with the loader's error, `onError` gets `load_failed`, and the locale and
 the text on screen stay as they were. Calling `setLocale()` again calls the loader again.
 
-```svelte title="src/LocaleSwitcher.svelte" check=group=svelte-app
+## Retry with `load()`
+
+A namespace whose load failed renders its "not available" branch, and mounting the component again
+does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
+that failed, and it rejects with the loader's error when the catalog of the locale on screen fails
+again.
+
+```svelte title="src/Account.svelte" check=group=svelte-app
 <script lang="ts">
   import { useI18n } from "@comvi/svelte";
-  const r = useI18n();
+  const r = useI18n("account");
   let failed = $state(false);
   const toggle = () =>
     r.setLocale(r.locale === "en" ? "uk" : "en").then(
       () => (failed = false),
       () => (failed = true),
     );
+  // load() rejects when the catalog fails again: `isReady` stays false, `onError` has the report.
+  const retry = () => r.i18n.load("account").catch(() => {});
 </script>
 
+{#if r.isReady}<h2>{r.t("title")}</h2>
+{:else if r.isLoading}<p class="spinner"></p>
+{:else}<button onclick={retry}>Not available. Retry</button>{/if}
 <button onclick={toggle}>{failed ? "Could not switch. Try again" : r.locale}</button>
 ```
 
 ## Markup in a translation
 
-```svelte check=group=svelte-app
-<script lang="ts">
-  import { T } from "@comvi/svelte";
-</script>
-
-<!-- "terms": "Read the <link>terms</link> <b>in full</b>." -->
-<T i18nKey="terms" components={{ b: "strong" }}>
-  {#snippet link(children: string)}<a href="/terms">{children}</a>{/snippet}
-</T>
-```
-
-A tag renders through its `components` entry (a tag name, a component, or `{ component, props }`),
-else through a snippet of its name (`children` is the tag's text), else as its inner text. Every
-prop but `i18nKey`, `components`, `ns`, `locale` and `markers` is a param, and a param is always
-text ([limit](https://comvi.io/docs/i18n/limitations#params-are-text)). `t()` returns a string: with
-typed keys, a key whose message has tags is a type error in `t()`, and `<T>` renders it.
+`<T>` renders a message that has tags. For `"terms": "Read the <link>terms</link> <b>in full</b>."`,
+write `<T i18nKey="terms" components={{ b: "strong" }}>` with a snippet for the link inside it,
+`{#snippet link(children: string)}<a href="/terms">{children}</a>{/snippet}`. A tag renders through
+its `components` entry (a tag name, a component, or `{ component, props }`), else through a snippet
+of its name (`children` is the tag's text), else as its inner text. Every prop but `i18nKey`,
+`components`, `ns`, `locale` and `markers` is a param, and a param is always text
+([limit](https://comvi.io/docs/i18n/limitations#params-are-text)). `t()` returns a string: with
+typed keys, a key whose message has tags is a type error in `t()`, and `<T>` renders it .
 
 ## Server rendering
 

@@ -109,25 +109,6 @@ text on screen. Both `false` means the text is not available and nothing is load
 something else: a promise that resolves when the loads in flight have settled, the failed ones too.
 After a failed first load, `ready` has resolved and `isReady` is `false`.
 
-### Retry with `load()`
-
-A namespace whose load failed renders its "not available" branch, and mounting the component again
-does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
-that failed, and it rejects with the loader's error when the catalog of the locale on screen fails
-again.
-
-```tsx title="src/Account.tsx" check=group=react-app
-import { useI18n } from "@comvi/react";
-
-export function Account() {
-  const { t, isReady, isLoading, i18n } = useI18n("account");
-  if (isReady) return <h2>{t("title")}</h2>;
-  if (isLoading) return <p className="spinner" />;
-  // A rejection needs no handling here: `isReady` stays false and `onError` has the report.
-  return <button onClick={() => i18n.load("account").catch(() => {})}>Not available. Retry</button>;
-}
-```
-
 ## Load from Comvi
 
 `cdn()` from `@comvi/core/cdn` is a `loader` that reads the catalogs your Comvi project published to
@@ -150,8 +131,7 @@ catalog the CDN should serve. For a bundled catalog that is used when the CDN do
 others) and the `locale`, `ns` and `key` it concerns. Without it, a development build prints
 problems to the console and a production build prints nothing. `onError` reports and changes nothing
 else: after a failed first load `i18n.ready` still resolves, the `loading` gate opens and `t()`
-renders the key, so what the user sees is up to your `isReady` branch and your `catch` of
-`setLocale()`.
+renders the key: what the user sees is your `isReady` branch.
 
 ```ts title="src/i18n.ts" check=group=react-app
 import { createI18n } from "@comvi/react";
@@ -176,38 +156,46 @@ With a `loader`, `setLocale()` loads the new locale's catalogs before it switche
 loads, the promise rejects with the loader's error, `onError` gets `load_failed`, and the locale and
 the text on screen stay as they were. Calling `setLocale()` again calls the loader again.
 
-```tsx title="src/LocaleSwitcher.tsx" check=group=react-app
+## Retry with `load()`
+
+A namespace whose load failed renders its "not available" branch, and mounting the component again
+does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
+that failed, and it rejects with the loader's error when the catalog of the locale on screen fails
+again.
+
+```tsx title="src/Account.tsx" check=group=react-app
 import { useState } from "react";
 import { useI18n } from "@comvi/react";
 
-export function LocaleSwitcher() {
-  const { locale, setLocale } = useI18n();
+export function Account() {
+  const { t, locale, setLocale, isReady, isLoading, i18n } = useI18n("account");
   const [failed, setFailed] = useState(false);
   const toggle = () =>
     setLocale(locale === "en" ? "uk" : "en").then(
       () => setFailed(false),
       () => setFailed(true),
     );
-  return <button onClick={toggle}>{failed ? "Could not switch. Try again" : locale}</button>;
+  // load() rejects when the catalog fails again: `isReady` stays false, `onError` has the report.
+  const retry = () => i18n.load("account").catch(() => {});
+  if (!isReady && !isLoading) return <button onClick={retry}>Not available. Retry</button>;
+  return (
+    <>
+      {isReady ? <h2>{t("title")}</h2> : <p className="spinner" />}
+      <button onClick={toggle}>{failed ? "Could not switch. Try again" : locale}</button>
+    </>
+  );
 }
 ```
 
 ## Markup in a translation
 
-```tsx check=group=react-app
-import { T } from "@comvi/react";
-
-// "terms": "Read the <link>terms</link> <b>in full</b>."
-export const Terms = () => (
-  <T i18nKey="terms" link={(c) => <a href="/terms">{c}</a>} components={{ b: "strong" }} />
-);
-```
-
-A tag renders through a prop of its name (a function that gets the tag's content), else through its
+`<T>` renders a message that has tags. For `"terms": "Read the <link>terms</link> <b>in full</b>."`,
+write `<T i18nKey="terms" link={(c) => <a href="/terms">{c}</a>} components={{ b: "strong" }} />`. A
+tag renders through a prop of its name (a function that gets the tag's content), else through its
 `components` entry (a tag name, a component, or `{ component, props }`), else as its inner text.
 Every prop but `i18nKey`, `components`, `ns`, `locale` and `markers` is a param, and a param is
 always text, an element too ([limit](https://comvi.io/docs/i18n/limitations#params-are-text)). `t()`
-takes the same handlers: `t("terms", { link: (c) => <a href="/terms">{c}</a> })`.
+takes the same handlers: `t("terms", { link: (c) => <a href="/terms">{c}</a> })` .
 
 ## Server payload
 
