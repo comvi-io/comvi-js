@@ -149,6 +149,12 @@ the key and `onError` has received `load_failed`. A binding's `isReady` tells wh
 screen has a usable catalog. With the core alone, ask `i18n.has(key)` or await `load(ns)`: it
 rejects only when the locale's own catalog failed and no parent's (`de` for `de-AT`) is usable.
 
+If you passed `onError`, as above, you can call `void i18n.setLocale(code)` or `void i18n.load(ns)`
+without an empty `.catch()`. If you await the result, the error still interrupts execution. A
+promise derived from the call (`.then(fn)`, an `async` function that awaits it without a `catch`) is
+yours to handle, and without the `onError` option nothing changes: an ignored rejection is a global
+`unhandledrejection`.
+
 ```ts title="src/billing.ts" check=group=core-2
 import { i18n } from "./i18n";
 

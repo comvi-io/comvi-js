@@ -161,6 +161,12 @@ export const i18n = createI18n({
 });
 ```
 
+If you passed `onError`, you can call `void i18n.setLocale(code)` or `void i18n.load(ns)` without an
+empty `.catch()`. If you await the result, the error still interrupts execution. A promise derived
+from the call (`.then(fn)`, an `async` function that awaits it without a `catch`) is yours to
+handle, and without the `onError` option nothing changes: an ignored rejection is a global
+`unhandledrejection`.
+
 ## A rejected `setLocale()`
 
 With a `loader`, `setLocale()` loads the catalogs of the new locale and its parents (`de` for
@@ -185,7 +191,7 @@ and no catalog of its parents (`de` for `de-AT`) is usable; a `fallbackLocale`'s
       () => (failed = false),
       () => (failed = true),
     );
-  const retry = () => r.i18n.load("account").catch(() => {}); // `onError` has the report
+  const retry = () => void r.i18n.load("account"); // no `.catch()`: `onError` is set
 </script>
 
 {#if r.isLoading}<p class="spinner"></p>

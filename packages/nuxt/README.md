@@ -175,6 +175,12 @@ export default defineI18nOptions(() => ({
 }));
 ```
 
+If you passed `onError`, you can call `void i18n.setLocale(code)` or `void i18n.load(ns)` without an
+empty `.catch()`. If you await the result, the error still interrupts execution. A promise derived
+from the call (`.then(fn)`, an `async` function that awaits it without a `catch`) is yours to
+handle, and without the `onError` option nothing changes: an ignored rejection is a global
+`unhandledrejection`.
+
 ### A loader that asks your own server: `x-comvi-catalog`
 
 A custom loader that requests catalogs from the app's own server (a Nitro route, through `$fetch` or
@@ -223,7 +229,7 @@ previous page on screen instead, wait for the load in the page's setup, as the `
 ```vue title="app/pages/account.vue" check=group=nuxt-app
 <script setup lang="ts">
 const { t, locale, setLocale, isReady, isLoading, isFetching, i18n } = useI18n("account");
-const retry = () => i18n.load("account").catch(() => {}); // `onError` has the report
+const retry = () => i18n.load("account").catch(() => {}); // awaited below, so caught here
 if (isFetching.value) await retry();
 const failed = ref(false);
 const toggle = () =>
