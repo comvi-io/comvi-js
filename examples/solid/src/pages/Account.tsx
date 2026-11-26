@@ -10,7 +10,7 @@ export function Account() {
   const { t } = useI18n();
   // Loads the `account` namespace and holds it while this page shows, so a language
   // switch loads it too; once the page closes it stays cached and a switch skips it.
-  const { t: tAccount, isReady, isFetching, i18n } = useI18n("account");
+  const { t: tAccount, isLoading, i18n } = useI18n("account");
 
   // `load()` settles with that load: it rejects when the catalog could not be loaded
   // (onError has the details), and calling it again asks the loader again.
@@ -36,10 +36,7 @@ export function Account() {
 
       <Card title={t("demo.lazy.title")} body={t("demo.lazy.body")}>
         <Show when={!failed()} fallback={<LoadError onRetry={loadAccount} />}>
-          <Show
-            when={isReady() || !isFetching()}
-            fallback={<p class="widget">{t("app.loading")}</p>}
-          >
+          <Show when={!isLoading()} fallback={<p class="widget">{t("app.loading")}</p>}>
             <p class="widget" data-testid="account-signed-in">
               {tAccount("profile.signed_in", { name: name() })}
             </p>

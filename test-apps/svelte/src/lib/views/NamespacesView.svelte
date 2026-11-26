@@ -23,7 +23,7 @@
     <p>{t('namespaces.description')}</p>
 
     {#if !admin.isReady}
-      <p class="text-gray-500">{admin.isFetching ? t('common.loading') : t('namespaces.load_admin')}</p>
+      <p class="text-gray-500">{admin.isLoading ? t('common.loading') : t('namespaces.load_admin')}</p>
     {:else}
       <div class="space-y-4 border-t pt-4 mt-4">
         <h3 class="font-bold text-lg text-purple-600">
