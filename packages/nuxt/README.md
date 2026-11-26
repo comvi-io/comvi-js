@@ -123,14 +123,20 @@ A param the message uses is required too. A misspelt namespace is an error in `u
 `t(key, { ns })`, and still compiles in `load()`, `add()`, `has()` and the `namespaces` option
 ([limit](https://comvi.io/docs/i18n/limitations#namespace-typos-config)).
 
-## Namespaces: `isReady`, `isFetching` and `ready`
+## Namespaces: `isReady`, `isLoading`, `isFetching` and `ready`
 
 `useI18n("account")` binds `t` to the `account` namespace and holds the namespace while the
 component is mounted: it loads on the server render, for the locale on screen and for every locale a
 switch goes to. `isReady` is `true` when a catalog of the namespace is usable for the locale on
-screen; `isFetching` is `true` while one is on the way. Check `isReady` first. Both `false` means the
-text is not available and nothing is loading. `i18n.ready` is something else: a promise that
-resolves when the loads in flight have settled, the failed ones too.
+screen. `isLoading` is `true` when none is usable yet and one is loading: render the placeholder. It
+is `false` during a switch beside usable text, which stays on screen. `isReady` and `isLoading` both
+`false` means the text is unavailable and nothing is loading (a failed load, or no loader): render
+fallback content, a retry button for example. `isReady` and `isLoading` are never both `true`, so
+either can be tested first, but `!isReady` alone is also `true` while a catalog loads. `isFetching`
+is `true` while a load of the namespace is in flight or about to start, beside usable text too: it
+is for a busy indicator next to text that stays on screen, or for waiting before a render.
+`i18n.ready` is something else: a promise that resolves when the loads in flight have settled, the
+failed ones too.
 
 ## Load from Comvi
 
@@ -216,7 +222,7 @@ previous page on screen instead, wait for the load in the page's setup, as the `
 
 ```vue title="app/pages/account.vue" check=group=nuxt-app
 <script setup lang="ts">
-const { t, locale, setLocale, isReady, isFetching, i18n } = useI18n("account");
+const { t, locale, setLocale, isReady, isLoading, isFetching, i18n } = useI18n("account");
 const retry = () => i18n.load("account").catch(() => {}); // `onError` has the report
 if (isFetching.value) await retry();
 const failed = ref(false);
@@ -228,9 +234,9 @@ const toggle = () =>
 </script>
 
 <template>
-  <h1 v-if="isReady">{{ t("title") }}</h1>
-  <p v-else-if="isFetching">…</p>
-  <button v-else @click="retry">Not available. Retry</button>
+  <p v-if="isLoading">…</p>
+  <button v-else-if="!isReady" @click="retry">Not available. Retry</button>
+  <h1 v-else>{{ t("title") }}</h1>
   <button @click="toggle">{{ failed ? "Could not switch. Try again" : locale }}</button>
 </template>
 ```
