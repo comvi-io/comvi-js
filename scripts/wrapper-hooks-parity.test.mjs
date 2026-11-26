@@ -88,10 +88,20 @@ const ON_08_USE_I18N = {
   "@comvi/svelte": ["packages/svelte/src/binding.ts", "UseI18n"],
 };
 /**
- * Design §3.4's six members, the bound `T` of R3-5(b) and `isReady` of lot 4c (R3-26), sorted:
- * "T" before lowercase.
+ * Design §3.4's six members, the bound `T` of R3-5(b), `isReady` of lot 4c (R3-26) and the derived
+ * `isLoading` (owner decision 2026-11-26), sorted: "T" before lowercase.
  */
-const ON_08_MEMBERS = ["T", "dir", "i18n", "isLoading", "isReady", "locale", "setLocale", "t"];
+const ON_08_MEMBERS = [
+  "T",
+  "dir",
+  "i18n",
+  "isFetching",
+  "isLoading",
+  "isReady",
+  "locale",
+  "setLocale",
+  "t",
+];
 
 test("every binding returns exactly design §3.4's useI18n() members", () => {
   assert.deepEqual(Object.keys(ON_08_USE_I18N).sort(), [

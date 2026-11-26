@@ -47,12 +47,12 @@ const cdnDouble = (auto = true) => {
 };
 
 const Switcher = () => {
-  const { locale, setLocale, isLoading } = useI18n();
+  const { locale, setLocale, isFetching } = useI18n();
   return (
     <select
       aria-label="locale"
       value={locale}
-      disabled={isLoading}
+      disabled={isFetching}
       onChange={(e) => void setLocale(e.target.value)}
     >
       <option value="en">en</option>
@@ -107,9 +107,9 @@ describe("an app on createI18n + cdn() + detect()", () => {
     const net = cdnDouble(false);
     const i18n = createI18n({ locale: "en", loader: cdn(BASE) });
     const Account = () => {
-      const { t, isLoading } = useI18n("account");
+      const { t, isFetching } = useI18n("account");
       return (
-        <p data-testid="acct">{isLoading ? "…" : (t("signed_in", { name: "Ann" }) as string)}</p>
+        <p data-testid="acct">{isFetching ? "…" : (t("signed_in", { name: "Ann" }) as string)}</p>
       );
     };
     render(
@@ -129,8 +129,8 @@ describe("an app on createI18n + cdn() + detect()", () => {
     const errors: I18nError[] = [];
     const i18n = createI18n({ locale: "en", loader: cdn(BASE), onError: (e) => errors.push(e) });
     const Missing = () => {
-      const { t, isLoading } = useI18n("nope");
-      return <p data-testid="m">{isLoading ? "…" : (t("k") as string)}</p>;
+      const { t, isFetching } = useI18n("nope");
+      return <p data-testid="m">{isFetching ? "…" : (t("k") as string)}</p>;
     };
     render(
       <I18nProvider i18n={i18n}>

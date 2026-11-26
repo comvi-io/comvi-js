@@ -6,7 +6,7 @@
  * `state(i18n)` (the published snapshot), `view(i18n, state, extra)` (a render-local
  * snapshot with extra catalogs layered in, never published, `rev` unchanged) and
  * `translate(i18n, state, key, params, ns)`, plus `loading(state, ns)`,
- * `coming(i18n, state, ns)` (`isLoading`), `available(i18n, state, ns)` (`isReady`) and
+ * `coming(i18n, state, ns)` (`isFetching`), `available(i18n, state, ns)` (`isReady`) and
  * `acquire(i18n, ns)` (a consumer's hold) — or, in a binding, `core(i18n)`, the seam those
  * read. A state carries the marking hook of an editor session (`mk`,
  * R3-14 H4), which only the `/devtools` handle sets; nothing here sets it. `handover(i18n)`
@@ -57,7 +57,7 @@ export const acquire = (i18n: I18n, ns: string): (() => void) => core(i18n).h(ns
 /**
  * A render-local snapshot: `state` with `extra` (namespace → locale → catalog, flat or nested,
  * or `null` for a load that failed on the server: that slot is left out and the pair reads
- * as failed in this snapshot, so `isLoading` predicts no load for it) in place of its
+ * as failed in this snapshot, so `isFetching` predicts no load for it) in place of its
  * slots, rendered in `locale` (default: the state's own; a binding's
  * locale handover renders the target before `setLocale()` lands at commit). A handed slot
  * IS its catalog: a key the catalog lacks is gone, `{}` is empty. Nothing
@@ -80,7 +80,7 @@ export const view = (
     for (const l of Object.keys(extra[n])) {
       const slot = c[n] && c[n][l];
       const m = extra[n][l];
-      // Rendered as failed, as the server did: `isLoading` (`coming()`) skips the pair until
+      // Rendered as failed, as the server did: `isFetching` (`coming()`) skips the pair until
       // `Core.f` fails it at commit (a hydration then reads the server's flags).
       const k = l + "\0" + n;
       const at = x.indexOf(k);
@@ -98,7 +98,7 @@ export const view = (
     }
   // The chain gives the locale's direction and canonical tag (an invalid one, which this seam
   // can be handed, renders through its fallbacks). In another locale than the published
-  // one, what its chain lacks is loading (`isLoading`; never requested, it is no
+  // one, what its chain lacks is loading (`isFetching`; never requested, it is no
   // `missing_key`) by the core's own rule: the switch at commit loads it.
   const h = core(i18n).ch(locale);
   if (c === state.c && locale == state.locale && !xc) return state;
@@ -132,7 +132,7 @@ export const translate = (
 ): Rendered => core(i18n).tr(state, key, params, ns, join);
 
 /**
- * `isLoading` of namespace `ns` of `i18n` in `state`: a load of it is in flight, or
+ * `isFetching` of namespace `ns` of `i18n` in `state`: a load of it is in flight, or
  * the instance has a loader and a pair of the chain of the state's locale is neither in
  * place nor failed (what a consumer's hold loads; its render comes first).
  */

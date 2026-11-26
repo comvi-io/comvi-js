@@ -75,13 +75,13 @@ describe("the writable locale after a failed switch (lot 4b)", () => {
 });
 
 describe("useI18n() activates `default` (lot 4b)", () => {
-  it("an app whose `namespaces` leave `default` out loads it after mount; isLoading settles", async () => {
+  it("an app whose `namespaces` leave `default` out loads it after mount; isFetching settles", async () => {
     const l = manualLoader({ "en:default": { hi: "Hello" }, "en:account": {} });
     const { i18n } = make({ locale: "en", namespaces: ["account"], loader: l.load });
     const Probe = defineComponent({
       setup() {
-        const { t, isLoading } = useI18n();
-        return () => h("p", isLoading.value ? "…" : t("hi"));
+        const { t, isFetching } = useI18n();
+        return () => h("p", isFetching.value ? "…" : t("hi"));
       },
     });
     const w = mountWith(i18n, Probe);
@@ -93,13 +93,13 @@ describe("useI18n() activates `default` (lot 4b)", () => {
     expect(w.text()).toBe("Hello");
   });
 
-  it("a failed load ends the placeholder: isLoading false, the missing-key text", async () => {
+  it("a failed load ends the placeholder: isFetching false, the missing-key text", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
     const Probe = defineComponent({
       setup() {
-        const { t, isLoading } = useI18n("shop");
-        return () => h("p", isLoading.value ? "…" : t("title"));
+        const { t, isFetching } = useI18n("shop");
+        return () => h("p", isFetching.value ? "…" : t("title"));
       },
     });
     const w = mountWith(i18n, Probe);

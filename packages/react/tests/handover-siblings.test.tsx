@@ -18,9 +18,9 @@ describe("sibling handovers on one instance", () => {
       const B = { default: { en: { x: "x" } } };
       const seen: string[] = [];
       function Tpl() {
-        const { isReady, isLoading } = useI18n("admin");
-        seen.push(`${isReady}/${isLoading}`);
-        return isReady ? <p>ok</p> : isLoading ? <i>loading</i> : <b>unavailable</b>;
+        const { isReady, isFetching } = useI18n("admin");
+        seen.push(`${isReady}/${isFetching}`);
+        return isReady ? <p>ok</p> : isFetching ? <i>loading</i> : <b>unavailable</b>;
       }
       const ui = (i: I18n) => (
         <I18nProvider i18n={i}>

@@ -14,11 +14,11 @@ const i18n = createI18n({
 });
 
 const Cart = () => {
-  const { t, isLoading } = useI18n("shop");
+  const { t, isFetching } = useI18n("shop");
   const fmt = useFormat();
   return createElement(
     "p",
-    { "aria-busy": isLoading, lang: useLocale() },
+    { "aria-busy": isFetching, lang: useLocale() },
     t("items", { count: 2 }),
     createElement(T, { i18nKey: "terms", link: (c: unknown) => createElement("a", null, c) }),
     fmt.currency(9.5, "EUR"),

@@ -29,9 +29,9 @@ const payload = (locale: string, catalogs: Handover["catalogs"]): Handover => ({
 });
 
 function Probe({ ns = "default", k }: { ns?: string; k: string }) {
-  const { t, isReady, isLoading, locale } = useI18n(ns);
+  const { t, isReady, isFetching, locale } = useI18n(ns);
   return (
-    <p data-testid={`${ns}:${k}`} data-ready={String(isReady)} data-loading={String(isLoading)}>
+    <p data-testid={`${ns}:${k}`} data-ready={String(isReady)} data-loading={String(isFetching)}>
       {locale}|{t(k)}
     </p>
   );
@@ -122,10 +122,10 @@ describe("a payload's namespace and locale names are own keys (review of lot 6a)
 
 describe("a later payload means what the first one meant (lot 6a, owner decision)", () => {
   function Counter({ ns }: { ns: string }) {
-    const { t, isLoading } = useI18n(ns);
+    const { t, isFetching } = useI18n(ns);
     const [n, setN] = useState(0);
     return (
-      <button data-testid="counter" data-loading={String(isLoading)} onClick={() => setN(n + 1)}>
+      <button data-testid="counter" data-loading={String(isFetching)} onClick={() => setN(n + 1)}>
         {t("title")}|{n}
       </button>
     );
@@ -252,8 +252,8 @@ describe("explicit params and rich text through payloads (defaultParams removed,
 });
 
 describe("hydration with a `null` slot through the provider (the ordinary readiness template)", () => {
-  const branch = ({ t, isReady, isLoading }: ReturnType<typeof useI18n>) =>
-    isReady ? <p>{t("title")}</p> : isLoading ? <i>loading</i> : <b>unavailable</b>;
+  const branch = ({ t, isReady, isFetching }: ReturnType<typeof useI18n>) =>
+    isReady ? <p>{t("title")}</p> : isFetching ? <i>loading</i> : <b>unavailable</b>;
   const TplDefault = () => branch(useI18n());
   const TplNs = ({ ns }: { ns: string }) => branch(useI18n(ns));
 
@@ -306,9 +306,9 @@ describe("the payload is the server snapshot: an explicit retry after a hydratio
     const first = payload("en", { default: { en: {} }, admin: { en: null } });
     let retry!: () => Promise<void>;
     function Tpl() {
-      const { t, isReady, isLoading, i18n } = useI18n("admin");
+      const { t, isReady, isFetching, i18n } = useI18n("admin");
       retry = () => i18n.load("admin");
-      return isReady ? <p>{t("title")}</p> : isLoading ? <i>loading</i> : <b>unavailable</b>;
+      return isReady ? <p>{t("title")}</p> : isFetching ? <i>loading</i> : <b>unavailable</b>;
     }
     let bump!: () => void;
     function Layout({ p }: { p: Handover }) {

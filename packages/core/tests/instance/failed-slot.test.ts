@@ -27,7 +27,7 @@ describe("a failed slot after creation", () => {
     expect(state(i18n)).toBe(s);
     expect(i18n.t("t")).toBe("Привіт");
     // A null for a slot nobody has keeps every slot and publishes nothing; the render-local
-    // state reads the pair as failed, as the server did (`isLoading` false, no load predicted;
+    // state reads the pair as failed, as the server did (`isFetching` false, no load predicted;
     // hydration with a null slot, owner decision 2026-11-10).
     const w = view(i18n, s, { admin: { uk: null, en: null } });
     expect(w.c).toBe(s.c);

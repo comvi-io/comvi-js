@@ -1,5 +1,5 @@
 /**
- * The scope of `isReady` / `isLoading` (owner brief 2026-11-10): `useI18n()` (or `undefined`)
+ * The scope of `isReady` / `isFetching` (owner brief 2026-11-10): `useI18n()` (or `undefined`)
  * reads the configured namespaces (`namespaces`, default `["default"]`) — every one ready,
  * some loading — and `useI18n(ns)` only `ns`; `t` and the bound `T` of `useI18n()` stay on
  * `default`. A server render of `useI18n()` waits for the set too (else the server renders the
@@ -12,15 +12,15 @@ import { useI18n, type I18nOptions, type VueI18n } from "../src";
 import { core, state } from "../../core/src/internal";
 import { make, manualLoader, mountWith, settle } from "./helpers";
 
-/** Every render's `isReady/isLoading` of `useI18n(...args)`, and the branch it shows. */
+/** Every render's `isReady/isFetching` of `useI18n(...args)`, and the branch it shows. */
 const probe = (...args: [] | [string | undefined]) => {
   const frames: string[] = [];
   const C = defineComponent({
     setup() {
-      const { t, isReady, isLoading } = useI18n(...(args as [string]));
+      const { t, isReady, isFetching } = useI18n(...(args as [string]));
       return () => {
-        frames.push(`${isReady.value}/${isLoading.value}`);
-        return h("p", isReady.value ? t("hi") : isLoading.value ? "…" : "unavailable");
+        frames.push(`${isReady.value}/${isFetching.value}`);
+        return h("p", isReady.value ? t("hi") : isFetching.value ? "…" : "unavailable");
       };
     },
   });
@@ -126,7 +126,7 @@ describe("useI18n() reads the configured namespaces; useI18n(ns) only ns", () =>
     expect(new Set(all.frames)).toEqual(new Set(["true/false"]));
   });
 
-  it("6: a switch keeps the text on screen while isLoading is true", async () => {
+  it("6: a switch keeps the text on screen while isFetching is true", async () => {
     const l = manualLoader();
     const { i18n } = make({
       locale: "en",
@@ -253,8 +253,8 @@ describe("10: reading the flags requests, holds and publishes nothing", () => {
       i18n,
       defineComponent({
         setup() {
-          const { isReady, isLoading } = useI18n();
-          return () => h("p", `${bump.value}${isReady.value}/${isLoading.value}`);
+          const { isReady, isFetching } = useI18n();
+          return () => h("p", `${bump.value}${isReady.value}/${isFetching.value}`);
         },
       }),
     );

@@ -48,7 +48,7 @@ export interface I18nProviderProps {
   /**
    * Rendered instead of the children for the instance's first paint while a namespace is
    * loading with no catalog usable for the locale on screen (`isReady`). After that the children
-   * stay mounted: a lazy namespace shows through `useI18n(ns).isReady` / `isLoading`, a switch
+   * stay mounted: a lazy namespace shows through `useI18n(ns).isReady` / `isFetching`, a switch
    * keeps the old locale until the new one lands. A lazy namespace that a child's `useI18n(ns)`
    * holds at its mount loads after that paint, so that component shows its own placeholder.
    */
@@ -196,19 +196,29 @@ export interface UseI18n<NS extends string = "default"> {
    * `useI18n()` (or `undefined`): true when this holds for `default` (the namespace its `t`
    * reads) AND every namespace of the `namespaces` option — not for `default` alone, so
    * `useI18n()` and `useI18n("default")` differ when the option names others. A usable catalog,
-   * not every key. Check it before `isLoading`: a load beside usable catalogs (a switch) must
-   * not hide the text; `false` with `isLoading` false means the text is unavailable and nothing
-   * is loading (a failed load, or no loader), not necessarily an error.
+   * not every key. `isReady()` and `isLoading()` are never both true, so a positive test of
+   * either can come first; `!isReady()` alone is not "unavailable": it is true while loading
+   * too. Both `false` means the text is unavailable and nothing is loading (a failed load, or no
+   * loader), not necessarily an error: render the component's fallback content.
    */
   isReady: Accessor<boolean>;
   /**
+   * `!isReady() && isFetching()`: no usable catalog yet and one is loading, so render a
+   * placeholder (`<Show when={!isLoading()} fallback={<Skeleton />}>`). True at a first load,
+   * again at a retry through `i18n.load(ns)`, and during a switch when no usable catalog is on
+   * screen; `false` during a switch beside usable text, which stays on screen.
+   */
+  isLoading: Accessor<boolean>;
+  /**
    * `useI18n(ns)`: a catalog of `ns` is loading, for any locale, or will load when this component
    * holds it at mount. `false` once a load failed with nothing in flight: with no usable
-   * catalog that is the "unavailable" state (`isReady` false too), never an endless one.
+   * catalog that is the "unavailable" state (`isReady` false too), never an endless one. For a
+   * busy indicator beside the text, or to wait before rendering
+   * (`if (isFetching()) await i18n.load(ns)`); the placeholder branch is `isLoading`.
    * `useI18n()` (or `undefined`): true when this holds for `default` or SOME namespace of the
    * `namespaces` option; a namespace outside them changes nothing.
    */
-  isLoading: Accessor<boolean>;
+  isFetching: Accessor<boolean>;
   setLocale: (locale: string) => Promise<void>;
   i18n: I18n;
 }
@@ -263,7 +273,7 @@ const Ts = N<(p: object) => JSX.Element>();
 
 /**
  * The i18n of the nearest `<I18nProvider>`. `ns` (default `default`) is the namespace of `t` and
- * `T`, and of `isReady` / `isLoading` when given: with no `ns` those read `default` and every
+ * `T`, and of the three flags when given: with no `ns` they read `default` and every
  * namespace of the `namespaces` option (a server render waits for them too), so `useI18n()` is
  * not `useI18n("default")` there. The component holds it from its mount to its cleanup: while
  * held it loads for the locale on screen and for every locale `setLocale()` switches to; with no
@@ -277,18 +287,21 @@ export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<
   const n = ns || "default";
   // Development: until the mount, reads of `n` are not idle ones.
   if (__DEV__) x.p!(n);
-  // Once released, `isLoading` is a load in flight only: no hold of this one will load `n`, so a
+  // Once released, `isFetching` is a load in flight only: no hold of this one will load `n`, so a
   // result kept after the cleanup is not loading forever.
   let u = 0;
   // The flags' namespaces: `ns`, or with no argument `default` (what its `t` reads) and the
   // `namespaces` option's (duplicates change nothing in `every` / `some`).
   const a = [n, ...((ns === undefined && x.o.namespaces) || [])];
-  const isLoading = () => a.some((m) => x.w(s(), m, u));
+  const isFetching = () => a.some((m) => x.w(s(), m, u));
+  // Until the hold at mount, what the hold will load is loading already: no frame that says
+  // "unavailable", no `missing_key` (lot 1d, 4c).
+  const isReady = () => a.every((m) => x.r(s(), m));
   if (isServer) {
     x.h(n);
     // The render waits while what its flags cover loads (`a` holds `n`): else a no-argument
     // `useI18n()` renders the loading branch the browser, handed the catalog, does not.
-    if (isLoading()) {
+    if (isFetching()) {
       // Under an id of its own, the namespace's: no hydration key of this component moves, the
       // browser (which has nothing to wait for) sees the same counts, and a second pass of the
       // boundary finds this resource.
@@ -309,10 +322,9 @@ export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<
     T: (Ts[n] ||= (q) => read(q, n)) as BoundT<NS>,
     locale,
     dir,
-    // Until the hold at mount, what the hold will load is loading already: no frame that says
-    // "unavailable", no `missing_key` (lot 1d, 4c).
-    isReady: () => a.every((m) => x.r(s(), m)),
-    isLoading,
+    isReady,
+    isLoading: () => !isReady() && isFetching(),
+    isFetching,
     setLocale: i.setLocale,
     i18n: i,
   };

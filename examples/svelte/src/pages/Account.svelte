@@ -31,7 +31,7 @@
   <Card title={t('demo.lazy.title')} body={t('demo.lazy.body')}>
     {#if failed}
       <LoadError onretry={loadAccount} />
-    {:else if !account.isReady && account.isLoading}
+    {:else if account.isLoading}
       <p class="widget">{t('app.loading')}</p>
     {:else}
       <p class="widget" data-testid="account-signed-in">{tAccount('profile.signed_in', { name: $name })}</p>

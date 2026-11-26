@@ -23,7 +23,7 @@ const served = new WeakSet<I18n>();
 /**
  * Makes `i18n` the instance of this component and everything below it (the root component:
  * `App.svelte`, `+layout.svelte`). Nothing waits here: `await i18n.ready` before `mount()`, or
- * read `isReady` / `isLoading`. On a server, an instance per request.
+ * read `isReady` / `isFetching`. On a server, an instance per request.
  */
 export const setI18n = (i18n: I18n): void => {
   // A server serves requests concurrently: one instance in two renders would render one

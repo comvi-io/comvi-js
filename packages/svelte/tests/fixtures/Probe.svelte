@@ -6,7 +6,7 @@
   const r = useI18n(ns);
   // svelte-ignore state_referenced_locally
   out.u = r;
-  $effect.pre(() => void frames.push(`${r.isReady}/${r.isLoading}`));
+  $effect.pre(() => void frames.push(`${r.isReady}/${r.isFetching}`));
 </script>
 
-{#if r.isReady}<p>{r.t(k)}</p>{:else if r.isLoading}<i>loading</i>{:else}<b>unavailable</b>{/if}
+{#if r.isReady}<p>{r.t(k)}</p>{:else if r.isFetching}<i>loading</i>{:else}<b>unavailable</b>{/if}

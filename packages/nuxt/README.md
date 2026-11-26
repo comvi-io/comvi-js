@@ -123,12 +123,12 @@ A param the message uses is required too. A misspelt namespace is an error in `u
 `t(key, { ns })`, and still compiles in `load()`, `add()`, `has()` and the `namespaces` option
 ([limit](https://comvi.io/docs/i18n/limitations#namespace-typos-config)).
 
-## Namespaces: `isReady`, `isLoading` and `ready`
+## Namespaces: `isReady`, `isFetching` and `ready`
 
 `useI18n("account")` binds `t` to the `account` namespace and holds the namespace while the
 component is mounted: it loads on the server render, for the locale on screen and for every locale a
 switch goes to. `isReady` is `true` when a catalog of the namespace is usable for the locale on
-screen; `isLoading` is `true` while one is on the way. Check `isReady` first. Both `false` means the
+screen; `isFetching` is `true` while one is on the way. Check `isReady` first. Both `false` means the
 text is not available and nothing is loading. `i18n.ready` is something else: a promise that
 resolves when the loads in flight have settled, the failed ones too.
 
@@ -216,9 +216,9 @@ previous page on screen instead, wait for the load in the page's setup, as the `
 
 ```vue title="app/pages/account.vue" check=group=nuxt-app
 <script setup lang="ts">
-const { t, locale, setLocale, isReady, isLoading, i18n } = useI18n("account");
+const { t, locale, setLocale, isReady, isFetching, i18n } = useI18n("account");
 const retry = () => i18n.load("account").catch(() => {}); // `onError` has the report
-if (isLoading.value) await retry();
+if (isFetching.value) await retry();
 const failed = ref(false);
 const toggle = () =>
   setLocale(locale.value === "en" ? "uk" : "en").then(
@@ -229,7 +229,7 @@ const toggle = () =>
 
 <template>
   <h1 v-if="isReady">{{ t("title") }}</h1>
-  <p v-else-if="isLoading">…</p>
+  <p v-else-if="isFetching">…</p>
   <button v-else @click="retry">Not available. Retry</button>
   <button @click="toggle">{{ failed ? "Could not switch. Try again" : locale }}</button>
 </template>

@@ -171,7 +171,7 @@ describe("view() — render-local catalogs (R4-15; 0.7 withMessages)", () => {
       loader: () => new Promise(() => {}),
     });
     const v = view(i18n, state(i18n), {}, "de");
-    // Loads at commit (setLocale), so the view reports it loading (the core's `isLoading`
+    // Loads at commit (setLocale), so the view reports it loading (the core's `isFetching`
     // rule, lot 4c: no flight is invented) and no key missing (no catalog of its chain).
     expect(v.ld).toEqual([]);
     expect(coming(i18n, v, "default")).toBe(true);

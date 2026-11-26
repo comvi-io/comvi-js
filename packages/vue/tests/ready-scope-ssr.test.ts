@@ -12,15 +12,15 @@ import { describe, expect, it } from "vitest";
 import { createI18n, handover, useI18n, type I18nOptions } from "../src";
 import { make, manualLoader, settle, vueWarnings } from "./helpers";
 
-/** Every render's `isReady/isLoading` of `useI18n()`, and the branch it shows. */
+/** Every render's `isReady/isFetching` of `useI18n()`, and the branch it shows. */
 const probe = () => {
   const frames: string[] = [];
   const C = defineComponent({
     setup() {
-      const { t, isReady, isLoading } = useI18n();
+      const { t, isReady, isFetching } = useI18n();
       return () => {
-        frames.push(`${isReady.value}/${isLoading.value}`);
-        return h("p", isReady.value ? t("hi") : isLoading.value ? "…" : "unavailable");
+        frames.push(`${isReady.value}/${isFetching.value}`);
+        return h("p", isReady.value ? t("hi") : isFetching.value ? "…" : "unavailable");
       };
     },
   });

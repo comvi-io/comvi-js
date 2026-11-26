@@ -50,7 +50,7 @@
         <h1 class="text-xl font-bold text-blue-600">Comvi Svelte Example</h1>
       </div>
       <div class="flex gap-4 items-center">
-        {#if r.isLoading}
+        {#if r.isFetching}
           <div class="text-sm text-gray-500 italic">
             {t('common.loading')}
           </div>

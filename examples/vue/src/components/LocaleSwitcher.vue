@@ -6,7 +6,7 @@ import LoadError from "./LoadError.vue";
 
 // `locale` keeps showing the current language until the new one's catalogs are
 // in, so the buttons never flicker.
-const { t, locale, setLocale, isLoading } = useI18n();
+const { t, locale, setLocale, isFetching } = useI18n();
 
 // The locale whose switch failed, if any: its catalog could not be loaded.
 const failed = ref<string | null>(null);
@@ -33,7 +33,7 @@ function switchTo(code: string) {
         {{ code }}
       </button>
     </div>
-    <span v-if="isLoading" class="status">{{ t("app.loading") }}</span>
+    <span v-if="isFetching" class="status">{{ t("app.loading") }}</span>
   </div>
   <LoadError v-if="failed" @retry="switchTo(failed)" />
   <p class="note">{{ t("demo.rtl.body") }}</p>

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 // A page namespace the layout does not use: loaded on the server render, by the browser
 // loader on a client navigation.
-const { t, isReady, isLoading, i18n } = useI18n("admin");
+const { t, isReady, isLoading, isFetching, i18n } = useI18n("admin");
 const count = ref(0);
 </script>
 
 <template>
-  <section data-testid="admin" :data-ready="String(isReady)" :data-loading="String(isLoading)">
+  <section data-testid="admin" :data-ready="String(isReady)" :data-loading="String(isFetching)">
     <h1 data-testid="admin-title">
       {{ isReady ? t("welcome_admin") : isLoading ? "loading" : "unavailable" }}
     </h1>

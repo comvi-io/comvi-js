@@ -1,7 +1,7 @@
 /**
  * A real hydration (`renderToString` on a server instance, `hydrateRoot` on a client instance)
  * with a slot the server could not load (`null` in `handover()`), read through the ordinary
- * readiness template `isReady ? content : isLoading ? loader : unavailable`.
+ * readiness template `isReady ? content : isFetching ? loader : unavailable`.
  */
 import { act } from "react";
 import { renderToString } from "react-dom/server";
@@ -11,10 +11,10 @@ import { handover } from "@comvi/core/ssr";
 import { createI18n, I18nHandover, I18nProvider, useI18n, type I18n } from "../src";
 
 const seen: string[] = [];
-type Flags = { t: (k: string) => unknown; isReady: boolean; isLoading: boolean };
-const branch = ({ t, isReady, isLoading }: Flags) => {
-  seen.push(`${isReady}/${isLoading}`);
-  return isReady ? <p>{t("title") as string}</p> : isLoading ? <i>loading</i> : <b>unavailable</b>;
+type Flags = { t: (k: string) => unknown; isReady: boolean; isFetching: boolean };
+const branch = ({ t, isReady, isFetching }: Flags) => {
+  seen.push(`${isReady}/${isFetching}`);
+  return isReady ? <p>{t("title") as string}</p> : isFetching ? <i>loading</i> : <b>unavailable</b>;
 };
 /** The template through `useI18n()` (namespace `default`). */
 const TplDefault = () => branch(useI18n());
@@ -124,7 +124,7 @@ async function hydrate(o: {
 describe("hydration with a `null` slot (the ordinary readiness template)", () => {
   // `useI18n()` reads `default`; `useI18n(ns)` reads `admin`. Pinning tests of the documented
   // order (the first paint's payload goes to `createI18n`, as in `@comvi/next/client`): the
-  // hydration render computes the server's `isReady`/`isLoading`, so the branch, the HTML and
+  // hydration render computes the server's `isReady`/`isFetching`, so the branch, the HTML and
   // the requests match. The same holds for a payload that reaches the instance only through
   // `<I18nHandover catalogs>`, with or without a client loader: the view renders a `null` pair as
   // failed, as the server did.
@@ -137,7 +137,7 @@ describe("hydration with a `null` slot (the ordinary readiness template)", () =>
       [false, false],
       [false, true],
       [true, false],
-      // Red before the fix (2026-11-10): the view left the `null` pair out and `isLoading`
+      // Red before the fix (2026-11-10): the view left the `null` pair out and `isFetching`
       // predicted the hold's load, so with no catalog the hydration rendered the loader where
       // the server rendered "unavailable" (React: "Hydration failed …").
       [true, true],
@@ -165,7 +165,7 @@ describe("after such a hydration (payload through <I18nHandover> only, a client 
   ];
   const opts = { fallback: false, loader: true, late: true };
   for (const c of cases) {
-    it(`${c.name}: an explicit load(ns) asks for the pair, isLoading follows it and it settles`, async () => {
+    it(`${c.name}: an explicit load(ns) asks for the pair, isFetching follows it and it settles`, async () => {
       const r = await hydrate({ ...c, ...opts });
       expect(r.el.innerHTML).toBe("<b>unavailable</b>");
       expect(r.asked()).toEqual([]);

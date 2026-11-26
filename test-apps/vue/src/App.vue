@@ -3,7 +3,7 @@ import { useI18n } from "@comvi/vue";
 import { watchEffect } from "vue";
 import LanguageSwitcher from "./components/LanguageSwitcher.vue";
 
-const { locale, dir, t, isLoading } = useI18n();
+const { locale, dir, t, isFetching } = useI18n();
 
 watchEffect(() => {
   document.documentElement.dir = dir.value;
@@ -27,7 +27,7 @@ const navItems = [
           <h1 class="text-xl font-bold text-blue-600">Comvi Vue Example</h1>
         </div>
         <div class="flex gap-4 items-center">
-          <div v-if="isLoading" class="text-sm text-gray-500 italic">
+          <div v-if="isFetching" class="text-sm text-gray-500 italic">
             {{ t("common.loading") }}
           </div>
           <LanguageSwitcher />

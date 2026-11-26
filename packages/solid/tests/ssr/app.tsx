@@ -4,14 +4,14 @@ import { I18nProvider, T, useI18n, type I18n } from "../../src";
 import { useFormat } from "../../src/format";
 
 export const Account = () => {
-  const { t, isReady, isLoading } = useI18n("account");
-  return <p>{isReady() ? (t("title") as string) : isLoading() ? "loading" : "unavailable"}</p>;
+  const { t, isReady, isFetching } = useI18n("account");
+  return <p>{isReady() ? (t("title") as string) : isFetching() ? "loading" : "unavailable"}</p>;
 };
 
 /** `useI18n()`: its flags read the configured namespaces (owner brief 2026-11-10). */
 export const Global = () => {
-  const { t, isReady, isLoading } = useI18n();
-  return <p>{isReady() ? (t("hi") as string) : isLoading() ? "loading" : "unavailable"}</p>;
+  const { t, isReady, isFetching } = useI18n();
+  return <p>{isReady() ? (t("hi") as string) : isFetching() ? "loading" : "unavailable"}</p>;
 };
 
 /** A component with keys after its useI18n: a server-only id would shift them. */

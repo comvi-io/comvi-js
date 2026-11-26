@@ -31,7 +31,7 @@ describe("production", () => {
       global: { plugins: [i18n] },
     });
     const u = w.vm.$.appContext.app.runWithContext(() => useI18n("shop"));
-    expect([u.isReady.value, u.isLoading.value]).toEqual([false, false]);
+    expect([u.isReady.value, u.isFetching.value]).toEqual([false, false]);
     expect(warn.mock.calls.flat().join(" ")).not.toMatch(/no active component instance/);
     expect(warn).not.toHaveBeenCalled();
   });

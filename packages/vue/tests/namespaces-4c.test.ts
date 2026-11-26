@@ -1,7 +1,7 @@
 /**
  * Lot 4c (owner brief 29.10, R3-26) through Vue components: `useI18n(ns)` reads, loads and
  * holds `ns` from mount to unmount (`KeepAlive`: while active; `v-show` keeps it); `<T>` and
- * `$t` read only; `isReady` / `isLoading` with no "unavailable" frame before the mount; the
+ * `$t` read only; `isReady` / `isFetching` with no "unavailable" frame before the mount; the
  * key scenario; SSR hydration with `v-if` on `isReady`. Contract: `docs/design/namespaces.md`.
  */
 import {
@@ -24,22 +24,22 @@ import { core } from "../../core/src/internal";
 import { mount } from "@vue/test-utils";
 import { make, manualLoader, mountWith, settle, tick, vueWarnings } from "./helpers";
 
-/** A component showing `isReady ? t(key) : isLoading ? "…" : "unavailable"`; its frames. */
+/** A component showing `isReady ? t(key) : isFetching ? "…" : "unavailable"`; its frames. */
 const probe = (ns: string, key = "title") => {
   const frames: string[] = [];
   const C = defineComponent({
     setup() {
-      const { t, isReady, isLoading } = useI18n(ns);
+      const { t, isReady, isFetching } = useI18n(ns);
       return () => {
-        frames.push(`${isReady.value}/${isLoading.value}`);
-        return h("p", isReady.value ? (t(key) as string) : isLoading.value ? "…" : "unavailable");
+        frames.push(`${isReady.value}/${isFetching.value}`);
+        return h("p", isReady.value ? (t(key) as string) : isFetching.value ? "…" : "unavailable");
       };
     },
   });
   return { C, frames };
 };
 
-describe("isReady / isLoading (brief §2)", () => {
+describe("isReady / isFetching (brief §2)", () => {
   it("first load: not ready and loading from the first render (before the mount) to the catalog", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const l = manualLoader();
@@ -226,7 +226,7 @@ describe("consumers (brief §3)", () => {
 });
 
 describe("a released consumer is not loading forever (brief §2, owner probe of lot 4c)", () => {
-  /** `probe(ns)` that also keeps its `useI18n` result and every `isLoading` its watcher sees. */
+  /** `probe(ns)` that also keeps its `useI18n` result and every `isFetching` its watcher sees. */
   const kept = (ns: string) => {
     const seen: boolean[] = [];
     const frames: string[] = [];
@@ -234,12 +234,12 @@ describe("a released consumer is not loading forever (brief §2, owner probe of 
     const C = defineComponent({
       setup() {
         const u = (out.u = useI18n(ns));
-        watch(u.isLoading, (v) => seen.push(v));
+        watch(u.isFetching, (v) => seen.push(v));
         return () => {
-          frames.push(`${u.isReady.value}/${u.isLoading.value}`);
+          frames.push(`${u.isReady.value}/${u.isFetching.value}`);
           return h(
             "p",
-            u.isReady.value ? (u.t("title") as string) : u.isLoading.value ? "…" : "unavailable",
+            u.isReady.value ? (u.t("title") as string) : u.isFetching.value ? "…" : "unavailable",
           );
         };
       },
@@ -266,7 +266,7 @@ describe("a released consumer is not loading forever (brief §2, owner probe of 
     for (let k = 0; k < 3; k++) await tick();
     // Its watcher still runs while deactivated: it ends at "not loading", and nothing loads.
     expect(shop.seen.at(-1)).toBe(false);
-    expect([shop.out.u!.isReady.value, shop.out.u!.isLoading.value]).toEqual([false, false]);
+    expect([shop.out.u!.isReady.value, shop.out.u!.isFetching.value]).toEqual([false, false]);
     expect(l.requested).toEqual(["en:shop", "de:default"]);
     // Activated: the hold loads de:shop in the same flush, so the screen shows "…", never
     // "unavailable" (a frame rendered while deactivated stays in KeepAlive's detached box).
@@ -290,10 +290,10 @@ describe("a released consumer is not loading forever (brief §2, owner probe of 
       setup() {
         const u = useI18n("shop");
         return () => {
-          log.push(`render ${u.isReady.value}/${u.isLoading.value}`);
+          log.push(`render ${u.isReady.value}/${u.isFetching.value}`);
           return h(
             "p",
-            u.isReady.value ? (u.t("title") as string) : u.isLoading.value ? "…" : "unavailable",
+            u.isReady.value ? (u.t("title") as string) : u.isFetching.value ? "…" : "unavailable",
           );
         };
       },
@@ -379,7 +379,7 @@ describe("a released consumer is not loading forever (brief §2, owner probe of 
       props: { x: Number },
       setup(p) {
         const u = useI18n("shop");
-        return () => h("p", `${p.x} ${u.isReady.value}/${u.isLoading.value}`);
+        return () => h("p", `${p.x} ${u.isReady.value}/${u.isFetching.value}`);
       },
     });
     const Parent = defineComponent({
@@ -438,8 +438,8 @@ describe("a released consumer is not loading forever (brief §2, owner probe of 
     await sw;
     for (let k = 0; k < 3; k++) await tick();
     const u = shop.out.u!;
-    expect([u.isReady.value, u.isLoading.value]).toEqual([false, false]);
-    expect([outside.isReady.value, outside.isLoading.value]).toEqual([false, false]);
+    expect([u.isReady.value, u.isFetching.value]).toEqual([false, false]);
+    expect([outside.isReady.value, outside.isFetching.value]).toEqual([false, false]);
     expect(shop.seen.at(-1)).toBe(false);
     expect(l.requested).toEqual(["en:shop", "de:default"]);
   });
@@ -464,7 +464,7 @@ describe("a released consumer is not loading forever (brief §2, owner probe of 
     await settle();
     const u = shop.out.u!;
     // de:shop is neither in place nor loading; en:shop (the fallback) is usable.
-    expect([u.isReady.value, u.isLoading.value]).toEqual([true, false]);
+    expect([u.isReady.value, u.isFetching.value]).toEqual([true, false]);
     expect(u.t("title")).toBe("Shop");
     expect(l.requested).toEqual(["en:shop", "de:default"]);
   });
@@ -735,11 +735,11 @@ describe("setLocale() and the active need (brief §4, §7)", () => {
 describe("SSR hydration with v-if on isReady (brief §5)", () => {
   const Account = defineComponent({
     setup() {
-      const { t, isReady, isLoading } = useI18n("account");
+      const { t, isReady, isFetching } = useI18n("account");
       return () =>
         isReady.value
           ? h("p", t("title"))
-          : isLoading.value
+          : isFetching.value
             ? h("i", "loading")
             : h("b", "unavailable");
     },
@@ -928,21 +928,21 @@ describe("outside a component (brief §3)", () => {
     await sw;
   });
 
-  it("there isLoading is a load in flight only: nothing holds, so no endless loading (review of lot 4c)", async () => {
+  it("there isFetching is a load in flight only: nothing holds, so no endless loading (review of lot 4c)", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
     const w = mountWith(i18n, defineComponent({ setup: () => () => h("p") }));
     const app = w.vm.$.appContext.app;
     const u = app.runWithContext(() => useI18n("shop"));
-    expect([u.isReady.value, u.isLoading.value]).toEqual([false, false]);
+    expect([u.isReady.value, u.isFetching.value]).toEqual([false, false]);
     await settle();
-    expect([u.isReady.value, u.isLoading.value, l.requested]).toEqual([false, false, []]);
+    expect([u.isReady.value, u.isFetching.value, l.requested]).toEqual([false, false, []]);
     // A load in flight is loading there too.
     const p = i18n.load("shop");
-    expect([u.isReady.value, u.isLoading.value]).toEqual([false, true]);
+    expect([u.isReady.value, u.isFetching.value]).toEqual([false, true]);
     await l.answer("en:shop");
     await p;
-    expect([u.isReady.value, u.isLoading.value]).toEqual([true, false]);
+    expect([u.isReady.value, u.isFetching.value]).toEqual([true, false]);
   });
 
   it("its reads are not a declared need: development warns about a namespace nothing loads (review of lot 4c)", async () => {

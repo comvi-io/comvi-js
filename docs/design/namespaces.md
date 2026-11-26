@@ -1,4 +1,4 @@
-# Namespaces: who loads them, what `isReady` and `isLoading` mean, when `missing_key` is reported
+# Namespaces: who loads them, what `isReady` and `isFetching` mean, when `missing_key` is reported
 
 Status: accepted · Date: 2026-10-29, scope of `useI18n()` 2026-11-10 · Moved here 2026-11-25 from the
 release notes file the tests cited; the content is the contract the tests below pin.
@@ -36,7 +36,7 @@ a missing key for text that is still on its way.
   Svelte and Solid hold at mount and release at unmount; Vue's `KeepAlive` deactivation releases
   and activation holds again.
 
-### `isReady` and `isLoading`, per namespace
+### `isReady` and `isFetching`, per namespace
 
 The chain of a locale is the locale, its parents (`pt-BR` → `pt`), then the fallback locales and
 their parents: what `t()` looks in.
@@ -45,22 +45,23 @@ their parents: what `t()` looks in.
   place (inline, handed over, loaded or `add()`ed; an empty catalog counts). A catalog of a locale
   outside the chain does not count. During a switch the displayed locale is the one on screen, not
   the target.
-- **`isLoading`**: a load of the namespace is in flight (for any locale, a pending switch's target
+- **`isFetching`**: a load of the namespace is in flight (for any locale, a pending switch's target
   too), or the instance has a loader and a pair of the chain is neither in place nor failed (the
-  load a consumer's hold is about to make). A failed pair does not keep `isLoading` true, so no
+  load a consumer's hold is about to make). A failed pair does not keep `isFetching` true, so no
   catalog, no flight and a failure (or no loader) is `false`/`false`, never an endless loading state.
+- **`isLoading`** (a binding's `useI18n()` only): `!isReady && isFetching`, the placeholder branch.
 
-| Situation                                       | `isReady` | `isLoading` |
-| ----------------------------------------------- | --------- | ----------- |
-| First load, no catalog                          | `false`   | `true`      |
-| A catalog of the chain is in place              | `true`    | `false`     |
-| A usable catalog, a load in flight              | `true`    | `true`      |
-| The load failed, a fallback catalog is in       | `true`    | `false`     |
-| No catalog; the load failed, or none is planned | `false`   | `false`     |
+| Situation                                       | `isReady` | `isFetching` | `isLoading` |
+| ----------------------------------------------- | --------- | ------------ | ----------- |
+| First load, no catalog                          | `false`   | `true`       | `true`      |
+| A catalog of the chain is in place              | `true`    | `false`      | `false`     |
+| A usable catalog, a load in flight              | `true`    | `true`       | `false`     |
+| The load failed, a fallback catalog is in       | `true`    | `false`      | `false`     |
+| No catalog; the load failed, or none is planned | `false`   | `false`      | `false`     |
 
 **Scope of a binding's `useI18n()`.** `useI18n(ns)` describes `ns` alone. `useI18n()` with no
 argument describes what its `t` reads and the app's startup set: `default` AND every namespace of the
-`namespaces` option (`isReady` when each has a usable catalog, `isLoading` while one of them loads).
+`namespaces` option (`isReady` when each has a usable catalog, `isFetching` while one of them loads).
 `namespaces: []` still describes `default`. `isReady` means a usable catalog, not every key. The hold
 stays on the namespace `t` reads; the scope adds no hold and no load. React's first-paint gate
 (`<I18nProvider loading | suspense>`) uses the same predicate.
@@ -132,7 +133,7 @@ A per-call `{ ns }` of another namespace is checked like any read.
 
 ## Where it lives
 
-`isReady`, `isLoading`, the hold counts and the `missing_key` rule: `packages/core/src/instance.ts`,
+`isReady`, `isFetching`, the hold counts and the `missing_key` rule: `packages/core/src/instance.ts`,
 `packages/core/src/state.ts`; `useI18n` per binding. Pinned in
 `packages/core/tests/instance/contract-4c.test.ts`, `packages/react/tests/namespaces-4c.test.tsx`,
 `packages/vue/tests/namespaces-4c.test.ts`, and the scope of `useI18n()` in

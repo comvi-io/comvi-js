@@ -230,7 +230,7 @@ describe("README React app (lot 4b)", () => {
  * switch that reports its failure; a retry through `i18n.load()`.
  */
 function Account() {
-  const { t, locale, setLocale, isReady, isLoading, i18n } = useI18n("account");
+  const { t, locale, setLocale, isReady, isFetching, i18n } = useI18n("account");
   const [failed, setFailed] = useState(false);
   const toggle = () =>
     setLocale(locale === "en" ? "uk" : "en").then(
@@ -239,7 +239,7 @@ function Account() {
     );
   // load() rejects when the catalog fails again: `isReady` stays false, `onError` has the report.
   const retry = () => i18n.load("account").catch(() => {});
-  if (!isReady && !isLoading) return <button onClick={retry}>Not available. Retry</button>;
+  if (!isReady && !isFetching) return <button onClick={retry}>Not available. Retry</button>;
   return (
     <>
       {isReady ? <h2>{t("title")}</h2> : <p className="spinner" />}

@@ -3,7 +3,7 @@
 // the server renders its text. On a client navigation, when it is not in place yet, load
 // it explicitly and wait, so the page appears with its text. A failed load rejects (and
 // is reported through `onError`); the page then offers to load it again.
-const { isLoading, i18n } = useI18n("account");
+const { isFetching, i18n } = useI18n("account");
 const failed = ref(false);
 async function loadAccount() {
   failed.value = await i18n.load("account").then(
@@ -11,7 +11,7 @@ async function loadAccount() {
     () => true,
   );
 }
-if (isLoading.value) await loadAccount();
+if (isFetching.value) await loadAccount();
 </script>
 
 <template>

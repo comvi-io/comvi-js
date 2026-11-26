@@ -1,6 +1,6 @@
 /**
  * Lot 4c (owner brief 29.10, R3-26) through Solid components: `useI18n(ns)` reads, loads and
- * holds `ns` from mount to cleanup; `<T>` reads only; `isReady` / `isLoading` from the state,
+ * holds `ns` from mount to cleanup; `<T>` reads only; `isReady` / `isFetching` from the state,
  * with no "unavailable" frame before the mount; the first-paint gate on the core's `isReady`;
  * the key scenario. Ported by meaning from @comvi/react's and @comvi/vue's suites.
  */
@@ -10,13 +10,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider, T, useI18n, type I18n } from "../src";
 import { make, manualLoader, tick } from "./helpers";
 
-/** Every state's `isReady/isLoading` of `ns`, and its text. */
+/** Every state's `isReady/isFetching` of `ns`, and its text. */
 const probe = (ns: string, key = "title") => {
   const frames: string[] = [];
   const P = () => {
-    const { t, isReady, isLoading } = useI18n(ns);
-    createEffect(() => frames.push(`${isReady()}/${isLoading()}`));
-    return <p>{isReady() ? (t(key) as string) : isLoading() ? "…" : "unavailable"}</p>;
+    const { t, isReady, isFetching } = useI18n(ns);
+    createEffect(() => frames.push(`${isReady()}/${isFetching()}`));
+    return <p>{isReady() ? (t(key) as string) : isFetching() ? "…" : "unavailable"}</p>;
   };
   return { P, frames };
 };
@@ -86,7 +86,7 @@ describe("first-paint gate on the core's isReady", () => {
   });
 });
 
-describe("isReady / isLoading from the state", () => {
+describe("isReady / isFetching from the state", () => {
   it("first load: not ready and loading from the first read (before the mount) to the catalog", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const l = manualLoader();
@@ -390,7 +390,7 @@ describe("a released consumer is not loading forever", () => {
     await l.answer("de:default");
     await sw;
     await tick();
-    expect([u.isReady(), u.isLoading()]).toEqual([false, false]);
+    expect([u.isReady(), u.isFetching()]).toEqual([false, false]);
     expect(l.requested).toEqual(["en:shop", "de:default"]);
   });
 });

@@ -58,7 +58,7 @@ export const i18n = createI18n({
 </button>
 ```
 
-`t()` fills `{name}` from its second argument. `locale`, `dir`, `isReady` and `isLoading` are
+`t()` fills `{name}` from its second argument. `locale`, `dir`, `isReady` and `isFetching` are
 getters: read them through the object (`r.locale`), because a destructured one is read once. Both
 catalogs are inline, so the switch loads nothing; with a `loader`, `setLocale()` can reject: see
 [A rejected `setLocale()`](#a-rejected-setlocale).
@@ -104,11 +104,11 @@ A param the message uses is required too. A misspelt namespace is an error in `u
 ([limit](https://comvi.io/docs/i18n/limitations#namespace-typos-config)). Without Vite, see
 [Type safety](https://comvi.io/docs/i18n/type-safety).
 
-## Namespaces: `isReady`, `isLoading` and `ready`
+## Namespaces: `isReady`, `isFetching` and `ready`
 
 `useI18n("account")` binds `t` to the `account` namespace and holds the namespace while the
 component is mounted: it loads for the locale on screen and for every locale a switch goes to.
-`isReady` is `true` when a catalog of the namespace is usable for the locale on screen; `isLoading`
+`isReady` is `true` when a catalog of the namespace is usable for the locale on screen; `isFetching`
 is `true` while one is on the way. Check `isReady` first: a switch loads the new catalogs beside the
 text on screen. Both `false` means the text is not available and nothing is loading. `i18n.ready` is
 something else: a promise that resolves when the loads in flight have settled, the failed ones too.
@@ -184,7 +184,7 @@ and no catalog of its parents (`de` for `de-AT`) is usable; a `fallbackLocale`'s
 </script>
 
 {#if r.isReady}<h2>{r.t("title")}</h2>
-{:else if r.isLoading}<p class="spinner"></p>
+{:else if r.isFetching}<p class="spinner"></p>
 {:else}<button onclick={retry}>Not available. Retry</button>{/if}
 <button onclick={toggle}>{failed ? "Could not switch. Try again" : r.locale}</button>
 ```

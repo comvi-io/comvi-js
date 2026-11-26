@@ -101,11 +101,11 @@ A param the message uses is required too. A misspelt namespace is an error in `u
 ([limit](https://comvi.io/docs/i18n/limitations#namespace-typos-config)). Without Vite, see
 [Type safety](https://comvi.io/docs/i18n/type-safety).
 
-## Namespaces: `isReady`, `isLoading` and `ready`
+## Namespaces: `isReady`, `isFetching` and `ready`
 
 `useI18n("account")` binds `t` to the `account` namespace and holds the namespace while the
 component is mounted: it loads for the locale on screen and for every locale a switch goes to.
-`isReady` is `true` when a catalog of the namespace is usable for the locale on screen; `isLoading`
+`isReady` is `true` when a catalog of the namespace is usable for the locale on screen; `isFetching`
 is `true` while one is on the way. Check `isReady` first: a switch loads the new catalogs beside the
 text on screen. Both `false` means the text is not available and nothing is loading. `i18n.ready` is
 something else: a promise that resolves when the loads in flight have settled, the failed ones too.
@@ -172,7 +172,7 @@ import { useState } from "react";
 import { useI18n } from "@comvi/react";
 
 export function Account() {
-  const { t, locale, setLocale, isReady, isLoading, i18n } = useI18n("account");
+  const { t, locale, setLocale, isReady, isFetching, i18n } = useI18n("account");
   const [failed, setFailed] = useState(false);
   const toggle = () =>
     setLocale(locale === "en" ? "uk" : "en").then(
@@ -180,7 +180,7 @@ export function Account() {
       () => setFailed(true),
     );
   const retry = () => i18n.load("account").catch(() => {}); // `onError` has the report
-  if (!isReady && !isLoading) return <button onClick={retry}>Not available. Retry</button>;
+  if (!isReady && !isFetching) return <button onClick={retry}>Not available. Retry</button>;
   return (
     <>
       {isReady ? <h2>{t("title")}</h2> : <p className="spinner" />}

@@ -56,7 +56,7 @@ export const app: ReactElement = (
 );
 
 export function Component() {
-  const { t, locale, dir, isLoading, setLocale } = useI18n();
+  const { t, locale, dir, isFetching, setLocale } = useI18n();
   const s: string = t("greeting", { name: "Ann" });
   // A rich key may still render a string: a handler can return one, and a missing key
   // renders its key text (lot 4d) — the type says so.
@@ -103,7 +103,7 @@ export function Component() {
   const bt7: ReactNode = <DefT i18nKey="terms" />;
   const l: string = locale;
   const d: "ltr" | "rtl" = dir;
-  const b: boolean = isLoading;
+  const b: boolean = isFetching;
   const p: Promise<void> = setLocale("de");
   return [s, r, n, c, e1, bt, bt2, bt3, bt4, bt5, bt6, bt7, l, d, b, p];
 }

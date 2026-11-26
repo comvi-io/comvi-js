@@ -16,10 +16,10 @@ const i18n = createI18n({
 
 const Cart = {
   setup() {
-    const { t, isLoading, locale, T: ShopT } = useI18n("shop");
+    const { t, isFetching, locale, T: ShopT } = useI18n("shop");
     const fmt = useFormat();
     return () =>
-      h("p", { "aria-busy": isLoading.value, lang: locale.value }, [
+      h("p", { "aria-busy": isFetching.value, lang: locale.value }, [
         t("items", { count: 2 }),
         h(T as never, { i18nKey: "terms", link: (c: string) => h("a", c) }),
         h(ShopT as never, { i18nKey: "title" }),

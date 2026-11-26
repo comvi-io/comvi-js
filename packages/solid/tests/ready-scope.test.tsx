@@ -1,5 +1,5 @@
 /**
- * The scope of `isReady` / `isLoading` (owner brief 2026-11-10): `useI18n()` (or `undefined`)
+ * The scope of `isReady` / `isFetching` (owner brief 2026-11-10): `useI18n()` (or `undefined`)
  * reads the configured namespaces (`namespaces`, default `["default"]`) — every one ready,
  * some loading — and `useI18n(ns)` only `ns`; `t` and the bound `T` of `useI18n()` stay on
  * `default`. The server half of check 9 is tests/ssr/ready-scope.test.tsx. Contract:
@@ -12,13 +12,13 @@ import { I18nProvider, useI18n, type I18n } from "../src";
 import { core, state } from "../../core/src/internal";
 import { make, manualLoader, tick } from "./helpers";
 
-/** Every state's `isReady/isLoading` of `useI18n(...args)`, and the branch it shows. */
+/** Every state's `isReady/isFetching` of `useI18n(...args)`, and the branch it shows. */
 const probe = (...args: [] | [string | undefined]) => {
   const frames: string[] = [];
   const P = () => {
-    const { t, isReady, isLoading } = useI18n(...(args as [string]));
-    createEffect(() => frames.push(`${isReady()}/${isLoading()}`));
-    return <p>{isReady() ? (t("hi") as string) : isLoading() ? "…" : "unavailable"}</p>;
+    const { t, isReady, isFetching } = useI18n(...(args as [string]));
+    createEffect(() => frames.push(`${isReady()}/${isFetching()}`));
+    return <p>{isReady() ? (t("hi") as string) : isFetching() ? "…" : "unavailable"}</p>;
   };
   return { P, frames };
 };
@@ -104,7 +104,7 @@ describe("useI18n() reads the configured namespaces; useI18n(ns) only ns", () =>
     expect(new Set(all.frames)).toEqual(new Set(["true/false"]));
   });
 
-  it("6: a switch keeps the text on screen while isLoading is true", async () => {
+  it("6: a switch keeps the text on screen while isFetching is true", async () => {
     const l = manualLoader();
     const { i18n } = make({
       locale: "en",
@@ -227,8 +227,8 @@ describe("10: reading the flags requests, holds and publishes nothing", () => {
     const before = { requested: [...l.requested], k: { ...x.k } };
     const [bump, setBump] = createSignal(0);
     const P = () => {
-      const { isReady, isLoading } = useI18n();
-      return <p>{`${bump()}${isReady()}/${isLoading()}`}</p>;
+      const { isReady, isFetching } = useI18n();
+      return <p>{`${bump()}${isReady()}/${isFetching()}`}</p>;
     };
     app(i18n, () => <P />);
     await tick();

@@ -18,7 +18,7 @@ import {
 createI18n({ locale: "en" });
 
 export function setup() {
-  const { t, locale, dir, isLoading, setLocale, T: DT } = useI18n();
+  const { t, locale, dir, isFetching, setLocale, T: DT } = useI18n();
   const s: string = t("greeting", { name: "Ann" });
   // A rich key may still render a string: a handler can return one, and a missing key
   // renders its key text (lot 4d) — the type says so.
@@ -64,9 +64,9 @@ export function setup() {
   // @ts-expect-error the locale is a string
   locale.value = 1;
   const d: "ltr" | "rtl" = dir.value;
-  const b: boolean = isLoading.value;
-  // @ts-expect-error isLoading is read-only
-  isLoading.value = true;
+  const b: boolean = isFetching.value;
+  // @ts-expect-error isFetching is read-only
+  isFetching.value = true;
   const p: Promise<void> = setLocale("de");
   const u: UseI18n["t"] = t;
   return [s, r, n, m, c, e1, bt, l, d, b, p, u];

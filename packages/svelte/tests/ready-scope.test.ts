@@ -1,5 +1,5 @@
 /**
- * The scope of `isReady` / `isLoading` (owner brief 2026-11-10): `useI18n()` (or `undefined`)
+ * The scope of `isReady` / `isFetching` (owner brief 2026-11-10): `useI18n()` (or `undefined`)
  * reads the configured namespaces (`namespaces`, default `["default"]`) — every one ready,
  * some loading — and `useI18n(ns)` only `ns`; `t` and the bound `T` of `useI18n()` stay on
  * `default`. A Svelte server render is synchronous: the app loads first (`await i18n.ready`).
@@ -94,7 +94,7 @@ describe("useI18n() reads the configured namespaces; useI18n(ns) only ns", () =>
     expect(new Set(all)).toEqual(new Set(["true/false"]));
   });
 
-  it("6: a switch keeps the text on screen while isLoading is true", async () => {
+  it("6: a switch keeps the text on screen while isFetching is true", async () => {
     const l = manualLoader();
     const { i18n } = make({
       locale: "en",

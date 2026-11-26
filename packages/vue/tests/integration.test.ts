@@ -49,11 +49,11 @@ const cdnDouble = (auto = true) => {
 const Shop = defineComponent({
   components: { T: T as never },
   setup() {
-    const { locale, isLoading } = useI18n();
-    return { locale, isLoading };
+    const { locale, isFetching } = useI18n();
+    return { locale, isFetching };
   },
   template: `
-    <select aria-label="locale" v-model="locale" :disabled="isLoading">
+    <select aria-label="locale" v-model="locale" :disabled="isFetching">
       <option value="en">en</option><option value="de">de</option>
     </select>
     <h1>{{ $t("title") }}</h1>
@@ -91,7 +91,7 @@ describe("an app on createI18n + cdn() + detect()", () => {
     const i18n = createI18n({ locale: "en", loader: cdn(BASE) });
     const Account = defineComponent({
       setup: () => useI18n("account"),
-      template: `<p>{{ isLoading ? "…" : t("signed_in", { name: "Ann" }) }}</p>`,
+      template: `<p>{{ isFetching ? "…" : t("signed_in", { name: "Ann" }) }}</p>`,
     });
     const w = mount(Account, { global: { plugins: [i18n] } });
     expect(w.text()).toBe("…");
@@ -107,7 +107,7 @@ describe("an app on createI18n + cdn() + detect()", () => {
     const i18n = createI18n({ locale: "en", loader: cdn(BASE), onError: (e) => errors.push(e) });
     const Missing = defineComponent({
       setup: () => useI18n("nope"),
-      template: `<p>{{ isLoading ? "…" : t("k") }}</p>`,
+      template: `<p>{{ isFetching ? "…" : t("k") }}</p>`,
     });
     const w = mount(Missing, { global: { plugins: [i18n] } });
     await settle();

@@ -18,7 +18,7 @@ export function useNegativeNamespace() {
   useI18n("admin");
   useI18n(either);
   useI18n("account").isReady satisfies boolean;
-  useI18n("account").isLoading satisfies boolean;
+  useI18n("account").isFetching satisfies boolean;
 
   // @ts-expect-error a namespace that does not exist
   useI18n("acount");

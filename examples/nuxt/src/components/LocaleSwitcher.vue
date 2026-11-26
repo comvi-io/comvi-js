@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { t, locale, isLoading } = useI18n();
+const { t, locale, isFetching } = useI18n();
 const { locales } = useRouteConfig();
 
 // The locale is part of the URL, so switching is a navigation to this same page under
@@ -23,7 +23,7 @@ const switchLocalePath = useSwitchLocalePath();
         {{ code }}
       </button>
     </div>
-    <code v-if="isLoading" class="switcher-loading">{{ t("app.loading") }}</code>
+    <code v-if="isFetching" class="switcher-loading">{{ t("app.loading") }}</code>
   </div>
   <p class="switcher-note">{{ t("demo.rtl.body") }}</p>
 </template>

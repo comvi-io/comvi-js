@@ -298,14 +298,14 @@ describe("first-paint gate (lot 4b)", () => {
 });
 
 describe("useI18n() activates `default` (lot 4b)", () => {
-  it("an app whose `namespaces` leave `default` out loads it on first use; isLoading settles", async () => {
+  it("an app whose `namespaces` leave `default` out loads it on first use; isFetching settles", async () => {
     const l = manualLoader({ "en:default": { hi: "Hello" }, "en:account": {} });
     const { i18n } = make({ locale: "en", namespaces: ["account"], loader: l.load });
     const seen: boolean[] = [];
     const Probe = () => {
-      const { t, isLoading } = useI18n();
-      seen.push(isLoading);
-      return <p>{isLoading ? "…" : (t("hi") as string)}</p>;
+      const { t, isFetching } = useI18n();
+      seen.push(isFetching);
+      return <p>{isFetching ? "…" : (t("hi") as string)}</p>;
     };
     const { container } = render(
       <I18nProvider i18n={i18n}>
@@ -320,12 +320,12 @@ describe("useI18n() activates `default` (lot 4b)", () => {
     expect(seen.at(-1)).toBe(false);
   });
 
-  it("a failed load ends the placeholder: isLoading false, the missing-key text", async () => {
+  it("a failed load ends the placeholder: isFetching false, the missing-key text", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
     const Probe = () => {
-      const { t, isLoading } = useI18n("shop");
-      return <p>{isLoading ? "…" : (t("title") as string)}</p>;
+      const { t, isFetching } = useI18n("shop");
+      return <p>{isFetching ? "…" : (t("title") as string)}</p>;
     };
     const { container } = render(
       <I18nProvider i18n={i18n}>

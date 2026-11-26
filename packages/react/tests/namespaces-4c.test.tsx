@@ -1,6 +1,6 @@
 /**
  * Lot 4c (owner brief 29.10, R3-26) through React components: `useI18n(ns)` reads, loads and
- * holds `ns` from commit to cleanup; `<T>` reads only; `isReady` / `isLoading` from the render
+ * holds `ns` from commit to cleanup; `<T>` reads only; `isReady` / `isFetching` from the render
  * snapshot, with no "unavailable" frame before the commit; the first-paint gate on the core's
  * `isReady` (the owner's review of e5a3788d); the key scenario; SSR hydration with a branch on
  * `isReady`. Contract: `docs/design/namespaces.md`.
@@ -14,13 +14,13 @@ import { createI18n, I18nProvider, T, useI18n, type I18n } from "../src";
 import { handover } from "../../core/src/internal";
 import { make, manualLoader, settle, tick } from "./helpers";
 
-/** Every render's `isReady/isLoading` of `ns`, and its text. */
+/** Every render's `isReady/isFetching` of `ns`, and its text. */
 const probe = (ns: string, key = "title") => {
   const frames: string[] = [];
   const P = () => {
-    const { t, isReady, isLoading } = useI18n(ns);
-    frames.push(`${isReady}/${isLoading}`);
-    return <p>{isReady ? (t(key) as string) : isLoading ? "…" : "unavailable"}</p>;
+    const { t, isReady, isFetching } = useI18n(ns);
+    frames.push(`${isReady}/${isFetching}`);
+    return <p>{isReady ? (t(key) as string) : isFetching ? "…" : "unavailable"}</p>;
   };
   return { P, frames };
 };
@@ -71,7 +71,7 @@ describe("first-paint gate on the core's isReady (owner's review of e5a3788d, HI
   );
 });
 
-describe("isReady / isLoading from the render snapshot (brief §2)", () => {
+describe("isReady / isFetching from the render snapshot (brief §2)", () => {
   it("first load: not ready and loading from the first render (before the commit) to the catalog", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const l = manualLoader();
@@ -604,8 +604,8 @@ describe("setLocale() and the active need (brief §4, §7)", () => {
 
 describe("SSR hydration with a branch on isReady (brief §5)", () => {
   const Account = () => {
-    const { t, isReady, isLoading } = useI18n("account");
-    return <p>{isReady ? (t("title") as string) : isLoading ? "loading" : "unavailable"}</p>;
+    const { t, isReady, isFetching } = useI18n("account");
+    return <p>{isReady ? (t("title") as string) : isFetching ? "loading" : "unavailable"}</p>;
   };
   /** The browser instance: the app's options (the same `fallbackLocale`) + the payload. */
   const hydrate = async (server: I18n, options: { fallbackLocale?: string } = {}) => {
