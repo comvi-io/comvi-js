@@ -1837,3 +1837,25 @@ five flat tags about +11 %, measured as ranges on a loaded machine; plain and pl
 rendering are unchanged). It is the cost of the one-pass tag stack of B12, paid once per message at
 its first compile. This is one narrow accepted trade, not a looser performance threshold: the
 standard performance A/B before the release stays.
+
+## 2026-11-26: handled rejection with `onError` — owner accepts the growth
+
+Owner decision of 2026-11-26, a narrow exception to the 0.8 code freeze: the SDK marks a reported
+rejection of `setLocale()`/`load()` handled when the app passed `onError`; accepted by the owner
+2026-11-26. The core keeps, per pair, the failure it last reported, and marks the promise it
+returned only when `onError` got that failure's report. The owner approved core growth up to +68 B
+min+gz and three new budgets, ceil(measured × 1.05); no other limit moves. Measured on
+`fix/core-handled-rejection-with-onerror` against `origin/next` @ `2c1989db`, `pnpm build`,
+`node --version` v24.22.1, two runs with the same figures.
+
+| row                           | before (min+gz) | measured (min / min+gz) | budget (old → new)                 |
+| ----------------------------- | --------------- | ----------------------- | ---------------------------------- |
+| fw-solid-default              | 5,936           | 12,362 / 6,003          | 5,942 → 6,304 = ceil(6,003 × 1.05) |
+| fw-vue-default                | 5,850           | 12,078 / 5,918          | 5,912 → 6,214 = ceil(5,918 × 1.05) |
+| fw-next-server-default-loader | 5,876           | 12,300 / 5,935          | 5,905 → 6,232 = ceil(5,935 × 1.05) |
+
+The core rows grow by +54…+68 B and stay inside their limits (`core-icu` 5,104 → 5,172 of 5,200,
+`core-icu-cdn` 5,561 → 5,628 of 5,667, `core-icu-devtools` 5,544 → 5,607 of 5,650). A version that
+marks every rejection when `onError` is set (+26 B on `core-icu`) was measured and not shipped: it
+also hides rejections `onError` never heard of, and `fw-solid-default` (6 B of headroom) was red
+with it too.

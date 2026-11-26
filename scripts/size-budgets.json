@@ -251,13 +251,13 @@
       "entry": ["@comvi/solid"],
       "fixture": "framework/solid-default.ts",
       "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 5942,
+      "gzipBudgetBytes": 6304,
       "baseline": {
-        "minBytes": 11735,
-        "gzipBytes": 5659,
-        "measuredAt": "2026-11-10"
+        "minBytes": 12362,
+        "gzipBytes": 6003,
+        "measuredAt": "2026-11-26"
       },
-      "note": "Gated Solid floor: one `@comvi/solid` specifier, bundled catalogs, the provider + useI18n() + t({name}). Re-baselined in lot 5 on the 0.8 binding (0.7: 7,036 B); size-budgets.md 2026-10-31 lot 5 and 2026-11-06. Lot 6a D1 + audit fixes (owner decision 2026-11-10): baseline 5342 → 5659 B, budget 5610 → 5942 (ceil × 1.05), size-budgets.md 2026-11-10."
+      "note": "Gated Solid floor: one `@comvi/solid` specifier, bundled catalogs, the provider + useI18n() + t({name}). Re-baselined in lot 5 on the 0.8 binding (0.7: 7,036 B); size-budgets.md 2026-10-31 lot 5 and 2026-11-06. Lot 6a D1 + audit fixes (owner decision 2026-11-10): baseline 5342 → 5659 B, budget 5610 → 5942 (ceil × 1.05), size-budgets.md 2026-11-10. Handled rejection with onError (owner decision 2026-11-26): 5936 → 6003 B, baseline 5659 → 6003, budget 5942 → 6304 (ceil × 1.05), size-budgets.md 2026-11-26."
     },
     {
       "name": "fw-solid-full-composite",
@@ -328,13 +328,13 @@
       "entry": ["@comvi/vue"],
       "fixture": "framework/vue-default.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 5912,
+      "gzipBudgetBytes": 6214,
       "baseline": {
-        "minBytes": 11599,
-        "gzipBytes": 5630,
-        "measuredAt": "2026-11-10"
+        "minBytes": 12078,
+        "gzipBytes": 5918,
+        "measuredAt": "2026-11-26"
       },
-      "note": "Gated Vue floor: one `@comvi/vue` specifier, bundled catalogs, app.use(i18n) + useI18n() + t({name}). Re-baselined in lot 4 on the 0.8 binding (0.7: 7,709 B) and in its review fix pass (4,881 → 4,882) and final pass (4,882 → 4,880); size-budgets.md 2026-10-28 lot 4. Lot 4b (2026-10-29): baseline 4880 → 4978 budget 5124 → 5227 (ceil × 1.05), size-budgets.md 2026-10-29 lot 4b. Lot 4b fix pass (2026-10-29): 4978 → 5008 B, size-budgets.md 2026-10-29 lot 4b fix pass. Lot 4b fix pass 2 (2026-10-29): 5008 → 5002 B, size-budgets.md 2026-10-29 lot 4b fix pass 2. Lot 4b Codex re-check fix (2026-10-29): 5002 → 5006 B, size-budgets.md 2026-10-29 lot 4b Codex re-check fix. Lot 4c (2026-10-29): 5006 → 5151 B, budget 5257 → 5409, size-budgets.md 2026-10-29 lot 4c. Lot 4c fix pass (2026-10-30): 5151 → 5202 B, budget 5409 → 5463, size-budgets.md 2026-10-30 lot 4c fix pass. Lot 4d (2026-10-31): 5202 → 5419 B, budget 5463 → 5690, size-budgets.md 2026-10-31 lot 4d. Lot 4d final (2026-10-31): 5419 → 5309 B, budget 5690 → 5575, size-budgets.md 2026-10-31 final."
+      "note": "Gated Vue floor: one `@comvi/vue` specifier, bundled catalogs, app.use(i18n) + useI18n() + t({name}). Re-baselined in lot 4 on the 0.8 binding (0.7: 7,709 B) and in its review fix pass (4,881 → 4,882) and final pass (4,882 → 4,880); size-budgets.md 2026-10-28 lot 4. Lot 4b (2026-10-29): baseline 4880 → 4978 budget 5124 → 5227 (ceil × 1.05), size-budgets.md 2026-10-29 lot 4b. Lot 4b fix pass (2026-10-29): 4978 → 5008 B, size-budgets.md 2026-10-29 lot 4b fix pass. Lot 4b fix pass 2 (2026-10-29): 5008 → 5002 B, size-budgets.md 2026-10-29 lot 4b fix pass 2. Lot 4b Codex re-check fix (2026-10-29): 5002 → 5006 B, size-budgets.md 2026-10-29 lot 4b Codex re-check fix. Lot 4c (2026-10-29): 5006 → 5151 B, budget 5257 → 5409, size-budgets.md 2026-10-29 lot 4c. Lot 4c fix pass (2026-10-30): 5151 → 5202 B, budget 5409 → 5463, size-budgets.md 2026-10-30 lot 4c fix pass. Lot 4d (2026-10-31): 5202 → 5419 B, budget 5463 → 5690, size-budgets.md 2026-10-31 lot 4d. Lot 4d final (2026-10-31): 5419 → 5309 B, budget 5690 → 5575, size-budgets.md 2026-10-31 final. Handled rejection with onError (owner decision 2026-11-26): 5850 → 5918 B, baseline 5630 → 5918, budget 5912 → 6214 (ceil × 1.05), size-budgets.md 2026-11-26."
     },
     {
       "name": "fw-vue-full-composite",
@@ -360,13 +360,13 @@
       "entry": ["@comvi/next/server"],
       "fixture": "framework/next-server-default-loader.ts",
       "external": ["next", "next/*", "react", "react/*"],
-      "gzipBudgetBytes": 5905,
+      "gzipBudgetBytes": 6232,
       "baseline": {
-        "minBytes": 11724,
-        "gzipBytes": 5623,
-        "measuredAt": "2026-11-10"
+        "minBytes": 12300,
+        "gzipBytes": 5935,
+        "measuredAt": "2026-11-26"
       },
-      "note": "Gated Next server floor: `createGetI18n` from `@comvi/next/server` with a loader, and `handover()` from `@comvi/core/ssr` (lot 6a: the 0.7 composed-host graph replaced). Lot 6a (2026-11-06, Node v24.22.1): 5291 B (5308 B with the review fix, within the budget; baseline kept, budget not raised), budget 8746 → 5556 (ceil × 1.05), size-budgets.md 2026-11-06 lot 6a. Lot 6a D1 + audit fixes (owner decision 2026-11-10): baseline 5291 → 5623 B, budget 5556 → 5905 (ceil × 1.05), size-budgets.md 2026-11-10."
+      "note": "Gated Next server floor: `createGetI18n` from `@comvi/next/server` with a loader, and `handover()` from `@comvi/core/ssr` (lot 6a: the 0.7 composed-host graph replaced). Lot 6a (2026-11-06, Node v24.22.1): 5291 B (5308 B with the review fix, within the budget; baseline kept, budget not raised), budget 8746 → 5556 (ceil × 1.05), size-budgets.md 2026-11-06 lot 6a. Lot 6a D1 + audit fixes (owner decision 2026-11-10): baseline 5291 → 5623 B, budget 5556 → 5905 (ceil × 1.05), size-budgets.md 2026-11-10. Handled rejection with onError (owner decision 2026-11-26): 5876 → 5935 B, baseline 5623 → 5935, budget 5905 → 6232 (ceil × 1.05), size-budgets.md 2026-11-26."
     },
     {
       "name": "fw-next-client-default",
