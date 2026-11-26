@@ -121,6 +121,20 @@ describe.skipIf(!runSuite)(
       expect(popup).not.toContain("Send page context to improve translation suggestions");
     });
 
+    // Context collection is off in 0.8: the popup must say so, and must not claim it follows
+    // a setting the page reports. The link goes to the editor page without an anchor, so it
+    // cannot point at a section about turning collection on.
+    it("popup says context collection is off and links to the editor page", () => {
+      const popup = read("popup.html").replace(/\s+/g, " ");
+      expect(popup).toContain(
+        "Context collection is off in this version. The editor sends no page context to Comvi.",
+      );
+      expect(popup).not.toContain("follows the setting the page reports");
+      expect(popup.match(/href="[^"]*comvi\.io[^"]*"/g)).toEqual([
+        'href="https://comvi.io/docs/i18n/plugins/in-context-editor"',
+      ]);
+    });
+
     it.each(["bridge.js", "detector.js"])(
       "%s is self-contained (no ES module syntax)",
       (bundle) => {
