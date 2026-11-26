@@ -4695,6 +4695,15 @@
     },
     {
       "package": "packages/core",
+      "file": "src/instance.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "oe && rp.get(k) === e && p?.catch(noop),",
+      "lineHint": 379,
+      "kind": "equivalent",
+      "reason": "`p?.catch` -> `p.catch`: `p` (the promise setLocale()/load() returned) is undefined only when sw()'s go() throws synchronously inside the executor, before `q` is assigned, and no path reaches that throw: retry(0, l, p) clears every failure of the target except a handover payload's `null` pairs, which the throw's own condition excludes, and nothing sets a failure synchronously in between. The guard keeps the reason unchanged should that ever change. Hand-applied 26.11.2026: core suite green (51 files, 1881 tests)."
+    },
+    {
+      "package": "packages/core",
       "file": "src/internal.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (c === state.c) c = N(c);",
