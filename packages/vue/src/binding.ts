@@ -279,11 +279,19 @@ export interface UseI18n<NS extends string = "default"> {
    * `useI18n()` (or `undefined`): true when this holds for `default` (the namespace its `t`
    * reads) AND every namespace of the `namespaces` option — not for `default` alone, so
    * `useI18n()` and `useI18n("default")` differ when the option names others. A usable catalog,
-   * not every key. Check it before `isFetching`: a load beside usable catalogs (a switch) must
-   * not hide the text; `false` with `isFetching` false means the text is unavailable and nothing
-   * is loading (a failed load, or no loader), not necessarily an error.
+   * not every key. `isReady` and `isLoading` are never both true, so a positive test of either
+   * can come first; `!isReady` alone is not "unavailable": it is true while loading too. Both
+   * `false` means the text is unavailable and nothing is loading (a failed load, or no loader),
+   * not necessarily an error: render the component's fallback content.
    */
   isReady: ComputedRef<boolean>;
+  /**
+   * `!isReady && isFetching`: no usable catalog yet and one is loading, so render a placeholder
+   * (`<Skeleton v-if="isLoading" />`). True at a first load, again at a retry through
+   * `i18n.load(ns)`, and during a switch when no usable catalog is on screen; `false` during a
+   * switch beside usable text, which stays on screen.
+   */
+  isLoading: ComputedRef<boolean>;
   /**
    * `useI18n(ns)`: a catalog of `ns` is loading, for any locale (a switch in progress too, a
    * background load beside a usable catalog), or will load when the component holds the
@@ -291,7 +299,9 @@ export interface UseI18n<NS extends string = "default"> {
    * flight: with no usable catalog that is the "unavailable" state (`isReady` false too),
    * never an endless one; with a fallback locale's catalog in, `isReady` is true.
    * Outside a component (nothing holds), and once the component released it (unmount,
-   * `KeepAlive` deactivation), it is a load in flight only.
+   * `KeepAlive` deactivation), it is a load in flight only. For a busy indicator beside the
+   * text, or to wait before rendering (`if (isFetching.value) await i18n.load(ns)`); the
+   * placeholder branch is `isLoading`.
    * `useI18n()` (or `undefined`): true when this holds for `default` or SOME namespace of the
    * `namespaces` option; a namespace outside them changes nothing.
    */
@@ -354,7 +364,7 @@ export const render = (
 
 /**
  * The i18n of the app (`app.use(i18n)`). `ns` (default `default`) is the namespace of `t`
- * and `T`, and of `isReady` / `isFetching` when given: with no `ns` those read `default` and every
+ * and `T`, and of the three flags when given: with no `ns` they read `default` and every
  * namespace of the `namespaces` option (a server render waits for them too), so `useI18n()` is
  * not `useI18n("default")` there. The component holds it from mount to unmount (`KeepAlive`: while active; a
  * component hidden by `v-show` or CSS still holds it): while held it loads for the locale on
@@ -385,6 +395,9 @@ export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<
   // `namespaces` option's (duplicates change nothing in `every` / `some`).
   const a = [n, ...((ns === undefined && x.o.namespaces) || [])];
   const isFetching = computed(() => a.some((m) => x.w(s.value, m, !g || !u)));
+  // Until the hold at mount, what the hold will load is loading already: no frame that
+  // says "unavailable", no `missing_key` (lot 1d, 4c).
+  const isReady = computed(() => a.every((m) => x.r(s.value, m)));
   // Outside a component (a store, a router guard, `app.runWithContext()`) there is no
   // lifecycle to release in: nothing is held there and no hook is registered (Vue warns about
   // one with no component); its reads are not a declared need and `isFetching` is a load in
@@ -418,9 +431,8 @@ export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<
     T: (Ts[n] ||= (p, { slots }) => render(i, n, p, slots)) as unknown as BoundT<NS>,
     locale,
     dir,
-    // Until the hold at mount, what the hold will load is loading already: no frame that
-    // says "unavailable", no `missing_key` (lot 1d, 4c).
-    isReady: computed(() => a.every((m) => x.r(s.value, m))),
+    isReady,
+    isLoading: computed(() => !isReady.value && isFetching.value),
     isFetching,
     setLocale: i.setLocale,
     i18n: i,

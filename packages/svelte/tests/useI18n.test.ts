@@ -17,11 +17,11 @@ describe("the package", () => {
     expect(Object.keys(api).sort()).toEqual(["T", "createI18n", "handover", "setI18n", "useI18n"]);
   });
 
-  it("useI18n() returns the eight members of every binding; without setI18n it throws", () => {
+  it("useI18n() returns the nine members of every binding; without setI18n it throws", () => {
     const { i18n } = make({ locale: "ar", messages: { ar: {} } });
     const r = during(i18n, () => useI18n());
     expect(Object.keys(r).sort()).toEqual(
-      ["T", "dir", "i18n", "isFetching", "isReady", "locale", "setLocale", "t"].sort(),
+      ["T", "dir", "i18n", "isFetching", "isLoading", "isReady", "locale", "setLocale", "t"].sort(),
     );
     expect([r.locale, r.dir, r.i18n]).toEqual(["ar", "rtl", i18n]);
     const target = document.createElement("div");

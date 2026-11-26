@@ -49,14 +49,15 @@ their parents: what `t()` looks in.
   too), or the instance has a loader and a pair of the chain is neither in place nor failed (the
   load a consumer's hold is about to make). A failed pair does not keep `isFetching` true, so no
   catalog, no flight and a failure (or no loader) is `false`/`false`, never an endless loading state.
+- **`isLoading`** (a binding's `useI18n()` only): `!isReady && isFetching`, the placeholder branch.
 
-| Situation                                       | `isReady` | `isFetching` |
-| ----------------------------------------------- | --------- | ------------ |
-| First load, no catalog                          | `false`   | `true`       |
-| A catalog of the chain is in place              | `true`    | `false`      |
-| A usable catalog, a load in flight              | `true`    | `true`       |
-| The load failed, a fallback catalog is in       | `true`    | `false`      |
-| No catalog; the load failed, or none is planned | `false`   | `false`      |
+| Situation                                       | `isReady` | `isFetching` | `isLoading` |
+| ----------------------------------------------- | --------- | ------------ | ----------- |
+| First load, no catalog                          | `false`   | `true`       | `true`      |
+| A catalog of the chain is in place              | `true`    | `false`      | `false`     |
+| A usable catalog, a load in flight              | `true`    | `true`       | `false`     |
+| The load failed, a fallback catalog is in       | `true`    | `false`      | `false`     |
+| No catalog; the load failed, or none is planned | `false`   | `false`      | `false`     |
 
 **Scope of a binding's `useI18n()`.** `useI18n(ns)` describes `ns` alone. `useI18n()` with no
 argument describes what its `t` reads and the app's startup set: `default` AND every namespace of the

@@ -204,11 +204,19 @@ export interface UseI18n<NS extends string = "default"> {
    * `useI18n()` (or `undefined`): true when this holds for `default` (the namespace its `t`
    * reads) AND every namespace of the `namespaces` option — not for `default` alone, so
    * `useI18n()` and `useI18n("default")` differ when the option names others. A usable catalog,
-   * not every key. Check it before `isFetching`: a load beside usable catalogs (a switch) must
-   * not hide the text; `false` with `isFetching` false means the text is unavailable and nothing
-   * is loading (a failed load, or no loader), not necessarily an error.
+   * not every key. `isReady` and `isLoading` are never both true, so a positive test of either
+   * can come first; `!isReady` alone is not "unavailable": it is true while loading too. Both
+   * `false` means the text is unavailable and nothing is loading (a failed load, or no loader),
+   * not necessarily an error: render the component's fallback content.
    */
   isReady: boolean;
+  /**
+   * `!isReady && isFetching`: no usable catalog yet and one is loading, so render a placeholder
+   * (`if (isLoading) return <Skeleton />`). True at a first load, again at a retry through
+   * `i18n.load(ns)`, and during a switch when no usable catalog is on screen; `false` during a
+   * switch beside usable text, which stays on screen.
+   */
+  isLoading: boolean;
   /**
    * `useI18n(ns)`: a catalog of `ns` is loading, for any locale (a switch in progress too, a
    * background load beside a usable catalog), or will load when this hook holds the
@@ -217,7 +225,8 @@ export interface UseI18n<NS extends string = "default"> {
    * hydration render the loading branch, and the browser loads it at commit). `false` once a
    * load failed with nothing in flight: with no usable catalog that is the "unavailable" state
    * (`isReady` false too), never an endless one; with a fallback locale's catalog in,
-   * `isReady` is true.
+   * `isReady` is true. For a busy indicator beside the text, or to wait before rendering
+   * (`if (isFetching) await i18n.load(ns)`); the placeholder branch is `isLoading`.
    * `useI18n()` (or `undefined`): true when this holds for `default` or SOME namespace of the
    * `namespaces` option; a namespace outside them changes nothing.
    */
@@ -234,7 +243,7 @@ const Ts = N<(props: object) => ReactNode>();
 
 /**
  * The i18n of the nearest `<I18nProvider>`. `ns` (default `default`) is the namespace of `t`
- * and `T`, and of `isReady` / `isFetching` when given: with no `ns` those read `default` and every
+ * and `T`, and of the three flags when given: with no `ns` they read `default` and every
  * namespace of the `namespaces` option, so `useI18n()` is not `useI18n("default")` there.
  * The component holds it from its commit to its unmount (or a change of `ns`): while held it
  * loads for the locale on screen and for every locale `setLocale()` switches to; with no
@@ -256,15 +265,18 @@ export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<
   // The flags' namespaces: `ns`, or with no argument `default` (what its `t` reads) and the
   // `namespaces` option's (duplicates change nothing in `every` / `some`).
   const a = [n, ...((ns === undefined && x.o.namespaces) || [])];
-  return useMemo(
-    () => ({
+  return useMemo(() => {
+    // From this render's snapshot (a handover's view at hydration). Until the hold at commit,
+    // what the hold will load is loading already: no frame that says "unavailable", no
+    // `missing_key` (lot 1d, 4c).
+    const r = a.every((m) => x.r(s, m));
+    const f = a.some((m) => x.w(s, m));
+    return {
       locale: s.locale,
       dir: s.dir,
-      // From this render's snapshot (a handover's view at hydration). Until the hold at commit,
-      // what the hold will load is loading already: no frame that says "unavailable", no
-      // `missing_key` (lot 1d, 4c).
-      isReady: a.every((m) => x.r(s, m)),
-      isFetching: a.some((m) => x.w(s, m)),
+      isReady: r,
+      isLoading: !r && f,
+      isFetching: f,
       setLocale: i.setLocale,
       i18n: i,
       // `node` joins rich parts into one node and, through the core, gives every tag
@@ -273,9 +285,8 @@ export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<
       t: ((k: string, p?: Record<string, unknown>) =>
         node(x.tr(s, k, p, n, node))) as UseI18n<NS>["t"],
       T: (Ts[n] ||= (q) => read({ ...q, ns: n } as never)) as BoundT<NS>,
-    }),
-    [c, ns],
-  );
+    };
+  }, [c, ns]);
 };
 
 /**

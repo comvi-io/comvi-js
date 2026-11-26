@@ -25,11 +25,11 @@ const capture = (i18n: ReturnType<typeof createI18n>, ns?: string) => {
 };
 
 describe("useI18n()", () => {
-  it("returns t, T, locale, dir, isFetching, setLocale and the instance", () => {
+  it("returns t, T, locale, dir, isLoading, isFetching, setLocale and the instance", () => {
     const i18n = createI18n({ locale: "en", messages: { en: { hi: "Hi {name}" } } });
     const u = capture(i18n).get();
     expect(Object.keys(u).sort()).toEqual(
-      ["T", "dir", "i18n", "isFetching", "isReady", "locale", "setLocale", "t"].sort(),
+      ["T", "dir", "i18n", "isFetching", "isLoading", "isReady", "locale", "setLocale", "t"].sort(),
     );
     expect(u.t("hi", { name: "Ann" })).toBe("Hi Ann");
     expect(u.locale.value).toBe("en");

@@ -26,11 +26,11 @@ const capture = (i18n: I18n, ns?: string) => {
 };
 
 describe("useI18n()", () => {
-  it("returns t, locale, dir, isReady, isFetching, setLocale and the instance", () => {
+  it("returns t, locale, dir, isReady, isLoading, isFetching, setLocale and the instance", () => {
     const i18n = createI18n({ locale: "en", messages: { en: { hi: "Hi {name}" } } });
     const { last } = capture(i18n);
     expect(Object.keys(last()).sort()).toEqual(
-      ["T", "dir", "i18n", "isFetching", "isReady", "locale", "setLocale", "t"].sort(),
+      ["T", "dir", "i18n", "isFetching", "isLoading", "isReady", "locale", "setLocale", "t"].sort(),
     );
     expect(last().t("hi", { name: "Ann" })).toBe("Hi Ann");
     expect(last().locale).toBe("en");
