@@ -68,8 +68,8 @@ const browser = createI18n({ ...options, ...payload });
 browser.t("hi"); // "Hi", with no request for a catalog the server rendered
 ```
 
-The browser's instance starts from the snapshot: the same `isReady` and `isFetching` as the server
-render, so a branch on them hydrates without a mismatch, and the loader is asked for nothing the
+The browser's instance starts from the snapshot: the same `isReady`, `isFetching` and `isLoading` as the
+server render, so a branch on them hydrates without a mismatch, and the loader is asked for nothing the
 snapshot carries. A `null` slot stays failed: the browser renders the fallback the server rendered
 and asks for that pair again only on `load(ns)` or a switch to its locale.
 

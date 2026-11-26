@@ -1,4 +1,4 @@
-# Namespaces: who loads them, what `isReady` and `isFetching` mean, when `missing_key` is reported
+# Namespaces: who loads them, what `isReady`, `isFetching` and `isLoading` mean, when `missing_key` is reported
 
 Status: accepted · Date: 2026-10-29, scope of `useI18n()` 2026-11-10 · Moved here 2026-11-25 from the
 release notes file the tests cited; the content is the contract the tests below pin.
@@ -36,7 +36,7 @@ a missing key for text that is still on its way.
   Svelte and Solid hold at mount and release at unmount; Vue's `KeepAlive` deactivation releases
   and activation holds again.
 
-### `isReady` and `isFetching`, per namespace
+### `isReady`, `isFetching` and `isLoading`, per namespace
 
 The chain of a locale is the locale, its parents (`pt-BR` → `pt`), then the fallback locales and
 their parents: what `t()` looks in.

@@ -58,10 +58,10 @@ export const i18n = createI18n({
 </button>
 ```
 
-`t()` fills `{name}` from its second argument. `locale`, `dir`, `isReady` and `isFetching` are
-getters: read them through the object (`r.locale`), because a destructured one is read once. Both
-catalogs are inline, so the switch loads nothing; with a `loader`, `setLocale()` can reject: see
-[A rejected `setLocale()`](#a-rejected-setlocale).
+`t()` fills `{name}` from its second argument. `locale`, `dir`, `isReady`, `isLoading` and
+`isFetching` are getters: read them through the object (`r.locale`), because a destructured one is
+read once. Both catalogs are inline, so the switch loads nothing; with a `loader`, `setLocale()` can
+reject: see [A rejected `setLocale()`](#a-rejected-setlocale).
 
 ## Typed keys
 
@@ -104,13 +104,18 @@ A param the message uses is required too. A misspelt namespace is an error in `u
 ([limit](https://comvi.io/docs/i18n/limitations#namespace-typos-config)). Without Vite, see
 [Type safety](https://comvi.io/docs/i18n/type-safety).
 
-## Namespaces: `isReady`, `isFetching` and `ready`
+## Namespaces: `isReady`, `isLoading`, `isFetching` and `ready`
 
 `useI18n("account")` binds `t` to the `account` namespace and holds the namespace while the
 component is mounted: it loads for the locale on screen and for every locale a switch goes to.
-`isReady` is `true` when a catalog of the namespace is usable for the locale on screen; `isFetching`
-is `true` while one is on the way. Check `isReady` first: a switch loads the new catalogs beside the
-text on screen. Both `false` means the text is not available and nothing is loading. `i18n.ready` is
+`isReady` is `true` when a catalog of the namespace is usable for the locale on screen. `isLoading`
+is `true` when none is usable yet and one is loading: render the placeholder. It is `false` during a
+switch beside usable text, which stays on screen. `isReady` and `isLoading` both `false` means the
+text is unavailable and nothing is loading (a failed load, or no loader): render fallback content, a
+retry button for example. `isReady` and `isLoading` are never both `true`, so either can be tested
+first, but `!isReady` alone is also `true` while a catalog loads. `isFetching` is `true` while a
+load of the namespace is in flight or about to start, beside usable text too: it is for a busy
+indicator next to text that stays on screen, or for waiting before a render. `i18n.ready` is
 something else: a promise that resolves when the loads in flight have settled, the failed ones too.
 After a failed first load, `ready` has resolved, and `isReady` is `false` only when no usable
 catalog exists in the locale's lookup chain (the locale, its parents, the `fallbackLocale`).
@@ -156,6 +161,12 @@ export const i18n = createI18n({
 });
 ```
 
+If you passed `onError`, you can call `void i18n.setLocale(code)` or `void i18n.load(ns)` without an
+empty `.catch()`. If you await the result, the error still interrupts execution. A promise derived
+from the call (`.then(fn)`, an `async` function that awaits it without a `catch`) is yours to
+handle, and without the `onError` option nothing changes: an ignored rejection is a global
+`unhandledrejection`.
+
 ## A rejected `setLocale()`
 
 With a `loader`, `setLocale()` loads the catalogs of the new locale and its parents (`de` for
@@ -180,12 +191,12 @@ and no catalog of its parents (`de` for `de-AT`) is usable; a `fallbackLocale`'s
       () => (failed = false),
       () => (failed = true),
     );
-  const retry = () => r.i18n.load("account").catch(() => {}); // `onError` has the report
+  const retry = () => void r.i18n.load("account"); // no `.catch()`: `onError` is set
 </script>
 
-{#if r.isReady}<h2>{r.t("title")}</h2>
-{:else if r.isFetching}<p class="spinner"></p>
-{:else}<button onclick={retry}>Not available. Retry</button>{/if}
+{#if r.isLoading}<p class="spinner"></p>
+{:else if !r.isReady}<button onclick={retry}>Not available. Retry</button>
+{:else}<h2>{r.t("title")}</h2>{/if}
 <button onclick={toggle}>{failed ? "Could not switch. Try again" : r.locale}</button>
 ```
 

@@ -20,7 +20,7 @@ The instance is what `createI18n()` returns; everything it has is passed to `cre
 | [icu.md](icu.md)                           | one message syntax, built into the core: plural, select and selectordinal                 |
 | [rich-text.md](rich-text.md)               | tags are part of the syntax; markup comes only from handlers and mapped components        |
 | [formatting.md](formatting.md)             | formatters are functions of the instance; `useFormat()` follows the locale on screen      |
-| [namespaces.md](namespaces.md)             | who loads a namespace, what `isReady` / `isFetching` mean, when `missing_key` is reported |
+| [namespaces.md](namespaces.md)             | who loads a namespace, what the three readiness flags say, when `missing_key` is reported |
 | [reentrancy.md](reentrancy.md)             | what may call `setLocale()`, and what the instance guarantees when it does                |
 | [ssr.md](ssr.md)                           | an instance per request; the browser starts from the server's snapshot                    |
 | [catalog-store.md](catalog-store.md)       | one catalog store per server process, and none by default                                 |
