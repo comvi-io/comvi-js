@@ -14,9 +14,9 @@ import { createI18n, I18nHandover, I18nProvider, useI18n, type I18n } from "../s
 
 const seen: string[] = [];
 function Tpl() {
-  const { t, isReady, isLoading } = useI18n();
-  seen.push(`${isReady}/${isLoading}`);
-  return isReady ? <p>{t("x") as string}</p> : isLoading ? <i>loading</i> : <b>unavailable</b>;
+  const { t, isReady, isFetching } = useI18n();
+  seen.push(`${isReady}/${isFetching}`);
+  return isReady ? <p>{t("x") as string}</p> : isFetching ? <i>loading</i> : <b>unavailable</b>;
 }
 
 let roots: { unmount(): void }[] = [];
@@ -99,7 +99,7 @@ describe("useI18n() over a configured namespace the server failed", () => {
           expect(serverFlags).toEqual([fallback ? "true/false" : "false/false"]);
           if (late && never && fallback)
             // The fallback's catalog is handed, and the client's own load of that pair is really
-            // in flight: `isLoading` reads it (a GA-list item), the branch is the server's.
+            // in flight: `isFetching` reads it (a GA-list item), the branch is the server's.
             expect(seen.every((f) => f.startsWith("true/"))).toBe(true);
           else expect(seen.every((f) => f === serverFlags[0])).toBe(true);
           expect(recoverable).toEqual([]);

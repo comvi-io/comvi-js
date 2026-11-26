@@ -4,7 +4,7 @@ import { locales } from "../i18n";
 import { LoadError } from "./LoadError";
 
 export function LocaleSwitcher() {
-  const { t, locale, setLocale, isLoading } = useI18n();
+  const { t, locale, setLocale, isFetching } = useI18n();
   // The locale whose switch failed, if any: its catalog could not be loaded.
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -33,7 +33,7 @@ export function LocaleSwitcher() {
             </button>
           ))}
         </div>
-        {isLoading && <span className="status">{t("app.loading")}</span>}
+        {isFetching && <span className="status">{t("app.loading")}</span>}
       </div>
       {failed && <LoadError onRetry={() => switchTo(failed)} />}
       <p className="note">{t("demo.rtl.body")}</p>

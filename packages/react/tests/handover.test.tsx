@@ -572,7 +572,7 @@ describe("the target locale across renders and instances (0.7 target-locale)", (
     });
     const flags: boolean[] = [];
     const Flag = () => {
-      flags.push(useI18n().isLoading);
+      flags.push(useI18n().isFetching);
       return null;
     };
     const view = render(

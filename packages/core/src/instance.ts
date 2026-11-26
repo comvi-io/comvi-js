@@ -152,7 +152,7 @@ export interface I18n {
    * ns)` returns (default: the key) — also while the key's namespace is still loading or has
    * no catalog of the chain, when no `missing_key` is reported (see `onError`). `t()` never
    * returns a placeholder: a UI that should not show that text renders its own, checking a
-   * binding's `isReady` first, then `isLoading`. `isReady === false && isLoading === false`
+   * binding's `isReady` first, then `isFetching`. `isReady === false && isFetching === false`
    * means the text is not available, not necessarily that a load failed.
    */
   t: TFor<"default", RichParts>;
@@ -247,7 +247,7 @@ export interface Core {
    */
   h(ns: string): () => void;
   /**
-   * `isLoading` of namespace `ns` in `state` (see `coming` in createI18n); `f`: a load in flight
+   * `isFetching` of namespace `ns` in `state` (see `coming` in createI18n); `f`: a load in flight
    * only — for a reader that holds nothing (Vue's `useI18n()` outside a component).
    */
   w(state: State, ns: string, f?: unknown): unknown;
@@ -526,7 +526,7 @@ export const createI18n = (o: I18nOptions): I18n => {
   const usable = (s: State, n: string) => chain(s.locale).some((x) => s.c[n]?.[x[0]]);
 
   /**
-   * `isLoading` (lot 4c): a load of `n` is in flight in `s` (for any locale: a parent, a
+   * `isFetching` (lot 4c): a load of `n` is in flight in `s` (for any locale: a parent, a
    * fallback, the target of a pending switch), or the
    * instance has a loader and a pair of the chain of the state's locale is neither in place
    * nor failed — the load a consumer's hold makes (React holds at commit, Vue at mount, after

@@ -3,5 +3,5 @@
   const r: any = useI18n("account");
 </script>
 
-{#if r.isReady}<p>{r.t("title")}</p>{:else if r.isLoading}<i>loading</i>{:else}<b>unavailable</b
+{#if r.isReady}<p>{r.t("title")}</p>{:else if r.isFetching}<i>loading</i>{:else}<b>unavailable</b
   >{/if}

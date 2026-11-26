@@ -9,7 +9,7 @@ import NamespacesView from "./views/NamespacesView";
 import RtlView from "./views/RtlView";
 
 function AppContent() {
-  const { t, isLoading, locale } = useI18n();
+  const { t, isFetching, locale } = useI18n();
 
   const [currentPath, setCurrentPath] = createSignal(window.location.hash.slice(1) || "/");
 
@@ -49,7 +49,7 @@ function AppContent() {
             <h1 class="text-xl font-bold text-blue-600">Comvi SolidJS Example</h1>
           </div>
           <div class="flex gap-4 items-center">
-            {isLoading() && <div class="text-sm text-gray-500 italic">{t("common.loading")}</div>}
+            {isFetching() && <div class="text-sm text-gray-500 italic">{t("common.loading")}</div>}
             <LanguageSwitcher />
           </div>
         </div>

@@ -17,7 +17,7 @@ import {
 createI18n({ locale: "en" });
 
 export function setup() {
-  const { t, locale, dir, isReady, isLoading, setLocale, T: DT } = useI18n();
+  const { t, locale, dir, isReady, isFetching, setLocale, T: DT } = useI18n();
   const s: string = t("greeting", { name: "Ann" });
   // `t()` takes no rich key (owner decision 21.11.2026): rich text is `<T>`'s.
   // @ts-expect-error a rich key in t(), with a handler for its tag
@@ -47,7 +47,7 @@ export function setup() {
   shop.T({ i18nKey: "cart.title", count: 1 });
   const l: string = locale;
   const d: "ltr" | "rtl" = dir;
-  const b: boolean = isLoading && isReady;
+  const b: boolean = isFetching && isReady;
   const p: Promise<void> = setLocale("de");
   const u: UseI18n["t"] = t;
   return [s, r, n, m, c, l, d, b, p, u];

@@ -18,10 +18,10 @@ import {
 } from "../src";
 
 function Probe({ ns = "default" }: { ns?: string }) {
-  const { t, isLoading } = useI18n(ns);
+  const { t, isFetching } = useI18n(ns);
   const [n, setN] = useState(0);
   return (
-    <button data-testid="probe" data-loading={String(isLoading)} onClick={() => setN(n + 1)}>
+    <button data-testid="probe" data-loading={String(isFetching)} onClick={() => setN(n + 1)}>
       {t("title")}|{n}
     </button>
   );

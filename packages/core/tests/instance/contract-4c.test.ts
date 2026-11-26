@@ -1,6 +1,6 @@
 /**
  * Lot 4c (owner brief 29.10, R3-26): reading, loading and holding a namespace; `isReady` and
- * `isLoading` as core predicates; consumer accounting; `setLocale()` against the active set;
+ * `isFetching` as core predicates; consumer accounting; `setLocale()` against the active set;
  * the handover accounting; the development diagnostic of an idle read. The contract is in
  * `docs/design/namespaces.md`; the bindings run the same cases through
  * components (`packages/react/tests/namespaces-4c.test.tsx`, `packages/vue/tests/namespaces-4c.test.ts`).
@@ -13,13 +13,13 @@ import { flush, make, manualLoader, tableLoader } from "./helpers";
 /** Lets the development diagnostic's timer run (it re-checks after the render's task). */
 const tick = () => new Promise((y) => setTimeout(y));
 
-/** `[isReady, isLoading]` of `ns` in the instance's published state. */
+/** `[isReady, isFetching]` of `ns` in the instance's published state. */
 const rl = (i18n: I18n, ns = "default") => [
   available(i18n, state(i18n), ns),
   coming(i18n, state(i18n), ns),
 ];
 
-describe("isReady / isLoading — the four rows of the table (brief §2)", () => {
+describe("isReady / isFetching — the four rows of the table (brief §2)", () => {
   it("first load, no catalog: not ready, loading", () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "uk", loader: l.load });

@@ -33,14 +33,14 @@ const retryApp = (i18n: I18n, catalogs: () => { admin: { en: null } }, outcome: 
   let bump!: () => void;
   function Page() {
     if (++renders > 50) throw new Error("looped");
-    const { isReady, isLoading, t } = useI18n("admin");
+    const { isReady, isFetching, t } = useI18n("admin");
     const [n, setN] = useState(0);
     bump = () => setN(n + 1);
     return (
       <I18nHandover catalogs={catalogs()}>
         {isReady ? (
           <p data-testid="s">{t("title") as ReactNode}</p>
-        ) : isLoading ? (
+        ) : isFetching ? (
           <i data-testid="s">loading</i>
         ) : (
           <button

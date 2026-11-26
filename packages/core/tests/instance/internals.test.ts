@@ -143,7 +143,7 @@ describe("view() internals", () => {
     const v = view(i18n, { ...state(i18n), ld: [] }, {}, "de");
     // No flight is invented: the view keeps the state's.
     expect(v.ld).toEqual([]);
-    // `isLoading`: what the switch at commit loads (the chain of de lacks it, nothing failed).
+    // `isFetching`: what the switch at commit loads (the chain of de lacks it, nothing failed).
     expect(coming(i18n, v, "shop")).toBe(true);
     expect(coming(i18n, v, "default")).toBe(true);
     expect(coming(i18n, { ...state(i18n), ld: [] }, "default")).toBe(false);

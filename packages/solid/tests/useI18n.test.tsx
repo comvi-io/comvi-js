@@ -35,12 +35,12 @@ describe("useI18n()", () => {
     const { i18n } = make({ locale: "en", messages });
     const { u } = capture(i18n);
     expect(Object.keys(u).sort()).toEqual(
-      ["T", "dir", "i18n", "isLoading", "isReady", "locale", "setLocale", "t"].sort(),
+      ["T", "dir", "i18n", "isFetching", "isReady", "locale", "setLocale", "t"].sort(),
     );
     expect(u.locale()).toBe("en");
     expect(u.dir()).toBe("ltr");
     expect(u.isReady()).toBe(true);
-    expect(u.isLoading()).toBe(false);
+    expect(u.isFetching()).toBe(false);
     expect(u.i18n).toBe(i18n);
     expect(u.setLocale).toBe(i18n.setLocale);
     expect(u.t("items", { n: 2 })).toBe("2 items");

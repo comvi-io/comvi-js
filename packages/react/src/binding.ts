@@ -68,10 +68,10 @@ export interface I18nProviderProps {
    * Inline catalogs of the chain, a fallback locale's catalog or a server payload the
    * instance was created from open it.
    * After that the children stay mounted: a lazy namespace shows through
-   * `useI18n(ns).isReady` / `isLoading`, a switch keeps the old locale until the new one
+   * `useI18n(ns).isReady` / `isFetching`, a switch keeps the old locale until the new one
    * lands. Only a load in flight at the first paint gates it: a lazy namespace that a child's
    * `useI18n(ns)` holds at its commit loads after that paint, so that component shows its own
-   * placeholder through `isReady` / `isLoading`.
+   * placeholder through `isReady` / `isFetching`.
    * The children do not render while it shows, so an `<I18nHandover>` among them waits too on
    * a client render (a hydration is never gated): give the instance its data first
    * (`createI18n({ ...options, ...payload })`).
@@ -204,8 +204,8 @@ export interface UseI18n<NS extends string = "default"> {
    * `useI18n()` (or `undefined`): true when this holds for `default` (the namespace its `t`
    * reads) AND every namespace of the `namespaces` option — not for `default` alone, so
    * `useI18n()` and `useI18n("default")` differ when the option names others. A usable catalog,
-   * not every key. Check it before `isLoading`: a load beside usable catalogs (a switch) must
-   * not hide the text; `false` with `isLoading` false means the text is unavailable and nothing
+   * not every key. Check it before `isFetching`: a load beside usable catalogs (a switch) must
+   * not hide the text; `false` with `isFetching` false means the text is unavailable and nothing
    * is loading (a failed load, or no loader), not necessarily an error.
    */
   isReady: boolean;
@@ -221,7 +221,7 @@ export interface UseI18n<NS extends string = "default"> {
    * `useI18n()` (or `undefined`): true when this holds for `default` or SOME namespace of the
    * `namespaces` option; a namespace outside them changes nothing.
    */
-  isLoading: boolean;
+  isFetching: boolean;
   setLocale: (locale: string) => Promise<void>;
   i18n: I18n;
 }
@@ -234,7 +234,7 @@ const Ts = N<(props: object) => ReactNode>();
 
 /**
  * The i18n of the nearest `<I18nProvider>`. `ns` (default `default`) is the namespace of `t`
- * and `T`, and of `isReady` / `isLoading` when given: with no `ns` those read `default` and every
+ * and `T`, and of `isReady` / `isFetching` when given: with no `ns` those read `default` and every
  * namespace of the `namespaces` option, so `useI18n()` is not `useI18n("default")` there.
  * The component holds it from its commit to its unmount (or a change of `ns`): while held it
  * loads for the locale on screen and for every locale `setLocale()` switches to; with no
@@ -264,7 +264,7 @@ export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<
       // what the hold will load is loading already: no frame that says "unavailable", no
       // `missing_key` (lot 1d, 4c).
       isReady: a.every((m) => x.r(s, m)),
-      isLoading: a.some((m) => x.w(s, m)),
+      isFetching: a.some((m) => x.w(s, m)),
       setLocale: i.setLocale,
       i18n: i,
       // `node` joins rich parts into one node and, through the core, gives every tag

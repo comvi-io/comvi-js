@@ -56,7 +56,7 @@ export const app = (
 );
 
 export function Component() {
-  const { t, locale, dir, isLoading, isReady, setLocale } = useI18n();
+  const { t, locale, dir, isFetching, isReady, setLocale } = useI18n();
   const s: string = t("greeting", { name: "Ann" });
   const r: JSX.Element = t("terms", { link: (c) => <a>{c}</a> });
   // The registered TagChildren types an inline handler's argument: one JSX element.
@@ -91,7 +91,7 @@ export function Component() {
   const bt7 = <DefT i18nKey="terms" />;
   const l: Accessor<string> = locale;
   const d: Accessor<"ltr" | "rtl"> = dir;
-  const b: Accessor<boolean> = isLoading;
+  const b: Accessor<boolean> = isFetching;
   const y: Accessor<boolean> = isReady;
   const p: Promise<void> = setLocale("de");
   return [s, r, n, c, bt, bt2, bt3, bt5, bt6, bt7, l, d, b, y, p];

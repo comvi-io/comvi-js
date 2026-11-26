@@ -4,7 +4,7 @@ import { locales } from "../i18n";
 import { LoadError } from "./LoadError";
 
 export function LocaleSwitcher() {
-  const { t, locale, setLocale, isLoading } = useI18n();
+  const { t, locale, setLocale, isFetching } = useI18n();
   // The locale whose switch failed, if any: its catalog could not be loaded.
   const [failed, setFailed] = createSignal<string | null>(null);
 
@@ -34,7 +34,7 @@ export function LocaleSwitcher() {
             )}
           </For>
         </div>
-        <Show when={isLoading()}>
+        <Show when={isFetching()}>
           <span class="status">{t("app.loading")}</span>
         </Show>
       </div>

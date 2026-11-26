@@ -106,11 +106,11 @@ A param the message uses is required too. A misspelt namespace is an error in `u
 ([limit](https://comvi.io/docs/i18n/limitations#namespace-typos-config)). Without Vite, see
 [Type safety](https://comvi.io/docs/i18n/type-safety).
 
-## Namespaces: `isReady`, `isLoading` and `ready`
+## Namespaces: `isReady`, `isFetching` and `ready`
 
 `useI18n("account")` binds `t` to the `account` namespace and holds the namespace while the
 component is mounted: it loads for the locale on screen and for every locale a switch goes to.
-`isReady` is `true` when a catalog of the namespace is usable for the locale on screen; `isLoading`
+`isReady` is `true` when a catalog of the namespace is usable for the locale on screen; `isFetching`
 is `true` while one is on the way. Check `isReady` first: a switch loads the new catalogs beside the
 text on screen. Both `false` means the text is not available and nothing is loading. `i18n.ready` is
 something else: a promise that resolves when the loads in flight have settled, the failed ones too.
@@ -176,7 +176,7 @@ and no catalog of its parents (`de` for `de-AT`) is usable; a `fallbackLocale`'s
 <script setup lang="ts">
 import { ref } from "vue";
 import { useI18n } from "@comvi/vue";
-const { t, locale, setLocale, isReady, isLoading, i18n } = useI18n("account");
+const { t, locale, setLocale, isReady, isFetching, i18n } = useI18n("account");
 const failed = ref(false);
 const toggle = () =>
   setLocale(locale.value === "en" ? "uk" : "en").then(
@@ -188,7 +188,7 @@ const retry = () => i18n.load("account").catch(() => {}); // `onError` has the r
 
 <template>
   <h2 v-if="isReady">{{ t("title") }}</h2>
-  <p v-else-if="isLoading" class="spinner" />
+  <p v-else-if="isFetching" class="spinner" />
   <button v-else @click="retry">Not available. Retry</button>
   <button @click="toggle">{{ failed ? "Could not switch. Try again" : locale }}</button>
 </template>

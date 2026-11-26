@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { useI18n } from "@comvi/react";
 
 function AdminWidget() {
-  const { t, isLoading } = useI18n("admin");
+  const { t, isFetching } = useI18n("admin");
   return (
-    <p data-testid="later-admin" data-loading={String(isLoading)}>
+    <p data-testid="later-admin" data-loading={String(isFetching)}>
       {t("welcome_admin")}
     </p>
   );

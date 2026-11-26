@@ -25,16 +25,16 @@ const capture = (i18n: ReturnType<typeof createI18n>, ns?: string) => {
 };
 
 describe("useI18n()", () => {
-  it("returns t, T, locale, dir, isLoading, setLocale and the instance", () => {
+  it("returns t, T, locale, dir, isFetching, setLocale and the instance", () => {
     const i18n = createI18n({ locale: "en", messages: { en: { hi: "Hi {name}" } } });
     const u = capture(i18n).get();
     expect(Object.keys(u).sort()).toEqual(
-      ["T", "dir", "i18n", "isLoading", "isReady", "locale", "setLocale", "t"].sort(),
+      ["T", "dir", "i18n", "isFetching", "isReady", "locale", "setLocale", "t"].sort(),
     );
     expect(u.t("hi", { name: "Ann" })).toBe("Hi Ann");
     expect(u.locale.value).toBe("en");
     expect(u.dir.value).toBe("ltr");
-    expect(u.isLoading.value).toBe(false);
+    expect(u.isFetching.value).toBe(false);
     expect(u.i18n).toBe(i18n);
     expect(u.setLocale).toBe(i18n.setLocale);
   });
@@ -61,7 +61,7 @@ describe("useI18n()", () => {
     u.locale.value = "de";
     expect(l.requested).toEqual(["de:default"]);
     expect(u.locale.value).toBe("en");
-    expect(u.isLoading.value).toBe(true);
+    expect(u.isFetching.value).toBe(true);
     await l.answer("de:default");
     expect(u.locale.value).toBe("de");
     expect(u.t("hi")).toBe("Hallo");
@@ -224,11 +224,11 @@ describe("useI18n(ns)", () => {
     const requestedInRender: string[][] = [];
     const C = defineComponent({
       setup() {
-        const { t, isLoading } = useI18n("shop");
+        const { t, isFetching } = useI18n("shop");
         requestedInSetup.push([...l.requested]);
         return () => {
           requestedInRender.push([...l.requested]);
-          return h("p", `${isLoading.value}:${t("title")}`);
+          return h("p", `${isFetching.value}:${t("title")}`);
         };
       },
     });
@@ -256,7 +256,7 @@ describe("useI18n(ns)", () => {
         return () =>
           h(
             "p",
-            `${shop.isLoading.value}:${shop.t("title")}|${cart.isLoading.value}:${cart.t("n")}`,
+            `${shop.isFetching.value}:${shop.t("title")}|${cart.isFetching.value}:${cart.t("n")}`,
           );
       },
     });
@@ -273,7 +273,7 @@ describe("useI18n(ns)", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { i18n, errors } = make({ locale: "en", messages: { en: {} } });
     const u = capture(i18n, "shop").get();
-    expect(u.isLoading.value).toBe(false);
+    expect(u.isFetching.value).toBe(false);
     expect(u.t("title")).toBe("title");
     expect(errors).toEqual([]);
     expect(i18n.t("nope")).toBe("nope");
@@ -284,7 +284,7 @@ describe("useI18n(ns)", () => {
     ]);
   });
 
-  it("isLoading is per namespace and covers a switch in flight", async () => {
+  it("isFetching is per namespace and covers a switch in flight", async () => {
     const l = manualLoader({ "de:default": { hi: "Hallo" }, "de:shop": {} });
     const { i18n } = make({
       locale: "en",
@@ -292,12 +292,12 @@ describe("useI18n(ns)", () => {
       namespaces: ["default", "shop"],
       loader: l.load,
     });
-    let a!: UseI18n["isLoading"];
-    let b!: UseI18n["isLoading"];
+    let a!: UseI18n["isFetching"];
+    let b!: UseI18n["isFetching"];
     const C = defineComponent({
       setup() {
-        a = useI18n("default").isLoading;
-        b = useI18n("shop").isLoading;
+        a = useI18n("default").isFetching;
+        b = useI18n("shop").isFetching;
         return () => h("p", `${a.value}/${b.value}`);
       },
     });

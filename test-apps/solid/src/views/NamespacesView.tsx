@@ -3,11 +3,11 @@ import { useI18n } from "@comvi/solid";
 
 /** Mounted on demand: useI18n("admin") loads the admin namespace after it mounts. */
 function AdminPanel() {
-  const { t, isLoading } = useI18n("admin");
+  const { t, isFetching } = useI18n("admin");
   const { t: common } = useI18n();
   return (
     <Show
-      when={!isLoading()}
+      when={!isFetching()}
       fallback={<p class="italic text-gray-500">{common("common.loading")}</p>}
     >
       <div class="space-y-4 border-t pt-4 mt-4">

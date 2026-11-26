@@ -15,8 +15,8 @@ const i18n = createI18n({
 
 export const setup = () => {
   setI18n(i18n);
-  const { t, isLoading, locale, T: ShopT } = useI18n("shop");
+  const { t, isFetching, locale, T: ShopT } = useI18n("shop");
   const fmt = useFormat();
-  return [t("items", { count: 2 }), isLoading, locale, ShopT, T, fmt.currency(9.5, "EUR")];
+  return [t("items", { count: 2 }), isFetching, locale, ShopT, T, fmt.currency(9.5, "EUR")];
 };
 export const payload = () => handover(i18n);

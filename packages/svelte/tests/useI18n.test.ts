@@ -21,7 +21,7 @@ describe("the package", () => {
     const { i18n } = make({ locale: "ar", messages: { ar: {} } });
     const r = during(i18n, () => useI18n());
     expect(Object.keys(r).sort()).toEqual(
-      ["T", "dir", "i18n", "isLoading", "isReady", "locale", "setLocale", "t"].sort(),
+      ["T", "dir", "i18n", "isFetching", "isReady", "locale", "setLocale", "t"].sort(),
     );
     expect([r.locale, r.dir, r.i18n]).toEqual(["ar", "rtl", i18n]);
     const target = document.createElement("div");

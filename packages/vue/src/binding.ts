@@ -279,8 +279,8 @@ export interface UseI18n<NS extends string = "default"> {
    * `useI18n()` (or `undefined`): true when this holds for `default` (the namespace its `t`
    * reads) AND every namespace of the `namespaces` option — not for `default` alone, so
    * `useI18n()` and `useI18n("default")` differ when the option names others. A usable catalog,
-   * not every key. Check it before `isLoading`: a load beside usable catalogs (a switch) must
-   * not hide the text; `false` with `isLoading` false means the text is unavailable and nothing
+   * not every key. Check it before `isFetching`: a load beside usable catalogs (a switch) must
+   * not hide the text; `false` with `isFetching` false means the text is unavailable and nothing
    * is loading (a failed load, or no loader), not necessarily an error.
    */
   isReady: ComputedRef<boolean>;
@@ -295,7 +295,7 @@ export interface UseI18n<NS extends string = "default"> {
    * `useI18n()` (or `undefined`): true when this holds for `default` or SOME namespace of the
    * `namespaces` option; a namespace outside them changes nothing.
    */
-  isLoading: ComputedRef<boolean>;
+  isFetching: ComputedRef<boolean>;
   setLocale: (locale: string) => Promise<void>;
   i18n: I18n;
 }
@@ -354,7 +354,7 @@ export const render = (
 
 /**
  * The i18n of the app (`app.use(i18n)`). `ns` (default `default`) is the namespace of `t`
- * and `T`, and of `isReady` / `isLoading` when given: with no `ns` those read `default` and every
+ * and `T`, and of `isReady` / `isFetching` when given: with no `ns` those read `default` and every
  * namespace of the `namespaces` option (a server render waits for them too), so `useI18n()` is
  * not `useI18n("default")` there. The component holds it from mount to unmount (`KeepAlive`: while active; a
  * component hidden by `v-show` or CSS still holds it): while held it loads for the locale on
@@ -372,7 +372,7 @@ export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<
   /** This component's release while it holds `n` (one hold: mount + first activation). */
   let r: (() => void) | 0 = 0;
   /**
-   * 0 once released (unmount, `KeepAlive` deactivation): `isLoading` is then a load in flight
+   * 0 once released (unmount, `KeepAlive` deactivation): `isFetching` is then a load in flight
    * only, as outside a component — no hold of this one will load `n`, so it is not loading
    * forever (a result kept after the unmount, a deactivated component's watcher). Before the
    * first hold it is what the hold will load; an activation's hold loads what is missing, so
@@ -384,10 +384,10 @@ export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<
   // The flags' namespaces: `ns`, or with no argument `default` (what its `t` reads) and the
   // `namespaces` option's (duplicates change nothing in `every` / `some`).
   const a = [n, ...((ns === undefined && x.o.namespaces) || [])];
-  const isLoading = computed(() => a.some((m) => x.w(s.value, m, !g || !u)));
+  const isFetching = computed(() => a.some((m) => x.w(s.value, m, !g || !u)));
   // Outside a component (a store, a router guard, `app.runWithContext()`) there is no
   // lifecycle to release in: nothing is held there and no hook is registered (Vue warns about
-  // one with no component); its reads are not a declared need and `isLoading` is a load in
+  // one with no component); its reads are not a declared need and `isFetching` is a load in
   // flight only — `i18n.load(ns)` or the `namespaces` option loads it.
   const g = getCurrentInstance();
   if (g) {
@@ -402,7 +402,7 @@ export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<
       on();
       // The render waits while what its flags cover loads (`a` holds `n`): else a no-argument
       // `useI18n()` renders the loading branch the browser, handed the catalog, does not.
-      if (isLoading.value) onServerPrefetch(() => i.ready);
+      if (isFetching.value) onServerPrefetch(() => i.ready);
     }
     onMounted(on);
     onActivated(on);
@@ -421,7 +421,7 @@ export const useI18n = <NS extends string = "default">(ns?: NsArg<NS>): UseI18n<
     // Until the hold at mount, what the hold will load is loading already: no frame that
     // says "unavailable", no `missing_key` (lot 1d, 4c).
     isReady: computed(() => a.every((m) => x.r(s.value, m))),
-    isLoading,
+    isFetching,
     setLocale: i.setLocale,
     i18n: i,
   };

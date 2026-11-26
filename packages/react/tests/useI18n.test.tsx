@@ -26,16 +26,16 @@ const capture = (i18n: I18n, ns?: string) => {
 };
 
 describe("useI18n()", () => {
-  it("returns t, locale, dir, isReady, isLoading, setLocale and the instance", () => {
+  it("returns t, locale, dir, isReady, isFetching, setLocale and the instance", () => {
     const i18n = createI18n({ locale: "en", messages: { en: { hi: "Hi {name}" } } });
     const { last } = capture(i18n);
     expect(Object.keys(last()).sort()).toEqual(
-      ["T", "dir", "i18n", "isLoading", "isReady", "locale", "setLocale", "t"].sort(),
+      ["T", "dir", "i18n", "isFetching", "isReady", "locale", "setLocale", "t"].sort(),
     );
     expect(last().t("hi", { name: "Ann" })).toBe("Hi Ann");
     expect(last().locale).toBe("en");
     expect(last().dir).toBe("ltr");
-    expect(last().isLoading).toBe(false);
+    expect(last().isFetching).toBe(false);
     expect(last().isReady).toBe(true);
     expect(last().i18n).toBe(i18n);
     expect(last().setLocale).toBe(i18n.setLocale);
@@ -110,9 +110,9 @@ describe("useI18n(ns)", () => {
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
     const requestedInRender: string[][] = [];
     const Probe = () => {
-      const { t, isLoading } = useI18n("shop");
+      const { t, isFetching } = useI18n("shop");
       requestedInRender.push([...l.requested]);
-      return <p>{`${String(isLoading)}:${t("title") as string}`}</p>;
+      return <p>{`${String(isFetching)}:${t("title") as string}`}</p>;
     };
     const { container } = render(
       <I18nProvider i18n={i18n}>
@@ -138,7 +138,7 @@ describe("useI18n(ns)", () => {
     const Probe = () => {
       const shop = useI18n("shop");
       const cart = useI18n("cart");
-      renders.push(`${shop.isLoading}:${shop.t("title")}|${cart.isLoading}:${cart.t("n")}`);
+      renders.push(`${shop.isFetching}:${shop.t("title")}|${cart.isFetching}:${cart.t("n")}`);
       return null;
     };
     render(
@@ -158,7 +158,7 @@ describe("useI18n(ns)", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { i18n, errors } = make({ locale: "en", messages: { en: {} } });
     const { last } = capture(i18n, "shop");
-    expect(last().isLoading).toBe(false);
+    expect(last().isFetching).toBe(false);
     expect(last().t("title")).toBe("title");
     expect(errors).toEqual([]);
     expect(i18n.t("nope")).toBe("nope");
@@ -169,7 +169,7 @@ describe("useI18n(ns)", () => {
     ]);
   });
 
-  it("isLoading is per namespace and covers a switch in flight", async () => {
+  it("isFetching is per namespace and covers a switch in flight", async () => {
     const l = manualLoader({ "de:default": { hi: "Hallo" }, "de:shop": {} });
     const { i18n } = make({
       locale: "en",
@@ -179,8 +179,8 @@ describe("useI18n(ns)", () => {
     });
     const flags: string[] = [];
     const Probe = () => {
-      const a = useI18n("default").isLoading;
-      const b = useI18n("shop").isLoading;
+      const a = useI18n("default").isFetching;
+      const b = useI18n("shop").isFetching;
       flags.push(`${a}/${b}`);
       return null;
     };

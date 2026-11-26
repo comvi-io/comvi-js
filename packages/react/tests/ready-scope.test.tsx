@@ -1,5 +1,5 @@
 /**
- * The scope of `isReady` / `isLoading` (owner brief 2026-11-10): `useI18n()` (or `undefined`)
+ * The scope of `isReady` / `isFetching` (owner brief 2026-11-10): `useI18n()` (or `undefined`)
  * reads the configured namespaces (`namespaces`, default `["default"]`) — every one ready,
  * some loading — and `useI18n(ns)` only `ns`; `t` and the bound `T` of `useI18n()` stay on
  * `default`. Contract: `docs/design/namespaces.md`, "Scope of a binding's `useI18n()`".
@@ -13,13 +13,13 @@ import { createI18n, I18nHandover, I18nProvider, useI18n, type I18n } from "../s
 import { core, handover, state } from "../../core/src/internal";
 import { make, manualLoader, settle } from "./helpers";
 
-/** Every render's `isReady/isLoading` of `useI18n(...args)`, and the branch it shows. */
+/** Every render's `isReady/isFetching` of `useI18n(...args)`, and the branch it shows. */
 const probe = (...args: [] | [string | undefined]) => {
   const frames: string[] = [];
   const P = () => {
-    const { t, isReady, isLoading } = useI18n(...(args as [string]));
-    frames.push(`${isReady}/${isLoading}`);
-    return <p>{isReady ? (t("hi") as string) : isLoading ? "…" : "unavailable"}</p>;
+    const { t, isReady, isFetching } = useI18n(...(args as [string]));
+    frames.push(`${isReady}/${isFetching}`);
+    return <p>{isReady ? (t("hi") as string) : isFetching ? "…" : "unavailable"}</p>;
   };
   return { P, frames };
 };
@@ -115,7 +115,7 @@ describe("useI18n() reads the configured namespaces; useI18n(ns) only ns", () =>
     expect(new Set(all.frames)).toEqual(new Set(["true/false"]));
   });
 
-  it("6: a switch keeps the text on screen while isLoading is true", async () => {
+  it("6: a switch keeps the text on screen while isFetching is true", async () => {
     const l = manualLoader();
     const { i18n } = make({
       locale: "en",
@@ -321,8 +321,8 @@ describe("10: reading the flags requests, holds and publishes nothing", () => {
     const P = () => {
       const [, s] = useState(0);
       rerender = () => s((n) => n + 1);
-      const { isReady, isLoading } = useI18n();
-      return <p>{`${isReady}/${isLoading}`}</p>;
+      const { isReady, isFetching } = useI18n();
+      return <p>{`${isReady}/${isFetching}`}</p>;
     };
     render(app(i18n, <P />));
     const rev = state(i18n).rev;

@@ -10,12 +10,12 @@
  *     a handler's result joins the string, rich text is `<T>`'s. Keys, params and options are
  *     core's one signature, and a call with text params only is `string` in all four.
  *   - `T`: a component of the framework.
- *   - `locale`, `dir`, `isReady`, `isLoading`: Vue hands out refs (`locale` writable:
+ *   - `locale`, `dir`, `isReady`, `isFetching`: Vue hands out refs (`locale` writable:
  *     setting it switches), Solid accessors, React plain values of the render, Svelte getters
- *     over its reactive cell. `isReady` / `isLoading` are the core's predicates in all four
+ *     over its reactive cell. `isReady` / `isFetching` are the core's predicates in all four
  *     (lot 4c, R3-26).
  * `pendingLocale` is in NO binding (R3-5: all or none): React would need it in the core's
- * state or a provider state of its own for a value `isLoading` already shows (lot 4).
+ * state or a provider state of its own for a value `isFetching` already shows (lot 4).
  */
 import type { Ref } from "vue";
 import type { Accessor } from "solid-js";
@@ -30,7 +30,7 @@ type Equal<A, B> =
 type Unwrap<T> = { [K in keyof T]: T[K] extends Ref<infer V> ? V : T[K] };
 /** The state members as values: Solid's accessors called. */
 type UnwrapState<T> = {
-  [K in keyof T]: K extends "locale" | "dir" | "isReady" | "isLoading"
+  [K in keyof T]: K extends "locale" | "dir" | "isReady" | "isFetching"
     ? T[K] extends Accessor<infer V>
       ? V
       : never
@@ -46,16 +46,16 @@ export const sameMembers: Equal<keyof R, keyof V> = true;
 export const sameMembersSolid: Equal<keyof R, keyof So> = true;
 export const sameMembersSvelte: Equal<keyof R, keyof Sv> = true;
 export const state: Equal<
-  Pick<R, "locale" | "dir" | "isReady" | "isLoading">,
-  Pick<V, "locale" | "dir" | "isReady" | "isLoading">
+  Pick<R, "locale" | "dir" | "isReady" | "isFetching">,
+  Pick<V, "locale" | "dir" | "isReady" | "isFetching">
 > = true;
 export const stateSolid: Equal<
-  Pick<R, "locale" | "dir" | "isReady" | "isLoading">,
-  Pick<So, "locale" | "dir" | "isReady" | "isLoading">
+  Pick<R, "locale" | "dir" | "isReady" | "isFetching">,
+  Pick<So, "locale" | "dir" | "isReady" | "isFetching">
 > = true;
 export const stateSvelte: Equal<
-  Pick<R, "locale" | "dir" | "isReady" | "isLoading">,
-  Pick<Sv, "locale" | "dir" | "isReady" | "isLoading">
+  Pick<R, "locale" | "dir" | "isReady" | "isFetching">,
+  Pick<Sv, "locale" | "dir" | "isReady" | "isFetching">
 > = true;
 export const verbs: Equal<Pick<R, "setLocale" | "i18n">, Pick<V, "setLocale" | "i18n">> = true;
 export const verbsSolid: Equal<

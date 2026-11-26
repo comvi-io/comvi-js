@@ -26,7 +26,7 @@ describe("production dist", () => {
       global: { plugins: [i18n] },
     });
     const u = w.vm.$.appContext.app.runWithContext(() => useI18n("shop"));
-    expect([u.isReady.value, u.isLoading.value]).toEqual([false, false]);
+    expect([u.isReady.value, u.isFetching.value]).toEqual([false, false]);
     await Promise.resolve();
     expect(load).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
@@ -54,8 +54,8 @@ describe("production dist", () => {
       setup() {
         const u = useI18n("shop");
         return () => {
-          frames.push(`${u.isReady.value}/${u.isLoading.value}`);
-          return h("p", u.isReady.value ? "text" : u.isLoading.value ? "…" : "unavailable");
+          frames.push(`${u.isReady.value}/${u.isFetching.value}`);
+          return h("p", u.isReady.value ? "text" : u.isFetching.value ? "…" : "unavailable");
         };
       },
     });
@@ -108,7 +108,7 @@ describe("production dist", () => {
       props: { x: Number },
       setup(p) {
         const u = useI18n("shop");
-        return () => h("p", `${p.x} ${u.isLoading.value}`);
+        return () => h("p", `${p.x} ${u.isFetching.value}`);
       },
     });
     const Parent = defineComponent({ setup: () => () => h(Child, { x: x.value }) });

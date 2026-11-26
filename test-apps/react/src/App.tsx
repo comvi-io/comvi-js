@@ -10,7 +10,7 @@ import { RtlView } from "./views/RtlView";
 import { useEffect } from "react";
 
 function Layout() {
-  const { t, isLoading, locale } = useI18n();
+  const { t, isFetching, locale } = useI18n();
   const location = useLocation();
 
   useEffect(() => {
@@ -34,7 +34,9 @@ function Layout() {
             <h1 className="text-xl font-bold text-blue-600">Comvi React Example</h1>
           </div>
           <div className="flex gap-4 items-center">
-            {isLoading && <div className="text-sm text-gray-500 italic">{t("common.loading")}</div>}
+            {isFetching && (
+              <div className="text-sm text-gray-500 italic">{t("common.loading")}</div>
+            )}
             <LanguageSwitcher />
           </div>
         </div>

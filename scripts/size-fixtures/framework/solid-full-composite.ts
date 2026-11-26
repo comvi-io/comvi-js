@@ -14,10 +14,10 @@ const i18n = createI18n({
 });
 
 const Cart = () => {
-  const { t, isLoading } = useI18n("shop");
+  const { t, isFetching } = useI18n("shop");
   const fmt = useFormat();
   return [
-    isLoading(),
+    isFetching(),
     t("items", { count: 2 }),
     createComponent(T as (p: object) => unknown as never, {
       i18nKey: "terms",

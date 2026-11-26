@@ -28,7 +28,7 @@
       >
     {/each}
   </div>
-  {#if r.isLoading}<span class="status">{t('app.loading')}</span>{/if}
+  {#if r.isFetching}<span class="status">{t('app.loading')}</span>{/if}
 </div>
 {#if failed}{@const code = failed}<LoadError onretry={() => switchTo(code)} />{/if}
 <p class="note">{t('demo.rtl.body')}</p>

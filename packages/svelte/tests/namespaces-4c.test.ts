@@ -1,6 +1,6 @@
 /**
  * Lot 4c through Svelte components, as @comvi/vue's suite: `useI18n(ns)` reads, loads and holds
- * `ns` from mount to destroy; `<T>` reads only; `isReady` / `isLoading` with no "unavailable"
+ * `ns` from mount to destroy; `<T>` reads only; `isReady` / `isFetching` with no "unavailable"
  * frame before the mount; the key scenario.
  */
 import { flushSync } from "svelte";
@@ -14,7 +14,7 @@ import { make, manualLoader, mountWith, settle } from "./helpers";
 const reports = (errors: { code: string; key?: string }[]) =>
   errors.filter((e) => e.code == "missing_key").map((e) => e.key);
 
-describe("isReady / isLoading", () => {
+describe("isReady / isFetching", () => {
   it("first load: not ready and loading from the first render (before the mount) to the catalog", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
@@ -215,7 +215,7 @@ describe("a released consumer is not loading forever", () => {
   it("a useI18n result kept after its component unmounts: false/false after a switch", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
-    const out: { u?: { isReady: boolean; isLoading: boolean } } = {};
+    const out: { u?: { isReady: boolean; isFetching: boolean } } = {};
     const w = mountWith(i18n, Probe, { ns: "shop", out });
     await l.answer("en:shop", { title: "Shop" });
     w.unmount();
@@ -223,7 +223,7 @@ describe("a released consumer is not loading forever", () => {
     await l.answer("de:default");
     await sw;
     await settle();
-    expect([out.u!.isReady, out.u!.isLoading]).toEqual([false, false]);
+    expect([out.u!.isReady, out.u!.isFetching]).toEqual([false, false]);
     expect(l.requested).toEqual(["en:shop", "de:default"]);
   });
 });

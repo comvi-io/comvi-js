@@ -178,7 +178,7 @@ describe("README Vue app (lot 4b)", () => {
  */
 const Account = defineComponent({
   setup() {
-    const { t, locale, setLocale, isReady, isLoading, i18n } = useI18n("account");
+    const { t, locale, setLocale, isReady, isFetching, i18n } = useI18n("account");
     const failed = ref(false);
     const toggle = () =>
       setLocale(locale.value === "en" ? "uk" : "en").then(
@@ -190,7 +190,7 @@ const Account = defineComponent({
     return () => [
       isReady.value
         ? h("h2", t("title"))
-        : isLoading.value
+        : isFetching.value
           ? h("p", { class: "spinner" })
           : h("button", { class: "retry", onClick: retry }, "Not available. Retry"),
       h(

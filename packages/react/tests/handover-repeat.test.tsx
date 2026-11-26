@@ -19,9 +19,9 @@ import {
 import { flush, manualLoader, settle } from "./helpers";
 
 function Probe({ ns = "default", k }: { ns?: string; k: string }) {
-  const { t, isLoading, locale } = useI18n(ns);
+  const { t, isFetching, locale } = useI18n(ns);
   return (
-    <p data-testid={k} data-loading={String(isLoading)}>
+    <p data-testid={k} data-loading={String(isFetching)}>
       {locale}|{t(k) as string}
     </p>
   );
@@ -88,7 +88,7 @@ describe("a repeated payload replaces what the handover handed before (finding 2
 });
 
 describe("a null slot against a load in flight (finding 3)", () => {
-  it("the late response does not restore the catalog; ready settles; isLoading is false", async () => {
+  it("the late response does not restore the catalog; ready settles; isFetching is false", async () => {
     const m = manualLoader();
     const i18n = createI18n({
       locale: "uk",

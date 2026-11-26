@@ -3,9 +3,9 @@ import { useState } from "react";
 
 /** Mounted on demand: useI18n("admin") loads the admin namespace after it commits. */
 function AdminPanel() {
-  const { t, isLoading } = useI18n("admin");
+  const { t, isFetching } = useI18n("admin");
   const { t: common } = useI18n();
-  if (isLoading) return <p className="italic text-gray-500">{common("common.loading")}</p>;
+  if (isFetching) return <p className="italic text-gray-500">{common("common.loading")}</p>;
   return (
     <div className="space-y-4 border-t pt-4 mt-4">
       <h3 className="font-bold text-lg text-purple-600">{t("welcome_admin")}</h3>

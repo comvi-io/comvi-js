@@ -5,7 +5,7 @@ import { useLocalizedRouter, usePathname } from "@comvi/next/navigation";
 import { locales } from "@/i18n/routing";
 
 export function LocaleSwitcher() {
-  const { t, locale, isLoading } = useI18n();
+  const { t, locale, isFetching } = useI18n();
 
   // The locale lives in the URL, so switching navigates: `usePathname()` is the
   // path without its locale prefix, and `push(path, locale)` adds the new one.
@@ -29,7 +29,7 @@ export function LocaleSwitcher() {
         ))}
       </div>
       {/* Last in the row, so its text appears and goes without moving anything. */}
-      {isLoading && <span className="loading">{t("app.loading")}</span>}
+      {isFetching && <span className="loading">{t("app.loading")}</span>}
     </div>
   );
 }

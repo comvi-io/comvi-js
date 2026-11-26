@@ -13,4 +13,4 @@
 <p id="bound"><ShopT i18nKey="items" {...rest} /></p>
 <p id="void"><T i18nKey="lines" components={{ br: "br" }} /></p>
 <p id="void2"><T i18nKey="lines2" components={{ br: "br" }} /></p>
-<span>{r.locale}/{r.dir}/{shop.isReady}/{shop.isLoading}</span>
+<span>{r.locale}/{r.dir}/{shop.isReady}/{shop.isFetching}</span>
