@@ -1858,3 +1858,43 @@ The core rows grow by +54…+68 B and stay inside their limits (`core-icu` 5,104
 marks every rejection when `onError` is set (+26 B on `core-icu`) was measured and not shipped: it
 also hides rejections `onError` never heard of, and `fw-solid-default` (6 B of headroom) was red
 with it too.
+
+## 2026-11-26: three readiness booleans on `useI18n()` — owner accepts the growth (three increment caps)
+
+Owner decision of 2026-11-26, a narrow exception to the 0.8 code freeze: `useI18n()` returns
+`isReady`, `isLoading` and `isFetching`. `isFetching` is the 0.8 flag that was called `isLoading`
+(a load of the component's namespaces is in flight or expected), and `isLoading` is now
+`!isReady && isFetching`, the answer to "show the placeholder?". The derived field costs +16…+19 B
+min+gz in each binding graph, and three binding increments go over their caps by 3–5 B. The owner
+raised the three caps by the rule for owner-accepted growth, `ceil(increment × 1.02)`, from the
+final measurement; the code keeps its plain form. No ceiling, budget or baseline moves. Measured
+after `pnpm build`, `node --version` v24.22.1; "before" is 6c344b44 (`integration/stage-d` with
+`next` @ feb71283), "after" is `feat/readiness-three-booleans` @ 00015d6b. The CI run of that
+commit prints the same three increments.
+
+| row            | before | after | increment (before → after) | cap (old → new)                    |
+| -------------- | ------ | ----- | -------------------------- | ---------------------------------- |
+| react-icu-cdn  | 6,234  | 6,250 | +606 → +622                | 619 → 635 = ceil(622 × 1.02)       |
+| solid-icu-cdn  | 6,492  | 6,509 | +864 → +881                | 876 → 899 = ceil(881 × 1.02)       |
+| svelte-icu-cdn | 6,968  | 6,987 | +1,340 → +1,359            | 1,356 → 1,387 = ceil(1,359 × 1.02) |
+
+Other rows the change touches (information; each within its ceiling, cap and budget):
+
+| row                      | before | after  | budget / ceiling / cap      |
+| ------------------------ | ------ | ------ | --------------------------- |
+| vue-icu-cdn              | 6,396  | 6,413  | 6,455 / 6,455 / +789 (+785) |
+| fw-react-default         | 5,747  | 5,764  | 5,963                       |
+| fw-react-full-composite  | 8,757  | 8,773  | 9,075                       |
+| fw-vue-default           | 5,918  | 5,934  | 6,214                       |
+| fw-vue-full-composite    | 8,596  | 8,613  | 8,830                       |
+| fw-solid-default         | 6,003  | 6,022  | 6,304                       |
+| fw-solid-full-composite  | 8,614  | 8,632  | 8,827                       |
+| fw-svelte-default        | 6,480  | 6,501  | 6,542                       |
+| fw-svelte-full-composite | 9,042  | 9,064  | 9,432                       |
+| fw-next-client-default   | 6,831  | 6,847  | 6,860                       |
+| fw-nuxt-client           | 10,791 | 10,809 | 10,950                      |
+| fw-nuxt-server           | 11,247 | 11,263 | 11,400                      |
+
+Every core row is byte-identical before and after (`core-icu-cdn` 5,628 B). A version with the two
+expressions written twice in each binding was measured on a prototype and not shipped: it fits the
+React and Svelte caps, the Solid one still needs a raise, and the code reads worse.
