@@ -123,6 +123,32 @@ export type OutOf<P, Rich> = [P] extends [never]
     : string;
 
 /**
+ * The params a `t()` rendering `Rich` takes. A `t()` that renders `RichParts` joins nothing
+ * (the instance's own `i18n.t()`, `i18n.ns(name)`), so its tag handlers receive the parts of
+ * the tag's children: with a binding registered ({@link TagChildren}) the `Tag` params get a
+ * `RichParts` argument there, while the binding's own `t()` keeps the binding's children.
+ * With no binding `Tag` takes `RichParts` already: the params pass unchanged, at no cost.
+ */
+type ParamsOut<P, Rich> = [keyof TagChildren] extends [never]
+  ? P
+  : [Rich] extends [RichParts]
+    ? [RichParts] extends [Rich]
+      ? [P] extends [never]
+        ? P
+        : [P] extends [NotAKey]
+          ? P
+          : { [K in keyof P]: HandlerOut<P[K]> }
+      : P
+    : P;
+
+/**
+ * One member of a param's type, per union member: exactly `Tag` (assignable both ways) becomes
+ * a handler of `RichParts`; anything else keeps its type, so a `(s: string) => unknown` param,
+ * which a binding's `Tag` is also assignable to, keeps its string argument.
+ */
+type HandlerOut<V> = V extends Tag ? (Tag extends V ? (chunks: RichParts) => unknown : V) : V;
+
+/**
  * `t()` for namespace NS. Per call, `{ ns }` switches the namespace (and the key set),
  * `{ locale }` the locale and `{ markers: false }` opts out of editor marking; all are
  * optional members of the params object.
@@ -132,7 +158,7 @@ export type TranslateFn<NS extends NsOf, Rich = string> = <
   N extends NsOf = NS,
 >(
   key: K,
-  ...args: Args<N, ParamsFor<N, K>>
+  ...args: Args<N, ParamsOut<ParamsFor<N, K>, Rich>>
 ) => OutOf<ParamsFor<N, K>, Rich>;
 
 /**

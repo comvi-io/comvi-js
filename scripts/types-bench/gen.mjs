@@ -8,6 +8,8 @@
 //   generateProbe(dir, { keys, kind, body })   kind: app300 | app30 | app2 | typo | untyped | body
 //                                              | jsx | jsxTypo (app2 + elements.tsx)
 //                                              | vue | vueTypo | vueBase (app2 + Probe.vue, vue-tsc)
+//   generateProbe(dir, { …, binding: true })   the same program with a binding registered
+//                                              (binding.ts, BINDING below)
 //   (`body`: lines appended after the probe header — the negative suite passes its cases
 //   (after one fixed line for `untyped`);
 //   a body probe also declares the small namespaces `one`, `r1` and `pair`)
@@ -189,7 +191,16 @@ const vueProbe = (lines) =>
     "",
   ].join("\n");
 
-export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
+/**
+ * A binding's one-line `TagChildren` registration (`@comvi/react` registers `ReactNode`):
+ * with it the instance's `t()` reaches the mapped branch of `ParamsOut`, which a program
+ * with no binding never does. Children that take the parts list too (Svelte's shape), so a
+ * `link: tag` handler stays valid and the program compiles with no error.
+ */
+export const BINDING =
+  'declare module "./lib" { interface TagChildren { probe: string | readonly unknown[] } }\nexport {};\n';
+
+export function generateProbe(dir, { keys, kind, body = [], typesSource, binding = false }) {
   const all = keyList(keys);
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
@@ -277,6 +288,7 @@ export function generateProbe(dir, { keys, kind, body = [], typesSource }) {
     A.push("out.push(t('anything'), t('x', { n: 1, ns: 'whatever' }));", ...body);
   }
   fs.writeFileSync(path.join(dir, "app.ts"), A.join("\n") + "\n");
+  if (binding) fs.writeFileSync(path.join(dir, "binding.ts"), BINDING);
   // JSX probes: the app2 program plus one .tsx file of `<T>` elements (lot 3 review,
   // BLOCK 1). `jsx`: valid elements of every key kind; `jsxTypo`: three key typos, the
   // only three errors of the program.
