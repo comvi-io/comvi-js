@@ -11,7 +11,7 @@ const count = ref(0);
       {{ isReady ? t("welcome_admin") : isLoading ? "loading" : "unavailable" }}
     </h1>
     <!-- The error is already reported through `onError`; the branch above shows the result. -->
-    <button data-testid="retry-load" @click="i18n.load('admin').catch(() => {})">retry</button>
+    <button data-testid="retry-load" @click="i18n.load('admin')">retry</button>
     <button data-testid="admin-count" @click="count++">{{ count }}</button>
   </section>
 </template>

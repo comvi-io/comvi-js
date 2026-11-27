@@ -20,13 +20,12 @@
   // The locale whose switch failed in the browser, if any: the page stays in the language
   // on screen, and calling setLocale() again asks the loader again.
   let failed = $state<string | null>(null);
-  function switchTo(locale: string) {
+  async function switchTo(locale: string) {
     failed = null;
-    i18n.setLocale((routeLocale = locale)).catch(() => {
-      if (routeLocale != locale) return;
-      routeLocale = i18n.locale;
-      failed = locale;
-    });
+    const failure = await i18n.setLocale((routeLocale = locale));
+    if (failure === undefined || routeLocale != locale) return;
+    routeLocale = i18n.locale;
+    failed = locale;
   }
   $effect.pre(() => {
     for (const ns in data.catalogs)

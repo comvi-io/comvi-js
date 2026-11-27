@@ -12,12 +12,13 @@ export function Account() {
   // switch loads it too; once the page closes it stays cached and a switch skips it.
   const { t: tAccount, isLoading, i18n } = useI18n("account");
 
-  // `load()` settles with that load: it rejects when the catalog could not be loaded
-  // (onError has the details), and calling it again asks the loader again.
+  // `load()` settles with that load: it resolves with the Error when the catalog could not
+  // be loaded (onError has the details), and calling it again asks the loader again.
   const [failed, setFailed] = createSignal(false);
-  const loadAccount = () => {
+  const loadAccount = async () => {
     setFailed(false);
-    i18n.load("account").catch(() => setFailed(true));
+    const failure = await i18n.load("account");
+    setFailed(failure !== undefined);
   };
   loadAccount();
 

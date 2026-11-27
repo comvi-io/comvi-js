@@ -9,10 +9,12 @@ export function LocaleSwitcher() {
   const [failed, setFailed] = createSignal<string | null>(null);
 
   // A failed switch keeps the current language on screen, reports the error through
-  // onError and rejects; calling setLocale() again asks the loader again.
-  const switchTo = (code: string) => {
+  // onError and resolves with it; calling setLocale() again asks the loader again. A
+  // switch a later click overtook resolves with nothing.
+  const switchTo = async (code: string) => {
     setFailed(null);
-    setLocale(code).catch(() => setFailed(code));
+    const failure = await setLocale(code);
+    if (failure !== undefined) setFailed(code);
   };
 
   return (

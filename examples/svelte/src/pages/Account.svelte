@@ -12,12 +12,13 @@
   const account = useI18n('account');
   const tAccount = account.t;
 
-  // `load()` settles with that load: it rejects when the catalog could not be loaded
-  // (onError has the details), and calling it again asks the loader again.
+  // `load()` settles with that load: it resolves with the Error when the catalog could not
+  // be loaded (onError has the details), and calling it again asks the loader again.
   let failed = $state(false);
-  function loadAccount() {
+  async function loadAccount() {
     failed = false;
-    account.i18n.load('account').catch(() => (failed = true));
+    const failure = await account.i18n.load('account');
+    failed = failure !== undefined;
   }
   loadAccount();
 </script>

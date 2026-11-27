@@ -21,9 +21,10 @@ export default function LocaleLayout(props: ParentProps) {
   // The locale whose switch failed in the browser, if any: the page stays in the language
   // on screen, and calling setLocale() again asks the loader again.
   const [failed, setFailed] = createSignal<string | null>(null);
-  const switchTo = (locale: string) => {
+  const switchTo = async (locale: string) => {
     setFailed(null);
-    i18n.setLocale((routeLocale = locale)).catch(() => setFailed(locale));
+    const failure = await i18n.setLocale((routeLocale = locale));
+    if (failure !== undefined) setFailed(locale);
   };
   createEffect(() => {
     const locale = params.locale ?? fallbackLocale;

@@ -36,7 +36,7 @@ const pickLocale = (event: Event) =>
         >{{ l }}</NuxtLink
       >
       <NuxtLinkLocale data-testid="link-uk" to="/admin" locale="uk">uk admin</NuxtLinkLocale>
-      <button data-testid="direct-uk" @click="setLocale('uk').catch(() => {})">uk</button>
+      <button data-testid="direct-uk" @click="setLocale('uk')">uk</button>
       <button data-testid="push-plurals" @click="router.push(toPlurals())">push</button>
       <button data-testid="goto-plurals" @click="navigateTo(toPlurals())">goto</button>
       <button data-testid="await-goto-plurals" @click="goPlurals">await goto</button>

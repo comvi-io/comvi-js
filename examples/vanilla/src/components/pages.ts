@@ -63,28 +63,26 @@ export function featuresPage(): Node[] {
 // never the previous language's rows.
 let account: string | null = null;
 let loading: string | null = null;
-/** The locale whose `account` load failed; `load()` rejects then, and asks again when called. */
+/**
+ * The locale whose `account` load failed; `load()` resolves with the Error then, and asks again
+ * when called.
+ */
 let failed: string | null = null;
-function loadAccount(): void {
+async function loadAccount(): Promise<void> {
   const locale = i18n.locale;
   if (account === locale || loading === locale || failed === locale) return;
   loading = locale;
-  const settle = (ok: boolean) => {
-    if (loading !== locale) return;
-    loading = null;
-    if (ok) account = locale;
-    else failed = locale;
-    update({});
-  };
-  i18n.load("account").then(
-    () => settle(true),
-    () => settle(false),
-  );
+  const failure = await i18n.load("account");
+  if (loading !== locale) return;
+  loading = null;
+  if (failure === undefined) account = locale;
+  else failed = locale;
+  update({});
 }
 
 function retryAccount(): void {
   failed = null;
-  loadAccount();
+  void loadAccount();
   update({});
 }
 
@@ -113,7 +111,7 @@ function accountRows(): HTMLElement[] {
 }
 
 export function aboutPage(): Node[] {
-  loadAccount();
+  void loadAccount();
   return [
     header(),
     h(
