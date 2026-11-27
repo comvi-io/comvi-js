@@ -11,6 +11,7 @@
  * built entries, both builds (tests/dist/outcomes.test.ts). Every loader answer is given by the
  * test; nothing waits on a clock.
  */
+import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 import type { I18nError } from "../src/errors";
 import type { I18n, I18nOptions, createI18n as Create } from "../src/instance";
@@ -115,11 +116,22 @@ interface Case {
 
 const EN = { default: { en: { a: "A" } } };
 
+/** A proxy of an `Error`, revoked: `instanceof` (any inspection) of it throws a `TypeError`. */
+const revoked = Proxy.revocable(new Error("revoked"), {});
+revoked.revoke();
+
 const reasons: [string, unknown][] = [
   ["a string", "nope"],
   ["undefined", undefined],
   ["null", null],
   ["0", 0],
+  ["a revoked proxy", revoked.proxy],
+  // Handed to a promise as is, it would be adopted: the call would resolve `undefined`.
+  [
+    "an Error with a then method",
+    Object.assign(new Error("failed"), { then: (y: (v: unknown) => void) => y(undefined) }),
+  ],
+  ["an Error of another realm (node:vm)", runInNewContext("new Error('other realm')")],
 ];
 
 export const cases: Case[] = [
@@ -371,6 +383,24 @@ export const cases: Case[] = [
     reports: [],
   },
   {
+    // Made BEFORE destroy(): the destroy aborts the parent's load the call still waited for,
+    // after the locale's own load had failed. Only a call made on a destroyed instance is
+    // `undefined` (the case above).
+    name: "load: made before destroy(): on de-AT, de-AT:extra fails, destroy() aborts de:extra: the Error",
+    options: { locale: "de-AT", catalogs: { default: { "de-AT": { a: "A" }, de: {} } } },
+    call: (i) => i.load("extra"),
+    settle: async (c, i) => {
+      await c.fail("de-AT:extra");
+      expect([...c.pending.keys()]).toEqual(["de:extra"]);
+      i.destroy();
+      await flush();
+    },
+    value: { is: "E" },
+    locale: "de-AT",
+    facts: ["extra", false, true],
+    reports: ["load_failed"],
+  },
+  {
     name: "load: a handed-over null at creation is asked for again, and fails",
     options: { catalogs: { default: { en: { a: "A" } }, extra: { en: null } } },
     call: (i) => i.load("extra"),
@@ -498,7 +528,7 @@ export const outcomeTable = (build: string, get: () => Promise<Api> | Api) => {
   describe.each(cases)(`${build}: $name`, (c) => {
     it.each(forms.flatMap(([f, form]) => [true, false].map((oe) => [f, oe, form] as const)))(
       "%s, onError set: %s",
-      async (_f, withOnError, form) => {
+      async (f, withOnError, form) => {
         const api = await get();
         const ctl = manual(c.sync);
         const errors: I18nError[] = [];
@@ -519,7 +549,12 @@ export const outcomeTable = (build: string, get: () => Promise<Api> | Api) => {
           got = await read();
         });
         expect(seen).toEqual([]);
-        if (got !== NONE) check(api, c, ctl, got);
+        // Every form but the ignored one sees the value: one that has not arrived fails here.
+        if (f == "ignored") expect(got).toBe(NONE);
+        else {
+          expect(got, "the value has arrived").not.toBe(NONE);
+          if (got !== NONE) check(api, c, ctl, got);
+        }
         expect(i.locale).toBe(c.locale);
         const x = api.core(i);
         const [ns, ready, fetching] = c.facts;
@@ -538,45 +573,126 @@ export const outcomeTable = (build: string, get: () => Promise<Api> | Api) => {
 
 /**
  * The language switcher an app writes, `const failure = await setLocale(code); setFailed(failure
- * !== undefined)`, clicked quickly: the flag and the locale on screen after every answer.
- * Scenarios (i)-(v) from the review's rapid-click probe, (vi)-(viii) for a falsy rejection reason
- * and an invalid tag.
+ * !== undefined)`, clicked quickly: what EVERY click's call resolved with, the flag and the locale
+ * on screen once the test has answered; then, where a click overtook a pending one, the late
+ * answer of the overtaken load, which changes none of them. Scenarios (i)-(v) from the review's
+ * rapid-click probe, (vi)-(viii) for a falsy rejection reason and an invalid tag.
  */
-const scenarios: [string, string[], (c: Ctl) => Promise<void>, boolean, string][] = [
-  ["(i) fr fails slowly, then de lands", ["fr", "de"], (c) => c.answer("de:default"), false, "de"],
-  ["(ii) fr lands slowly, then de fails", ["fr", "de"], (c) => c.fail("de:default"), true, "en"],
-  ["(iii) fr pending, click back to en", ["fr", "en"], async () => {}, false, "en"],
-  ["(iv) fr clicked twice, lands", ["fr", "fr"], (c) => c.answer("fr:default"), false, "fr"],
-  ["(v) fr fails, single click", ["fr"], (c) => c.fail("fr:default"), true, "en"],
-  ["(vi) fr fails with reject()", ["fr"], (c) => c.fail("fr:default", undefined), true, "en"],
-  ["(vii) fr fails with reject(0)", ["fr"], (c) => c.fail("fr:default", 0), true, "en"],
-  ["(viii) an invalid tag", ["!!"], async () => {}, true, "en"],
+type Got = "undefined" | "E" | "wrapped" | "RangeError" | "pending";
+const scenarios: [
+  name: string,
+  clicks: string[],
+  settle: (c: Ctl) => Promise<void>,
+  values: Got[],
+  failed: boolean,
+  locale: string,
+  late?: (c: Ctl) => Promise<void>,
+][] = [
+  [
+    "(i) fr pending, de clicked and lands; fr's late failure is ignored",
+    ["fr", "de"],
+    (c) => c.answer("de:default"),
+    ["undefined", "undefined"],
+    false,
+    "de",
+    (c) => c.fail("fr:default"),
+  ],
+  [
+    "(ii) fr pending, de clicked and fails; fr's late answer is ignored",
+    ["fr", "de"],
+    (c) => c.fail("de:default"),
+    ["undefined", "E"],
+    true,
+    "en",
+    (c) => c.answer("fr:default"),
+  ],
+  [
+    "(iii) fr pending, click back to en; fr's late answer is ignored",
+    ["fr", "en"],
+    async () => {},
+    ["undefined", "undefined"],
+    false,
+    "en",
+    (c) => c.answer("fr:default"),
+  ],
+  [
+    "(iv) fr clicked twice, lands",
+    ["fr", "fr"],
+    (c) => c.answer("fr:default"),
+    ["undefined", "undefined"],
+    false,
+    "fr",
+  ],
+  ["(v) fr fails, single click", ["fr"], (c) => c.fail("fr:default"), ["E"], true, "en"],
+  [
+    "(vi) fr fails with reject()",
+    ["fr"],
+    (c) => c.fail("fr:default", undefined),
+    ["wrapped"],
+    true,
+    "en",
+  ],
+  [
+    "(vii) fr fails with reject(0)",
+    ["fr"],
+    (c) => c.fail("fr:default", 0),
+    ["wrapped"],
+    true,
+    "en",
+  ],
+  ["(viii) an invalid tag", ["!!"], async () => {}, ["RangeError"], true, "en"],
 ];
 
 export const switcherTable = (build: string, get: () => Promise<Api> | Api) => {
-  it.each(scenarios)(`${build}: switcher %s`, async (_n, clicks, settle, failed, locale) => {
-    const api = await get();
-    const ctl = manual();
-    const i = api.createI18n({
-      locale: "en",
-      catalogs: EN,
-      loader: ctl.load,
-      onError: () => {},
-    });
-    let flag: boolean | "unset" = "unset";
-    const setFailed = (x: boolean) => void (flag = x);
-    const seen = await unhandled(async () => {
-      for (const code of clicks) {
-        void (async () => {
-          const failure = await i.setLocale(code);
-          setFailed(failure !== undefined);
-        })();
+  it.each(scenarios)(
+    `${build}: switcher %s`,
+    async (_n, clicks, settle, values, failed, locale, late) => {
+      const api = await get();
+      const ctl = manual();
+      const i = api.createI18n({
+        locale: "en",
+        catalogs: EN,
+        loader: ctl.load,
+        onError: () => {},
+      });
+      let flag: boolean | "unset" = "unset";
+      const setFailed = (x: boolean) => void (flag = x);
+      const got: Got[] = clicks.map(() => "pending");
+      const name = (x: Result): Got =>
+        x === undefined
+          ? "undefined"
+          : x === ctl.E
+            ? "E"
+            : x instanceof RangeError
+              ? "RangeError"
+              : x instanceof Error
+                ? "wrapped"
+                : (String(x) as Got);
+      const outcome = () => [got.slice(), flag, i.locale];
+      const seen = await unhandled(async () => {
+        for (const [n, code] of clicks.entries()) {
+          void (async () => {
+            const failure = await i.setLocale(code);
+            got[n] = name(failure);
+            setFailed(failure !== undefined);
+          })();
+          await flush();
+        }
+        await settle(ctl);
         await flush();
-      }
-      await settle(ctl);
-      await flush();
-    });
-    expect(seen).toEqual([]);
-    expect([flag, i.locale]).toEqual([failed, locale]);
-  });
+        expect(outcome()).toEqual([values, failed, locale]);
+        if (late) {
+          await late(ctl);
+          await flush();
+          expect(outcome(), "after the overtaken load's late answer").toEqual([
+            values,
+            failed,
+            locale,
+          ]);
+        }
+      });
+      expect(seen).toEqual([]);
+      expect(ctl.pending.size, "every load the test started is answered").toBe(0);
+    },
+  );
 };

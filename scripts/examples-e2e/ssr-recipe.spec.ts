@@ -430,11 +430,17 @@ test("h2: back to / before a pending switch to uk lands, the page stays English"
 
   await page.evaluate(() => (window as { __release?: () => void }).__release?.());
   // The held load returns, and the switch to uk settles: superseded by the switch back to en,
-  // or landing on uk where the layout never asked for en again.
+  // it resolves `undefined` (recorded `uk:resolved`), never with an `Error`.
   await page.waitForFunction(() =>
     (window as { __loaded?: string[] }).__loaded?.includes("uk:default"),
   );
   await settled(page, "uk:resolved", "uk:failed");
+  expect(
+    await page.evaluate(() =>
+      (window as { __settled?: string[] }).__settled?.filter((e) => e.startsWith("uk:")),
+    ),
+    "the overtaken switch to uk",
+  ).toEqual(["uk:resolved"]);
   await expect(page).toHaveURL((url) => url.pathname === "/");
   expect(await page.locator("html").getAttribute("lang"), "<html lang> once uk settled").toBe("en");
   expect(await page.getByTestId("greeting").textContent(), "the greeting once uk settled").toBe(

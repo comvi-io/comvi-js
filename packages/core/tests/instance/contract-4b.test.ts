@@ -70,7 +70,8 @@ describe("setLocale() contract (lot 4b)", () => {
     const pt = i18n.setLocale("pt"); // shares the pt flight, aborts pt-BR's own
     expect(l.signals.get("pt-BR:default")!.aborted).toBe(true);
     await l.answer("pt:default");
-    await Promise.all([ptBR, pt]);
+    // The superseded call resolves `undefined` (it never switched); so does the one that switched.
+    expect(await Promise.all([ptBR, pt])).toStrictEqual([undefined, undefined]);
     expect(i18n.locale).toBe("pt");
   });
 
