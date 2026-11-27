@@ -165,12 +165,12 @@ describe("partial failure (R4-11)", () => {
     ]);
   });
 
-  it("rejects, and stays, when every catalog of the target fails", async () => {
+  it("resolves with the failure, and stays, when every catalog of the target fails", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: { a: "A" } }, loader: l.load });
     const p = i18n.setLocale("fr");
     await l.fail("fr:default", new Error("404 fr"));
-    await expect(p).rejects.toThrow("404 fr");
+    await expect(p).resolves.toMatchObject({ message: expect.stringContaining("404 fr") });
     expect(i18n.locale).toBe("en");
   });
 
@@ -190,8 +190,10 @@ describe("partial failure (R4-11)", () => {
     load.mockClear();
     await i18n.setLocale("fr");
     expect(loaded()).toEqual(["fr:default"]);
-    await expect(i18n.setLocale("zz")).rejects.toThrow("no catalog for zz:default");
-    await expect(i18n.setLocale("zz")).rejects.toThrow();
+    await expect(i18n.setLocale("zz")).resolves.toMatchObject({
+      message: expect.stringContaining("no catalog for zz:default"),
+    });
+    await expect(i18n.setLocale("zz")).resolves.toBeInstanceOf(Error);
     // The target's own failure is retried when it is the target again.
     expect(loaded().filter((x) => x === "zz:default")).toHaveLength(2);
   });
@@ -229,7 +231,9 @@ describe("a parent of the locale's chain that fails (lot 2c, review A MEDIUM 3)"
       const { i18n, errors } = make({ locale: "en", messages: { en: { a: "A" } }, loader: l.load });
       const p = i18n.setLocale("pt-BR");
       for (const k of order) await l.fail(k);
-      await expect(p).rejects.toThrow("404 pt-BR:default");
+      await expect(p).resolves.toMatchObject({
+        message: expect.stringContaining("404 pt-BR:default"),
+      });
       await flush();
       expect(failed(errors).sort()).toEqual(["pt-BR:default", "pt:default"]);
     }
@@ -253,7 +257,7 @@ describe("a parent of the locale's chain that fails (lot 2c, review A MEDIUM 3)"
     const { load } = tableLoader({ "en:default": { a: "A" } });
     const { i18n, errors } = make({ locale: "en", loader: load });
     await i18n.ready;
-    await expect(i18n.setLocale("pt")).rejects.toThrow();
+    await expect(i18n.setLocale("pt")).resolves.toBeInstanceOf(Error);
     expect(failed(errors)).toEqual(["pt:default"]);
   });
 
@@ -267,7 +271,9 @@ describe("a parent of the locale's chain that fails (lot 2c, review A MEDIUM 3)"
     expect(l.signals.get("pt:default")!.aborted).toBe(false);
     await l.fail("pt:default");
     await l.fail("pt-PT:default");
-    await expect(p).rejects.toThrow("404 pt-PT:default");
+    await expect(p).resolves.toMatchObject({
+      message: expect.stringContaining("404 pt-PT:default"),
+    });
     await first;
     await flush();
     expect(failed(errors).sort()).toEqual(["pt-PT:default", "pt:default"]);
@@ -295,7 +301,7 @@ describe("a parent of the locale's chain that fails (lot 2c, review A MEDIUM 3)"
     const p = i18n.setLocale("pt");
     await l.answer("pt-BR:default", { a: "A-br" }).catch(() => {});
     await l.fail("pt:default");
-    await expect(p).rejects.toThrow("404 pt:default");
+    await expect(p).resolves.toMatchObject({ message: expect.stringContaining("404 pt:default") });
     await first;
     await flush();
     expect(failed(errors)).toEqual(["pt:default"]);
@@ -401,13 +407,13 @@ describe("the fallback chain", () => {
 
 describe("invalid locales are rejected before anything renders or loads (R3-1, R4-10)", () => {
   it.each(["", "!!", "a/b", "de?x=1", "..", "en@x"])(
-    "setLocale(%j) rejects with invalid_locale and requests nothing",
+    "setLocale(%j) resolves with a RangeError, reports invalid_locale and requests nothing",
     async (bad) => {
       const { load } = tableLoader(TABLE);
       const { i18n, errors } = make({ locale: "en", loader: load });
       await i18n.ready;
       load.mockClear();
-      await expect(i18n.setLocale(bad)).rejects.toThrow(RangeError);
+      await expect(i18n.setLocale(bad)).resolves.toBeInstanceOf(RangeError);
       expect(load).not.toHaveBeenCalled();
       expect(i18n.locale).toBe("en");
       expect(errors).toContainEqual(

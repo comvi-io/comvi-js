@@ -106,7 +106,9 @@ describe("handover()", () => {
       },
     });
     // uk:account failed (only the fallback locale has it): load() rejects (lot 4b).
-    await expect(server.load("account")).rejects.toThrow("404 uk:account");
+    await expect(server.load("account")).resolves.toMatchObject({
+      message: expect.stringContaining("404 uk:account"),
+    });
     return JSON.parse(JSON.stringify(handover(server)));
   };
 
@@ -377,12 +379,14 @@ describe("handover(): every catalog in place and every known failure, whatever t
       },
     });
     await server.ready;
-    await expect(server.setLocale("uk")).rejects.toThrow("404 uk");
+    await expect(server.setLocale("uk")).resolves.toMatchObject({
+      message: expect.stringContaining("404 uk"),
+    });
     const { i18n, load, payload } = browser(server, { onError: () => {} });
     expect(payload.catalogs.default.uk).toBeNull();
     expect(i18n.t("hi", { locale: "uk" })).toBe("hi");
     expect(load).not.toHaveBeenCalled();
-    await i18n.setLocale("uk").catch(() => {});
+    await i18n.setLocale("uk");
     expect(load.mock.calls.map(([l, n]) => `${l}:${n}`)).toEqual(["uk:default"]);
   });
 

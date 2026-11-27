@@ -96,14 +96,18 @@ describe("cdn() against the CDN v1 worker", () => {
     expect(host.log()).toEqual([]);
     await i18n.setLocale("uk"); // the target asks for its own pairs again
     // So does an explicit load(ns); it rejects: nothing of uk's own chain has shop (lot 4b).
-    await expect(i18n.load("shop")).rejects.toThrow(/HTTP 404/);
+    await expect(i18n.load("shop")).resolves.toMatchObject({
+      message: expect.stringMatching(/HTTP 404/),
+    });
     expect(host.log()).toEqual(["404 /dist1/shop/uk.json", "404 /dist1/shop/uk.json"]);
   });
 
   it("6 · a locale with no catalog at all: setLocale rejects with the HTTP error, the locale stays", async () => {
     const { i18n } = mk();
     await i18n.ready;
-    await expect(i18n.setLocale("fr")).rejects.toThrow(/HTTP 404: .*\/dist1\/fr\.json/);
+    await expect(i18n.setLocale("fr")).resolves.toMatchObject({
+      message: expect.stringMatching(/HTTP 404: .*\/dist1\/fr\.json/),
+    });
     expect(i18n.locale).toBe("en");
   });
 
@@ -175,7 +179,9 @@ describe("cdn() against the CDN v1 worker", () => {
   it("8 · a body that is not a catalog (an array) is a load failure", async () => {
     const { i18n, errors } = mk();
     await i18n.ready;
-    await expect(i18n.load("bad")).rejects.toThrow(/not a catalog/);
+    await expect(i18n.load("bad")).resolves.toMatchObject({
+      message: expect.stringMatching(/not a catalog/),
+    });
     expect(errors).toContainEqual(
       expect.objectContaining({
         code: "load_failed",
@@ -189,9 +195,14 @@ describe("cdn() against the CDN v1 worker", () => {
     const { i18n, errors } = mk();
     await i18n.ready;
     host.reset();
-    for (const l of ["..", "a/b", "", "de?x=1"]) await expect(i18n.setLocale(l)).rejects.toThrow();
-    await expect(i18n.load("a/b")).rejects.toThrow(/invalid locale or namespace/);
-    await expect(i18n.load("..")).rejects.toThrow(/invalid locale or namespace/);
+    for (const l of ["..", "a/b", "", "de?x=1"])
+      await expect(i18n.setLocale(l)).resolves.toBeInstanceOf(Error);
+    await expect(i18n.load("a/b")).resolves.toMatchObject({
+      message: expect.stringMatching(/invalid locale or namespace/),
+    });
+    await expect(i18n.load("..")).resolves.toMatchObject({
+      message: expect.stringMatching(/invalid locale or namespace/),
+    });
     expect(host.log()).toEqual([]);
     expect(errors.filter((e) => e.code === "invalid_locale")).toHaveLength(4);
     expect(errors.filter((e) => e.code === "load_failed").map((e) => e.ns)).toEqual(["a/b", ".."]);
@@ -231,7 +242,9 @@ describe("cdn() against the CDN v1 worker", () => {
     const { i18n } = mk({ loader: cdn(base(), { timeout: 100 }) });
     await i18n.ready;
     host.hold("dist1/de.json");
-    await expect(i18n.setLocale("de")).rejects.toThrow(/timeout 100 ms: .*\/dist1\/de\.json/);
+    await expect(i18n.setLocale("de")).resolves.toMatchObject({
+      message: expect.stringMatching(/timeout 100 ms: .*\/dist1\/de\.json/),
+    });
     expect(i18n.locale).toBe("en");
     await host.closed("dist1/de.json");
     expect(host.log()).toEqual(["200 /dist1/en.json", "0 /dist1/de.json ABORTED"]);

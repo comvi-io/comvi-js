@@ -308,7 +308,9 @@ describe("onError", () => {
     i18n.t("p");
     i18n.t("s");
     i18n.t("p", { locale: "!!", x: 1 });
-    await expect(i18n.load("shop")).rejects.toThrow("down");
+    await expect(i18n.load("shop")).resolves.toMatchObject({
+      message: expect.stringContaining("down"),
+    });
     expect([...codes].sort()).toEqual([
       "fallback_used",
       "invalid_locale",

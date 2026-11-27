@@ -362,7 +362,7 @@ describe("handover accounting (brief §5)", () => {
   it("a failed pair is null, also after the locale moved on (a known failure); a pair never loaded is left out (owner 30.10)", async () => {
     const t = tableLoader({ "en:default": {}, "de:default": {} });
     const i18n = createI18n({ locale: "en", timeZone: "UTC", loader: t.load, onError: () => {} });
-    await i18n.load("help").catch(() => {});
+    await i18n.load("help");
     expect(handover(i18n).catalogs.help).toEqual({ en: null });
     // A namespace needed in en, then the locale moved on: its de slot was never asked for.
     const r = acquire(i18n, "help");
@@ -391,7 +391,7 @@ describe("the hold's bookkeeping (review of lot 4c)", () => {
   it("is counted before anything publishes: a subscriber switching in that publish loads the target for it", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", namespaces: [], loader: l.load });
-    let sw: Promise<void> | undefined;
+    let sw: Promise<Error | undefined> | undefined;
     const off = i18n.on(() => {
       off();
       sw = i18n.setLocale("de");
@@ -509,7 +509,7 @@ describe("development: reading a namespace nothing loads (brief §6)", () => {
     i18n.t("x", { ns: "held" });
     await l.fail("en:held");
     i18n.t("x", { ns: "held" });
-    i18n.load("bad").catch(() => {});
+    void i18n.load("bad");
     await l.fail("en:bad");
     i18n.t("x", { ns: "bad" }); // failed: no warning, and never "nothing loads it"
     // Held, its flight aborted by a pending switch whose target needs nothing of it: no
@@ -678,7 +678,7 @@ describe("missing_key: a catalog of the chain in place and every pair of the cha
     });
     const first = i18n.load("shop");
     await l.fail("de:shop");
-    await first.catch(() => {});
+    await first;
     i18n.t("title", { ns: "shop" });
     expect(mk(errors)).toEqual(["title shop de"]);
     const again = i18n.load("shop"); // the explicit retry: de:shop in flight again
@@ -773,12 +773,12 @@ describe("the last setLocale() wins across a synchronous notification (lot 4d)",
   const setup = (messages: Record<string, Record<string, string>>) => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", messages, loader: l.load });
-    const sw: { de?: Promise<void>; fr?: Promise<void> } = {};
+    const sw: { de?: Promise<Error | undefined>; fr?: Promise<Error | undefined> } = {};
     i18n.on(() => {
       if (!sw.fr && l.signals.get("en:account")?.aborted) sw.fr = i18n.setLocale("fr");
     });
     sw.de = i18n.setLocale("de");
-    void i18n.load("account").catch(() => {});
+    void i18n.load("account");
     expect(l.requested).toEqual(["de:default", "en:account"]);
     return { i18n, l, sw };
   };
@@ -818,7 +818,7 @@ describe("a stale setLocale() changes nothing after its own publish or prune (lo
   it("a subscriber of de's publish switches to fr and holds account: the stale de call starts no de:account", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {}, fr: {} }, loader: l.load });
-    let fr: Promise<void> | undefined;
+    let fr: Promise<Error | undefined> | undefined;
     i18n.on(() => {
       if (!fr && i18n.locale == "de") {
         fr = i18n.setLocale("fr");
@@ -844,15 +844,15 @@ describe("a stale setLocale() changes nothing after its own publish or prune (lo
       catalogs: { default: { en: { hi: "Hi" }, fr: { hi: "Salut" }, de: null } },
       loader: l.load,
     });
-    void i18n.load("account").catch(() => {});
-    let fr: Promise<void> | undefined;
+    void i18n.load("account");
+    let fr: Promise<Error | undefined> | undefined;
     i18n.on(() => {
       if (!fr && l.signals.get("en:account")?.aborted) fr = i18n.setLocale("fr");
     });
     const de = i18n.setLocale("de");
     await flush();
     await fr;
-    await de?.catch(() => {});
+    await de;
     expect(i18n.locale).toBe("fr");
     // de's failure stays known: fr's chain is settled, not loading for ever.
     expect(rl(i18n)).toEqual([true, false]);

@@ -9,6 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createI18n } from "../../src/instance";
 import { detect, LOCALE_KEY, persist, type DetectOptions } from "../../src/plugins";
+import { flush, manualLoader } from "../instance/helpers";
 
 const clearCookies = () => {
   for (const c of document.cookie.split(";")) {
@@ -123,6 +124,39 @@ describe("detect() — a plugin (design §3.3)", () => {
     await vi.waitFor(() => expect(i18n.t("a")).toBe("en"));
     expect(i18n.locale).toBe("en");
     expect(loaded).toEqual(["de:default", "en:default"]);
+  });
+});
+
+describe("detect() acts on the switch's outcome", () => {
+  const supported = ["en", "de", "fr"];
+  it("a detected locale overtaken by the app's setLocale() starts no recovery", async () => {
+    navigatorLanguages(["de"]);
+    const l = manualLoader();
+    const i18n = createI18n({ locale: "en", plugins: [detect({ supported })], loader: l.load });
+    expect(l.requested).toEqual(["de:default"]);
+    void i18n.setLocale("fr");
+    await flush();
+    await l.answer("fr:default");
+    expect(i18n.locale).toBe("fr");
+    expect(l.requested).toEqual(["de:default", "fr:default"]);
+  });
+
+  it("a recovery that fails too keeps the `locale` option and rejects nothing", async () => {
+    navigatorLanguages(["de"]);
+    const l = manualLoader();
+    const errors: string[] = [];
+    const i18n = createI18n({
+      locale: "en",
+      plugins: [detect({ supported })],
+      loader: l.load,
+      onError: (e) => void errors.push(`${e.code}:${e.locale}`),
+    });
+    await l.fail("de:default");
+    expect(l.requested).toEqual(["de:default", "en:default"]);
+    await l.fail("en:default");
+    await new Promise((y) => setTimeout(y, 0));
+    expect(i18n.locale).toBe("en");
+    expect(errors).toEqual(["load_failed:de", "load_failed:en"]);
   });
 });
 

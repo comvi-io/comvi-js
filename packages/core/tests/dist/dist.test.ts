@@ -105,7 +105,7 @@ describe.each([
     );
   });
 
-  it("cdn() with a fetch that assigns signal.onabort and never answers: the timeout rejects the load, `ready` resolves and reports it, load(ns) again loads", async () => {
+  it("cdn() with a fetch that assigns signal.onabort and never answers: load(ns) resolves with the timeout error, `ready` resolves and reports it, load(ns) again loads", async () => {
     const { createI18n } = await load<typeof Core>(`comvi-core${suffix}.js`);
     const { cdn } = await load<typeof Cdn>(`comvi-core-cdn${suffix}.js`);
     vi.useFakeTimers();
@@ -126,7 +126,7 @@ describe.each([
       const track = (p: Promise<unknown>) => {
         let r: unknown = "pending";
         p.then(
-          (v) => (r = ["resolved", v]),
+          (v) => (r = ["resolved", v instanceof Error ? v.message : v]),
           (e) => (r = ["rejected", (e as Error).message]),
         );
         return async () => (await flush(), r);
@@ -151,7 +151,7 @@ describe.each([
       expect([await alone(), await ready(), await extra()]).toEqual([
         ["rejected", msg("https://cdn.example/de.json")],
         ["resolved", undefined],
-        ["rejected", msg("https://cdn.example/extra/en.json")],
+        ["resolved", msg("https://cdn.example/extra/en.json")],
       ]);
       expect(errors.map((e) => e.code)).toEqual(["load_failed", "load_failed"]);
       expect(await track(i18n.load("extra"))()).toEqual(["resolved", undefined]);

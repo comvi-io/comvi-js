@@ -80,11 +80,13 @@ describe("partial failure counts the target's own chain (R4-11)", () => {
     );
   });
 
-  it("still rejects when nothing of the target's own chain loaded (the fallback does not count)", async () => {
+  it("still resolves with the failure when nothing of the target's own chain loaded (the fallback does not count)", async () => {
     const t = tableLoader({ "en:default": { a: "A-en" } });
     const { i18n } = make({ locale: "en", fallbackLocale: "en", loader: t.load });
     await i18n.ready;
-    await expect(i18n.setLocale("de-AT")).rejects.toThrow(/de-AT:default/);
+    await expect(i18n.setLocale("de-AT")).resolves.toMatchObject({
+      message: expect.stringMatching(/de-AT:default/),
+    });
     expect(i18n.locale).toBe("en");
   });
 });
@@ -127,7 +129,7 @@ describe("a namespace held while a switch is pending (setLocale contract point 5
     expect(loading(state(i18n), "shop")).toBe(false);
   });
 
-  it("a rejected switch loads again what its start aborted for the locale kept on screen", async () => {
+  it("a refused switch loads again what its start aborted for the locale kept on screen", async () => {
     const l = manualLoader();
     const { i18n } = make({
       locale: "en",
@@ -139,7 +141,7 @@ describe("a namespace held while a switch is pending (setLocale contract point 5
     expect(l.signals.get("en:shop")!.aborted).toBe(true);
     await l.fail("fr:default");
     await l.fail("fr:shop");
-    await expect(sw).rejects.toThrow("404 fr:default");
+    await expect(sw).resolves.toMatchObject({ message: expect.stringContaining("404 fr:default") });
     expect(i18n.locale).toBe("en");
     // en:shop asked for again: the consumer is not left loading forever.
     expect(l.requested.filter((k) => k == "en:shop")).toHaveLength(2);
@@ -276,7 +278,7 @@ describe("missing_key waits for every load of the namespace", () => {
     expect(errors.filter((e) => e.code === "missing_key")).toEqual([]);
     const p = i18n.load("shop");
     await l.fail("en:shop");
-    await expect(p).rejects.toThrow("404 en:shop");
+    await expect(p).resolves.toMatchObject({ message: expect.stringContaining("404 en:shop") });
     expect(i18n.ns("shop")("title")).toBe("title");
     expect(errors.map((e) => e.code)).toEqual(["load_failed"]);
     await new Promise((y) => setTimeout(y)); // development's idle-read warning for cart

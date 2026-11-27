@@ -69,7 +69,7 @@ const read = (source: DetectSource, query: string, key: string): readonly string
 /**
  * The plugin that starts the instance in the first supported locale a source names. A
  * detected locale that fails to load entirely leaves the instance on its `locale` option,
- * which is then loaded.
+ * which is then loaded; a detected switch that a newer `setLocale()` overtakes changes nothing.
  */
 export const detect = ({
   supported,
@@ -84,7 +84,7 @@ export const detect = ({
         const hit = negotiate(read(s, query, key), supported);
         if (hit) {
           if (hit != i18n.locale)
-            i18n.setLocale(hit).catch(() => i18n.setLocale(i18n.locale).catch(() => {}));
+            void i18n.setLocale(hit).then((f) => f && i18n.setLocale(i18n.locale));
           return;
         }
       }
