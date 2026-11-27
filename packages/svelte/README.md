@@ -61,7 +61,7 @@ export const i18n = createI18n({
 `t()` fills `{name}` from its second argument. `locale`, `dir`, `isReady`, `isLoading` and
 `isFetching` are getters: read them through the object (`r.locale`), because a destructured one is
 read once. Both catalogs are inline, so the switch loads nothing; with a `loader`, `setLocale()` can
-reject: see [A rejected `setLocale()`](#a-rejected-setlocale).
+fail: see [A failed `setLocale()`](#a-failed-setlocale).
 
 ## Typed keys
 
@@ -161,24 +161,23 @@ export const i18n = createI18n({
 });
 ```
 
-If you passed `onError`, you can call `void i18n.setLocale(code)` or `void i18n.load(ns)` without an
-empty `.catch()`. If you await the result, the error still interrupts execution. A promise derived
-from the call (`.then(fn)`, an `async` function that awaits it without a `catch`) is yours to
-handle, and without the `onError` option nothing changes: an ignored rejection is a global
-`unhandledrejection`.
-
-## A rejected `setLocale()`
+## A failed `setLocale()`
 
 With a `loader`, `setLocale()` loads the catalogs of the new locale and its parents (`de` for
-`de-AT`) before it switches. When none of them loads, the promise rejects with the loader's error,
-`onError` gets `load_failed`, and the locale and the text on screen stay as they were. Calling
-`setLocale()` again calls the loader again.
+`de-AT`) before it switches. When none of them loads, the promise resolves with an `Error` (the
+loader's own when the loader rejected with one), `onError` gets `load_failed`, and the locale and
+the text on screen stay as they were. Calling `setLocale()` again calls the loader again.
+
+`setLocale()` and `i18n.load()` do not reject for a failed load: they resolve with the failure or
+with `undefined`. A call that a newer `setLocale()` overtook resolves `undefined` too, and
+`r.locale` is what is on screen. Write `const failure = await r.setLocale(code)` and test
+`failure !== undefined`.
 
 ## Retry with `load()`
 
 A namespace whose load failed renders its "not available" branch, and mounting the component again
 does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
-that failed, and it rejects with the loader's error only when the locale's own catalog fails again
+that failed, and it resolves with an `Error` only when the locale's own catalog fails again
 and no catalog of its parents (`de` for `de-AT`) is usable; a `fallbackLocale`'s does not count.
 
 ```svelte title="src/Account.svelte" check=group=svelte-app
@@ -186,12 +185,12 @@ and no catalog of its parents (`de` for `de-AT`) is usable; a `fallbackLocale`'s
   import { useI18n } from "@comvi/svelte";
   const r = useI18n("account");
   let failed = $state(false);
-  const toggle = () =>
-    r.setLocale(r.locale === "en" ? "uk" : "en").then(
-      () => (failed = false),
-      () => (failed = true),
-    );
-  const retry = () => void r.i18n.load("account"); // no `.catch()`: `onError` is set
+  async function toggle() {
+    failed = false;
+    const failure = await r.setLocale(r.locale === "en" ? "uk" : "en");
+    if (failure !== undefined) failed = true;
+  }
+  const retry = () => void r.i18n.load("account"); // isReady and isLoading follow the retry
 </script>
 
 {#if r.isLoading}<p class="spinner"></p>
@@ -214,9 +213,11 @@ typed keys, a key whose message has tags is a type error in `t()`, and `<T>` ren
 ## Server rendering
 
 Create an i18n instance per request with the options the browser uses (`timeZone` is required).
-`render()` of `svelte/server` is synchronous, so load what the page shows first: `await i18n.ready`,
-then `await i18n.load(ns)` for each namespace. Return `handover(i18n)` (an export of
-`@comvi/svelte`) to the page as data. In the browser,
+`render()` of `svelte/server` is synchronous, so load what the page shows first and check each load:
+`await i18n.ready`, then
+`const failure = await i18n.load("account"); if (failure !== undefined) throw failure;`. Without the
+check, the render goes on with fallback text or keys, and `onError` has the report. Return
+`handover(i18n)` (an export of `@comvi/svelte`) to the page as data. In the browser,
 `setI18n(createI18n({ ...options, ...payload }))` starts from the server's state: hydration matches,
 and the loader is asked for nothing the server sent. A SvelteKit app is in
 [`examples/sveltekit`](https://github.com/comvi-io/comvi-js/tree/main/examples/sveltekit)

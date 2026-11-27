@@ -116,8 +116,10 @@ stop();
 `on(fn)` calls `fn` on every change the instance publishes (a switch, a catalog added, a load that
 starts or settles, a failed one too) and returns the function that unsubscribes; it takes no event
 name. `setLocale()` loads what the new locale needs, keeps the current locale on screen meanwhile,
-then switches. It rejects, and the locale stays, only when no namespace it waited for has a catalog
-of the new locale or of its parents (`de` for `de-AT`).
+then switches. It resolves with an `Error`, and the locale stays, only when no namespace it waited
+for has a catalog of the new locale or of its parents (`de` for `de-AT`). Every other call resolves
+`undefined`, a call that a newer `setLocale()` overtook included: read `i18n.locale` for what is
+on screen.
 
 ## Load catalogs
 
@@ -147,18 +149,19 @@ The first loads start inside `createI18n()`. `ready` resolves when the loads in 
 failed or not, and never rejects: when a locale's own load failed, `t()` renders fallback text or
 the key and `onError` has received `load_failed`. A binding's `isReady` tells whether the locale on
 screen has a usable catalog. With the core alone, ask `i18n.has(key)` or await `load(ns)`: it
-rejects only when the locale's own catalog failed and no parent's (`de` for `de-AT`) is usable.
+resolves with an `Error` only when the locale's own catalog failed and no parent's (`de` for
+`de-AT`) is usable.
 
-If you passed `onError`, as above, you can call `void i18n.setLocale(code)` or `void i18n.load(ns)`
-without an empty `.catch()`. If you await the result, the error still interrupts execution. A
-promise derived from the call (`.then(fn)`, an `async` function that awaits it without a `catch`) is
-yours to handle, and without the `onError` option nothing changes: an ignored rejection is a global
-`unhandledrejection`.
+`setLocale()` and `load()` do not reject for a failed load. They resolve with the failure, an
+`Error` (the loader's own, or one whose `cause` is what the loader rejected with; a `RangeError` for
+an invalid tag), or with `undefined`. Write `const failure = await i18n.load(ns)` and test
+`failure !== undefined`; a call you do not await raises no `unhandledrejection`.
 
 ```ts title="src/billing.ts" check=group=core-2
 import { i18n } from "./i18n";
 
-await i18n.load("billing"); // after a failed load, calling it again calls the loader again
+const failure = await i18n.load("billing"); // after a failure, a new call asks the loader again
+if (failure !== undefined) throw failure;
 i18n.has("invoice.title", { ns: "billing" }); // true
 
 await i18n.setLocale("uk");

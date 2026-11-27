@@ -22,7 +22,7 @@ instance's own bookkeeping is half done.
   - a request is registered before its loader runs;
   - a request has left the in-flight set, `ready` and the published state before its abort listeners
     run, in a switch and in `destroy()`;
-  - a superseded switch applies nothing, cancels nothing of the newer call and resolves;
+  - a superseded switch applies nothing, cancels nothing of the newer call and resolves `undefined`;
   - an abort settles the wait even if the loader ignores its signal;
   - after `destroy()` nothing starts and nothing is published, so every caller settles.
 - **Not built:** protection against endless switching between subscribers, or against a loader
