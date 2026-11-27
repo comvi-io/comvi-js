@@ -203,10 +203,9 @@ export const loader = cdn("https://cdn.comvi.io/<project-token>", {
 ## Locale routing: navigate, not `setLocale()`
 
 The URL is the locale. Switch by navigating (`<Link locale="uk">` or `useLocalizedRouter()` from
-`@comvi/next/navigation`), not with `setLocale()`, so no switch rejects: a catalog that fails for
-the new page is a failed load on the server. The middleware redirects to the locale prefix and
-remembers the locale in a cookie (on Next.js 16 the file is `proxy.ts` and the import is
-`@comvi/next/proxy`):
+`@comvi/next/navigation`), not with `setLocale()`: a catalog that fails for the new page is a
+failed load on the server. The middleware redirects to the locale prefix and remembers the locale in
+a cookie (on Next.js 16 the file is `proxy.ts` and the import is `@comvi/next/proxy`):
 
 ```ts title="src/middleware.ts" check=group=next-1
 import { createMiddleware } from "@comvi/next/middleware";

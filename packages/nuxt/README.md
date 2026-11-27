@@ -175,12 +175,6 @@ export default defineI18nOptions(() => ({
 }));
 ```
 
-If you passed `onError`, you can call `void i18n.setLocale(code)` or `void i18n.load(ns)` without an
-empty `.catch()`. If you await the result, the error still interrupts execution. A promise derived
-from the call (`.then(fn)`, an `async` function that awaits it without a `catch`) is yours to
-handle, and without the `onError` option nothing changes: an ignored rejection is a global
-`unhandledrejection`.
-
 ### A loader that asks your own server: `x-comvi-catalog`
 
 A custom loader that requests catalogs from the app's own server (a Nitro route, through `$fetch` or
@@ -208,20 +202,28 @@ export default defineI18nOptions((event) => {
 });
 ```
 
-## A rejected `setLocale()`
+## A failed `setLocale()`
 
 Switch with a link (`useSwitchLocalePath()`, `<NuxtLinkLocale locale>`): a switch whose catalogs all
 fail keeps the locale on screen and its URL, and `onError` gets `load_failed`. `setLocale()` changes
 the i18n instance only (the text and the cookie, not the URL), and the next navigation applies the
-URL's locale: use it as the switch with `localePrefix: "never"`. When no catalog of the new locale
-or its parents (`de` for `de-AT`) loads, it rejects with the loader's error and the locale and the
-text on screen stay as they were. Calling `setLocale()` again calls the loader again.
+URL's locale: use it as the switch with `localePrefix: "never"`. `setLocale()` keeps the locale
+and the text on screen, and resolves with an `Error`, only when the new locale's own load failed in
+every namespace it waited for and none of them has a catalog of the new locale or its parents (`de`
+for `de-AT`) in place, a cached one included. The `Error` is the loader's own when the loader
+rejected with an `Error`, else one whose `cause` is the rejection; an `Error` from another realm
+or with a `then` method is wrapped too. Calling `setLocale()` again calls the loader again.
+
+`setLocale()` and `i18n.load()` do not reject for a failed load: they resolve with the failure or
+with `undefined`. A call that a newer `setLocale()` overtook resolves `undefined` too, and `locale`
+is what is on screen. Write `const failure = await setLocale(code)` and test
+`failure !== undefined`.
 
 ## Retry with `load()`
 
 A namespace whose load failed renders its "not available" branch, and mounting the component again
 does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
-that failed, and it rejects with the loader's error only when the locale's own catalog fails again
+that failed, and it resolves with an `Error` only when the locale's own catalog fails again
 and no catalog of its parents (`de` for `de-AT`) is usable; a `fallbackLocale`'s does not count. On
 a client navigation the component shows its loading branch until the namespace is in. To keep the
 previous page on screen instead, wait for the load in the page's setup, as the `await` line does:
@@ -229,14 +231,14 @@ previous page on screen instead, wait for the load in the page's setup, as the `
 ```vue title="app/pages/account.vue" check=group=nuxt-app
 <script setup lang="ts">
 const { t, locale, setLocale, isReady, isLoading, isFetching, i18n } = useI18n("account");
-const retry = () => i18n.load("account").catch(() => {}); // awaited below, so caught here
-if (isFetching.value) await retry();
+const retry = () => i18n.load("account");
+if (isFetching.value) await retry(); // settles, failed or not: isReady and isLoading pick the branch
 const failed = ref(false);
-const toggle = () =>
-  setLocale(locale.value === "en" ? "uk" : "en").then(
-    () => (failed.value = false),
-    () => (failed.value = true),
-  );
+async function toggle() {
+  failed.value = false;
+  const failure = await setLocale(locale.value === "en" ? "uk" : "en");
+  if (failure !== undefined) failed.value = true;
+}
 </script>
 
 <template>

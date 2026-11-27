@@ -59,8 +59,8 @@ render(Root, document.getElementById("app")!);
 
 `t()` fills `{name}` from its second argument. `locale`, `dir`, `isReady`, `isLoading` and
 `isFetching` are accessors: call them (`locale()`). Both catalogs are inline, so the switch loads
-nothing; with a `loader`, `setLocale()` can reject: see [A rejected
-`setLocale()`](#a-rejected-setlocale).
+nothing; with a `loader`, `setLocale()` can fail: see [A failed
+`setLocale()`](#a-failed-setlocale).
 
 ## Typed keys
 
@@ -158,24 +158,26 @@ export const i18n = createI18n({
 });
 ```
 
-If you passed `onError`, you can call `void i18n.setLocale(code)` or `void i18n.load(ns)` without an
-empty `.catch()`. If you await the result, the error still interrupts execution. A promise derived
-from the call (`.then(fn)`, an `async` function that awaits it without a `catch`) is yours to
-handle, and without the `onError` option nothing changes: an ignored rejection is a global
-`unhandledrejection`.
-
-## A rejected `setLocale()`
+## A failed `setLocale()`
 
 With a `loader`, `setLocale()` loads the catalogs of the new locale and its parents (`de` for
-`de-AT`) before it switches. When none of them loads, the promise rejects with the loader's error,
-`onError` gets `load_failed`, and the locale and the text on screen stay as they were. Calling
-`setLocale()` again calls the loader again.
+`de-AT`) before it switches. It keeps the locale and the text on screen, and resolves with an
+`Error`, only when the new locale's own load failed in every namespace it waited for and none of
+them has a catalog of the new locale or its parents in place, a cached one included. The `Error` is
+the loader's own when the loader rejected with an `Error`, else one whose `cause` is the rejection;
+an `Error` from another realm or with a `then` method is wrapped too. Calling `setLocale()` again
+calls the loader again.
+
+`setLocale()` and `i18n.load()` do not reject for a failed load: they resolve with the failure or
+with `undefined`. A call that a newer `setLocale()` overtook resolves `undefined` too, and
+`locale()` is what is on screen. Write `const failure = await setLocale(code)` and test
+`failure !== undefined`.
 
 ## Retry with `load()`
 
 A namespace whose load failed renders its "not available" branch, and mounting the component again
 does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
-that failed, and it rejects with the loader's error only when the locale's own catalog fails again
+that failed, and it resolves with an `Error` only when the locale's own catalog fails again
 and no catalog of its parents (`de` for `de-AT`) is usable; a `fallbackLocale`'s does not count.
 
 ```tsx title="src/Account.tsx" check=group=solid-app
@@ -185,12 +187,12 @@ import { useI18n } from "@comvi/solid";
 export function Account() {
   const { t, locale, setLocale, isReady, isLoading, i18n } = useI18n("account");
   const [failed, setFailed] = createSignal(false);
-  const toggle = () =>
-    setLocale(locale() === "en" ? "uk" : "en").then(
-      () => setFailed(false),
-      () => setFailed(true),
-    );
-  const retry = () => void i18n.load("account"); // no `.catch()`: `onError` is set
+  const toggle = async () => {
+    setFailed(false);
+    const failure = await setLocale(locale() === "en" ? "uk" : "en");
+    if (failure !== undefined) setFailed(true);
+  };
+  const retry = () => void i18n.load("account"); // isReady and isLoading follow the retry
   const gone = <button onClick={retry}>Not available. Retry</button>;
   return (
     <Show when={!isLoading()} fallback={<p class="spinner" />}>
@@ -218,8 +220,11 @@ always text: a JSX element there prints as text and hydrates with a mismatch
 Create an i18n instance per request with the options the browser uses (`timeZone` is required) and
 render under a `<Suspense>` boundary with `renderToStringAsync` or a stream: `useI18n(ns)` holds its
 namespace for the request, and the boundary waits until its catalog is in. `renderToString` is
-synchronous, so load first (`await i18n.ready`, `await i18n.load(ns)`). Embed `handover(i18n)` (an
-export of `@comvi/solid`) in the page as JSON. In the browser,
+synchronous, so load first and check each namespace the page reads, `default` included, with
+`const failure = await i18n.load("account"); if (failure !== undefined) throw failure;` (`ready`
+alone does not say which load failed). Without the check, the render goes on with fallback text,
+keys or a component's own not-available branch, and `onError` has the report. Embed
+`handover(i18n)` (an export of `@comvi/solid`) in the page as JSON. In the browser,
 `createI18n({ ...options, ...payload })` starts from the server's state: hydration matches, and the
 loader is asked for nothing the server sent. A SolidStart app is in
 [`examples/solidstart`](https://github.com/comvi-io/comvi-js/tree/main/examples/solidstart)

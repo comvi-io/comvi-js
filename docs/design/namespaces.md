@@ -25,8 +25,9 @@ a missing key for text that is still on its way.
 - `ns` among a call's params only picks the catalog: the exported `<T ns="account">` loads nothing,
   on a server neither. `useI18n("account").T` reads the namespace its `useI18n` declared.
 - `load(ns)` loads `ns` for the current locale's chain, asks its failed pairs again (the explicit
-  retry) and keeps nothing active. It rejects with the loader's error only when the locale's own
-  load of `ns` failed and no catalog of `ns` from the locale's own chain is in place.
+  retry) and keeps nothing active. It resolves with an `Error` only when the locale's own load of
+  `ns` failed and no catalog of `ns` from the locale's own chain is in place, and with `undefined`
+  otherwise; it never rejects for a failed load.
 - A remount after a failed load asks for nothing: the failed pair stays failed until `load(ns)` or
   a switch to its locale.
 - **Active set** = the `namespaces` option (for the instance's life) + every namespace with at least
@@ -99,11 +100,14 @@ failed or aborted ones too, and says nothing about a namespace's catalog.
 
 - At the call it takes the active set; the loads it waits for are those of that set, never rebuilt
   while it is pending. The locale on screen stays until the switch applies.
-- The latest call wins: an earlier one then never switches and resolves once its loads settle. The
-  latest switches when at least one namespace it waited for has a catalog of `l`'s own chain in place
-  (`de-AT` or `de`); it rejects, keeping the old locale, only when every one of them has none.
+- The latest valid call wins: an earlier one then never switches and resolves `undefined` once its
+  loads settle or are aborted. An invalid tag resolves with a `RangeError` before that rule applies,
+  so it overtakes nothing. The latest call resolves with an `Error`, keeping the old locale, only
+  when `l`'s own load failed in every namespace it waited for and none of them has a catalog of
+  `l`'s own chain in place (`de-AT` or `de`); otherwise it switches. It never rejects for a failed
+  load.
 - After the switch applies, what the new active set lacks for `l` loads (not awaited): a consumer
-  that mounted while the switch was pending ends with `l`'s catalog. A switch that rejects loads
+  that mounted while the switch was pending ends with `l`'s catalog. A switch that fails loads
   again what the active set lacks for the locale kept on screen.
 
 ### Development diagnostics

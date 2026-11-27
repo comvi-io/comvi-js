@@ -60,8 +60,8 @@ const { t, locale, setLocale } = useI18n();
 ```
 
 `t()` fills `{name}` from its second argument. `$t` is the same `t()` in every template. Both
-catalogs are inline, so the switch loads nothing; with a `loader`, `setLocale()` can reject: see
-[A rejected `setLocale()`](#a-rejected-setlocale).
+catalogs are inline, so the switch loads nothing; with a `loader`, `setLocale()` can fail: see
+[A failed `setLocale()`](#a-failed-setlocale).
 
 ## Typed keys
 
@@ -163,24 +163,26 @@ export const i18n = createI18n({
 });
 ```
 
-If you passed `onError`, you can call `void i18n.setLocale(code)` or `void i18n.load(ns)` without an
-empty `.catch()`. If you await the result, the error still interrupts execution. A promise derived
-from the call (`.then(fn)`, an `async` function that awaits it without a `catch`) is yours to
-handle, and without the `onError` option nothing changes: an ignored rejection is a global
-`unhandledrejection`.
-
-## A rejected `setLocale()`
+## A failed `setLocale()`
 
 With a `loader`, `setLocale()` loads the catalogs of the new locale and its parents (`de` for
-`de-AT`) before it switches. When none of them loads, the promise rejects with the loader's error,
-`onError` gets `load_failed`, and the locale and the text on screen stay as they were. Calling
-`setLocale()` again calls the loader again.
+`de-AT`) before it switches. It keeps the locale and the text on screen, and resolves with an
+`Error`, only when the new locale's own load failed in every namespace it waited for and none of
+them has a catalog of the new locale or its parents in place, a cached one included. The `Error` is
+the loader's own when the loader rejected with an `Error`, else one whose `cause` is the rejection;
+an `Error` from another realm or with a `then` method is wrapped too. Calling `setLocale()` again
+calls the loader again.
+
+`setLocale()` and `i18n.load()` do not reject for a failed load: they resolve with the failure or
+with `undefined`. A call that a newer `setLocale()` overtook resolves `undefined` too, and `locale`
+is what is on screen. Write `const failure = await setLocale(code)` and test
+`failure !== undefined`.
 
 ## Retry with `load()`
 
 A namespace whose load failed renders its "not available" branch, and mounting the component again
 does not call the loader. `i18n.load(ns)` does: it calls the loader again for the catalogs of `ns`
-that failed, and it rejects with the loader's error only when the locale's own catalog fails again
+that failed, and it resolves with an `Error` only when the locale's own catalog fails again
 and no catalog of its parents (`de` for `de-AT`) is usable; a `fallbackLocale`'s does not count.
 
 ```vue title="src/Account.vue" check=group=vue-app
@@ -189,12 +191,12 @@ import { ref } from "vue";
 import { useI18n } from "@comvi/vue";
 const { t, locale, setLocale, isReady, isLoading, i18n } = useI18n("account");
 const failed = ref(false);
-const toggle = () =>
-  setLocale(locale.value === "en" ? "uk" : "en").then(
-    () => (failed.value = false),
-    () => (failed.value = true),
-  );
-const retry = () => void i18n.load("account"); // no `.catch()`: `onError` is set
+async function toggle() {
+  failed.value = false;
+  const failure = await setLocale(locale.value === "en" ? "uk" : "en");
+  if (failure !== undefined) failed.value = true;
+}
+const retry = () => void i18n.load("account"); // isReady and isLoading follow the retry
 </script>
 
 <template>
