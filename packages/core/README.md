@@ -116,10 +116,11 @@ stop();
 `on(fn)` calls `fn` on every change the instance publishes (a switch, a catalog added, a load that
 starts or settles, a failed one too) and returns the function that unsubscribes; it takes no event
 name. `setLocale()` loads what the new locale needs, keeps the current locale on screen meanwhile,
-then switches. It resolves with an `Error`, and the locale stays, only when no namespace it waited
-for has a catalog of the new locale or of its parents (`de` for `de-AT`). Every other call resolves
-`undefined`, a call that a newer `setLocale()` overtook included: read `i18n.locale` for what is
-on screen.
+then switches. It resolves with an `Error`, and the locale stays, only when the new locale's own
+load failed in every namespace it waited for and none of them has a catalog of the new locale or of
+its parents (`de` for `de-AT`) in place. An invalid tag resolves with a `RangeError` and does not
+overtake a pending switch. Every other call resolves `undefined`, a call that a newer
+`setLocale()` overtook included: read `i18n.locale` for what is on screen.
 
 ## Load catalogs
 
@@ -153,8 +154,9 @@ resolves with an `Error` only when the locale's own catalog failed and no parent
 `de-AT`) is usable.
 
 `setLocale()` and `load()` do not reject for a failed load. They resolve with the failure, an
-`Error` (the loader's own, or one whose `cause` is what the loader rejected with; a `RangeError` for
-an invalid tag), or with `undefined`. Write `const failure = await i18n.load(ns)` and test
+`Error` (the loader's own when it rejected with an `Error`, else one whose `cause` is the
+rejection, as for an `Error` from another realm or with a `then` method; a `RangeError` for an
+invalid tag), or with `undefined`. Write `const failure = await i18n.load(ns)` and test
 `failure !== undefined`; a call you do not await raises no `unhandledrejection`.
 
 ```ts title="src/billing.ts" check=group=core-2

@@ -207,10 +207,12 @@ export default defineI18nOptions((event) => {
 Switch with a link (`useSwitchLocalePath()`, `<NuxtLinkLocale locale>`): a switch whose catalogs all
 fail keeps the locale on screen and its URL, and `onError` gets `load_failed`. `setLocale()` changes
 the i18n instance only (the text and the cookie, not the URL), and the next navigation applies the
-URL's locale: use it as the switch with `localePrefix: "never"`. When no catalog of the new locale
-or its parents (`de` for `de-AT`) loads, it resolves with an `Error` (the loader's own when the
-loader rejected with one) and the locale and the text on screen stay as they were. Calling
-`setLocale()` again calls the loader again.
+URL's locale: use it as the switch with `localePrefix: "never"`. `setLocale()` keeps the locale
+and the text on screen, and resolves with an `Error`, only when the new locale's own load failed in
+every namespace it waited for and none of them has a catalog of the new locale or its parents (`de`
+for `de-AT`) in place, a cached one included. The `Error` is the loader's own when the loader
+rejected with an `Error`, else one whose `cause` is the rejection; an `Error` from another realm
+or with a `then` method is wrapped too. Calling `setLocale()` again calls the loader again.
 
 `setLocale()` and `i18n.load()` do not reject for a failed load: they resolve with the failure or
 with `undefined`. A call that a newer `setLocale()` overtook resolves `undefined` too, and `locale`
@@ -230,7 +232,7 @@ previous page on screen instead, wait for the load in the page's setup, as the `
 <script setup lang="ts">
 const { t, locale, setLocale, isReady, isLoading, isFetching, i18n } = useI18n("account");
 const retry = () => i18n.load("account");
-if (isFetching.value) await retry(); // a failed load resolves: the page renders its retry button
+if (isFetching.value) await retry(); // settles, failed or not: isReady and isLoading pick the branch
 const failed = ref(false);
 async function toggle() {
   failed.value = false;

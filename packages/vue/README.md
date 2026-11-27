@@ -166,9 +166,12 @@ export const i18n = createI18n({
 ## A failed `setLocale()`
 
 With a `loader`, `setLocale()` loads the catalogs of the new locale and its parents (`de` for
-`de-AT`) before it switches. When none of them loads, the promise resolves with an `Error` (the
-loader's own when the loader rejected with one), `onError` gets `load_failed`, and the locale and
-the text on screen stay as they were. Calling `setLocale()` again calls the loader again.
+`de-AT`) before it switches. It keeps the locale and the text on screen, and resolves with an
+`Error`, only when the new locale's own load failed in every namespace it waited for and none of
+them has a catalog of the new locale or its parents in place, a cached one included. The `Error` is
+the loader's own when the loader rejected with an `Error`, else one whose `cause` is the rejection;
+an `Error` from another realm or with a `then` method is wrapped too. Calling `setLocale()` again
+calls the loader again.
 
 `setLocale()` and `i18n.load()` do not reject for a failed load: they resolve with the failure or
 with `undefined`. A call that a newer `setLocale()` overtook resolves `undefined` too, and `locale`

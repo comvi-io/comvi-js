@@ -100,10 +100,12 @@ failed or aborted ones too, and says nothing about a namespace's catalog.
 
 - At the call it takes the active set; the loads it waits for are those of that set, never rebuilt
   while it is pending. The locale on screen stays until the switch applies.
-- The latest call wins: an earlier one then never switches and resolves `undefined` once its loads
-  settle. The latest switches when at least one namespace it waited for has a catalog of `l`'s own
-  chain in place (`de-AT` or `de`); it resolves with an `Error`, keeping the old locale, only when
-  every one of them has none. It never rejects for a failed load.
+- The latest valid call wins: an earlier one then never switches and resolves `undefined` once its
+  loads settle or are aborted. An invalid tag resolves with a `RangeError` before that rule applies,
+  so it overtakes nothing. The latest call resolves with an `Error`, keeping the old locale, only
+  when `l`'s own load failed in every namespace it waited for and none of them has a catalog of
+  `l`'s own chain in place (`de-AT` or `de`); otherwise it switches. It never rejects for a failed
+  load.
 - After the switch applies, what the new active set lacks for `l` loads (not awaited): a consumer
   that mounted while the switch was pending ends with `l`'s catalog. A switch that fails loads
   again what the active set lacks for the locale kept on screen.

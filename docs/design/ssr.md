@@ -82,7 +82,8 @@ One rule for the first snapshot and every later one (`<I18nHandover catalogs>` i
   it lacks is gone, `{}` is empty, `null` is a failed server result;
 - a slot absent from the snapshot is left as it is; `add()` stays a patch on top;
 - a load of the same pair still running in the browser is aborted, and its late answer ignored;
-  a `load(ns)` waiting on it resolves `undefined` for a catalog and with an `Error` for a `null`;
+  a `load(ns)` waiting on it resolves `undefined` for a catalog; for a `null` it resolves with an
+  `Error` only when no catalog of the locale's own chain (`de-AT`, its parent `de`) is in place;
 - with two handovers on one instance, the last one applied wins per slot;
 - catalogs and snapshots are plain data, read by their own keys; inherited properties are not part
   of the contract.

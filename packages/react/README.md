@@ -161,9 +161,12 @@ export const i18n = createI18n({
 ## A failed `setLocale()`
 
 With a `loader`, `setLocale()` loads the catalogs of the new locale and its parents (`de` for
-`de-AT`) before it switches. When none of them loads, the promise resolves with an `Error` (the
-loader's own when the loader rejected with one), `onError` gets `load_failed`, and the locale and
-the text on screen stay as they were. Calling `setLocale()` again calls the loader again.
+`de-AT`) before it switches. It keeps the locale and the text on screen, and resolves with an
+`Error`, only when the new locale's own load failed in every namespace it waited for and none of
+them has a catalog of the new locale or its parents in place, a cached one included. The `Error` is
+the loader's own when the loader rejected with an `Error`, else one whose `cause` is the rejection;
+an `Error` from another realm or with a `then` method is wrapped too. Calling `setLocale()` again
+calls the loader again.
 
 `setLocale()` and `i18n.load()` do not reject for a failed load: they resolve with the failure or
 with `undefined`. A call that a newer `setLocale()` overtook resolves `undefined` too, and `locale`
@@ -214,10 +217,12 @@ takes the same handlers: `t("terms", { link: (c) => <a href="/terms">{c}</a> })`
 ## Server payload
 
 On a server, create an i18n instance per request (`timeZone` is required), `await i18n.ready`, load
-each namespace the route uses (a server render starts no load from `useI18n(ns)`), render, and embed
-`handover(i18n)` from `@comvi/core/ssr` in the page. Check each load before the render:
+each namespace the route reads, `default` included (a server render starts no load from
+`useI18n(ns)`, and `ready` does not say which load failed), render, and embed `handover(i18n)` from
+`@comvi/core/ssr` in the page. Check each load before the render:
 `const failure = await i18n.load("account"); if (failure !== undefined) throw failure;`. Without the
-check, the render goes on with fallback text or keys, and `onError` has the report. In the
+check, the render goes on with fallback text, keys or a component's own not-available branch, and
+`onError` has the report. In the
 browser, create the instance from that payload first, `createI18n({ ...options, ...payload })`: it
 asks the loader for nothing the server sent. `<I18nHandover catalogs locale>` hands a later payload
 to a running instance. On a client render, an `<I18nHandover>` under a shut `loading` or `suspense`
