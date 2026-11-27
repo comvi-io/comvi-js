@@ -171,10 +171,11 @@ export interface I18n {
    * Resolves with the failure or with nothing, and does not reject for a failed load or an
    * invalid tag. It resolves with an `Error`, keeping the old locale, only when EVERY namespace
    * the latest call waited for has none: the loader's own error when it is an `Error` (the same
-   * object), else an `Error` whose `cause` is what the loader rejected with; an invalid tag
-   * resolves with a `RangeError`. Every other call resolves `undefined`: switched, already
-   * there, overtaken by a newer call (read `i18n.locale` for what is on screen), or the instance
-   * destroyed. Failures are reported through `onError` either way.
+   * object), else an `Error` whose `cause` is what the loader rejected with (an `Error` of another
+   * realm or with a `then` method is wrapped too); an invalid tag resolves with a `RangeError`.
+   * Every other call resolves `undefined`: switched, already there, overtaken by a newer call
+   * (read `i18n.locale` for what is on screen), or made on a destroyed instance. Failures are
+   * reported through `onError` either way.
    */
   setLocale(locale: string): Promise<Error | undefined>;
   /**
@@ -187,9 +188,11 @@ export interface I18n {
    * resolves with an `Error` when, as its loads settle, the locale's own load of `ns` failed and
    * no catalog of `ns` from the locale's own chain (`de-AT`, its parent `de`) is in place: the
    * loader's own error when it is an `Error` (the same object), else an `Error` whose `cause` is
-   * what the loader rejected with. Every other call resolves `undefined`: a parent's or a
-   * fallback locale's failure alone, a load a switch aborted, the instance destroyed. A fallback
-   * locale's catalog can make a binding's `isReady` true while this resolves with an `Error`.
+   * what the loader rejected with (an `Error` of another realm or with a `then` method is wrapped
+   * too). Every other call resolves `undefined`: a parent's or a fallback locale's failure alone,
+   * a load a switch aborted, a call made on a destroyed instance. A call made before `destroy()`
+   * resolves by the rule above as its loads settle or are aborted. A fallback locale's catalog
+   * can make a binding's `isReady` true while this resolves with an `Error`.
    */
   load(ns: string): Promise<Error | undefined>;
   /** Adds messages to (locale, ns) — by reference into an empty pair, else as a patch layer. */

@@ -383,6 +383,24 @@ export const cases: Case[] = [
     reports: [],
   },
   {
+    // Made BEFORE destroy(): the destroy aborts the parent's load the call still waited for,
+    // after the locale's own load had failed. Only a call made on a destroyed instance is
+    // `undefined` (the case above).
+    name: "load: made before destroy(): on de-AT, de-AT:extra fails, destroy() aborts de:extra: the Error",
+    options: { locale: "de-AT", catalogs: { default: { "de-AT": { a: "A" }, de: {} } } },
+    call: (i) => i.load("extra"),
+    settle: async (c, i) => {
+      await c.fail("de-AT:extra");
+      expect([...c.pending.keys()]).toEqual(["de:extra"]);
+      i.destroy();
+      await flush();
+    },
+    value: { is: "E" },
+    locale: "de-AT",
+    facts: ["extra", false, true],
+    reports: ["load_failed"],
+  },
+  {
     name: "load: a handed-over null at creation is asked for again, and fails",
     options: { catalogs: { default: { en: { a: "A" } }, extra: { en: null } } },
     call: (i) => i.load("extra"),
