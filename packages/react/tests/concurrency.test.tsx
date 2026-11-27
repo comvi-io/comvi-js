@@ -64,7 +64,7 @@ describe("no tearing", () => {
     );
     act(() =>
       startTransition(() => {
-        void i18n.setLocale("fr").catch(() => {});
+        void i18n.setLocale("fr");
         void i18n.setLocale("de");
       }),
     );
@@ -128,7 +128,7 @@ describe("component-render counter (synthesis §4.4)", () => {
     expect(localeRenders).toBe(N);
     localeRenders = 0;
     i18nRenders = 0;
-    let load!: Promise<void>;
+    let load!: Promise<Error | undefined>;
     act(() => void (load = i18n.load("shop")));
     await l.answer("en:shop");
     await act(() => load);

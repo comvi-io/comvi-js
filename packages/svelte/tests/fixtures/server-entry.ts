@@ -7,7 +7,7 @@ import RichApp from "./RichApp.svelte";
 
 export const serve = async (o: object, load: (l: string) => Promise<object>, ns: string) => {
   const i18n = createI18n({ ...o, onError() {}, loader: (l: string) => load(l) } as never);
-  await i18n.load(ns).catch(() => {});
+  await i18n.load(ns);
   const { body } = render(AccountApp, { props: { i18n } });
   return { body, payload: JSON.parse(JSON.stringify(handover(i18n))) };
 };

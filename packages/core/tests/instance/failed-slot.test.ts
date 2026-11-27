@@ -68,7 +68,7 @@ describe("a failed slot after creation", () => {
 });
 
 describe("re-review of lot 6a (2026-11-10)", () => {
-  it("a load(ns) whose flight a payload's null aborts rejects with an Error (item 3)", async () => {
+  it("a load(ns) whose flight a payload's null aborts resolves with an Error (item 3)", async () => {
     let answer!: (c: Record<string, string>) => void;
     const i18n = createI18n({
       locale: "uk",
@@ -84,11 +84,7 @@ describe("re-review of lot 6a (2026-11-10)", () => {
     await Promise.resolve();
     core(i18n).f("uk", "admin");
     answer({ title: "late" });
-    const e = await waiting.then(
-      () => "resolved",
-      (x: unknown) => x,
-    );
-    expect(e).toBeInstanceOf(Error);
+    expect(await waiting).toBeInstanceOf(Error);
     expect(i18n.t("title", { ns: "admin" })).toBe("Admin");
   });
 

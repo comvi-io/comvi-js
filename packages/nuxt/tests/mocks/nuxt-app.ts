@@ -95,18 +95,19 @@ export function setMockI18n(i18n: any) {
 
 /**
  * A stand-in instance whose `setLocale()` calls stay pending until the test settles each
- * one: `land(i)` shows call i's locale and resolves it, `fail(i)` rejects it (the locale on
- * screen stays), `resolve(i)` resolves it without switching (a superseded call in the core).
+ * one: `land(i)` shows call i's locale and resolves it, `fail(i)` resolves it with an Error (the
+ * core's refused switch: the locale on screen stays), `resolve(i)` resolves it without switching
+ * (a superseded call in the core).
  */
 export function deferredInstance(locale: string) {
-  const calls: Array<{ target: string; resolve: () => void; reject: (e: Error) => void }> = [];
+  const calls: Array<{ target: string; resolve: (failure?: Error) => void }> = [];
   const instance = {
     locale,
     get targets() {
       return calls.map((c) => c.target);
     },
     setLocale: (target: string) =>
-      new Promise<void>((resolve, reject) => void calls.push({ target, resolve, reject })),
+      new Promise<Error | undefined>((resolve) => void calls.push({ target, resolve })),
     land(i: number) {
       instance.locale = calls[i]!.target;
       calls[i]!.resolve();
@@ -115,7 +116,7 @@ export function deferredInstance(locale: string) {
       calls[i]!.resolve();
     },
     fail(i: number) {
-      calls[i]!.reject(new Error("load_failed"));
+      calls[i]!.resolve(new Error("load_failed"));
     },
   };
   return instance;
@@ -125,8 +126,9 @@ export function deferredInstance(locale: string) {
 export function fakeInstance(locale: string) {
   const instance = {
     locale,
-    setLocale: async (next: string) => {
+    setLocale: async (next: string): Promise<Error | undefined> => {
       instance.locale = next;
+      return undefined;
     },
   };
   return instance;

@@ -32,7 +32,7 @@ describe("setLocale() from a subscriber, and the flights (lot 4d)", () => {
       loader: m.load,
     });
     acquire(i18n, "account");
-    let fr: Promise<void> | undefined;
+    let fr: Promise<Error | undefined> | undefined;
     i18n.on(() => {
       if (!fr && m.requested.filter((k) => k == "en:account").length == 2)
         fr = i18n.setLocale("fr");
@@ -49,20 +49,20 @@ describe("setLocale() from a subscriber, and the flights (lot 4d)", () => {
     expect(state(i18n).ld).toEqual([]);
   });
 
-  it("a failure with recovery and no newer call still rejects (the ordinary path)", async () => {
+  it("a failure with recovery and no newer call still resolves with the failure (the ordinary path)", async () => {
     const m = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: m.load });
     const de = i18n.setLocale("de");
     await m.fail("de:default", new Error("404 de"));
-    await expect(de).rejects.toThrow("404 de");
+    await expect(de).resolves.toMatchObject({ message: expect.stringContaining("404 de") });
     expect(i18n.locale).toBe("en");
   });
 
   it("a subscriber's two switches: the last call wins, every promise settles", async () => {
     const m = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {}, de: {}, it: {} }, loader: m.load });
-    let fr: Promise<void> | undefined;
-    let it_: Promise<void> | undefined;
+    let fr: Promise<Error | undefined> | undefined;
+    let it_: Promise<Error | undefined> | undefined;
     i18n.on(() => {
       if (!fr && i18n.locale == "de") {
         fr = i18n.setLocale("fr");
@@ -83,7 +83,7 @@ describe("setLocale() from a subscriber, and the flights (lot 4d)", () => {
       namespaces: ["default"],
       loader: m.load,
     });
-    let fr: Promise<void> | undefined;
+    let fr: Promise<Error | undefined> | undefined;
     i18n.on(() => {
       if (!fr && m.signals.has("en:shop") && !state(i18n).ld.length) fr = i18n.setLocale("fr");
     });
@@ -136,8 +136,8 @@ describe("setLocale() from a subscriber, and the flights (lot 4d)", () => {
   it("destroy() from a subscriber: every promise settles, nothing is left in flight or starts after it", async () => {
     const m = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {}, de: {} }, loader: m.load });
-    let fr: Promise<void> | undefined;
-    let ld: Promise<void> | undefined;
+    let fr: Promise<Error | undefined> | undefined;
+    let ld: Promise<Error | undefined> | undefined;
     let asked = -1;
     i18n.on(() => {
       if (!fr && i18n.locale == "de") {
@@ -248,8 +248,8 @@ describe("setLocale() from a subscriber, and the flights (lot 4d)", () => {
   });
   it("a failed flight's cleanup leaves the newer request of the same key: onError switches away and back", async () => {
     const m = manualLoader();
-    let fr: Promise<void> | undefined;
-    let back: Promise<void> | undefined;
+    let fr: Promise<Error | undefined> | undefined;
+    let back: Promise<Error | undefined> | undefined;
     const i18n: I18n = make({
       locale: "en",
       messages: { en: {}, fr: {} },
@@ -274,7 +274,7 @@ describe("setLocale() from a subscriber, and the flights (lot 4d)", () => {
   });
   it("a stale prune leaves the rest to the newer switch: a flight in the newer chain goes on", async () => {
     const m = manualLoader();
-    let fr: Promise<void> | undefined;
+    let fr: Promise<Error | undefined> | undefined;
     const { i18n } = make({
       locale: "en",
       fallbackLocale: { fr: ["en"] },
@@ -306,8 +306,8 @@ describe("outside the contract, not a promise: setLocale() from a loader or an a
   it("A · an abort listener and a cleanup notification re-enter: the replacement flight of the same key survives", async () => {
     const m = manualLoader();
     const signals: AbortSignal[] = [];
-    let fr: Promise<void> | undefined;
-    let en: Promise<void> | undefined;
+    let fr: Promise<Error | undefined> | undefined;
+    let en: Promise<Error | undefined> | undefined;
     const { i18n } = make({
       locale: "en",
       catalogs: { default: { en: {}, fr: {} }, account: { fr: {} } },
@@ -347,7 +347,7 @@ describe("outside the contract, not a promise: setLocale() from a loader or an a
 
   it("B · a loader calls setLocale() synchronously: the flight it was started for is registered, aborted and forgotten", async () => {
     const m = manualLoader();
-    let fr: Promise<void> | undefined;
+    let fr: Promise<Error | undefined> | undefined;
     const { i18n } = make({
       locale: "en",
       messages: { en: {}, fr: {} },
@@ -372,7 +372,7 @@ describe("outside the contract, not a promise: setLocale() from a loader or an a
 
   it("a loader re-enters through load(): the switch wins, load()'s flight is aborted, the promises settle", async () => {
     const m = manualLoader();
-    let fr: Promise<void> | undefined;
+    let fr: Promise<Error | undefined> | undefined;
     const { i18n } = make({
       locale: "en",
       catalogs: { default: { en: {}, fr: {} }, account: { fr: {} } },
@@ -393,7 +393,7 @@ describe("outside the contract, not a promise: setLocale() from a loader or an a
 
   it("a loader's setLocale() through a hold ends on the new locale", async () => {
     const m = manualLoader();
-    let fr: Promise<void> | undefined;
+    let fr: Promise<Error | undefined> | undefined;
     const { i18n } = make({
       locale: "en",
       messages: { en: {}, fr: {} },

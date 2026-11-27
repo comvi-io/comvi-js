@@ -1,12 +1,11 @@
 /**
- * BUG COM-216 (open, not fixed here): a `load(ns)` waiting while a server payload hands the
- * pair over as `null` (`<I18nHandover catalogs>`) rejects, and `onError` hears nothing. With the
- * `onError` option the core marks only a rejection it reported handled (core changeset
- * "handled rejection with onError"), so this one stays the app's: ignored, it is a global
- * `unhandledRejection`; caught, it is the app's alone, with no second unhandled promise.
+ * BUG COM-216 B (open, not fixed here; pinned as it is): a `load(ns)` waiting while a server
+ * payload hands the pair over as `null` (`<I18nHandover catalogs>`) resolves with an `Error`, and
+ * `onError` hears nothing. Ignored, the call raises no `unhandledRejection` (the core's commands
+ * resolve with their failure); awaited, the app gets the server's `Error`.
  *
  * `unhandled()` sets Vitest's own `unhandledRejection` listeners aside while `fn` runs plus
- * one macrotask, and puts them back (see core tests/instance/handled-rejection.test.ts).
+ * one macrotask, and puts them back (see core tests/outcomes.ts).
  */
 import { act, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -50,28 +49,23 @@ const setup = () => {
   return { i18n, errors, handOver };
 };
 
-describe("BUG COM-216: load(ns) a handover's null slot ends, onError set", () => {
-  it("ignored: no report reaches onError, and the rejection stays globally visible", async () => {
+describe("BUG COM-216 B, pinned: load(ns) a handover's null slot ends, onError set", () => {
+  it("ignored: no report reaches onError, and no unhandledRejection fires", async () => {
     const { i18n, errors, handOver } = setup();
     const seen = await unhandled(async () => {
       void i18n.load("extra");
       await handOver();
     });
-    expect(seen).toHaveLength(1);
-    expect(seen[0]).toBeInstanceOf(Error);
+    expect(seen).toEqual([]);
     expect(errors).toEqual([]);
   });
 
-  it("caught with try/await/catch: the app gets the error, and no unhandledRejection fires", async () => {
+  it("awaited: resolves with the server's Error, no report, no unhandledRejection", async () => {
     const { i18n, errors, handOver } = setup();
     let got: unknown;
     const seen = await unhandled(async () => {
       const p = (async () => {
-        try {
-          await i18n.load("extra");
-        } catch (e) {
-          got = e;
-        }
+        got = await i18n.load("extra");
       })();
       await handOver();
       await p;

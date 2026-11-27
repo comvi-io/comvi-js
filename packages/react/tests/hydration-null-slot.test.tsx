@@ -51,7 +51,7 @@ async function hydrate(o: {
     },
     onError: () => {},
   });
-  await server.load(o.ns).catch(() => {});
+  await server.load(o.ns);
   const payload = handover(server);
   const ui = (i: I18n, catalogs = payload.catalogs) => (
     <I18nProvider i18n={i}>
@@ -273,7 +273,7 @@ describe("a load of the pair already in flight on the client at hydration (revie
       expect(el.innerHTML).toBe(html);
       // An explicit retry after the commit: the new flight shows.
       const calls = loader.mock.calls.length;
-      void client.load(c.ns).catch(() => {});
+      void client.load(c.ns);
       await act(async () => {});
       expect(loader.mock.calls.length).toBeGreaterThan(calls);
       expect(seen.at(-1)).toBe("false/true");

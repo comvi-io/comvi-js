@@ -25,7 +25,7 @@ describe("production instance", () => {
       "nope",
       "1,234 x", // a fallback message formats for the locale it was written in
     ]);
-    await expect(i18n.setLocale("!!")).rejects.toThrow(RangeError);
+    await expect(i18n.setLocale("!!")).resolves.toBeInstanceOf(RangeError);
     expect(errors.map((e) => [e.code, e.message])).toEqual([
       ["fallback_used", undefined],
       ["missing_param", undefined],

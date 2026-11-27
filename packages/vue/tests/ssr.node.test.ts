@@ -204,7 +204,7 @@ describe("handover() of a namespace served through the fallback chain", () => {
       },
     });
     // de:help failed and nothing of de's own chain has it: load() rejects (lot 4b).
-    await Promise.all([i18n.load("help").catch(() => {}), i18n.ready]);
+    await Promise.all([i18n.load("help"), i18n.ready]);
     expect(handover(i18n).catalogs.help).toEqual({ de: null, en: { faq: "en:help" } });
   });
 });

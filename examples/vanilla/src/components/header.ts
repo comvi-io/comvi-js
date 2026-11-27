@@ -5,13 +5,15 @@ import { state, update } from "../state";
 // `setLocale` resolves once the new catalog has landed, so the page never shows
 // old text under the new locale; `switching` covers the wait. A failed switch
 // keeps the current language on screen, reports the error through onError and
-// rejects; calling setLocale() again asks the loader again.
-function switchTo(code: string): void {
+// resolves with it; calling setLocale() again asks the loader again. A switch a
+// later click overtook resolves with nothing: the latest click owns the note.
+let clicks = 0;
+async function switchTo(code: string): Promise<void> {
+  const click = ++clicks;
   update({ switching: true, failed: null });
-  i18n.setLocale(code).then(
-    () => update({ switching: false }),
-    () => update({ switching: false, failed: code }),
-  );
+  const failure = await i18n.setLocale(code);
+  if (click !== clicks) return;
+  update({ switching: false, failed: failure === undefined ? null : code });
 }
 
 function localeButton(code: string): HTMLButtonElement {

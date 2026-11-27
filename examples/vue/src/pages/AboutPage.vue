@@ -14,10 +14,8 @@ const { t, i18n } = useI18n();
 // Whether the route could not load the `account` namespace (main.ts); load() asks again.
 const accountFailed = ref(useRoute().meta.accountFailed === true);
 async function retry() {
-  accountFailed.value = await i18n.load("account").then(
-    () => false,
-    () => true,
-  );
+  const failure = await i18n.load("account");
+  accountFailed.value = failure !== undefined;
 }
 </script>
 

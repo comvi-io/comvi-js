@@ -25,13 +25,12 @@ const router = createRouter({
       // no frame shows its keys. While the page shows, its useI18n("account")
       // holds the namespace, so a language switch loads it too; once the page
       // closes it stays cached and a switch skips it (the route loads it again).
-      // A failed load rejects (and is reported through onError): the page still
-      // opens, and offers to load it again.
+      // A failed load resolves with the Error (and is reported through onError): the
+      // page still opens, and offers to load it again. The guard returns nothing, so
+      // the router never reads the outcome as a navigation result.
       beforeEnter: async (to) => {
-        to.meta.accountFailed = await i18n.load("account").then(
-          () => false,
-          () => true,
-        );
+        const failure = await i18n.load("account");
+        to.meta.accountFailed = failure !== undefined;
       },
     },
   ],

@@ -41,7 +41,7 @@ describe("isReady / isFetching", () => {
     const frames: string[] = [];
     const w = mountWith(i18n, Probe, { ns: "shop", frames });
     expect(w.text()).toBe("Shop");
-    const p = i18n.setLocale("de").catch(() => {});
+    const p = i18n.setLocale("de");
     await settle();
     expect(frames.at(-1)).toBe("true/true");
     await l.answer("de:default");

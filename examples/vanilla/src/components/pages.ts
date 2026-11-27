@@ -61,36 +61,37 @@ export function featuresPage(): Node[] {
 // the page renders in a locale it has not loaded `account` for (a switch, or a
 // visit after one), it loads it again and shows the loading row meanwhile —
 // never the previous language's rows.
-let account: string | null = null;
+/** Whether `locale`'s own `account` catalog is in the instance. */
+const loaded = (locale: string) =>
+  i18n.has("profile.signed_in", { ns: "account", locale, fallback: false });
 let loading: string | null = null;
-/** The locale whose `account` load failed; `load()` rejects then, and asks again when called. */
+/**
+ * The locale whose `account` load failed; `load()` resolves with the Error then, and asks again
+ * when called.
+ */
 let failed: string | null = null;
-function loadAccount(): void {
+async function loadAccount(): Promise<void> {
   const locale = i18n.locale;
-  if (account === locale || loading === locale || failed === locale) return;
+  if (loaded(locale) || loading === locale || failed === locale) return;
   loading = locale;
-  const settle = (ok: boolean) => {
-    if (loading !== locale) return;
-    loading = null;
-    if (ok) account = locale;
-    else failed = locale;
-    update({});
-  };
-  i18n.load("account").then(
-    () => settle(true),
-    () => settle(false),
-  );
+  const failure = await i18n.load("account");
+  if (loading !== locale) return;
+  loading = null;
+  // A load a switch aborted resolves with nothing and loads nothing: `loaded()` stays false
+  // and the render asks again.
+  if (failure !== undefined) failed = locale;
+  update({});
 }
 
 function retryAccount(): void {
   failed = null;
-  loadAccount();
+  void loadAccount();
   update({});
 }
 
 function accountRows(): HTMLElement[] {
   if (failed === i18n.locale) return [loadError(retryAccount)];
-  if (account !== i18n.locale) return [h("p", { class: "body" }, i18n.t("app.loading"))];
+  if (!loaded(i18n.locale)) return [h("p", { class: "body" }, i18n.t("app.loading"))];
   // Without a framework there is no `useI18n("account")`: each call names its namespace.
   return [
     h(
@@ -113,7 +114,7 @@ function accountRows(): HTMLElement[] {
 }
 
 export function aboutPage(): Node[] {
-  loadAccount();
+  void loadAccount();
   return [
     header(),
     h(

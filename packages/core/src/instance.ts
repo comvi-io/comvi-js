@@ -11,7 +11,7 @@
  * the platform canonicalizes separator and case only, so `canonicalize()`'s output
  * (`he` for `iw`) would address a catalog that does not exist. The canonical form is
  * computed alongside and is what Intl receives; a tag that does not canonicalize is
- * rejected BEFORE anything renders it (`invalid_locale`).
+ * refused BEFORE anything renders it (`invalid_locale`).
  *
  * Loading: one flight per (locale, namespace), deduped; each pair settles on its own
  * (R4-11). `setLocale(l)` switches when the target needs nothing (synchronously, inside
@@ -119,9 +119,7 @@ export interface I18nOptions {
    * pair unknown again); with a loader a pair never requested or still loading keeps it
    * unknown (no report), without one the catalogs in place are complete. Reported at the
    * read. `load_failed`: a load failed. A namespace with no catalog of the read's chain (a
-   * typo) is no report; development warns. With this option set, a rejection of `setLocale()`
-   * or `load()` whose failure it reported is marked handled: ignoring that promise raises no
-   * global `unhandledRejection`; the default reporter does not count.
+   * typo) is no report; development warns.
    */
   onError?: OnError;
   /**
@@ -169,26 +167,34 @@ export interface I18n {
    * synchronous call from a loader or an abort listener is not supported. The latest call
    * switches when at least one namespace it waited for has a catalog of `locale`'s own chain in
    * place (`de-AT`, or its parent `de`); a namespace whose load failed then renders its fallback.
-   * It rejects with the loader's error, keeping the old locale, only when EVERY namespace it
-   * waited for has none; an invalid tag rejects with a `RangeError`. Failures are reported through
-   * `onError` either way. With the `onError` option, this promise (the same object, the same
-   * reason for whoever awaits it) is marked handled once `onError` has the failure's report, so
-   * ignoring it raises no global `unhandledRejection`; a promise derived from it (`.then(fn)`, an
-   * `async` caller's) is the caller's. Without the option an ignored rejection stays global.
+   *
+   * Resolves with the failure or with nothing, and does not reject for a failed load or an
+   * invalid tag. It resolves with an `Error`, keeping the old locale, only when EVERY namespace
+   * the latest call waited for has none: the loader's own error when it is an `Error` (the same
+   * object), else an `Error` whose `cause` is what the loader rejected with (an `Error` of another
+   * realm or with a `then` method is wrapped too); an invalid tag resolves with a `RangeError`.
+   * Every other call resolves `undefined`: switched, already there, overtaken by a newer call
+   * (read `i18n.locale` for what is on screen), or made on a destroyed instance. Failures are
+   * reported through `onError` either way.
    */
-  setLocale(locale: string): Promise<void>;
+  setLocale(locale: string): Promise<Error | undefined>;
   /**
    * Loads namespace `ns` for the current locale's chain, asking its failed loads again (the
    * explicit retry): a route's preload, a server's before it renders. It does not keep `ns`
    * active — a later `setLocale()` loads it only while a component's `useI18n(ns)` holds it
-   * (or the `namespaces` option names it); the loaded catalogs stay cached. Rejects with the
-   * loader's error when, as its loads settle, the locale's own load of `ns` failed and no
-   * catalog of `ns` from the locale's own chain (`de-AT`, its parent `de`) is in place; else
-   * resolves `undefined` — a parent's or a fallback locale's failure alone does not reject,
-   * nor does a load a switch aborted. A binding's hold never rejects. A rejection is marked handled
-   * as in `setLocale()`.
+   * (or the `namespaces` option names it); the loaded catalogs stay cached.
+   *
+   * Resolves with the failure or with nothing, and does not reject for a failed load. It
+   * resolves with an `Error` when, as its loads settle, the locale's own load of `ns` failed and
+   * no catalog of `ns` from the locale's own chain (`de-AT`, its parent `de`) is in place: the
+   * loader's own error when it is an `Error` (the same object), else an `Error` whose `cause` is
+   * what the loader rejected with (an `Error` of another realm or with a `then` method is wrapped
+   * too). Every other call resolves `undefined`: a parent's or a fallback locale's failure alone,
+   * a load a switch aborted, a call made on a destroyed instance. A call made before `destroy()`
+   * resolves by the rule above as its loads settle or are aborted. A fallback locale's catalog
+   * can make a binding's `isReady` true while this resolves with an `Error`.
    */
-  load(ns: string): Promise<void>;
+  load(ns: string): Promise<Error | undefined>;
   /** Adds messages to (locale, ns) — by reference into an empty pair, else as a patch layer. */
   add(locale: string, messages: CatalogInput, ns?: string): void;
   /**
@@ -260,8 +266,8 @@ export interface Core {
    * (or none) means what `createI18n({ catalogs })` gives it — the pair joins the negative cache
    * (asked for again only by `load(ns)` or a switch to its locale) and a catalog in place for it
    * leaves, so the fallback the server rendered renders. Either way a load of the pair in flight
-   * is aborted and its late answer ignored: a `load(ns)` waiting on it RESOLVES when the server
-   * handed a catalog (`{}` too: the pair is loaded, by the server) and rejects with an Error only
+   * is aborted and its late answer ignored: a `load(ns)` waiting on it resolves `undefined` when
+   * the server handed a catalog (`{}` too: the pair is loaded, by the server) and with an `Error`
    * for a `null`. Publishes only when something changed.
    */
   f(locale: string, ns: string, catalog?: CatalogInput | null): void;
@@ -269,12 +275,13 @@ export interface Core {
    * `setLocale(locale)` of a binding's handover with its CURRENT payload's `catalogs`: a pair the
    * payload carries as `null` is the server's result — not asked for again, and the switch lands
    * through the fallback the server rendered, as a fresh mount does. Every other failure of the
-   * target is retried and decides as in `setLocale()`.
+   * target is retried and decides as in `setLocale()`, with the same outcome: an `Error` where
+   * the switch is refused, else `undefined`.
    */
   L(
     locale: string,
     catalogs?: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
-  ): Promise<void>;
+  ): Promise<Error | undefined>;
   /**
    * A catalog as the instance accepts it (flat.ts), for a binding's render-local entry
    * (`view()`): flattened once per catalog object, a collision or an invalid leaf reported once.
@@ -332,8 +339,11 @@ export const MS = new WeakMap<object, (f: Mark | null) => void>();
 
 const D = "default";
 const K = "\0";
-/** `ready` when nothing loads: one resolved promise, the same object every time. */
-const R = /* @__PURE__ */ Promise.resolve();
+/**
+ * `ready` when nothing loads: one resolved promise, the same object every time; also what a
+ * command of a destroyed instance returns (nothing failed).
+ */
+const R = /* @__PURE__ */ Promise.resolve() as Promise<undefined>;
 
 /** Runs `f`; what it throws is rethrown outside the caller's loop, so the loop goes on. */
 const safe = (f: void | (() => void)) => {
@@ -358,8 +368,7 @@ export const createI18n = (o: I18nOptions): I18n => {
   // Configuration is immutable after creation: updating it by mutating what was passed is not
   // supported. Read as given, never written.
   const fb = o.fallbackLocale || 0;
-  const oe = o.onError;
-  const h = oe || defaultOnError;
+  const h = o.onError || defaultOnError;
   /** Reports; what the reporter throws is rethrown outside the render or the load. */
   const report: OnError = (e) => safe(() => h(e));
   const env: Env = { r: report };
@@ -369,16 +378,27 @@ export const createI18n = (o: I18nOptions): I18n => {
   const fl = new Map<string, Flight>();
   /** Loads that failed — the negative cache — with their errors. */
   const bad = new Map<string, unknown>();
-  /** The failure each pair last reported through `onError`. */
-  const rp = new Map<string, unknown>();
   /**
-   * Failure `k`, after marking `p` (what `setLocale()` / `load()` returned, rejecting with it)
-   * handled when the app's own `onError` got that failure's report.
+   * What `setLocale()` / `load()` resolves with for the failed pair (l, n): the loader's own
+   * error when it is an `Error` (the same object), else an `Error` whose `cause` is the reason
+   * (`undefined`, `0`, a string: a falsy one too reads as a failure). Never throws, never
+   * returns a thenable (a promise would adopt it): an `Error` with a `then` method, one from
+   * another realm, a reason whose inspection throws (a revoked proxy) are wrapped too.
    */
-  const fail = (p: Promise<void> | undefined, k: string, e = bad.get(k)) => (
-    oe && rp.get(k) === e && p?.catch(noop),
-    e
-  );
+  const fv = (
+    l: string,
+    n: string,
+    e = bad.get(l + K + n),
+    w = Error(__DEV__ ? `[@comvi/core] could not load "${n}" in "${l}"` : l + ":" + n, {
+      cause: e,
+    }),
+  ): Error => {
+    try {
+      return e instanceof Error && typeof (e as { then?: unknown }).then != "function" ? e : w;
+    } catch {
+      return w;
+    }
+  };
   /**
    * Hold counts by namespace (lot 4c). A namespace of the `namespaces` option starts at 1,
    * a pin never released; a key at 0 is a namespace needed once (held, `load()`ed, handed
@@ -494,7 +514,7 @@ export const createI18n = (o: I18nOptions): I18n => {
   };
   /**
    * What the negative cache holds for a pair a server payload handed over as `null`: the error a
-   * `load(ns)` waiting on the pair rejects with (a payload's `null` aborted its flight).
+   * `load(ns)` waiting on the pair resolves with (a payload's `null` aborted its flight).
    */
   const sf = (l: string, n: string) =>
     Error(__DEV__ ? `[@comvi/core] the server could not load "${n}" in "${l}"` : l + K + n);
@@ -511,7 +531,7 @@ export const createI18n = (o: I18nOptions): I18n => {
   // cache, so the browser asks for it only on an explicit retry (`load(ns)`, a switch to
   // its locale), and a consumer of it is not loading at hydration (a known result, as on
   // the server). Its cached value, an Error (`sf`), is what a `load(ns)` that waits on the pair
-  // rejects with; a switch clears its target's failures first, `load(ns)` its namespace's.
+  // resolves with; a switch clears its target's failures first, `load(ns)` its namespace's.
   for (const n in cats)
     for (const l in cats[n])
       if (cats[n][l]) c0 = ing(c0, l, cats[n][l]!, n);
@@ -670,11 +690,7 @@ export const createI18n = (o: I18nOptions): I18n => {
             // A parent's failure waits for `p`'s own load of `n` and is reported only if
             // that failed too.
             .catch(
-              (
-                e,
-                c = f![2] && f![2] + K + n,
-                r = () => (rp.set(k, e), err("load_failed", l, n, undefined, e)),
-              ) =>
+              (e, c = f![2] && f![2] + K + n, r = () => err("load_failed", l, n, undefined, e)) =>
                 no() ||
                 (bad.set(k, e),
                 c ? (fl.get(c)?.[0] || R).then(() => bad.has(c) && r()) : r(),
@@ -725,19 +741,19 @@ export const createI18n = (o: I18nOptions): I18n => {
 
   /**
    * Loads what the current chain lacks of `n` (failed pairs stay failed); with `x` (`load()`)
-   * rejects by the rule of `load()`. `n` is needed from now on (`handover()` hands it over);
+   * resolves with the failure by the rule of `load()`. `n` is needed from now on (`handover()` hands it over);
    * the first time, in the one publish of `ensure()`. `y`: a consumer's hold, counted BEFORE
    * anything publishes — a subscriber that switches the locale in that publish sees `n` in
    * the active set (Codex review of lot 4c, HIGH).
    */
-  const use = (n: string, x?: unknown, y = 0, p?: Promise<void>): Promise<void> => {
+  const use = (n: string, x?: unknown, y = 0): Promise<Error | undefined> => {
     const g = !(n in cnt);
     cnt[n] = (cnt[n] | 0) + y;
     return dead
       ? R
-      : (p = Promise.all(ensure(S.locale, [n], g)).then(() => {
-          if (x && lost(n)) throw fail(p, S.locale + K + n);
-        }));
+      : Promise.all(ensure(S.locale, [n], g)).then(() =>
+          x && lost(n) ? fv(S.locale, n) : undefined,
+        );
   };
 
   const lost = (n: string, l = S.locale, ch = chain(l)) =>
@@ -750,16 +766,11 @@ export const createI18n = (o: I18nOptions): I18n => {
   const sw = (
     l: string,
     p?: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
-    q?: Promise<void>,
-  ): Promise<void> => {
+  ): Promise<Error | undefined> => {
     if (dead) return R;
-    // Production names the tag only (the report says `invalid_locale`): handled with `onError`.
+    // Production names the tag only (the report says `invalid_locale`).
     if (!valid(l))
-      return (
-        (q = Promise.reject(RangeError(__DEV__ ? `[@comvi/core] invalid locale "${l}"` : l))),
-        oe && q.catch(noop),
-        q
-      );
+      return Promise.resolve(RangeError(__DEV__ ? `[@comvi/core] invalid locale "${l}"` : l));
     // The last call is decided here, whenever its body runs.
     const my = ++seq;
     const ch = chain(l);
@@ -791,8 +802,7 @@ export const createI18n = (o: I18nOptions): I18n => {
         // stay. A failure from anywhere else (the browser, an earlier payload) still is.
         if (ns.length && ns.every((n) => lost(n, l, ch) && p?.[n]?.[l] !== null)) {
           ensure(S.locale, act());
-          if (my == seq) throw fail(q, l + K + ns[0]);
-          return;
+          return my == seq ? fv(l, ns[0]) : undefined;
         }
         // Loads of the old locale a load(ns) started meanwhile are obsolete now.
         prune();
@@ -805,12 +815,12 @@ export const createI18n = (o: I18nOptions): I18n => {
       }
     };
     // Nothing to load: the switch happens inside this call.
-    return (q = new Promise((y) => {
+    return new Promise((y) => {
       prune();
       // The target's own failures are asked for again (but the handover payload's `null`s).
       if (my == seq) retry(0, l, p);
-      y(go() as void);
-    }));
+      y(go() as Error | undefined);
+    });
   };
 
   const i18n: I18n = {

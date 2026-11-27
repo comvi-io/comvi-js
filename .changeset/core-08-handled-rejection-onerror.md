@@ -1,5 +1,0 @@
----
-"@comvi/core": patch
----
-
-With the `onError` option, an ignored `setLocale()` or `load()` that fails no longer raises a global `unhandledrejection`. When `onError` has received the report of the failure (`load_failed`, or `invalid_locale` for a tag that is not valid), the instance marks the promise it returned as handled. It is the same promise object: whoever awaits it still gets the rejection, with the original reason (the error the loader threw, or a `RangeError` for an invalid tag), at the same moment, and `onError` receives the same report as before. Two boundaries hold. A promise derived from it is the caller's: `setLocale(code).then(fn)` and an `async` function that awaits it without a `catch` still reject unhandled when nothing catches them. And passing `onError` changes global visibility: an app whose `onError` handles only `missing_key` no longer gets a global `unhandledrejection` for the `load_failed` of a call it ignores. A rejection `onError` got no report for stays globally visible. Without the `onError` option nothing changes: the built-in default reporter does not count, and an ignored rejection stays global.

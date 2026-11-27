@@ -129,13 +129,14 @@ export const I18nHandover = ({
     // The core's switch of a handover: a pair the current payload carries as `null` is the
     // server's result (not asked for again, no reason to stay), where `setLocale()` retries it.
     if (go && target != i.locale)
-      core(i)
+      void core(i)
         .L(target, catalogs)
-        .catch(() =>
-          // Reported through onError already (load_failed; the render refused an invalid tag):
-          // give the target up for this payload, so the subtree renders the instance's locale
-          // instead of keys in the target.
-          setH((h) => (h[0] == i && h[1] == target ? [i, target, h[2], h[3], catalogs] : h)),
+        .then(
+          (f) =>
+            // Refused (reported through onError already: load_failed; the render refused an
+            // invalid tag): give the target up for this payload, so the subtree renders the
+            // instance's locale instead of keys in the target. Overtaken: nothing to give up.
+            f && setH((h) => (h[0] == i && h[1] == target ? [i, target, h[2], h[3], catalogs] : h)),
         );
   }, [i, target, catalogs]);
   return provide(v, children);

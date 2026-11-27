@@ -17,7 +17,7 @@ type State = {
   _comviTargetEnds?: true;
   _comviNavigating?: number;
   _comviNavigation?: number;
-  $i18n: { locale: string; setLocale(locale: string): Promise<unknown> };
+  $i18n: { locale: string; setLocale(locale: string): Promise<Error | undefined> };
 };
 type To = { path: string; redirectedFrom?: { path: string } };
 interface RouterLike {
@@ -49,7 +49,7 @@ export function watchNavigations(nuxtApp: object, router: RouterLike) {
       const locale = targetFor(nuxtApp, to);
       if (locale || state._comviNavigating) {
         state._comviNavigation = (state._comviNavigation ?? 0) + 1;
-        state.$i18n.setLocale(locale ?? state.$i18n.locale).catch(() => {});
+        void state.$i18n.setLocale(locale ?? state.$i18n.locale);
       }
     }
     delete state._comviTarget;

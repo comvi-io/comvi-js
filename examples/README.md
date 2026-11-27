@@ -129,11 +129,12 @@ The file is generated, so it is not committed. `npm run typecheck` writes the sa
 
 ### A failed load
 
-`setLocale()` rejects when no catalog of the new locale or its parents (`de` for `de-AT`) can be
-loaded and keeps the current locale on screen; `load("account")` rejects when the namespace's
-catalog of the locale on screen fails and no parent's is usable. Both report the error through
-`onError` first. The examples catch the rejection, show `app.load_failed` with an `app.retry`
-button, and call the same function again on a click. With the CDN variable set, the retry fetches
+`setLocale()` resolves with an `Error` when no catalog of the new locale or its parents (`de` for
+`de-AT`) can be loaded and keeps the current locale on screen; `load("account")` resolves with an
+`Error` when the namespace's catalog of the locale on screen fails and no parent's is usable. Both
+report the error through `onError` first; every other call resolves with nothing. The examples
+read that value (`const failure = await setLocale(code)`), show `app.load_failed` with an
+`app.retry` button when it is an `Error`, and call the same function again on a click. With the CDN variable set, the retry fetches
 the catalog again. A bundled catalog is a dynamic `import()`, and Chromium keeps a failed `import()`
 failed until the page reloads, so there the retry fails again until then.
 

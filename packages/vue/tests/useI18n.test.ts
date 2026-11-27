@@ -6,7 +6,7 @@
  * activeNamespaces, isInitializing, the formatters (→ @comvi/vue/format), useI18nLoader
  * (`i18n.load(ns)`), the capability composables.
  */
-import { defineComponent, h, nextTick, ref, shallowRef } from "vue";
+import { defineComponent, h, nextTick, ref, shallowRef, watchEffect } from "vue";
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { createI18n, useI18n, type UseI18n } from "../src";
@@ -80,6 +80,60 @@ describe("useI18n()", () => {
     await settle();
     expect(u.locale.value).toBe("en");
     expect(errors.map((e) => e.code)).toContain("invalid_locale");
+  });
+
+  it("a switch through the locale ref whose loader rejects with a revoked proxy rejects nothing and re-runs its readers", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const u = capture(i18n).get();
+    const runs: string[] = [];
+    watchEffect(() => void runs.push(u.locale.value), { flush: "sync" });
+    // `instanceof` of a revoked proxy throws: the core must wrap it, not reject.
+    const r = Proxy.revocable(new Error("revoked"), {});
+    r.revoke();
+    const seen: unknown[] = [];
+    const own = process.listeners("unhandledRejection");
+    const on = (e: unknown) => void seen.push(e);
+    process.removeAllListeners("unhandledRejection");
+    process.on("unhandledRejection", on);
+    try {
+      u.locale.value = "de";
+      await l.fail("de:default", r.proxy);
+      await new Promise((y) => setTimeout(y, 0));
+    } finally {
+      process.off("unhandledRejection", on);
+      for (const x of own) process.on("unhandledRejection", x);
+    }
+    expect(seen).toEqual([]);
+    expect(runs).toEqual(["en", "en"]);
+  });
+
+  it("a failed switch through the locale ref re-runs its readers, which read the locale on screen", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const u = capture(i18n).get();
+    const runs: string[] = [];
+    watchEffect(() => void runs.push(u.locale.value), { flush: "sync" });
+    u.locale.value = "de";
+    await l.fail("de:default");
+    expect(runs).toEqual(["en", "en"]);
+    u.locale.value = "!!";
+    await settle();
+    expect(runs).toEqual(["en", "en", "en"]);
+  });
+
+  it("a switch through the locale ref that a newer one overtakes re-runs no reader", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const u = capture(i18n).get();
+    const runs: string[] = [];
+    watchEffect(() => void runs.push(u.locale.value), { flush: "sync" });
+    u.locale.value = "de";
+    u.locale.value = "fr";
+    await settle();
+    expect(runs).toEqual(["en"]);
+    await l.answer("fr:default");
+    expect(runs).toEqual(["en", "fr"]);
   });
 
   it("reports rtl for a right-to-left locale", () => {

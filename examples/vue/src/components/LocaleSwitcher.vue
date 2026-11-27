@@ -12,10 +12,12 @@ const { t, locale, setLocale, isFetching } = useI18n();
 const failed = ref<string | null>(null);
 
 // A failed switch keeps the current language on screen, reports the error through
-// onError and rejects; calling setLocale() again asks the loader again.
-function switchTo(code: string) {
+// onError and resolves with it; calling setLocale() again asks the loader again. A
+// switch a later click overtook resolves with nothing.
+async function switchTo(code: string) {
   failed.value = null;
-  setLocale(code).catch(() => (failed.value = code));
+  const failure = await setLocale(code);
+  if (failure !== undefined) failed.value = code;
 }
 </script>
 

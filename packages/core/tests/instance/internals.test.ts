@@ -62,22 +62,24 @@ describe("setLocale() and the loads it supersedes", () => {
     expect(i18n.t("a")).toBe("A");
   });
 
-  it("rejects with the target's own load error, also for a namespace no catalog has", async () => {
+  it("resolves with the target's own load error, also for a namespace no catalog has", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", namespaces: ["shop"], loader: l.load });
     await l.fail("en:shop");
     const boom = new Error("404 fr");
     const p = i18n.setLocale("fr");
     await l.fail("fr:shop", boom);
-    await expect(p).rejects.toBe(boom);
+    await expect(p).resolves.toBe(boom);
   });
 
-  it("rejects an invalid locale with a message that names it", async () => {
+  it("resolves an invalid locale with a RangeError that names it", async () => {
     const { i18n } = make({ locale: "en" });
-    await expect(i18n.setLocale("a/b")).rejects.toThrow('[@comvi/core] invalid locale "a/b"');
+    await expect(i18n.setLocale("a/b")).resolves.toMatchObject({
+      message: expect.stringContaining('[@comvi/core] invalid locale "a/b"'),
+    });
   });
 
-  it("after destroy() ignores even an invalid locale: no rejection, no report", async () => {
+  it("after destroy() ignores even an invalid locale: resolves undefined, no report", async () => {
     const { i18n, errors } = make({ locale: "en" });
     i18n.destroy();
     await expect(i18n.setLocale("a/b")).resolves.toBeUndefined();

@@ -77,7 +77,7 @@ describe("loading", () => {
     const { i18n } = make({ locale: "en", namespaces: [], loader: l.load });
     const first = i18n.load("shop");
     await l.fail("en:shop");
-    await expect(first).rejects.toThrow("404 en:shop");
+    await expect(first).resolves.toMatchObject({ message: expect.stringContaining("404 en:shop") });
     const second = i18n.load("shop");
     await l.answer("en:shop", { t: "Cart" });
     await second;
@@ -95,12 +95,16 @@ describe("loading", () => {
         throw new Error("sync");
       },
     });
-    await expect(i18n.load("shop")).rejects.toThrow("sync");
+    await expect(i18n.load("shop")).resolves.toMatchObject({
+      message: expect.stringContaining("sync"),
+    });
     expect(errors).toEqual([
       expect.objectContaining({ code: "load_failed", locale: "en", ns: "shop" }),
     ]);
     expect(state(i18n).ld).toEqual([]);
-    await expect(i18n.load("shop")).rejects.toThrow("sync");
+    await expect(i18n.load("shop")).resolves.toMatchObject({
+      message: expect.stringContaining("sync"),
+    });
     expect(calls).toBe(2);
   });
 
@@ -112,7 +116,7 @@ describe("loading", () => {
         namespaces: [],
         loader: async () => v as never,
       });
-      await expect(i18n.load("shop")).rejects.toThrow();
+      await expect(i18n.load("shop")).resolves.toBeInstanceOf(Error);
       expect(errors.map((e) => e.code)).toEqual(["load_failed"]);
       expect(state(i18n).ld).toEqual([]);
     },

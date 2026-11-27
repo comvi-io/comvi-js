@@ -123,7 +123,7 @@ describe.each([
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("an instance: load(ns) rejects with the timeout; load(ns) again (the explicit retry) loads", async () => {
+  it("an instance: load(ns) resolves with the timeout error; load(ns) again (the explicit retry) loads", async () => {
     const { f, urls } = transport(how, true);
     const { i18n, errors } = make({
       locale: "en",
@@ -133,7 +133,7 @@ describe.each([
     const p = track(i18n.load("extra"));
     await vi.advanceTimersByTimeAsync(50);
     const u = "https://cdn.example/extra/en.json";
-    expect(await outcome(p)).toEqual(["rejected", MSG(u)]);
+    expect(await outcome(p)).toEqual(["resolved", expect.objectContaining({ message: MSG(u) })]);
     expect(errors.filter((e) => e.ns == "extra")).toEqual([
       expect.objectContaining({ code: "load_failed", locale: "en", ns: "extra" }),
     ]);
@@ -176,7 +176,7 @@ describe.each([
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("timeout, then destroy(): load(ns) has rejected with the timeout; destroy() reports nothing more", async () => {
+  it("timeout, then destroy(): load(ns) has resolved with the timeout error; destroy() reports nothing more", async () => {
     const { f } = transport(how);
     const { i18n, errors } = make({
       locale: "en",
@@ -185,7 +185,10 @@ describe.each([
     });
     const p = track(i18n.load("extra"));
     await vi.advanceTimersByTimeAsync(50);
-    expect(await outcome(p)).toEqual(["rejected", MSG("https://cdn.example/extra/en.json")]);
+    expect(await outcome(p)).toEqual([
+      "resolved",
+      expect.objectContaining({ message: MSG("https://cdn.example/extra/en.json") }),
+    ]);
     const n = errors.length;
     i18n.destroy();
     await flush();
@@ -193,7 +196,7 @@ describe.each([
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("a switch superseded during a hanging request resolves; the newer one rejects with the timeout and keeps the locale", async () => {
+  it("a switch superseded during a hanging request resolves; the newer one resolves with the timeout error and keeps the locale", async () => {
     const { f, signals, urls } = transport(how);
     const { i18n } = make({
       locale: "en",
@@ -208,7 +211,10 @@ describe.each([
       name: "AbortError",
     });
     await vi.advanceTimersByTimeAsync(50);
-    expect(await outcome(fr)).toEqual(["rejected", MSG("https://cdn.example/fr.json")]);
+    expect(await outcome(fr)).toEqual([
+      "resolved",
+      expect.objectContaining({ message: MSG("https://cdn.example/fr.json") }),
+    ]);
     expect(i18n.locale).toBe("en");
     expect(vi.getTimerCount()).toBe(0);
   });

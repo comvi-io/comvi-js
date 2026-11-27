@@ -7,7 +7,7 @@
 
   function handleChange(event: Event) {
     const target = event.target as HTMLSelectElement;
-    r.setLocale(target.value).catch(() => {});
+    r.setLocale(target.value);
   }
 </script>
 

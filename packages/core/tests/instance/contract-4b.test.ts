@@ -70,7 +70,8 @@ describe("setLocale() contract (lot 4b)", () => {
     const pt = i18n.setLocale("pt"); // shares the pt flight, aborts pt-BR's own
     expect(l.signals.get("pt-BR:default")!.aborted).toBe(true);
     await l.answer("pt:default");
-    await Promise.all([ptBR, pt]);
+    // The superseded call resolves `undefined` (it never switched); so does the one that switched.
+    expect(await Promise.all([ptBR, pt])).toStrictEqual([undefined, undefined]);
     expect(i18n.locale).toBe("pt");
   });
 
@@ -85,7 +86,7 @@ describe("setLocale() contract (lot 4b)", () => {
     expect(loading(state(i18n))).toBe(false);
   });
 
-  it("6 · a superseded call resolves even when its target failed; the latest call rejects", async () => {
+  it("6 · a superseded call resolves even when its target failed; the latest call resolves with the failure", async () => {
     const l = manualLoader();
     const { i18n, errors } = make({
       locale: "en",
@@ -96,26 +97,28 @@ describe("setLocale() contract (lot 4b)", () => {
     const pt = i18n.setLocale("pt");
     await l.fail("pt:default", new Error("404 pt"));
     await expect(ptBR).resolves.toBeUndefined();
-    await expect(pt).rejects.toThrow("404 pt");
+    await expect(pt).resolves.toMatchObject({ message: expect.stringContaining("404 pt") });
     expect(i18n.locale).toBe("en");
     // Reported once, for the pair that failed; the aborted pt-BR load is not reported.
     expect(errors.map((e) => [e.code, e.locale])).toEqual([["load_failed", "pt"]]);
   });
 
-  it("6 · rejects with the loader's error only when no catalog of the target's own chain loaded", async () => {
+  it("6 · resolves with the loader's error only when no catalog of the target's own chain loaded", async () => {
     const t = tableLoader({ "en:default": { a: "A-en" }, "de:default": { a: "A-de" } });
     const { i18n } = make({ locale: "en", fallbackLocale: "en", loader: t.load });
     await i18n.ready;
-    await expect(i18n.setLocale("fr")).rejects.toThrow("no catalog for fr:default");
+    await expect(i18n.setLocale("fr")).resolves.toMatchObject({
+      message: expect.stringContaining("no catalog for fr:default"),
+    });
     expect(i18n.locale).toBe("en");
     await expect(i18n.setLocale("de-AT")).resolves.toBeUndefined(); // de is in its own chain
     expect(i18n.t("a")).toBe("A-de");
   });
 
-  it("6 · an invalid tag rejects with a RangeError and requests nothing", async () => {
+  it("6 · an invalid tag resolves with a RangeError and requests nothing", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
-    await expect(i18n.setLocale("!!")).rejects.toThrow(RangeError);
+    await expect(i18n.setLocale("!!")).resolves.toBeInstanceOf(RangeError);
     expect(l.requested).toEqual([]);
   });
 });
@@ -134,7 +137,7 @@ describe("load(ns) contract (lot 4b)", () => {
     await expect(i18n.load("other")).resolves.toBeUndefined(); // nothing can load it
   });
 
-  it("rejects with the loader's error when nothing of the locale's own chain loaded; renders the fallback", async () => {
+  it("resolves with the loader's error when nothing of the locale's own chain loaded; renders the fallback", async () => {
     const t = tableLoader({ "en:shop": { s: "S-en" } });
     const { i18n, errors } = make({
       locale: "de",
@@ -142,7 +145,9 @@ describe("load(ns) contract (lot 4b)", () => {
       messages: { de: {}, en: {} },
       loader: t.load,
     });
-    await expect(i18n.load("shop")).rejects.toThrow("no catalog for de:shop");
+    await expect(i18n.load("shop")).resolves.toMatchObject({
+      message: expect.stringContaining("no catalog for de:shop"),
+    });
     expect(errors).toContainEqual(
       expect.objectContaining({ code: "load_failed", locale: "de", ns: "shop" }),
     );
@@ -163,7 +168,9 @@ describe("load(ns) contract (lot 4b)", () => {
     expect(acquire(i18n, "shop")).toBeTypeOf("function");
     await expect(i18n.ready).resolves.toBeUndefined();
     // load() is the explicit retry: it asks again and reports the outcome.
-    await expect(i18n.load("shop")).rejects.toThrow("no catalog for en:shop");
+    await expect(i18n.load("shop")).resolves.toMatchObject({
+      message: expect.stringContaining("no catalog for en:shop"),
+    });
     expect(t.loaded()).toEqual(["en:shop", "en:shop"]);
   });
 });

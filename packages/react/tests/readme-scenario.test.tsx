@@ -84,7 +84,7 @@ const start = () => {
   const toggle = () =>
     act(() => void fireEvent.click(view.container.querySelector("button.greeting")!));
   /** A switch to a locale the toggle does not reach, as a caller that handles the rejection. */
-  const pick = (v: string) => act(() => void i18n.setLocale(v).catch(() => {}));
+  const pick = (v: string) => act(() => void i18n.setLocale(v));
   return { l, i18n, view, h1, terms, toggle, pick, errors };
 };
 
@@ -174,7 +174,7 @@ describe("README React app (lot 4b)", () => {
     // R3-21: nothing is asked for after the hydration.
     expect(l.requested).toEqual([]);
     // The app goes on: a switch loads what the payload did not carry.
-    await act(async () => void client.setLocale("de").catch(() => {}));
+    await act(async () => void client.setLocale("de"));
     await l.answer("de:default");
     expect(container.querySelector("button.greeting")!.textContent).toBe("Hallo, Alice!");
     expect(l.requested).toEqual(["de:default"]);
@@ -232,13 +232,13 @@ describe("README React app (lot 4b)", () => {
 function Account() {
   const { t, locale, setLocale, isReady, isFetching, i18n } = useI18n("account");
   const [failed, setFailed] = useState(false);
-  const toggle = () =>
-    setLocale(locale === "en" ? "uk" : "en").then(
-      () => setFailed(false),
-      () => setFailed(true),
-    );
-  // load() rejects when the catalog fails again: `isReady` stays false, `onError` has the report.
-  const retry = () => i18n.load("account").catch(() => {});
+  const toggle = async () => {
+    const failure = await setLocale(locale === "en" ? "uk" : "en");
+    setFailed(failure !== undefined);
+  };
+  // load() resolves with an Error when the catalog fails again: `isReady` stays false, `onError`
+  // has the report.
+  const retry = () => void i18n.load("account");
   if (!isReady && !isFetching) return <button onClick={retry}>Not available. Retry</button>;
   return (
     <>
@@ -285,7 +285,7 @@ describe("README Account (lot 4c)", () => {
     const account = () =>
       view.container.querySelector("h2, p.spinner")?.outerHTML ?? button().outerHTML;
     const click = () => act(() => void fireEvent.click(button()));
-    const pick = (v: string) => act(() => void i18n.setLocale(v).catch(() => {}));
+    const pick = (v: string) => act(() => void i18n.setLocale(v));
     return {
       ...{ l, i18n, view, account, button, click, pick, errors },
       show: (b: boolean) => act(() => show(b)),
@@ -323,7 +323,7 @@ describe("README Account (lot 4c)", () => {
     expect(s.l.requested.filter((r) => r === "en:account")).toHaveLength(3);
   });
 
-  it("a rejected setLocale(): the locale and the text stay, the button says so; a second click asks again", async () => {
+  it("a refused setLocale(): the locale and the text stay, the button says so; a second click asks again", async () => {
     const s = mount();
     await s.l.answer("en:default");
     await s.l.answer("en:account");

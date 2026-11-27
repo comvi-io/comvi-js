@@ -121,12 +121,12 @@ export const createI18n = (options: I18nOptions): VueI18n => {
     // The `locale` slice: re-renders its readers on a locale change only. A failed switch
     // is reported through `onError` (load_failed, invalid_locale) and keeps the old
     // locale; its readers re-render then too, so a `v-model` control shows the locale on
-    // screen again instead of the one it asked for. A `v-model` has nobody to hand the
-    // rejection to: `setLocale()` is the call that rejects.
+    // screen again instead of the one it asked for. A switch a newer one overtook re-renders
+    // nothing. A `v-model` has nobody to hand the failure to: `setLocale()` returns it.
     ((l: ComputedRef<string>) =>
       customRef((track, trigger) => ({
         get: () => (track(), l.value),
-        set: (v: string) => i.setLocale(v).catch(trigger),
+        set: (v: string) => i.setLocale(v).then((f) => f && trigger()),
       })))(computed(() => s.value.locale)),
     computed(() => s.value.dir),
     N<FunctionalComponent>(),
@@ -306,7 +306,11 @@ export interface UseI18n<NS extends string = "default"> {
    * `namespaces` option; a namespace outside them changes nothing.
    */
   isFetching: ComputedRef<boolean>;
-  setLocale: (locale: string) => Promise<void>;
+  /**
+   * The instance's `setLocale()`: resolves with an `Error` when the switch is refused (no
+   * catalog of the locale's own chain, or an invalid tag), else `undefined`.
+   */
+  setLocale: (locale: string) => Promise<Error | undefined>;
   i18n: I18n;
 }
 

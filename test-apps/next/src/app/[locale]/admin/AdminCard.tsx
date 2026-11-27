@@ -13,7 +13,7 @@ export function AdminCard() {
     <div data-testid="admin-client" data-ready={String(isReady)} data-loading={String(isFetching)}>
       <p data-testid="admin-title">{t("welcome_admin")}</p>
       <p data-testid="admin-default">{t("home.title", { ns: "default" })}</p>
-      <button data-testid="retry-load" onClick={() => void i18n.load("admin").catch(() => {})}>
+      <button data-testid="retry-load" onClick={() => void i18n.load("admin")}>
         load
       </button>
       <button data-testid="retry-refresh" onClick={() => router.refresh()}>

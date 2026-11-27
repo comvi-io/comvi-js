@@ -4,7 +4,7 @@ const { t, isReady, isLoading, isFetching, i18n } = useI18n("account");
 // When the catalog is awaited now, load the namespace explicitly and wait for the result.
 // The error is already reported through `onError`; the page shows the fallback or the
 // "unavailable" state.
-if (isFetching.value) await i18n.load("account").catch(() => {});
+if (isFetching.value) await i18n.load("account");
 </script>
 
 <template>
@@ -17,9 +17,7 @@ if (isFetching.value) await i18n.load("account").catch(() => {});
     <h1 v-else data-testid="account-title">
       unavailable
       <!-- The error is already reported through `onError`; the branch shows the result. -->
-      <button data-testid="account-retry" @click="i18n.load('account').catch(() => {})">
-        retry
-      </button>
+      <button data-testid="account-retry" @click="i18n.load('account')">retry</button>
     </h1>
   </section>
 </template>

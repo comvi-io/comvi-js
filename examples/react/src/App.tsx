@@ -58,13 +58,12 @@ export const routes: RouteObject[] = [
         // no frame shows its keys. While the page shows, its useI18n("account")
         // holds the namespace, so a language switch loads it too; once the page
         // closes it stays cached and a switch skips it (the route loads it again).
-        // A failed load rejects (and is reported through onError): the page still
-        // opens, and offers to load it again.
-        loader: () =>
-          i18n.load("account").then(
-            () => ({ accountFailed: false }),
-            () => ({ accountFailed: true }),
-          ),
+        // A failed load resolves with the Error (and is reported through onError): the
+        // page still opens, and offers to load it again.
+        loader: async () => {
+          const failure = await i18n.load("account");
+          return { accountFailed: failure !== undefined };
+        },
         Component: About,
       },
     ],

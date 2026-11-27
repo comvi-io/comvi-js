@@ -48,7 +48,11 @@ export function setup() {
   const l: string = locale;
   const d: "ltr" | "rtl" = dir;
   const b: boolean = isFetching && isReady;
-  const p: Promise<void> = setLocale("de");
+  // setLocale resolves with the failure or nothing: exactly Promise<Error | undefined>.
+  const p: [Same<ReturnType<typeof setLocale>, Promise<Error | undefined>>, unknown] = [
+    true,
+    setLocale("de"),
+  ];
   const u: UseI18n["t"] = t;
   return [s, r, n, m, c, l, d, b, p, u];
 }
@@ -63,3 +67,7 @@ export const children = (c: Children): Children => c;
 export const inMarkup: TComponent extends Component<any> ? true : false = true;
 export const boundInMarkup: BoundT<"shop"> extends Component<any> ? true : false = true;
 export const snippetText = (s: TagSnippet): TagSnippet => s;
+
+/** `true` only when A and B are the same type (not merely assignable either way). */
+type Same<A, B> =
+  (<X>() => X extends A ? 1 : 2) extends <X>() => X extends B ? 1 : 2 ? true : false;
