@@ -11,6 +11,7 @@
  * built entries, both builds (tests/dist/outcomes.test.ts). Every loader answer is given by the
  * test; nothing waits on a clock.
  */
+import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 import type { I18nError } from "../src/errors";
 import type { I18n, I18nOptions, createI18n as Create } from "../src/instance";
@@ -115,11 +116,22 @@ interface Case {
 
 const EN = { default: { en: { a: "A" } } };
 
+/** A proxy of an `Error`, revoked: `instanceof` (any inspection) of it throws a `TypeError`. */
+const revoked = Proxy.revocable(new Error("revoked"), {});
+revoked.revoke();
+
 const reasons: [string, unknown][] = [
   ["a string", "nope"],
   ["undefined", undefined],
   ["null", null],
   ["0", 0],
+  ["a revoked proxy", revoked.proxy],
+  // Handed to a promise as is, it would be adopted: the call would resolve `undefined`.
+  [
+    "an Error with a then method",
+    Object.assign(new Error("failed"), { then: (y: (v: unknown) => void) => y(undefined) }),
+  ],
+  ["an Error of another realm (node:vm)", runInNewContext("new Error('other realm')")],
 ];
 
 export const cases: Case[] = [

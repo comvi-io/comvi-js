@@ -378,14 +378,24 @@ export const createI18n = (o: I18nOptions): I18n => {
   /**
    * What `setLocale()` / `load()` resolves with for the failed pair (l, n): the loader's own
    * error when it is an `Error` (the same object), else an `Error` whose `cause` is the reason
-   * (`undefined`, `0`, a string: a falsy one too reads as a failure).
+   * (`undefined`, `0`, a string: a falsy one too reads as a failure). Never throws, never
+   * returns a thenable (a promise would adopt it): an `Error` with a `then` method, one from
+   * another realm, a reason whose inspection throws (a revoked proxy) are wrapped too.
    */
-  const fv = (l: string, n: string, e = bad.get(l + K + n)): Error =>
-    e instanceof Error
-      ? e
-      : Error(__DEV__ ? `[@comvi/core] could not load "${n}" in "${l}"` : l + ":" + n, {
-          cause: e,
-        });
+  const fv = (
+    l: string,
+    n: string,
+    e = bad.get(l + K + n),
+    w = Error(__DEV__ ? `[@comvi/core] could not load "${n}" in "${l}"` : l + ":" + n, {
+      cause: e,
+    }),
+  ): Error => {
+    try {
+      return e instanceof Error && typeof (e as { then?: unknown }).then != "function" ? e : w;
+    } catch {
+      return w;
+    }
+  };
   /**
    * Hold counts by namespace (lot 4c). A namespace of the `namespaces` option starts at 1,
    * a pin never released; a key at 0 is a namespace needed once (held, `load()`ed, handed

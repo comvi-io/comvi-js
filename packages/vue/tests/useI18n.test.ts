@@ -82,6 +82,32 @@ describe("useI18n()", () => {
     expect(errors.map((e) => e.code)).toContain("invalid_locale");
   });
 
+  it("a switch through the locale ref whose loader rejects with a revoked proxy rejects nothing and re-runs its readers", async () => {
+    const l = manualLoader();
+    const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
+    const u = capture(i18n).get();
+    const runs: string[] = [];
+    watchEffect(() => void runs.push(u.locale.value), { flush: "sync" });
+    // `instanceof` of a revoked proxy throws: the core must wrap it, not reject.
+    const r = Proxy.revocable(new Error("revoked"), {});
+    r.revoke();
+    const seen: unknown[] = [];
+    const own = process.listeners("unhandledRejection");
+    const on = (e: unknown) => void seen.push(e);
+    process.removeAllListeners("unhandledRejection");
+    process.on("unhandledRejection", on);
+    try {
+      u.locale.value = "de";
+      await l.fail("de:default", r.proxy);
+      await new Promise((y) => setTimeout(y, 0));
+    } finally {
+      process.off("unhandledRejection", on);
+      for (const x of own) process.on("unhandledRejection", x);
+    }
+    expect(seen).toEqual([]);
+    expect(runs).toEqual(["en", "en"]);
+  });
+
   it("a failed switch through the locale ref re-runs its readers, which read the locale on screen", async () => {
     const l = manualLoader();
     const { i18n } = make({ locale: "en", messages: { en: {} }, loader: l.load });
