@@ -83,7 +83,7 @@ const start = () => {
   /** A click on the README's toggle: `en` to `uk` and back. */
   const toggle = () =>
     act(() => void fireEvent.click(view.container.querySelector("button.greeting")!));
-  /** A switch to a locale the toggle does not reach, as a caller that handles the rejection. */
+  /** A switch to a locale the toggle does not reach, as a caller that ignores the result. */
   const pick = (v: string) => act(() => void i18n.setLocale(v));
   return { l, i18n, view, h1, terms, toggle, pick, errors };
 };
@@ -112,7 +112,7 @@ describe("README React app (lot 4b)", () => {
     expect([s.h1(), s.i18n.locale]).toEqual(["Привіт, Alice!", "uk"]);
   });
 
-  it("error: a failed switch keeps the locale, reports load_failed, rejects nothing unhandled", async () => {
+  it("error: a failed switch keeps the locale, reports load_failed, leaves nothing unhandled", async () => {
     const s = start();
     await s.l.answer("en:default");
     await s.pick("de");
@@ -230,19 +230,19 @@ describe("README React app (lot 4b)", () => {
  * switch that reports its failure; a retry through `i18n.load()`.
  */
 function Account() {
-  const { t, locale, setLocale, isReady, isFetching, i18n } = useI18n("account");
+  const { t, locale, setLocale, isReady, isLoading, i18n } = useI18n("account");
   const [failed, setFailed] = useState(false);
   const toggle = async () => {
+    setFailed(false);
     const failure = await setLocale(locale === "en" ? "uk" : "en");
-    setFailed(failure !== undefined);
+    if (failure !== undefined) setFailed(true);
   };
-  // load() resolves with an Error when the catalog fails again: `isReady` stays false, `onError`
-  // has the report.
-  const retry = () => void i18n.load("account");
-  if (!isReady && !isFetching) return <button onClick={retry}>Not available. Retry</button>;
+  const retry = () => void i18n.load("account"); // isReady and isLoading follow the retry
+  if (isLoading) return <p className="spinner" />;
+  if (!isReady) return <button onClick={retry}>Not available. Retry</button>;
   return (
     <>
-      {isReady ? <h2>{t("title")}</h2> : <p className="spinner" />}
+      <h2>{t("title")}</h2>
       <button onClick={toggle}>{failed ? "Could not switch. Try again" : locale}</button>
     </>
   );
@@ -313,7 +313,7 @@ describe("README Account (lot 4c)", () => {
     await s.l.fail("en:account");
     expect(s.account()).toBe("<button>Not available. Retry</button>");
     expect(s.errors).toEqual(["load_failed en"]);
-    await s.click(); // Retry, still failing: the rejection is handled, the branch stays
+    await s.click(); // Retry, still failing: load() resolves with the Error, the branch stays
     expect(s.account()).toBe('<p class="spinner"></p>');
     await s.l.fail("en:account");
     expect(s.account()).toBe("<button>Not available. Retry</button>");

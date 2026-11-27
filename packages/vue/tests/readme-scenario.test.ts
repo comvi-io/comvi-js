@@ -87,7 +87,7 @@ const start = async (first: "answer" | "fail" = "answer") => {
     el.querySelector<HTMLButtonElement>("button.greeting")!.click();
     await settle();
   };
-  /** A switch to a locale the toggle does not reach, as a caller that handles the rejection. */
+  /** A switch to a locale the toggle does not reach, as a caller that ignores the result. */
   const pick = async (v: string) => {
     void i18n.setLocale(v);
     await settle();
@@ -178,21 +178,20 @@ describe("README Vue app (lot 4b)", () => {
  */
 const Account = defineComponent({
   setup() {
-    const { t, locale, setLocale, isReady, isFetching, i18n } = useI18n("account");
+    const { t, locale, setLocale, isReady, isLoading, i18n } = useI18n("account");
     const failed = ref(false);
-    const toggle = async () => {
+    async function toggle() {
+      failed.value = false;
       const failure = await setLocale(locale.value === "en" ? "uk" : "en");
-      failed.value = failure !== undefined;
-    };
-    // load() resolves with an Error when the catalog fails again: `isReady` stays false, `onError`
-    // has the report.
-    const retry = () => void i18n.load("account");
+      if (failure !== undefined) failed.value = true;
+    }
+    const retry = () => void i18n.load("account"); // isReady and isLoading follow the retry
     return () => [
-      isReady.value
-        ? h("h2", t("title"))
-        : isFetching.value
-          ? h("p", { class: "spinner" })
-          : h("button", { class: "retry", onClick: retry }, "Not available. Retry"),
+      isLoading.value
+        ? h("p", { class: "spinner" })
+        : !isReady.value
+          ? h("button", { class: "retry", onClick: retry }, "Not available. Retry")
+          : h("h2", t("title")),
       h(
         "button",
         { class: "switch", onClick: toggle },
@@ -264,7 +263,7 @@ describe("README Account (lot 4c)", () => {
     await s.l.fail("en:account");
     expect(s.account()).toBe('<button class="retry">Not available. Retry</button>');
     expect(s.errors).toEqual(["load_failed en"]);
-    await s.click("retry"); // still failing: the rejection is handled, the branch stays
+    await s.click("retry"); // still failing: load() resolves with the Error, the branch stays
     expect(s.account()).toBe('<p class="spinner"></p>');
     await s.l.fail("en:account");
     expect(s.account()).toBe('<button class="retry">Not available. Retry</button>');
