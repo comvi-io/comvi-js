@@ -434,7 +434,7 @@ test("h2: back to / before a pending switch to uk lands, the page stays English"
   await page.waitForFunction(() =>
     (window as { __loaded?: string[] }).__loaded?.includes("uk:default"),
   );
-  await settled(page, "uk:resolved", "uk:rejected");
+  await settled(page, "uk:resolved", "uk:failed");
   await expect(page).toHaveURL((url) => url.pathname === "/");
   expect(await page.locator("html").getAttribute("lang"), "<html lang> once uk settled").toBe("en");
   expect(await page.getByTestId("greeting").textContent(), "the greeting once uk settled").toBe(
@@ -451,7 +451,7 @@ test("h3: a switch that failed in the browser is retried by a switch away and ba
   await page.evaluate(() => ((window as { __fail?: boolean }).__fail = true));
   await follow(page, "locale-uk", "/uk");
   expect(await requested(page), "the switch to uk asked once").toEqual(["uk:default"]);
-  await settled(page, "uk:rejected");
+  await settled(page, "uk:failed");
   expect(await page.getByTestId("greeting").textContent(), "the greeting once uk failed").toBe(
     GREETING.en,
   );
@@ -490,7 +490,7 @@ test("h4: a switch that failed in the browser is retried by its switcher link ag
   await expectPage(page, "en");
   await page.evaluate(() => ((window as { __fail?: boolean }).__fail = true));
   await follow(page, "locale-uk", "/uk");
-  await settled(page, "uk:rejected");
+  await settled(page, "uk:failed");
   expect(await page.getByTestId("greeting").textContent(), "the greeting once uk failed").toBe(
     GREETING.en,
   );
@@ -511,7 +511,7 @@ test("h5: a switch that failed in the browser shows the error, and its retry but
   await expect(page.getByTestId("load-error")).toHaveCount(0);
   await page.evaluate(() => ((window as { __fail?: boolean }).__fail = true));
   await follow(page, "locale-uk", "/uk");
-  await settled(page, "uk:rejected");
+  await settled(page, "uk:failed");
   // The page stays in the language on screen, and says so in it.
   await expect(page.getByTestId("load-error")).toContainText(flat.en["app.load_failed"]);
   await expect(page.getByTestId("load-retry")).toHaveText(flat.en["app.retry"]);
