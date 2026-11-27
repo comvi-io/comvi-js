@@ -141,6 +141,22 @@ describe("detect() acts on the switch's outcome", () => {
     expect(l.requested).toEqual(["de:default", "fr:default"]);
   });
 
+  it("the recovery is a switch to the `locale` option: it asks again for a pair handed over as null", async () => {
+    navigatorLanguages(["de"]);
+    const l = manualLoader();
+    createI18n({
+      locale: "en",
+      catalogs: { default: { en: null } },
+      plugins: [detect({ supported })],
+      loader: l.load,
+      onError: () => {},
+    });
+    await l.fail("de:default");
+    // The core keeps `en` on screen and leaves its handed-over failure alone; the recovery's
+    // setLocale("en") asks for it again, as any switch to a locale does.
+    expect(l.requested).toEqual(["de:default", "en:default"]);
+  });
+
   it("a recovery that fails too keeps the `locale` option and rejects nothing", async () => {
     navigatorLanguages(["de"]);
     const l = manualLoader();
