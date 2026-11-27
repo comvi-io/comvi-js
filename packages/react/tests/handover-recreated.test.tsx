@@ -46,10 +46,9 @@ const retryApp = (i18n: I18n, catalogs: () => { admin: { en: null } }, outcome: 
           <button
             data-testid="s"
             onClick={() =>
-              void i18n.load("admin").then(
-                () => outcome.push("resolved"),
-                () => outcome.push("rejected"),
-              )
+              void i18n
+                .load("admin")
+                .then((failure) => outcome.push(failure === undefined ? "resolved" : "failed"))
             }
           >
             retry
@@ -108,7 +107,7 @@ describe("the documented recipe: the server snapshot held once", () => {
 });
 
 describe("the stated consequence of an inline literal (re-created on every render)", () => {
-  it("a `null` slot: the retry's own publication re-applies it, the retry rejects, the button returns (bounded)", async () => {
+  it("a `null` slot: the retry's own publication re-applies it, the retry resolves with a failure, the button returns (bounded)", async () => {
     const { i18n, loader, release } = setup();
     const outcome: string[] = [];
     const app = retryApp(i18n, () => ({ admin: { en: null } }), outcome);
@@ -116,7 +115,7 @@ describe("the stated consequence of an inline literal (re-created on every rende
     await act(async () => fireEvent.click(screen.getByTestId("s")));
     await act(async () => release());
     await act(async () => {});
-    expect(outcome).toEqual(["rejected"]);
+    expect(outcome).toEqual(["failed"]);
     expect(screen.getByTestId("s").textContent).toBe("retry");
     expect(loader).toHaveBeenCalledTimes(1);
     // Measured value of the pinned fact; the bound is the `> 50` guard in `Page`.

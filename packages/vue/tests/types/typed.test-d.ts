@@ -67,7 +67,11 @@ export function setup() {
   const b: boolean = isFetching.value;
   // @ts-expect-error isFetching is read-only
   isFetching.value = true;
-  const p: Promise<void> = setLocale("de");
+  // setLocale resolves with the failure or nothing: exactly Promise<Error | undefined>.
+  const p: [Same<ReturnType<typeof setLocale>, Promise<Error | undefined>>, unknown] = [
+    true,
+    setLocale("de"),
+  ];
   const u: UseI18n["t"] = t;
   return [s, r, n, m, c, e1, bt, l, d, b, p, u];
 }
@@ -96,3 +100,7 @@ export const same$t: Equal<
 export const slotText = (slot: TagSlotProps): string => slot.children;
 // @ts-expect-error a slot's children are text, not a list of parts
 export const slotParts = (slot: TagSlotProps): VNodeArrayChildren => slot.children;
+
+/** `true` only when A and B are the same type (not merely assignable either way). */
+type Same<A, B> =
+  (<X>() => X extends A ? 1 : 2) extends <X>() => X extends B ? 1 : 2 ? true : false;

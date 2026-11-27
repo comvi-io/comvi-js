@@ -89,7 +89,7 @@ const start = async (first: "answer" | "fail" = "answer") => {
   };
   /** A switch to a locale the toggle does not reach, as a caller that handles the rejection. */
   const pick = async (v: string) => {
-    void i18n.setLocale(v).catch(() => {});
+    void i18n.setLocale(v);
     await settle();
   };
   return { l, i18n, el, h1, toggle, pick, errors, app };
@@ -180,13 +180,13 @@ const Account = defineComponent({
   setup() {
     const { t, locale, setLocale, isReady, isFetching, i18n } = useI18n("account");
     const failed = ref(false);
-    const toggle = () =>
-      setLocale(locale.value === "en" ? "uk" : "en").then(
-        () => (failed.value = false),
-        () => (failed.value = true),
-      );
-    // load() rejects when the catalog fails again: `isReady` stays false, `onError` has the report.
-    const retry = () => i18n.load("account").catch(() => {});
+    const toggle = async () => {
+      const failure = await setLocale(locale.value === "en" ? "uk" : "en");
+      failed.value = failure !== undefined;
+    };
+    // load() resolves with an Error when the catalog fails again: `isReady` stays false, `onError`
+    // has the report.
+    const retry = () => void i18n.load("account");
     return () => [
       isReady.value
         ? h("h2", t("title"))
@@ -234,7 +234,7 @@ describe("README Account (lot 4c)", () => {
     };
     const switcher = () => el.querySelector("button.switch")!.textContent;
     const pick = async (v: string) => {
-      void i18n.setLocale(v).catch(() => {});
+      void i18n.setLocale(v);
       await settle();
     };
     const show = async (b: boolean) => {
@@ -275,7 +275,7 @@ describe("README Account (lot 4c)", () => {
     s.app.unmount();
   });
 
-  it("a rejected setLocale(): the locale and the text stay, the button says so; a second click asks again", async () => {
+  it("a refused setLocale(): the locale and the text stay, the button says so; a second click asks again", async () => {
     const s = await mount();
     await s.l.answer("en:account");
     await s.click("switch");

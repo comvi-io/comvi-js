@@ -185,7 +185,7 @@ describe("the plugin in the browser", () => {
     expect(i18n.ns("admin")("title")).toBe("Admin");
     expect(calls).toEqual([]);
     // The server's null is a failed pair: an explicit retry asks again.
-    await i18n.load("admin").catch(() => {});
+    await i18n.load("admin");
     expect(calls).toEqual(["uk:admin"]);
   });
 

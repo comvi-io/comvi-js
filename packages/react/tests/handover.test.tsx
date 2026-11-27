@@ -539,6 +539,37 @@ describe("the target locale across renders and instances (0.7 target-locale)", (
     expect(locales.at(-1)).toBe("en");
   });
 
+  it("a target switch overtaken by a setLocale() to the locale on screen is not given up", async () => {
+    const l = manualLoader();
+    const errors: string[] = [];
+    const i18n = createI18n({
+      locale: "en",
+      messages: { en: { greeting: "Hello" } },
+      loader: l.load,
+      onError: (e) => errors.push(e.code),
+    });
+    const locales: string[] = [];
+    const Loc = () => {
+      locales.push(useLocale());
+      return null;
+    };
+    render(
+      <I18nProvider i18n={i18n}>
+        <I18nHandover locale="fr">
+          <Loc />
+        </I18nHandover>
+      </I18nProvider>,
+    );
+    await settle();
+    expect(l.requested).toEqual(["fr:default"]);
+    // Overtaken: the handover's switch resolves with nothing, the published locale never moved.
+    await act(async () => void (await i18n.setLocale("en")));
+    await settle();
+    expect(i18n.locale).toBe("en");
+    expect(errors).toEqual([]);
+    expect(locales.at(-1)).toBe("fr");
+  });
+
   it("a refreshed catalogs object with the same target does not undo the user's setLocale()", async () => {
     const i18n = createI18n({
       locale: "en",

@@ -83,7 +83,7 @@ export async function useTranslation<NS extends string = "default">(
     byLocale.set(target, i18n);
   }
   const n = (ns || "default") as NS;
-  // Reported through `onError`; `t()` renders the fallback chain's text or the key.
-  await i18n.load(n).catch(() => {});
+  // A failure is reported through `onError`; `t()` renders the fallback chain's text or the key.
+  await i18n.load(n);
   return { t: i18n.ns(n), locale: i18n.locale, dir: i18n.dir, i18n };
 }

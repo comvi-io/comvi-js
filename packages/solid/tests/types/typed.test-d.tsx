@@ -93,7 +93,11 @@ export function Component() {
   const d: Accessor<"ltr" | "rtl"> = dir;
   const b: Accessor<boolean> = isFetching;
   const y: Accessor<boolean> = isReady;
-  const p: Promise<void> = setLocale("de");
+  // setLocale resolves with the failure or nothing: exactly Promise<Error | undefined>.
+  const p: [Same<ReturnType<typeof setLocale>, Promise<Error | undefined>>, unknown] = [
+    true,
+    setLocale("de"),
+  ];
   return [s, r, n, c, bt, bt2, bt3, bt5, bt6, bt7, l, d, b, y, p];
 }
 
@@ -106,3 +110,7 @@ type Equal<A, B> =
 type C = Readonly<Record<string, TagComponent>>;
 export const sameT: Equal<typeof T, TComponentFor<JSX.Element, 2, C>> = true;
 export const sameBound: Equal<UseI18n<"shop">["T"], BoundTFor<"shop", JSX.Element, 2, C>> = true;
+
+/** `true` only when A and B are the same type (not merely assignable either way). */
+type Same<A, B> =
+  (<X>() => X extends A ? 1 : 2) extends <X>() => X extends B ? 1 : 2 ? true : false;

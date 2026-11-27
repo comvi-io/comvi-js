@@ -190,7 +190,7 @@ describe("useI18n(ns)", () => {
       </I18nProvider>,
     );
     expect(flags.at(-1)).toBe("false/false");
-    let p!: Promise<void>;
+    let p!: Promise<Error | undefined>;
     act(() => void (p = i18n.setLocale("de")));
     expect(flags.at(-1)).toBe("true/true");
     await l.answer("de:default");

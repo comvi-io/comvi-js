@@ -231,7 +231,11 @@ export interface UseI18n<NS extends string = "default"> {
    * `namespaces` option; a namespace outside them changes nothing.
    */
   isFetching: boolean;
-  setLocale: (locale: string) => Promise<void>;
+  /**
+   * The instance's `setLocale()`: resolves with an `Error` when the switch is refused (no
+   * catalog of the locale's own chain, or an invalid tag), else `undefined`.
+   */
+  setLocale: (locale: string) => Promise<Error | undefined>;
   i18n: I18n;
 }
 

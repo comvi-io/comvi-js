@@ -304,7 +304,7 @@ describe("the payload is the server snapshot: an explicit retry after a hydratio
         new Promise<Record<string, string>>((ok) => gates.push(() => ok({ title: "Admin" }))),
     );
     const first = payload("en", { default: { en: {} }, admin: { en: null } });
-    let retry!: () => Promise<void>;
+    let retry!: () => Promise<Error | undefined>;
     function Tpl() {
       const { t, isReady, isFetching, i18n } = useI18n("admin");
       retry = () => i18n.load("admin");

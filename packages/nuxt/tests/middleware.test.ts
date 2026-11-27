@@ -342,9 +342,8 @@ describe("i18n middleware", () => {
 
   it("handles setLocale failure gracefully without breaking navigation", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const setLocale = vi.fn(async () => {
-      throw new Error("Network error");
-    });
+    // The core's contract: a refused switch resolves with the Error, the locale stays.
+    const setLocale = vi.fn(async () => new Error("Network error"));
     setMockI18n({
       locale: "en",
       setLocale,
@@ -368,9 +367,8 @@ describe("i18n middleware", () => {
 
   it("redirects away from locale-prefixed URLs when that locale failed to render", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const setLocale = vi.fn(async () => {
-      throw new Error("Network error");
-    });
+    // The core's contract: a refused switch resolves with the Error, the locale stays.
+    const setLocale = vi.fn(async () => new Error("Network error"));
     setMockI18n({
       locale: "en",
       setLocale,
@@ -625,9 +623,8 @@ describe("i18n middleware", () => {
 
   it("stores the locale that actually rendered when switching to the path-implied default fails", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const setLocale = vi.fn(async () => {
-      throw new Error("Network error");
-    });
+    // The core's contract: a refused switch resolves with the Error, the locale stays.
+    const setLocale = vi.fn(async () => new Error("Network error"));
     setMockI18n({ locale: "de", setLocale });
     setMockCookie("i18n_locale", "en");
 
@@ -965,7 +962,7 @@ describe("i18n middleware: a pending switch and the navigations after it", () =>
     await tick();
     const second = runMiddleware({ path: "/plurals", fullPath: "/plurals" });
     await tick();
-    // uk's switch rejects after the newer navigation: the stale run must not redirect.
+    // uk's switch fails after the newer navigation: the stale run must not redirect.
     i18n.fail(0);
     expect(await first).toBeUndefined();
     i18n.land(1);

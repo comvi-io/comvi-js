@@ -86,7 +86,7 @@ describe("useI18n() reads the configured namespaces; useI18n(ns) only ns", () =>
     const { container } = render(app(i18n, <all.P />));
     await l.fail("en:nav");
     expect([all.frames.at(-1), container.textContent]).toEqual(["false/false", "unavailable"]);
-    let p!: Promise<void>;
+    let p!: Promise<Error | undefined>;
     act(() => void (p = i18n.load("nav")));
     expect(all.frames.at(-1)).toBe("false/true");
     await l.answer("en:nav");
@@ -106,7 +106,7 @@ describe("useI18n() reads the configured namespaces; useI18n(ns) only ns", () =>
     const account = probe("account");
     render(app(i18n, [<all.P key="a" />, <account.P key="c" />]));
     expect([all.frames.at(-1), account.frames.at(-1)]).toEqual(["true/false", "false/true"]);
-    let p!: Promise<void>;
+    let p!: Promise<Error | undefined>;
     act(() => void (p = i18n.load("extra")));
     await l.answer("en:account");
     expect(account.frames.at(-1)).toBe("true/false");
@@ -125,7 +125,7 @@ describe("useI18n() reads the configured namespaces; useI18n(ns) only ns", () =>
     });
     const all = probe();
     const { container } = render(app(i18n, <all.P />));
-    let p!: Promise<void>;
+    let p!: Promise<Error | undefined>;
     act(() => void (p = i18n.setLocale("de")));
     expect([all.frames.at(-1), container.textContent]).toEqual(["true/true", "Hi"]);
     await l.answer("de:default", { hi: "Hallo" });

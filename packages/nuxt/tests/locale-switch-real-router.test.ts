@@ -51,10 +51,11 @@ function slowInstance(locale: string, ms: Record<string, number> = {}) {
   let token = 0;
   const instance = {
     locale,
-    async setLocale(next: string) {
+    async setLocale(next: string): Promise<Error | undefined> {
       const mine = ++token;
       if (next !== instance.locale) await sleep(ms[next] ?? 0);
       if (mine === token) instance.locale = next;
+      return undefined;
     },
   };
   return instance;
@@ -247,8 +248,9 @@ describe("<NuxtLinkLocale locale> under `never`, against a real vue-router", () 
   it("as-needed: a switch whose catalogs fail redirects back, and the redirected run does not take the click again (cookie stays)", async () => {
     mockRuntimeConfig.public.comvi.localePrefix = "as-needed";
     const { router, i18n } = await standOn("/");
+    // The core's contract: a refused switch resolves with the Error, the locale stays.
     i18n.setLocale = async (next: string) => {
-      if (next === "uk") throw new Error("load_failed");
+      if (next === "uk") return new Error("load_failed");
       i18n.locale = next;
     };
     await click(router, "/uk/about", "uk");
@@ -349,8 +351,9 @@ describe("Nuxt's processing-middleware flag around the wait, against a real vue-
 
   it("the middleware's own redirect after a failed load is still a location, not a navigation", async () => {
     const { router, i18n } = await standWithNuxt("/admin");
+    // The core's contract: a refused switch resolves with the Error, the locale stays.
     i18n.setLocale = async (next: string) => {
-      if (next === "uk") throw new Error("load_failed");
+      if (next === "uk") return new Error("load_failed");
       i18n.locale = next;
     };
     await router.push("/uk/admin").catch(() => {});

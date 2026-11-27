@@ -94,7 +94,7 @@ describe("useI18n(ns): a retry and a switch with no usable catalog on screen", (
 
   it("i18n.load(ns) from unavailable whose load fails again → loading, then unavailable", async () => {
     const { i18n, l, read } = await unavailableShop();
-    void i18n.load("shop").catch(() => {});
+    void i18n.load("shop");
     await tick();
     const during = read();
 
@@ -106,7 +106,7 @@ describe("useI18n(ns): a retry and a switch with no usable catalog on screen", (
 
   it("setLocale() while the namespace has no usable catalog → loading, then unavailable when it fails", async () => {
     const { i18n, l, read } = await unavailableShop();
-    void i18n.setLocale("de").catch(() => {});
+    void i18n.setLocale("de");
     await tick();
     const during = read();
 
@@ -172,7 +172,7 @@ describe.each([
   it("a switch whose load fails with the old catalog on screen → stays ready with the old text", async () => {
     const { i18n, l, log } = mountTitle(View);
     let failed: unknown;
-    void i18n.setLocale("de").catch((e) => (failed = e));
+    void i18n.setLocale("de").then((e) => (failed = e));
     await tick();
 
     await l.fail("de:default");

@@ -80,9 +80,9 @@ export default defineNuxtRouteMiddleware(async (to, from?: typeof to) => {
     const processing = state._processingMiddleware;
     if (!import.meta.server) delete state._processingMiddleware;
     try {
+      // A failure is reported through `onError`; the locale on screen stays, and the URL
+      // follows it below.
       await i18n.setLocale(detected.locale);
-    } catch {
-      // Reported through `onError`; the locale on screen stays, and the URL follows it below.
     } finally {
       state._comviNavigating!--;
       if (!import.meta.server && id === state._comviNavigation)

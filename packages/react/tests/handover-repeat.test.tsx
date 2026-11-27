@@ -214,7 +214,7 @@ describe("re-review of lot 6a (2026-11-10)", () => {
     });
     const first = { default: { fr: { title: "Bonjour" }, en: { title: "Hello" } } };
     const { rerender } = render(tree(i18n, first, ["title"], "default", "fr"));
-    const sw = i18n.setLocale("de").catch(() => {});
+    const sw = i18n.setLocale("de");
     await m.fail("de:default");
     await act(() => sw);
     expect(i18n.locale).toBe("fr");

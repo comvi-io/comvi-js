@@ -137,7 +137,7 @@ describe("consumers (brief §3)", () => {
     expect(l.requested).toEqual(["en:shop"]);
     await l.answer("en:shop", { title: "Shop" });
     act(() => setN(1));
-    let sw!: Promise<void>;
+    let sw!: Promise<Error | undefined>;
     act(() => void (sw = i18n.setLocale("de")));
     expect(l.requested).toEqual(["en:shop", "de:default", "de:shop"]);
     await l.answer("de:default");
@@ -159,7 +159,7 @@ describe("consumers (brief §3)", () => {
     const { container } = render(app(i18n, <Page />));
     await l.answer("en:shop", { title: "Shop" });
     act(() => show(false));
-    let sw!: Promise<void>;
+    let sw!: Promise<Error | undefined>;
     act(() => void (sw = i18n.setLocale("de")));
     await l.answer("de:default");
     await act(() => sw);
@@ -188,7 +188,7 @@ describe("consumers (brief §3)", () => {
     );
     expect(l.requested).toEqual(["en:shop"]); // one flight for the two setups
     await l.answer("en:shop");
-    let sw!: Promise<void>;
+    let sw!: Promise<Error | undefined>;
     act(() => void (sw = i18n.setLocale("de")));
     expect(l.requested).toEqual(["en:shop", "de:default", "de:shop"]); // still held
     await l.answer("de:default");
@@ -243,7 +243,7 @@ describe("consumers (brief §3)", () => {
     await l.answer("en:a");
     act(() => setNs("b"));
     await l.answer("en:b");
-    let sw!: Promise<void>;
+    let sw!: Promise<Error | undefined>;
     act(() => void (sw = i18n.setLocale("de")));
     expect(l.requested).toEqual(["en:a", "en:b", "de:default", "de:b"]);
     await l.answer("de:default");
@@ -563,7 +563,7 @@ describe("setLocale() and the active need (brief §4, §7)", () => {
     await l.answer("en:account", { title: "Account" });
     expect(container.textContent).toBe("Account");
     act(() => go("home"));
-    let sw!: Promise<void>;
+    let sw!: Promise<Error | undefined>;
     act(() => void (sw = i18n.setLocale("de")));
     await l.answer("de:default", { home: "Start" });
     await act(() => sw);
@@ -590,7 +590,7 @@ describe("setLocale() and the active need (brief §4, §7)", () => {
       return on ? <P /> : null;
     };
     const { container } = render(app(i18n, <Page />));
-    let sw!: Promise<void>;
+    let sw!: Promise<Error | undefined>;
     act(() => void (sw = i18n.setLocale("de")));
     act(() => show());
     expect(l.requested).toEqual(["de:default", "en:shop"]);
@@ -672,7 +672,7 @@ describe("SSR hydration with a branch on isReady (brief §5)", () => {
         throw new Error("404");
       },
     });
-    await server.load("account").catch(() => {});
+    await server.load("account");
     const h = await hydrate(server);
     expect(h.html).toContain("unavailable");
     expect([h.hydrated, h.errors, h.l.requested]).toEqual(["unavailable", [], []]);
@@ -691,7 +691,7 @@ describe("SSR hydration with a branch on isReady (brief §5)", () => {
         return { title: "Account" };
       },
     });
-    await server.load("account").catch(() => {});
+    await server.load("account");
     const h = await hydrate(server, { fallbackLocale: "en" });
     expect([h.hydrated, h.errors, h.l.requested]).toEqual(["Account", [], []]);
     act(() => h.root.unmount());

@@ -162,7 +162,7 @@ describe("<I18nProvider loading>", () => {
     const l = manualLoader({ "de:default": { hi: "Hallo" } });
     const { i18n } = make({ locale: "en", messages: { en: { hi: "Hello" } }, loader: l.load });
     const { container } = render(app(i18n, <Show />, { loading: "wait" }));
-    let switched!: Promise<void>;
+    let switched!: Promise<Error | undefined>;
     act(() => void (switched = i18n.setLocale("de")));
     expect(container.textContent).toBe("en:Hello");
     await l.answer("de:default");
